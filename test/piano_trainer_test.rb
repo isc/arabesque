@@ -266,6 +266,44 @@ class PianoTrainerTest < CapybaraTestBase
     assert_text 'Partition terminée'
   end
 
+  def test_repeat_endings_playback_sequence
+    # Score has:
+    # - Measure 1: C4 (repeat start)
+    # - Measure 2: E4 (first ending / volta 1, with backward repeat)
+    # - Measure 3: F4 (second ending / volta 2)
+    #
+    # Expected playback sequence: C4 -> E4 -> C4 -> F4
+    # (measure 1 is played twice, ending 1 first time, ending 2 second time)
+    #
+    # Note: Visual note count may differ from playback count because
+    # repeated measures show the same SVG notes being highlighted again.
+    load_score('repeat-endings.xml', 3)
+
+    # First pass: C4 (measure 1)
+    simulate_midi_input("ON C4")
+    assert_selector 'svg g.vf-notehead.played-note', count: 1
+    simulate_midi_input("OFF C4")
+
+    # First pass: E4 (measure 2, ending 1) - triggers repeat
+    simulate_midi_input("ON E4")
+    assert_selector 'svg g.vf-notehead.played-note', count: 2
+    simulate_midi_input("OFF E4")
+
+    # Second pass: C4 again (measure 1, repeated)
+    # Visual count stays at 2 because C4 is the same SVG note
+    simulate_midi_input("ON C4")
+    assert_selector 'svg g.vf-notehead.played-note', count: 2
+    simulate_midi_input("OFF C4")
+
+    # Second pass: F4 (measure 3, ending 2) - skips ending 1
+    simulate_midi_input("ON F4")
+    assert_selector 'svg g.vf-notehead.played-note', count: 3
+    simulate_midi_input("OFF F4")
+
+    # Score should be completed after playing the correct sequence
+    assert_text 'Partition terminée'
+  end
+
   def test_autoscroll_when_moving_between_visual_systems
     # Save original window size
     original_size = page.current_window.size

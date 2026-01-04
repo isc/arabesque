@@ -2,6 +2,7 @@ import { NOTE_NAMES, noteName } from './midi.js'
 
 let osmdInstance = null
 let allNotes = []
+let playbackSequence = [] // Ordered list of source measure indices for playback (handles repeats)
 let currentMeasureIndex = 0
 let trainingMode = false
 let targetRepeatCount = 3
@@ -11,8 +12,88 @@ let lastStaffY = null
 let currentSystemIndex = null
 let measureClickRectangles = []
 
+// Repetition instruction types from OSMD
+const RepetitionType = {
+  StartLine: 0,
+  ForwardJump: 1,
+  BackJumpLine: 2,
+  Ending: 3,
+  DaCapo: 4,
+  DalSegno: 5,
+  Fine: 6,
+  ToCoda: 7,
+  DalSegnoAlFine: 8,
+  DaCapoAlFine: 9,
+  DalSegnoAlCoda: 10,
+  DaCapoAlCoda: 11,
+  Coda: 12,
+  Segno: 13,
+  None: 14,
+}
+
 // Set of MIDI note numbers currently held down by the player
 let heldMidiNotes = new Set()
+
+// Build the playback sequence considering repeats and endings (voltas)
+// Returns an array of { sourceMeasureIndex, playbackIndex } objects
+function buildPlaybackSequence(sourceMeasures) {
+  const sequence = []
+  let currentPass = 1 // Track which repetition pass we're on (1 = first, 2 = second, etc.)
+  let repeatStartIndex = 0 // Where to jump back to on BackJumpLine
+  let i = 0
+
+  while (i < sourceMeasures.length) {
+    const measure = sourceMeasures[i]
+    const firstInstructions = measure.FirstRepetitionInstructions || []
+    const lastInstructions = measure.LastRepetitionInstructions || []
+
+    // Check for StartLine at the beginning of this measure
+    const hasStartLine = firstInstructions.some((ri) => ri.type === RepetitionType.StartLine)
+    if (hasStartLine) {
+      repeatStartIndex = i
+      // Only reset pass if we're starting a new repeat section (not coming back from a jump)
+      if (currentPass !== 2 || i !== repeatStartIndex) {
+        currentPass = 1
+      }
+    }
+
+    // Check if this measure is an ending (volta)
+    const endingInstruction = firstInstructions.find((ri) => ri.type === RepetitionType.Ending)
+    const endingIndices = endingInstruction?.endingIndices || []
+
+    // Only include this measure if:
+    // 1. It's not an ending (no volta bracket), OR
+    // 2. It's an ending that matches the current pass
+    const shouldIncludeMeasure = endingIndices.length === 0 || endingIndices.includes(currentPass)
+
+    if (shouldIncludeMeasure) {
+      sequence.push({
+        sourceMeasureIndex: i,
+        playbackIndex: sequence.length,
+      })
+    }
+
+    // Check for BackJumpLine at the end of this measure
+    const hasBackJump = lastInstructions.some((ri) => ri.type === RepetitionType.BackJumpLine)
+
+    if (hasBackJump && currentPass === 1) {
+      // Jump back to repeat start for second pass
+      currentPass = 2
+      i = repeatStartIndex
+      continue
+    }
+
+    // After completing pass 2 of a section, reset for next potential repeat section
+    if (currentPass === 2 && endingIndices.includes(2)) {
+      currentPass = 1
+      repeatStartIndex = i + 1
+    }
+
+    i++
+  }
+
+  return sequence
+}
 
 // Padding around measure notes for clickable area
 const MEASURE_CLICK_PADDING = 15
@@ -169,16 +250,53 @@ async function renderMusicXML(xmlContent) {
 
 function extractNotesFromScore() {
   allNotes = []
+  playbackSequence = []
   trainingMode = false
   resetPlaybackState()
 
   if (!osmdInstance) return
 
   const sheet = osmdInstance.Sheet
-  extractFromSourceMeasures(sheet.SourceMeasures)
+  const sourceMeasures = sheet.SourceMeasures
+
+  // Build the playback sequence (handles repeats and endings)
+  playbackSequence = buildPlaybackSequence(sourceMeasures)
+
+  // Extract notes from each source measure into a map
+  const notesBySourceMeasure = extractNotesFromSourceMeasures(sourceMeasures)
+
+  // Build allNotes array following the playback sequence
+  playbackSequence.forEach((seqItem, playbackIndex) => {
+    const sourceNotes = notesBySourceMeasure.get(seqItem.sourceMeasureIndex)
+    if (!sourceNotes || sourceNotes.length === 0) return
+
+    // Create a copy of the notes for this playback position
+    // Each occurrence in the sequence needs independent played/active state
+    const measureNotes = sourceNotes.map((noteData) => ({
+      ...noteData,
+      // Update timestamp to use playback index, preserving grace note adjustments
+      // The offset within measure includes grace note timing adjustments
+      timestamp: playbackIndex + (noteData.timestamp - noteData.measureIndex),
+      // Keep reference to source measure for SVG highlighting
+      sourceMeasureIndex: seqItem.sourceMeasureIndex,
+      // Reset state for this occurrence
+      active: false,
+      played: false,
+    }))
+
+    allNotes.push({
+      measureIndex: playbackIndex,
+      sourceMeasureIndex: seqItem.sourceMeasureIndex,
+      notes: measureNotes,
+    })
+  })
 }
 
-function extractFromSourceMeasures(sourceMeasures) {
+// Extract notes from source measures into a Map (sourceMeasureIndex -> notes array)
+// This is the raw extraction without considering playback order
+function extractNotesFromSourceMeasures(sourceMeasures) {
+  const notesByMeasure = new Map()
+
   sourceMeasures.forEach((measure, measureIndex) => {
     const measureNotes = []
 
@@ -221,12 +339,11 @@ function extractFromSourceMeasures(sourceMeasures) {
     adjustGraceNoteTimestamps(measureNotes)
 
     if (measureNotes.length > 0) {
-      allNotes.push({
-        measureIndex,
-        notes: measureNotes,
-      })
+      notesByMeasure.set(measureIndex, measureNotes)
     }
   })
+
+  return notesByMeasure
 }
 
 // Grace notes should be played before the main note, not held together with it.
@@ -392,8 +509,17 @@ function setupMeasureClickHandlers() {
 
   removeMeasureClickHandlers()
 
+  // Track which source measures we've already created rectangles for
+  // This avoids creating duplicate rectangles for repeated measures
+  const processedSourceMeasures = new Set()
+
   allNotes.forEach((measureData, measureIndex) => {
     if (!measureData || !measureData.notes || measureData.notes.length === 0) return
+
+    // Skip if we've already created a rectangle for this source measure
+    const sourceMeasureIndex = measureData.sourceMeasureIndex
+    if (processedSourceMeasures.has(sourceMeasureIndex)) return
+    processedSourceMeasures.add(sourceMeasureIndex)
 
     const noteElements = measureData.notes.map((n) => svgNote(n.note))
     if (noteElements.length === 0) return
@@ -406,6 +532,7 @@ function setupMeasureClickHandlers() {
     const svg = noteElements[0].ownerSVGElement
     if (!svg) return
 
+    // Store the playback index (measureIndex) for click handling
     const rect = createMeasureRectangle(svg, bounds, measureIndex)
     rect.addEventListener('click', () => jumpToMeasure(measureIndex))
 
