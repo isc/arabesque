@@ -3,6 +3,7 @@ import 'fake-indexeddb/auto'
 import {
   initPracticeTracker,
   computePlaythroughDuration,
+  computeSessionDuration,
 } from '../../public/js/practiceTracker.js'
 import { initStorage } from '../../public/js/storage.js'
 
@@ -535,23 +536,29 @@ describe('practiceTracker', () => {
     })
   })
 
-  describe('computePlaythroughDuration (interruption normalization)', () => {
-    const BASE = new Date('2026-06-10T10:00:00.000Z').getTime()
+  const BASE = new Date('2026-06-10T10:00:00.000Z').getTime()
 
-    // Build a completed playthrough from a list of {dur, gapBefore} segments.
-    // The cursor advances by each gap then each measure duration; completedAt
-    // is set right after the last measure.
+  // Lay out {dur, gapBefore} segments on a timeline starting at BASE: the cursor
+  // advances by each gap, then by each measure duration. Both duration functions
+  // now share one normalization, so their fixtures share one builder.
+  function buildMeasures(segments) {
+    let cursor = BASE
+    const measures = segments.map(({ dur, gapBefore = 0 }, i) => {
+      cursor += gapBefore
+      const startedAt = new Date(cursor).toISOString()
+      cursor += dur
+      return { sourceMeasureIndex: i, attempts: [{ startedAt, durationMs: dur, clean: true }] }
+    })
+    return { measures, endedAt: cursor }
+  }
+
+  describe('computePlaythroughDuration (interruption normalization)', () => {
+    // completedAt sits right after the last measure.
     function buildPlaythrough(segments) {
-      let cursor = BASE
-      const measures = segments.map(({ dur, gapBefore = 0 }, i) => {
-        cursor += gapBefore
-        const startedAt = new Date(cursor).toISOString()
-        cursor += dur
-        return { sourceMeasureIndex: i, attempts: [{ startedAt, durationMs: dur, clean: true }] }
-      })
+      const { measures, endedAt } = buildMeasures(segments)
       return {
         playthroughStartedAt: new Date(BASE).toISOString(),
-        completedAt: new Date(cursor).toISOString(),
+        completedAt: new Date(endedAt).toISOString(),
         measures,
       }
     }
@@ -615,6 +622,63 @@ describe('practiceTracker', () => {
         measures: [{ sourceMeasureIndex: 0, attempts: [{ clean: true }] }],
       }
       expect(computePlaythroughDuration(session)).toBe(42000)
+    })
+  })
+
+  describe('computeSessionDuration (practice time credited to a session)', () => {
+    // A session has no playthrough window: the duration comes from the attempts.
+    function buildSession(segments) {
+      return { startedAt: new Date(BASE).toISOString(), measures: buildMeasures(segments).measures }
+    }
+
+    it('spans first attempt to last when nothing is aberrant', () => {
+      const session = buildSession([
+        { dur: 5000 },
+        { dur: 5000, gapBefore: 1000 },
+        { dur: 5000, gapBefore: 1000 },
+        { dur: 5000, gapBefore: 1000 },
+      ])
+      // 4×5000 + 3×1000 = 23000, i.e. the raw span.
+      expect(computeSessionDuration(session)).toBe(23000)
+    })
+
+    it('is zero without any attempt', () => {
+      expect(computeSessionDuration({ measures: [] })).toBe(0)
+      expect(computeSessionDuration({})).toBe(0)
+    })
+
+    it('discounts a score left open mid-measure', () => {
+      // The real case behind this: one attempt ran 79 minutes on measure 0
+      // while the score sat open, and the journal credited the whole of it —
+      // ten minutes of practice reported as 1h33.
+      const session = buildSession([
+        { dur: 5000 },
+        { dur: 4736000, gapBefore: 1000 }, // walked away
+        { dur: 5000, gapBefore: 1000 },
+        { dur: 5000, gapBefore: 1000 },
+      ])
+      // The marathon attempt is replaced by the longest normal measure (5000),
+      // leaving the same 23000 as an uninterrupted session.
+      expect(computeSessionDuration(session)).toBe(23000)
+    })
+
+    it('discounts a pause taken between two measures', () => {
+      const session = buildSession([
+        { dur: 5000 },
+        { dur: 5000, gapBefore: 1000 },
+        { dur: 5000, gapBefore: 3_600_000 }, // walked away
+        { dur: 5000, gapBefore: 1000 },
+      ])
+      expect(computeSessionDuration(session)).toBe(23000)
+    })
+
+    it('does not penalize slow-but-continuous practice', () => {
+      const session = buildSession([
+        { dur: 12000 },
+        { dur: 12000, gapBefore: 3000 },
+        { dur: 12000, gapBefore: 3000 },
+      ])
+      expect(computeSessionDuration(session)).toBe(42000)
     })
   })
 
