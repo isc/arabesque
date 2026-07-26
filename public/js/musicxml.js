@@ -62,6 +62,7 @@ export function initMusicXML() {
   return {
     loadMusicXML,
     renderScore,
+    relayoutScore: () => renderScore({ reextract: false }),
     renderMusicXML,
     extractNotesFromScore,
     // TEMP: the wrapper is chosen once, so with the probe off this hottest path
@@ -91,6 +92,9 @@ export function initMusicXML() {
       targetRepeatCount,
     }),
     updateRepeatIndicators: () => updateRepeatIndicators(),
+    // The training cursor and repeat dots live in the SVG, so a redraw takes
+    // them with it. No-op outside training mode.
+    updateMeasureCursor: () => updateMeasureCursor(),
     setTrainingMode: (enabled) => {
       trainingMode = enabled
       repeatCount = 0
@@ -197,11 +201,18 @@ async function loadMusicXML(file) {
   }
 }
 
-function renderScore() {
+// `reextract: false` re-draws at the container's current width without rebuilding
+// the note model. osmd.render() replaces every graphical object, but allNotes
+// holds *source* notes, which survive it — so played/active flags plus the
+// training and reinforcement state stay put, where extractNotesFromScore() would
+// reset them all. Either way the SVG elements are new, so the caller repaints the
+// marks (app.js does it in repaintScore).
+function renderScore({ reextract = true } = {}) {
   if (!osmdInstance) return
   osmdInstance.render()
   disableInvisibleNoteClicks()
-  extractNotesFromScore()
+  // Must precede setupMeasureClickHandlers, which reads allNotes.
+  if (reextract) extractNotesFromScore()
   setupMeasureClickHandlers()
 }
 
@@ -236,6 +247,12 @@ async function renderMusicXML(xmlContent) {
     const scoreContainer = document.getElementById('score')
     const osmd = new opensheetmusicdisplay.OpenSheetMusicDisplay(scoreContainer, {
       drawPartNames: false,
+      // OSMD's autoResize re-renders behind our back, and the fresh SVG carries
+      // none of the played/active notehead classes — so any window resize
+      // silently wiped the player's progress (and left measureClickRectangles
+      // pointing at detached nodes). We drive the re-layout ourselves instead,
+      // see handleViewportResize() in app.js.
+      autoResize: false,
     })
     osmd.rules.MetronomeMarkYShift = -2.8;
     await osmd.load(xmlContent)
