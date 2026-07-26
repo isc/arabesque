@@ -70,6 +70,14 @@ function record(msg) {
   console.warn(line)
 }
 
+// Drops a timestamped marker in the log so an app event can be lined up against
+// the probes. Needed because a 🔁 resize at the end of a score has two possible
+// causes — the result modal opening, or DevTools being opened a moment later to
+// read the console — and their timestamps are what tells them apart.
+export function mark(label) {
+  if (ENABLED) record(`🎬 ${label}`)
+}
+
 function report(label, start) {
   const dt = performance.now() - start
   if (dt > SLOW_MS) record(`🐌 ${label}: ${Math.round(dt)}ms (heap ${heapMb() ?? '?'}MB)`)
