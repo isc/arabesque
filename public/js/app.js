@@ -10,6 +10,7 @@ import { injectFingerings } from './fingeringInjector.js'
 import { initPlayback, getBPM } from './playback.js'
 import { initStrictPlaythrough } from './strictPlaythrough.js'
 import { headerMenu } from './headerMenu.js'
+import { traced, mark } from './perfTrace.js' // TEMP diagnostic
 import { t, locale } from './i18n.js'
 
 // Built once: the active locale is fixed for the page lifetime (switching
@@ -175,7 +176,9 @@ export function midiApp() {
           practiceTracker.startMeasureAttempt(sourceMeasureIndex)
         },
         onMeasureCompleted: (data) => {
-          practiceTracker.endMeasureAttempt(data.clean)
+          // TEMP: fire-and-forget, so its IndexedDB work never showed up in the
+          // traced() around activateNote.
+          traced('endMeasureAttempt', () => practiceTracker.endMeasureAttempt(data.clean))
         },
         onWrongNote: () => {
           practiceTracker.recordWrongNote()
@@ -474,6 +477,7 @@ export function midiApp() {
     },
 
     openResultModal(mode) {
+      mark(`modale résultat (${mode})`) // TEMP: to date the 🔁 resize against
       this.resultMode = mode
       this.showResultModal = true
     },
