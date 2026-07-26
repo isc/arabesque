@@ -134,10 +134,17 @@ export function initFingeringEditor({ getOsmdInstance, getAllNotes, getNoteDataB
 
   // Restore played/active state captured positionally as savedStates[measureIndex][noteIndex],
   // then update each rendered notehead to reflect the current pass's occurrence.
+  // Repaints played/active marks onto a freshly rendered SVG. `savedStates` is the
+  // positional snapshot taken around a redraw that rebuilt the note model; pass null
+  // when the model survived it and the live flags are already correct.
   function restoreNoteStates(savedStates, currentMeasureIndex) {
     const allNotes = getAllNotes()
-    applyPositionalNoteStates(allNotes, savedStates)
+    if (savedStates) applyPositionalNoteStates(allNotes, savedStates)
     for (const noteData of chooseCurrentPassOccurrences(allNotes, currentMeasureIndex).values()) {
+      // Callers always run this against a just-rendered SVG, so an unmarked note has
+      // nothing to clear — skipping it avoids a GNote + querySelectorAll lookup for
+      // the vast majority of noteheads.
+      if (!noteData.played && !noteData.active) continue
       const notehead = svgNotehead(noteData)
       notehead?.classList.toggle('played-note', noteData.played)
       notehead?.classList.toggle('active-note', noteData.active)

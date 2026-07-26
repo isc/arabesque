@@ -19,6 +19,10 @@ const PLAYTHROUGH_LIST_FORMATTER = new Intl.ListFormat(locale(), { style: 'long'
 const CHART_DATE_FULL = new Intl.DateTimeFormat(locale())
 const CHART_DATE_AXIS = new Intl.DateTimeFormat(locale(), { day: 'numeric', month: 'short' })
 
+// Redrawing a full score costs ~200ms, and dragging a window edge fires resize
+// continuously — wait for the drag to settle before paying for it once.
+const RESIZE_RELAYOUT_DEBOUNCE_MS = 250
+
 export function midiApp() {
   const midi = initMidi()
   const musicxml = initMusicXML()
@@ -84,6 +88,10 @@ export function midiApp() {
     resultMode: null,
     previousPlaythroughs: [],
 
+    // Container width the score is currently laid out for, so a height-only
+    // resize doesn't pay for a redraw (see handleViewportResize).
+    lastRelayoutWidth: null,
+
     fingeringEnabled: false,
     showFingeringModal: false,
     selectedNoteKey: null,
@@ -97,7 +105,12 @@ export function midiApp() {
       // scroll-margin-top (CSS, via --pt-sticky-offset). Recompute on
       // resize and when the mode-context band toggles visibility.
       applyStickyOffset()
-      window.addEventListener('resize', applyStickyOffset)
+      let relayoutTimer = null
+      window.addEventListener('resize', () => {
+        applyStickyOffset()
+        clearTimeout(relayoutTimer)
+        relayoutTimer = setTimeout(() => this.handleViewportResize(), RESIZE_RELAYOUT_DEBOUNCE_MS)
+      })
       // $nextTick (not queueMicrotask) — Alpine flips x-show display on
       // the next tick, so we'd otherwise measure 0 for the band that's
       // about to appear. osmdInstance is updated via afterScoreLoad()
@@ -359,6 +372,7 @@ export function midiApp() {
       await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))
       musicxml.renderScore()
       fingeringEditor.alignFingeringLabelsToNoteheads()
+      this.lastRelayoutWidth = document.getElementById('score').clientWidth
       document.getElementById('score').dataset.renderComplete = Date.now()
       const savedBpm = this.scoreUrl ? Number(localStorage.getItem(`pt:strictBpm:${this.scoreUrl}`)) : NaN
       this.strictBpm = Number.isFinite(savedBpm) && savedBpm > 0 ? savedBpm : Math.round(getBPM(this.osmdInstance))
@@ -701,6 +715,21 @@ export function midiApp() {
       this.rerenderScore()
     },
 
+    // Every redraw replaces the SVG, taking with it everything painted on it:
+    // note colours, fingering handlers, the training cursor, the strict marker.
+    // `savedStates` is only needed when the redraw rebuilt the note model.
+    repaintScore(savedStates = null) {
+      const { currentMeasureIndex } = musicxml.getTrainingState()
+      fingeringEditor.alignFingeringLabelsToNoteheads()
+      this.setupFingeringHandlers()
+      fingeringEditor.restoreNoteStates(savedStates, currentMeasureIndex)
+      musicxml.updateMeasureCursor()
+      // The click rectangles are rebuilt by the redraw, so the marker went with them.
+      if (this.strictSelected) musicxml.markStrictStartMeasure(this.strictStartMeasure)
+    },
+
+    // renderScore() rebuilds the note model, which clears the played/active flags
+    // and the playback position — hence the snapshot around it.
     rerenderScore() {
       const scrollY = window.scrollY
       const { currentMeasureIndex } = musicxml.getTrainingState()
@@ -715,11 +744,36 @@ export function midiApp() {
         notes.map(({ played, active }) => ({ played, active })))
 
       musicxml.renderScore()
-      fingeringEditor.alignFingeringLabelsToNoteheads()
-      this.setupFingeringHandlers()
-      fingeringEditor.restoreNoteStates(noteStates, currentMeasureIndex)
+
+      // Before repaintScore, which reads the cursor position back out.
       musicxml.setCurrentMeasureIndex(currentMeasureIndex)
       musicxml.setPlayedSourceMeasures(playedSourceMeasures)
+      this.repaintScore(noteStates)
+      window.scrollTo(0, scrollY)
+    },
+
+    // OSMD's own autoResize is off (see renderMusicXML): it re-rendered behind our
+    // back and every played note went black.
+    handleViewportResize() {
+      if (!this.osmdInstance) return
+      // strictPlaythrough caches a notehead element per event, and playback caches
+      // the score SVG plus the cursor's iterator position; a redraw would strand
+      // both on detached nodes. Leave the layout as it is until the run is over
+      // rather than break it mid-performance.
+      if (this.isStrictPlaying || this.isPlaying) return
+      // OSMD lays out against the container width alone, so a height-only change
+      // would redraw to a pixel-identical score. Worth skipping: on mobile the URL
+      // bar collapsing fires resize, and free mode scrolls the score as you play.
+      const width = document.getElementById('score')?.clientWidth
+      if (width === this.lastRelayoutWidth) return
+      this.lastRelayoutWidth = width
+
+      const scrollY = window.scrollY
+      // relayoutScore, not renderScore: re-extracting the note model would reset the
+      // training and reinforcement state, and clear the very flags we'd then have to
+      // snapshot to put back.
+      musicxml.relayoutScore()
+      this.repaintScore()
       window.scrollTo(0, scrollY)
     },
   }
