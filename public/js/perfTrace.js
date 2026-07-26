@@ -44,6 +44,10 @@ const BUSY_RATIO = 0.5
 const HEAP_DROP_MB = 25
 // The log feeds the heap detector below, so it must not grow without bound.
 const LOG_MAX = 500
+// Heap trajectory even when nothing else fires. A clean session ended at 33MB
+// while every laggy one sat between 70 and 100MB, so the absolute level is a
+// lead in its own right — and without this, a quiet session yields no heap data.
+const HEARTBEAT_MS = 30_000
 
 export const ENABLED = (() => {
   try {
@@ -138,6 +142,14 @@ if (ENABLED && typeof PerformanceObserver !== 'undefined') {
       requestAnimationFrame(onFrame)
     }
     requestAnimationFrame(onFrame)
+
+    setInterval(() => record(`💓 heap ${heapMb() ?? '?'}MB`), HEARTBEAT_MS)
+
+    // OSMD runs with autoResize on, and one resize event is enough to rebuild the
+    // whole score SVG: measured at ~175ms here, and it drops every played-note
+    // class with the old elements. That matches the 124ms setTimeout + ~183ms long
+    // task seen at every end of score, so log resizes to catch what triggers them.
+    window.addEventListener('resize', () => record(`🔁 resize ${innerWidth}×${innerHeight} → re-render OSMD`))
 
     console.info("🐌 perfTrace actif — window.__ptFreezeLog pour l'historique, localStorage.removeItem('pt:perfTrace') pour couper")
   } catch {
