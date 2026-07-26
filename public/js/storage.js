@@ -1,8 +1,17 @@
+import { traced } from './perfTrace.js' // TEMP diagnostic
+
 const DB_NAME = 'piano-trainer'
 const DB_VERSION = 3
 const FINGERINGS_STORE = 'fingerings'
 const SESSIONS_STORE = 'sessions'
 const AGGREGATES_STORE = 'aggregates'
+
+// TEMP: built once so the probe costs no per-put string when it's disabled.
+const PUT_LABELS = {
+  [FINGERINGS_STORE]: 'IDB put fingerings',
+  [SESSIONS_STORE]: 'IDB put sessions',
+  [AGGREGATES_STORE]: 'IDB put aggregates',
+}
 
 function promisifyRequest(request) {
   return new Promise((resolve, reject) => {
@@ -82,7 +91,10 @@ export function initStorage() {
   async function dbPut(storeName, data) {
     await ensureDb()
     const store = db.transaction(storeName, 'readwrite').objectStore(storeName)
-    return promisifyRequest(store.put(data))
+    // TEMP: put() structure-clones the value synchronously on the main thread,
+    // and the session object grows with every measure played. Wrapping put()
+    // itself is what isolates that clone from the transaction's own latency.
+    return promisifyRequest(traced(PUT_LABELS[storeName], () => store.put(data)))
   }
 
   return {

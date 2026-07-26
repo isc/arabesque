@@ -1,5 +1,5 @@
 import { noteName } from './midi.js'
-import { traced } from './perfTrace.js' // TEMP diagnostic
+import { traced, ENABLED as PERF_TRACE } from './perfTrace.js' // TEMP diagnostic
 import {
   extractNotesFromScore as extractNotes,
   isNoteActiveForHands as isNoteActiveForHandsShared,
@@ -64,8 +64,14 @@ export function initMusicXML() {
     renderScore,
     renderMusicXML,
     extractNotesFromScore,
-    activateNote: (m) => traced(`activateNote(${m}) m${currentMeasureIndex} held=${heldMidiNotes.size}`, () => activateNote(m)), // TEMP
-    deactivateNote: (m) => traced(`deactivateNote(${m}) held=${heldMidiNotes.size}`, () => deactivateNote(m)), // TEMP
+    // TEMP: the wrapper is chosen once, so with the probe off this hottest path
+    // (every note on/off) builds no label string and no closure.
+    activateNote: PERF_TRACE
+      ? (m) => traced(`activateNote(${m}) m${currentMeasureIndex} held=${heldMidiNotes.size}`, () => activateNote(m))
+      : activateNote,
+    deactivateNote: PERF_TRACE
+      ? (m) => traced(`deactivateNote(${m}) held=${heldMidiNotes.size}`, () => deactivateNote(m))
+      : deactivateNote,
     resetProgress,
     setCallbacks,
     setActiveHands: (hands) => {
