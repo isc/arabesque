@@ -6,11 +6,10 @@ const NOTE_ON = 144
 const NOTE_OFF = 128
 const NOTE_NAMES = 'C C# D D# E F F# G G# A A# B'.split(' ')
 
-// Two console.log per MIDI event, unconditionally. Harmless with DevTools shut,
-// but a prime suspect once it's open: every call retains its message, and the
-// React DevTools hook that wraps console captures a stack trace on top. The
-// sessions that froze were played with DevTools open and sat at 71-99MB of heap;
-// the ones played with it closed stayed at 22-26MB and never lagged.
+// Two console.log per MIDI event, unconditionally. Cheap with DevTools shut, not
+// once it's open: every call retains its message, and the React DevTools hook
+// that wraps console captures a stack trace on top. At ~20 events/s that is a
+// steady cost for output nobody reads, so it's off by default.
 // Opt back in with localStorage.setItem('pt:midiLog', '1') when the note stream
 // is what you actually need.
 const LOG_NOTES = (() => {
