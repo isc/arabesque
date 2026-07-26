@@ -1,13 +1,18 @@
 import { initStorage } from './storage.js'
 
-// Default knobs for playthrough duration normalization. A segment is
-// "aberrant" (an interruption) when it exceeds max(floor, factor × median)
-// of its own kind. Measures (~7s) and gaps (~0.7s) live on different scales,
-// so each has its own threshold. Calibrated on real exported data: the gap
-// floor sits at the clear knee of the gap distribution (~8s); the measure
-// factor barely matters because real mid-measure interruptions are 15–30×
-// the median, far above any reasonable threshold.
-const PLAYTHROUGH_NORMALIZATION = {
+// Default knobs for interruption removal. A segment is "aberrant" (an
+// interruption) when it exceeds max(floor, factor × median) of its own kind.
+// Measures (~7s) and gaps (~0.7s) live on different scales, so each has its own
+// threshold. Calibrated on real exported data: the gap floor sits at the clear
+// knee of the gap distribution (~8s); the measure factor barely matters because
+// real mid-measure interruptions are 15–30× the median, far above any
+// reasonable threshold.
+//
+// These values are baked into stored aggregates: totalPracticeTimeMs is
+// accumulated with them at session end, while the journal and the per-score
+// history re-derive with them on every read. Retuning them desyncs the two
+// until rebuildAggregates() replays the sessions.
+const INTERRUPTION_NORMALIZATION = {
   measureFloorMs: 15000,
   measureFactor: 4,
   gapFloorMs: 8000,
@@ -20,22 +25,9 @@ function median(values) {
   return sorted[Math.floor(sorted.length / 2)]
 }
 
-// Normalize a completed playthrough's duration by removing interruptions
-// (phone calls, breaks). A pause inflates either a single measure's duration
-// (interrupted mid-measure) or an inter-measure gap (interrupted between
-// measures). We detect aberrant segments — those far above the playthrough's
-// own norm — and replace each with a typical value of its own kind:
-//   - aberrant measure → longest normal measure (the notes were still played)
-//   - aberrant gap      → median normal gap (a transition, not playing)
-// Returns the raw wall-clock duration when per-measure timing is unavailable.
-export function computePlaythroughDuration(session) {
-  const { measureFloorMs, measureFactor, gapFloorMs, gapFactor } = PLAYTHROUGH_NORMALIZATION
-
-  const start = new Date(session.playthroughStartedAt).getTime()
-  const end = new Date(session.completedAt).getTime()
-  const rawMs = end - start
-
-  // Measure attempts that fall within the playthrough window.
+// Measure attempts overlapping [start, end], in chronological order. Defaults
+// to every attempt in the session.
+function attemptIntervals(session, start = -Infinity, end = Infinity) {
   const intervals = []
   for (const measure of session.measures || []) {
     for (const attempt of measure.attempts || []) {
@@ -47,12 +39,25 @@ export function computePlaythroughDuration(session) {
       }
     }
   }
-  // Without per-measure timing we can't reconstruct the timeline.
-  if (intervals.length === 0) return rawMs
+  return intervals.sort((a, b) => a.start - b.start)
+}
 
-  intervals.sort((a, b) => a.start - b.start)
+// When the last of these attempts finished.
+function lastAttemptEnd(intervals) {
+  return intervals.reduce((last, i) => Math.max(last, i.start + i.durationMs), 0)
+}
 
-  // Inter-measure gaps (including the trailing gap up to completion).
+// Time actually spent playing across [start, end], with interruptions (phone
+// calls, breaks, a score left open on the desk) removed. A pause inflates either
+// a single measure's duration (interrupted mid-measure) or an inter-measure gap
+// (interrupted between measures). We detect aberrant segments — those far above
+// the window's own norm — and replace each with a typical value of its own kind:
+//   - aberrant measure → longest normal measure (the notes were still played)
+//   - aberrant gap      → median normal gap (a transition, not playing)
+function normalizedPlayingTime(intervals, start, end) {
+  const { measureFloorMs, measureFactor, gapFloorMs, gapFactor } = INTERRUPTION_NORMALIZATION
+
+  // Inter-measure gaps (including the trailing gap up to the end of the window).
   const gaps = []
   let cursor = start
   for (const { start: s, durationMs } of intervals) {
@@ -62,7 +67,7 @@ export function computePlaythroughDuration(session) {
   gaps.push(end - cursor)
   const positiveGaps = gaps.filter((g) => g > 0)
 
-  // Per-kind aberration thresholds, calibrated on this playthrough's own data.
+  // Per-kind aberration thresholds, calibrated on this window's own data.
   const measureDurations = intervals.map((i) => i.durationMs)
   const measureThreshold = Math.max(measureFloorMs, measureFactor * median(measureDurations))
   const gapThreshold = Math.max(gapFloorMs, gapFactor * median(positiveGaps))
@@ -86,6 +91,27 @@ export function computePlaythroughDuration(session) {
   if (trailingGap > 0) total += clampGap(trailingGap)
 
   return Math.round(total)
+}
+
+// A completed playthrough, timed from when the player started it to when they
+// finished. Falls back to raw wall-clock when per-measure timing is unavailable.
+export function computePlaythroughDuration(session) {
+  const start = new Date(session.playthroughStartedAt).getTime()
+  const end = new Date(session.completedAt).getTime()
+  const intervals = attemptIntervals(session, start, end)
+  if (intervals.length === 0) return end - start
+  return normalizedPlayingTime(intervals, start, end)
+}
+
+// Practice time credited to a session: first measure attempt to last, minus
+// interruptions. It has to go through the same normalization as a playthrough —
+// on a raw span, a score left open on the desk counts in full, and a single
+// 79-minute attempt on one measure once turned ten minutes of practice into
+// 1h33 in the journal.
+export function computeSessionDuration(session) {
+  const intervals = attemptIntervals(session)
+  if (intervals.length === 0) return 0
+  return normalizedPlayingTime(intervals, intervals[0].start, lastAttemptEnd(intervals))
 }
 
 export function initPracticeTracker(storageInstance = null) {
@@ -124,7 +150,10 @@ export function initPracticeTracker(storageInstance = null) {
 
   // Recompute every aggregate from scratch by replaying all stored sessions in
   // chronological order. Used after cloud sync pulls sessions from another
-  // device. `metaFor(scoreId)` supplies { title, composer } from the catalog.
+  // device. `metaFor(scoreId)` supplies { title, composer } from the catalog —
+  // pass one: sessions don't carry the title, so rebuilding without it leaves
+  // every aggregate untitled and the practice journal shows "Untitled"
+  // throughout. fetchCatalogMeta() in sync.js builds a suitable map.
   async function rebuildAggregates(metaFor = () => null) {
     const sessions = await storage.getSessions()
     sessions.sort((a, b) => (a.startedAt || '').localeCompare(b.startedAt || ''))
@@ -354,7 +383,7 @@ export function initPracticeTracker(storageInstance = null) {
       aggregate.practiceDays.push(sessionDay)
     }
 
-    const sessionDuration = getSessionDuration(session)
+    const sessionDuration = computeSessionDuration(session)
     aggregate.totalPracticeTimeMs += sessionDuration
 
     for (const measureData of session.measures) {
@@ -470,50 +499,11 @@ export function initPracticeTracker(storageInstance = null) {
     return playthroughs
   }
 
-  function getSessionDuration(session) {
-    // Calculate session duration based only on measure attempt timestamps
-    if (!session.measures || session.measures.length === 0) {
-      return 0
-    }
-
-    let firstAttemptTime = Infinity
-    let lastAttemptEndTime = 0
-
-    for (const measure of session.measures) {
-      for (const attempt of measure.attempts) {
-        const attemptStart = new Date(attempt.startedAt).getTime()
-        const attemptEnd = attemptStart + attempt.durationMs
-
-        if (attemptStart < firstAttemptTime) {
-          firstAttemptTime = attemptStart
-        }
-        if (attemptEnd > lastAttemptEndTime) {
-          lastAttemptEndTime = attemptEnd
-        }
-      }
-    }
-
-    return firstAttemptTime === Infinity ? 0 : lastAttemptEndTime - firstAttemptTime
-  }
-
+  // When the player last played in this session, falling back to its start when
+  // no attempt carries usable timing.
   function getLastMeasureEndTime(session) {
-    // Get the end time of the last measure played
-    if (!session.measures || session.measures.length === 0) {
-      return new Date(session.startedAt)
-    }
-
-    let lastAttemptEndTime = 0
-
-    for (const measure of session.measures) {
-      for (const attempt of measure.attempts) {
-        const attemptEnd = new Date(attempt.startedAt).getTime() + attempt.durationMs
-        if (attemptEnd > lastAttemptEndTime) {
-          lastAttemptEndTime = attemptEnd
-        }
-      }
-    }
-
-    return lastAttemptEndTime > 0 ? new Date(lastAttemptEndTime) : new Date(session.startedAt)
+    const intervals = attemptIntervals(session)
+    return intervals.length > 0 ? new Date(lastAttemptEnd(intervals)) : new Date(session.startedAt)
   }
 
   async function getDailyLog(date) {
@@ -554,7 +544,7 @@ export function initPracticeTracker(storageInstance = null) {
         entry.totalMeasures = session.totalMeasures
       }
 
-      const sessionDuration = getSessionDuration(session)
+      const sessionDuration = computeSessionDuration(session)
       entry.totalPracticeTimeMs += sessionDuration
 
       const sessionLastPlayedAt = getLastMeasureEndTime(session)
@@ -609,7 +599,7 @@ export function initPracticeTracker(storageInstance = null) {
         entry.totalMeasures = session.totalMeasures
       }
 
-      const sessionDuration = getSessionDuration(session)
+      const sessionDuration = computeSessionDuration(session)
       entry.totalPracticeTimeMs += sessionDuration
 
       const sessionLastPlayedAt = getLastMeasureEndTime(session)

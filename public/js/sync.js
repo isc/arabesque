@@ -52,7 +52,7 @@ function chunk(arr, size) {
 
 // Map scoreId → { title, composer } from the score catalog, so aggregates
 // rebuilt from pulled sessions keep their titles (sessions don't store them).
-async function fetchCatalogMeta() {
+export async function fetchCatalogMeta() {
   try {
     const res = await fetch('data/scores.json')
     const data = await res.json()
