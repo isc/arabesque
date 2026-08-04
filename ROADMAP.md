@@ -123,3 +123,10 @@ dans le `CHANGELOG`.
 - **Accès prof** — permettre à un professeur de suivre la pratique d'un élève :
   consulter sa progression, ses mesures faibles, ses jeux récents, voire lui
   assigner des morceaux ou passages à travailler.
+
+## Paysage concurrentiel
+
+Les concurrents et sources d'inspiration cités ci-dessus (Piano Marvel,
+Modacity, Tonara, Pianote, ROLI) sont recensés et évalués dans
+`COMPETITORS.md`, qui contient aussi une passe sur les fonctionnalités des
+journaux de travail concurrents qu'on pourrait reprendre.
