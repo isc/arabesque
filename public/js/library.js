@@ -41,7 +41,7 @@ export function libraryApp() {
       // Mark this visitor as a returning user so the landing page (/) can
       // redirect them straight here instead of showing the pitch each time.
       try {
-        localStorage.setItem('pt-returning', '1')
+        localStorage.setItem('arabesque:returning', '1')
       } catch {
         // localStorage unavailable (private mode): no marker, no redirect — fine.
       }

@@ -120,7 +120,7 @@ export function midiApp() {
       this.$watch('reinforcementMode', () => this.$nextTick(applyStickyOffset))
       this.$watch('strictBpm', (v) => {
         if (this.scoreUrl && Number.isFinite(v) && v > 0) {
-          localStorage.setItem(`pt:strictBpm:${this.scoreUrl}`, String(v))
+          localStorage.setItem(`arabesque:strictBpm:${this.scoreUrl}`, String(v))
         }
       })
 
@@ -374,7 +374,7 @@ export function midiApp() {
       fingeringEditor.alignFingeringLabelsToNoteheads()
       this.lastRelayoutWidth = document.getElementById('score').clientWidth
       document.getElementById('score').dataset.renderComplete = Date.now()
-      const savedBpm = this.scoreUrl ? Number(localStorage.getItem(`pt:strictBpm:${this.scoreUrl}`)) : NaN
+      const savedBpm = this.scoreUrl ? Number(localStorage.getItem(`arabesque:strictBpm:${this.scoreUrl}`)) : NaN
       this.strictBpm = Number.isFinite(savedBpm) && savedBpm > 0 ? savedBpm : Math.round(getBPM(this.osmdInstance))
       // Modebar / context band become visible only after the score loads, so
       // recompute the sticky offset now (cf. note in init()).

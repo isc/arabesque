@@ -10,11 +10,11 @@ const NOTE_NAMES = 'C C# D D# E F F# G G# A A# B'.split(' ')
 // once it's open: every call retains its message, and the React DevTools hook
 // that wraps console captures a stack trace on top. At ~20 events/s that is a
 // steady cost for output nobody reads, so it's off by default.
-// Opt back in with localStorage.setItem('pt:midiLog', '1') when the note stream
+// Opt back in with localStorage.setItem('arabesque:midiLog', '1') when the note stream
 // is what you actually need.
 const LOG_NOTES = (() => {
   try {
-    return localStorage.getItem('pt:midiLog') === '1'
+    return localStorage.getItem('arabesque:midiLog') === '1'
   } catch {
     return false
   }

@@ -8,8 +8,8 @@
 //
 // runSync() takes its dependencies (the supabase client, storage,
 // practiceTracker) so it stays page-agnostic.
-const SYNC_ENABLED_KEY = 'pt-sync-enabled'
-const LAST_SYNC_KEY = 'pt-last-sync'
+const SYNC_ENABLED_KEY = 'arabesque:sync-enabled'
+const LAST_SYNC_KEY = 'arabesque:last-sync'
 const CHUNK = 200
 
 export function syncEnabled() {

@@ -125,9 +125,10 @@ class LibraryFiltersTest < CapybaraTestBase
       },
     ]
 
+    wait_for_store('aggregates')
     page.execute_script(<<~JS, aggregates)
       const aggregates = arguments[0];
-      const request = indexedDB.open('piano-trainer', 3);
+      const request = indexedDB.open('arabesque', 3);
       request.onsuccess = () => {
         const db = request.result;
         const tx = db.transaction('aggregates', 'readwrite');

@@ -18,7 +18,7 @@ import { CHANGELOG } from './changelog.js'
 import { feedbackEnabled, buildBaseContext, submitFeedback } from './feedback.js'
 import { getLang, locale } from './i18n.js'
 
-const CHANGELOG_SEEN_KEY = 'pt-changelog-seen'
+const CHANGELOG_SEEN_KEY = 'arabesque:changelog-seen'
 const CHANGELOG_DATE_FORMATTER = new Intl.DateTimeFormat(locale(), {
   day: 'numeric',
   month: 'long',

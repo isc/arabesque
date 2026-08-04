@@ -8,11 +8,13 @@
 //   string — static and JS-built — without any reactive plumbing.
 import fr from './locales/fr.js'
 import en from './locales/en.js'
+// Must be imported before this module reads the stored language (see the file).
+import { KEY_PREFIX } from './legacyKeys.js'
 
 const DICTS = { fr, en }
 const SUPPORTED = ['fr', 'en']
 const FALLBACK = 'en'
-const STORAGE_KEY = 'pt-lang'
+const STORAGE_KEY = `${KEY_PREFIX}lang`
 
 function detectLang() {
   try {
