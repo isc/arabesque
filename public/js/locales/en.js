@@ -36,7 +36,7 @@ export default {
     stale: '💤 Not played in {n}d',
   },
   library: {
-    pageTitle: 'Piano Trainer · Library',
+    pageTitle: 'Arabesque · Library',
     heading: 'Library',
     searchPlaceholder: 'Search for a score… (/)',
     searchAria: 'Search for a score',
@@ -93,7 +93,7 @@ export default {
     error: 'Sending failed.',
   },
   data: {
-    pageTitle: 'Piano Trainer · Data',
+    pageTitle: 'Arabesque · Data',
     heading: 'Data',
     back: '← Library',
     localHeading: 'Local backup',
@@ -116,7 +116,7 @@ export default {
     syncSummary: '{up} sent · {down} received',
   },
   score: {
-    pageTitle: 'Piano Trainer',
+    pageTitle: 'Arabesque',
     back: '← Library',
     titleFallback: 'Score',
     prevExercise: 'Previous exercise',
@@ -229,10 +229,10 @@ export default {
     cassetteSave: 'Error saving the cassette',
   },
   landing: {
-    pageTitle: 'Piano Trainer · Learn the piano with real-time feedback',
+    pageTitle: 'Arabesque · Learn the piano with real-time feedback',
     metaDescription:
-      'Plug in your MIDI keyboard, open a score and play: Piano Trainer colours the notes in real time, tracks your practice and helps you progress through a classical repertoire.',
-    heroAria: 'Open Piano Trainer',
+      'Plug in your MIDI keyboard, open a score and play: Arabesque colours the notes in real time, tracks your practice and helps you progress through a classical repertoire.',
+    heroAria: 'Open Arabesque',
     heroTitle: 'Practise the piano with real-time feedback.',
     heroLead:
       'Plug in your MIDI keyboard, open a score and play. Every note lights up depending on whether you nailed it, missed it or jumped ahead — and your progress is logged on its own, bar after bar.',
@@ -266,6 +266,6 @@ export default {
     step3Title: 'Play and progress',
     step3Body:
       'Follow the scrolling notes, let the real-time feedback guide you, and find your progress in the practice journal.',
-    footer: 'Piano Trainer · public-domain scores · your data stays in your browser.',
+    footer: 'Arabesque · public-domain scores · your data stays in your browser.',
   },
 }

@@ -31,7 +31,7 @@ final class MIDIBridge {
   func start() {
     guard client == 0 else { return }
 
-    MIDIClientCreateWithBlock("PianoTrainer" as CFString, &client) { [weak self] notification in
+    MIDIClientCreateWithBlock("Arabesque" as CFString, &client) { [weak self] notification in
       guard notification.pointee.messageID == .msgSetupChanged else { return }
       DispatchQueue.main.async {
         guard let self else { return }
@@ -40,12 +40,12 @@ final class MIDIBridge {
       }
     }
 
-    MIDIInputPortCreateWithProtocol(client, "PianoTrainer Input" as CFString, ._1_0, &inputPort) {
+    MIDIInputPortCreateWithProtocol(client, "Arabesque Input" as CFString, ._1_0, &inputPort) {
       [weak self] eventList, refCon in
       self?.handle(eventList: eventList, refCon: refCon)
     }
 
-    MIDIOutputPortCreate(client, "PianoTrainer Output" as CFString, &outputPort)
+    MIDIOutputPortCreate(client, "Arabesque Output" as CFString, &outputPort)
 
     refreshSourceConnections()
   }

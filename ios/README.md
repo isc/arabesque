@@ -1,4 +1,4 @@
-# Piano Trainer — iOS wrapper
+# Arabesque — iOS wrapper
 
 Safari/iOS does not support the Web MIDI API, which makes the web app unusable
 on iPad/iPhone — even though an iPad on the music stand is the ideal device.
@@ -6,7 +6,7 @@ This directory contains a minimal native wrapper that bridges the gap:
 
 - a full-screen **WKWebView** loads the deployed web app, unchanged;
 - **CoreMIDI** collects MIDI on the native side (USB and Bluetooth devices);
-- an injected script (`PianoTrainer/Resources/webmidi-shim.js`) emulates
+- an injected script (`Arabesque/Resources/webmidi-shim.js`) emulates
   `navigator.requestMIDIAccess` so `public/js/midi.js` works as-is;
 - a small overlay button opens the system **Bluetooth MIDI pairing** sheet
   (`CABTMIDICentralViewController`), needed because BLE MIDI devices are paired
@@ -39,7 +39,7 @@ Requires a Mac with Xcode 15+ and [XcodeGen](https://github.com/yonaskolb/XcodeG
 ```bash
 cd ios
 xcodegen generate
-open PianoTrainer.xcodeproj
+open Arabesque.xcodeproj
 ```
 
 Then select your signing team in *Signing & Capabilities* and run on a device

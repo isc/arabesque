@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs'
 import vm from 'node:vm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const shimSource = readFileSync(new URL('../../ios/PianoTrainer/Resources/webmidi-shim.js', import.meta.url), 'utf8')
+const shimSource = readFileSync(new URL('../../ios/Arabesque/Resources/webmidi-shim.js', import.meta.url), 'utf8')
 
 // Runs the shim the way the WKWebView does: as a plain script at document
 // start, with a webkit.messageHandlers.midiBridge handler available.

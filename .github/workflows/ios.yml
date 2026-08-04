@@ -22,8 +22,8 @@ jobs:
       # Unsigned simulator build; SYMROOT pinned so later steps know the path.
       - run: >
           xcodebuild
-          -project PianoTrainer.xcodeproj
-          -target PianoTrainer
+          -project Arabesque.xcodeproj
+          -target Arabesque
           -sdk iphonesimulator
           -configuration Debug
           build
@@ -43,8 +43,8 @@ jobs:
           xcrun simctl bootstatus "$UDID" -b
       - name: Launch app and check it stays alive
         run: |
-          xcrun simctl install "$SIM_UDID" ios/build/Debug-iphonesimulator/PianoTrainer.app
-          xcrun simctl launch --console-pty "$SIM_UDID" com.pianotrainer.PianoTrainer \
+          xcrun simctl install "$SIM_UDID" ios/build/Debug-iphonesimulator/Arabesque.app
+          xcrun simctl launch --console-pty "$SIM_UDID" com.arabesque.Arabesque \
             > app-console.log 2>&1 &
           LAUNCH_PID=$!
           sleep 20
@@ -76,7 +76,7 @@ jobs:
           echo '--- app console ---'
           cat app-console.log 2>/dev/null || true
           echo '--- crash reports ---'
-          find "$HOME/Library/Logs/DiagnosticReports" -name 'PianoTrainer*' -newer ios/project.yml -print \
+          find "$HOME/Library/Logs/DiagnosticReports" -name 'Arabesque*' -newer ios/project.yml -print \
             -exec cat {} \; 2>/dev/null || true
       - uses: actions/upload-artifact@v4
         if: always()

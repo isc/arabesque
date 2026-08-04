@@ -1,3 +1,11 @@
+2026-08-04
+
+- Renommage : l'application s'appelle désormais **Arabesque**. Le nom est
+  changé partout dans l'interface, dans le wrapper iOS (nom affiché, cible
+  Xcode, bundle ID `com.arabesque.Arabesque`) et dans le nom des fichiers de
+  sauvegarde exportés. Rien n'est touché côté données : la base IndexedDB
+  garde son nom, donc l'historique de pratique et les doigtés sont conservés.
+
 2026-07-04
 
 - App iOS (wrapper natif) : nouvelle app iPad/iPhone minimale dans `ios/` — une

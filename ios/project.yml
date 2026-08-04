@@ -1,38 +1,38 @@
 # XcodeGen spec — run `xcodegen generate` in this directory to produce
-# PianoTrainer.xcodeproj (not committed, see .gitignore).
-name: PianoTrainer
+# Arabesque.xcodeproj (not committed, see .gitignore).
+name: Arabesque
 options:
-  bundleIdPrefix: com.pianotrainer
+  bundleIdPrefix: com.arabesque
   deploymentTarget:
     iOS: '15.0'
 targets:
-  PianoTrainer:
+  Arabesque:
     type: application
     platform: iOS
     sources:
-      - path: PianoTrainer
+      - path: Arabesque
         excludes:
           - Resources
-      - path: PianoTrainer/Resources/webmidi-shim.js
+      - path: Arabesque/Resources/webmidi-shim.js
         buildPhase: resources
     info:
-      path: PianoTrainer/Info.plist
+      path: Arabesque/Info.plist
       properties:
-        CFBundleDisplayName: Piano Trainer
+        CFBundleDisplayName: Arabesque
         UILaunchScreen: {}
         UIApplicationSceneManifest:
           UIApplicationSupportsMultipleScenes: false
           UISceneConfigurations:
             UIWindowSceneSessionRoleApplication:
               - UISceneConfigurationName: Default
-                UISceneDelegateClassName: PianoTrainer.SceneDelegate
+                UISceneDelegateClassName: Arabesque.SceneDelegate
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
           - UIInterfaceOrientationPortraitUpsideDown
           - UIInterfaceOrientationLandscapeLeft
           - UIInterfaceOrientationLandscapeRight
         NSBluetoothAlwaysUsageDescription: >-
-          Piano Trainer se connecte aux claviers MIDI Bluetooth pour suivre ce
+          Arabesque se connecte aux claviers MIDI Bluetooth pour suivre ce
           que vous jouez.
         # Dev convenience: allows pointing PTWebAppURL at a local
         # (non-HTTPS) instance of the app, e.g. http://mac.local:4567
@@ -40,7 +40,7 @@ targets:
           NSAllowsLocalNetworking: true
         NSLocalNetworkUsageDescription: >-
           Accès au réseau local uniquement pour le développement, quand l'app
-          charge une instance locale de Piano Trainer.
+          charge une instance locale d'Arabesque.
         # URL loaded by the WKWebView
         PTWebAppURL: https://isc.github.io/piano-trainer/
     settings:
