@@ -60,6 +60,7 @@ révélés discriminants :
 | Barcarolle | Deux graphies (*barcarole* en anglais). |
 | Woodshed, Escapement, Quaver | Libres sur l'App Store mais `.app` déposé. *Woodshed* (argot jazz : travailler son instrument enfermé) est conceptuellement le plus juste, mais opaque pour un public français et classique. *Quaver* est par ailleurs à vérifier côté marque (QuaverEd, éditeur en éducation musicale). |
 | Moderato, Maestoso, Portato, Nocturne, Caprice, Bagatelle, Impromptu | Nom libre, `.app` déposé. |
+| Ad Libitum | **Libre partout** (`adlibitum.app` compris), et graphie unique FR/EN puisque c'est du latin. Écarté sur le message : *ad libitum* autorise l'interprète à faire à sa guise, quand l'app tient le tempo, valide les notes et suit une discipline de travail. En anglais, *to ad-lib* signifie improviser faute d'avoir préparé. Serait le bon nom pour un positionnement « joue ce que tu veux, à ton rythme », pas pour celui-ci. |
 
 Une piste de **mots inventés** a été explorée (libres par construction) :
 *Tasteggio* et *Diteggio*, bâtis sur les racines *tasto* (la touche) et
