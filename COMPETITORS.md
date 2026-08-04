@@ -90,8 +90,10 @@ répertoire, séance guidée, écoute comparative des enregistrements).
   tire des corrélations — humeur selon l'heure de la journée, concentration
   selon la durée de session. C'est peu coûteux, et l'app horodate déjà tout ce
   qu'il faut pour le croisement.
-- **BPM actuel vs BPM objectif par morceau** (Sostenuto). S'articule
-  directement avec le mode strict et le *tempo trainer* déjà en roadmap, et
+- **BPM actuel vs BPM objectif par morceau** (Sostenuto). ✅ **Retenu** et
+  rédigé dans `ROADMAP.md` : l'objectif se matérialise en ligne horizontale sur
+  le graphique des jeux complets, dont la durée est déjà un tempo moyen
+  déguisé. S'articule avec le mode strict et le *tempo trainer* déjà prévus, et
   donne une métrique de progression lisible que le taux d'erreur ne fournit pas.
 - **Éléments de travail hors partition** (Sostenuto : « morceaux, gammes ou
   phrases »). Aujourd'hui tout est accroché à un fichier de la bibliothèque :

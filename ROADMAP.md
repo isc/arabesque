@@ -32,6 +32,32 @@ dans le `CHANGELOG`.
   mesures à renforcer pourraient déclencher automatiquement une boucle à tempo
   réduit sur le passage concerné.
 
+- **Objectif de tempo sur le graphique des jeux complets** (inspiration
+  Sostenuto, cf. `COMPETITORS.md`) — le graphique de la page morceau trace déjà
+  la durée de chaque lecture intégrale (`playthroughChartSvg`, `app.js`). Or la
+  durée d'une lecture *est* une mesure de tempo moyen : avec
+  `tsToSeconds(ts, bpm) = ts * 4 * 60 / bpm` et la longueur totale du morceau en
+  fractions de ronde (déjà calculée par `buildMeasureStartTimes`), on a
+  `bpm = longueur × 240 / durée`. Trois conséquences, par ordre de coût :
+  1. **Chaque point du graphique gagne un tempo**, rétroactivement et sans
+     stocker quoi que ce soit de nouveau — l'infobulle affiche « 2 min 14 —
+     ≈ 72 BPM », et l'axe des ordonnées peut se doubler d'une échelle de BPM.
+  2. **L'objectif de tempo devient une ligne horizontale** sur ce graphique,
+     puisqu'un BPM cible se convertit en durée cible. On *voit* la courbe
+     descendre vers la ligne au fil des semaines.
+  3. **L'objectif par défaut est la marque métronomique de la partition**
+     quand elle existe, donc utile sans que le joueur ait rien à régler ; un
+     objectif manuel par morceau viendrait ensuite.
+
+  Deux réserves. La durée est du temps de jeu **normalisé** (interruptions
+  déduites, cf. #221) mais inclut les hésitations : c'est donc un *tempo moyen
+  effectif*, qui mélange vitesse et fluidité — à nommer comme tel, pas comme un
+  réglage de métronome. Et en mode strict le BPM est **imposé**, pas mesuré :
+  ces lectures se poseraient exactement sur la ligne par construction. Les
+  distinguer suppose la seule donnée nouvelle du chantier — enregistrer le mode
+  (et le BPM) sur le playthrough, ce que `buildPlaythroughs` ne fait pas
+  aujourd'hui.
+
 - **Validation des silences / durées** — aujourd'hui rien ne signale qu'on
   maintient une note trop longtemps (ou qu'on ne respecte pas un silence), ni
   à l'inverse qu'on ne la tient pas assez longtemps. Valider la durée et le
