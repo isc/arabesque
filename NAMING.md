@@ -78,8 +78,8 @@ basse, *tastello* frôle *tassello*, la cheville à visser).
       Store, qui est un moteur classé par pertinence, pas un registre de noms.
       Suppose le compte Apple Developer payant (99 €/an), qui est par ailleurs
       le seul blocage dur restant pour TestFlight (voir `ios/README.md`).
-- [ ] **Déposer `arabesque.app`** et basculer le site dessus — voir le mode
-      opératoire ci-dessous.
+- [x] **Déposer `arabesque.app`** et basculer le site dessus — fait, voir le
+      mode opératoire ci-dessous.
 
 ## Bascule vers `arabesque.app` puis renommage du dépôt
 
@@ -92,9 +92,9 @@ les réglages d'authentification Supabase.
 
 Passer d'abord par le domaine rend le renommage sans effet sur l'URL publique.
 
-Les quatre premières étapes sont faites : le site répond sur
-<https://arabesque.app> en HTTPS forcé, et `isc.github.io/piano-trainer/`
-redirige dessus. Restent le renommage du dépôt et Supabase.
+**Terminé le 2026-08-05.** Le site répond sur <https://arabesque.app> en HTTPS
+forcé, le dépôt s'appelle `isc/arabesque`, et l'ancienne URL Pages redirige vers
+le domaine. Les étapes sont conservées ci-dessous pour la trace.
 
 1. ✅ **Déposer `arabesque.app`.** Fait (OVH, 2026-08-05).
 2. ✅ **Créer les enregistrements DNS** pour l'apex, vers
@@ -115,9 +115,9 @@ redirige dessus. Restent le renommage du dépôt et Supabase.
 4. ✅ **Attendre le certificat.** `.app` est un TLD à HSTS préchargé : le HTTPS y
    est obligatoire, donc le site reste injoignable tant que GitHub n'a pas émis
    le certificat (jusqu'à 24 h). Activer ensuite *Enforce HTTPS*.
-5. ⬜ **Renommer le dépôt** en `arabesque` (le nom est libre). L'URL publique ne
+5. ✅ **Renommer le dépôt** en `arabesque` (le nom est libre). L'URL publique ne
    bouge plus, elle ne dépend que du domaine.
-6. ⬜ **Mettre à jour Supabase** : `site_url` et la liste blanche de redirection de
+6. ✅ **Mettre à jour Supabase** : `site_url` et la liste blanche de redirection de
    l'auth contiennent l'ancienne URL. Oubliés, les magic links cassent. Y
    ré-appliquer aussi `supabase/feedback.sql`, dont l'expéditeur portait
    l'ancien nom — le fichier est la référence, mais il s'applique à la main
