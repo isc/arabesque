@@ -17,10 +17,26 @@ if (!BACKUP || !fs.existsSync(BACKUP)) {
 fs.mkdirSync(ASSETS, { recursive: true })
 const out = (name) => path.join(ASSETS, name)
 
+// The practice journal is relative to *now*: seed a backup from three weeks ago
+// and the video opens on a column of "Aucune pratique". So the page's clock is
+// pinned just after the backup's most recent session, which puts that session
+// under "aujourd'hui" and keeps the days above it filled. Derived from the file
+// rather than hardcoded, so any backup gives a journal that looks current.
+const backupData = JSON.parse(fs.readFileSync(BACKUP, 'utf8'))
+const lastSessionMs = Math.max(
+  ...(backupData.sessions || [])
+    .map((s) => Date.parse(s.endedAt || s.startedAt))
+    .filter(Number.isFinite)
+)
+const NOW = Number.isFinite(lastSessionMs)
+  ? new Date(lastSessionMs + 30 * 60 * 1000)
+  : new Date(backupData.exportDate)
+console.log(`clock pinned to ${NOW.toISOString()} (last session in the backup)`)
+
 // Static brand asset used by the closing scene (not a screenshot).
 fs.copyFileSync(path.resolve(ROOT, '../../public/favicon.svg'), out('favicon.svg'))
 
-const { ctx, page } = await launch()
+const { ctx, page } = await launch({ now: NOW })
 
 // 1. Seed the library from the backup export (idempotent: keyed puts). The
 // import control moved to the data page (⚙️ menu → Gestion des données) when
