@@ -1,4 +1,4 @@
-// Shared Playwright helpers for capturing the Piano Trainer app states that
+// Shared Playwright helpers for capturing the Arabesque app states that
 // feed the landing hero video. See ../README.md for the full workflow.
 import { chromium } from 'playwright'
 import { fileURLToPath } from 'url'

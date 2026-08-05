@@ -1,7 +1,7 @@
 // Seed the app with a practice-data backup, then capture every screenshot the
 // landing hero video needs, writing them into ../composition/assets/.
 //
-//   PT_BACKUP=~/Downloads/piano-trainer-backup-YYYY-MM-DD.json \
+//   PT_BACKUP=~/Downloads/arabesque-backup-YYYY-MM-DD.json \
 //     node capture/build-assets.mjs
 //
 // Requires the app running locally (default http://localhost:4567). See README.
@@ -11,7 +11,7 @@ import { launch, openScore, sleep, ASSETS, BASE, ROOT } from './lib.mjs'
 
 const BACKUP = process.env.PT_BACKUP
 if (!BACKUP || !fs.existsSync(BACKUP)) {
-  console.error('Set PT_BACKUP to a Piano Trainer backup export (Library → Exporter sauvegarde).')
+  console.error('Set PT_BACKUP to an Arabesque backup export (Library → Exporter sauvegarde).')
   process.exit(1)
 }
 fs.mkdirSync(ASSETS, { recursive: true })
@@ -22,11 +22,16 @@ fs.copyFileSync(path.resolve(ROOT, '../../public/favicon.svg'), out('favicon.svg
 
 const { ctx, page } = await launch()
 
-// 1. Seed the library from the backup export (idempotent: keyed puts).
-await page.goto(`${BASE}/library?accueil`, { waitUntil: 'networkidle' })
+// 1. Seed the library from the backup export (idempotent: keyed puts). The
+// import control moved to the data page (⚙️ menu → Gestion des données) when
+// the header was consolidated; it used to sit on the library page. The import
+// finishes on an alert(), which doubles as a precise completion signal —
+// awaited, not accepted: Playwright dismisses dialogs on its own.
+await page.goto(`${BASE}/data.html`, { waitUntil: 'networkidle' })
+const imported = page.waitForEvent('dialog')
 await page.setInputFiles('#backup-import', BACKUP)
-await page.waitForFunction(() => document.querySelectorAll('tbody tr').length > 10, { timeout: 15000 })
-await page.reload({ waitUntil: 'networkidle' })
+await imported
+await page.goto(`${BASE}/library.html`, { waitUntil: 'networkidle' })
 await page.waitForFunction(() => document.querySelectorAll('tbody tr').length > 10)
 await sleep(700)
 await page.screenshot({ path: out('library.png') })
