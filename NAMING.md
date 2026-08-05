@@ -92,8 +92,12 @@ les réglages d'authentification Supabase.
 
 Passer d'abord par le domaine rend le renommage sans effet sur l'URL publique.
 
-1. **Déposer `arabesque.app`.**
-2. **Créer les enregistrements DNS** pour l'apex, vers
+Les quatre premières étapes sont faites : le site répond sur
+<https://arabesque.app> en HTTPS forcé, et `isc.github.io/piano-trainer/`
+redirige dessus. Restent le renommage du dépôt et Supabase.
+
+1. ✅ **Déposer `arabesque.app`.** Fait (OVH, 2026-08-05).
+2. ✅ **Créer les enregistrements DNS** pour l'apex, vers
    [les adresses de GitHub Pages](https://docs.github.com/en/pages/configuring-a-custom-domain-for-your-github-pages-site/managing-a-custom-domain-for-your-github-pages-site) :
    `A` → `185.199.108.153`, `185.199.109.153`, `185.199.110.153`,
    `185.199.111.153`, et `AAAA` → `2606:50c0:8000::153` à `2606:50c0:8003::153`.
@@ -101,19 +105,19 @@ Passer d'abord par le domaine rend le renommage sans effet sur l'URL publique.
    les poser avant la bascule évite une coupure. (La doc GitHub suggère
    l'inverse — déclarer le domaine puis configurer le DNS ; les deux
    aboutissent, mais cet ordre-ci réduit la fenêtre d'indisponibilité.)
-3. **Déclarer le domaine dans *Settings → Pages → Custom domain*.** C'est la
+3. ✅ **Déclarer le domaine dans *Settings → Pages → Custom domain*.** C'est la
    seule action qui bascule le site, et elle se fait à la main. Un fichier
    `public/CNAME` serait sans effet : ce dépôt publie Pages **via Actions**, et
    dans ce mode [GitHub ignore le CNAME](https://docs.github.com/en/pages/configuring-a-custom-domain-for-your-github-pages-site/managing-a-custom-domain-for-your-github-pages-site)
    (il n'en crée aucun et n'en lit aucun — ce n'est vrai que des déploiements
    depuis une branche). À faire une fois le DNS propagé ; à partir de là,
    `isc.github.io/piano-trainer/` redirige vers le domaine.
-4. **Attendre le certificat.** `.app` est un TLD à HSTS préchargé : le HTTPS y
+4. ✅ **Attendre le certificat.** `.app` est un TLD à HSTS préchargé : le HTTPS y
    est obligatoire, donc le site reste injoignable tant que GitHub n'a pas émis
    le certificat (jusqu'à 24 h). Activer ensuite *Enforce HTTPS*.
-5. **Renommer le dépôt** en `arabesque` (le nom est libre). L'URL publique ne
+5. ⬜ **Renommer le dépôt** en `arabesque` (le nom est libre). L'URL publique ne
    bouge plus, elle ne dépend que du domaine.
-6. **Mettre à jour Supabase** : `site_url` et la liste blanche de redirection de
+6. ⬜ **Mettre à jour Supabase** : `site_url` et la liste blanche de redirection de
    l'auth contiennent l'ancienne URL. Oubliés, les magic links cassent. Y
    ré-appliquer aussi `supabase/feedback.sql`, dont l'expéditeur portait
    l'ancien nom — le fichier est la référence, mais il s'applique à la main
