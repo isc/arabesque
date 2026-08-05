@@ -1,7 +1,7 @@
 // Seed the app with a practice-data backup, then capture every screenshot the
 // landing hero video needs, writing them into ../composition/assets/.
 //
-//   PT_BACKUP=~/Downloads/piano-trainer-backup-YYYY-MM-DD.json \
+//   PT_BACKUP=~/Downloads/arabesque-backup-YYYY-MM-DD.json \
 //     node capture/build-assets.mjs
 //
 // Requires the app running locally (default http://localhost:4567). See README.
@@ -11,22 +11,43 @@ import { launch, openScore, sleep, ASSETS, BASE, ROOT } from './lib.mjs'
 
 const BACKUP = process.env.PT_BACKUP
 if (!BACKUP || !fs.existsSync(BACKUP)) {
-  console.error('Set PT_BACKUP to a Piano Trainer backup export (Library → Exporter sauvegarde).')
+  console.error('Set PT_BACKUP to an Arabesque backup export (Library → Exporter sauvegarde).')
   process.exit(1)
 }
 fs.mkdirSync(ASSETS, { recursive: true })
 const out = (name) => path.join(ASSETS, name)
 
+// The practice journal is relative to *now*: seed a backup from three weeks ago
+// and the video opens on a column of "Aucune pratique". So the page's clock is
+// pinned just after the backup's most recent session, which puts that session
+// under "aujourd'hui" and keeps the days above it filled. Derived from the file
+// rather than hardcoded, so any backup gives a journal that looks current.
+const backupData = JSON.parse(fs.readFileSync(BACKUP, 'utf8'))
+const lastSessionMs = Math.max(
+  ...(backupData.sessions || [])
+    .map((s) => Date.parse(s.endedAt || s.startedAt))
+    .filter(Number.isFinite)
+)
+const NOW = Number.isFinite(lastSessionMs)
+  ? new Date(lastSessionMs + 30 * 60 * 1000)
+  : new Date(backupData.exportDate)
+console.log(`clock pinned to ${NOW.toISOString()} (last session in the backup)`)
+
 // Static brand asset used by the closing scene (not a screenshot).
 fs.copyFileSync(path.resolve(ROOT, '../../public/favicon.svg'), out('favicon.svg'))
 
-const { ctx, page } = await launch()
+const { ctx, page } = await launch({ now: NOW })
 
-// 1. Seed the library from the backup export (idempotent: keyed puts).
-await page.goto(`${BASE}/library?accueil`, { waitUntil: 'networkidle' })
+// 1. Seed the library from the backup export (idempotent: keyed puts). The
+// import control moved to the data page (⚙️ menu → Gestion des données) when
+// the header was consolidated; it used to sit on the library page. The import
+// finishes on an alert(), which doubles as a precise completion signal —
+// awaited, not accepted: Playwright dismisses dialogs on its own.
+await page.goto(`${BASE}/data.html`, { waitUntil: 'networkidle' })
+const imported = page.waitForEvent('dialog')
 await page.setInputFiles('#backup-import', BACKUP)
-await page.waitForFunction(() => document.querySelectorAll('tbody tr').length > 10, { timeout: 15000 })
-await page.reload({ waitUntil: 'networkidle' })
+await imported
+await page.goto(`${BASE}/library.html`, { waitUntil: 'networkidle' })
 await page.waitForFunction(() => document.querySelectorAll('tbody tr').length > 10)
 await sleep(700)
 await page.screenshot({ path: out('library.png') })

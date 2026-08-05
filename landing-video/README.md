@@ -27,7 +27,7 @@ landing-video/
 - `npm install` here, then `npx playwright install chromium`
   (or set `PT_CHROMIUM=/path/to/Chromium` to reuse an existing binary)
 - A backup export: in the app, **Bibliothèque → ⚙️ Gestion des données →
-  Exporter sauvegarde**. It lands in `~/Downloads/piano-trainer-backup-*.json`.
+  Exporter sauvegarde**. It lands in `~/Downloads/arabesque-backup-*.json`.
 
 ## Regenerate
 
@@ -47,7 +47,7 @@ cd landing-video && npm install
 echo "export { default as CAPS } from './captions/en.js'" > composition/caps.active.js
 
 # 3. Capture the app states (in that language) into composition/assets/
-PT_LANG=en PT_BACKUP=~/Downloads/piano-trainer-backup-*.json npm run capture
+PT_LANG=en PT_BACKUP=~/Downloads/arabesque-backup-*.json npm run capture
 
 # 4. Render (composition/renders/*.mp4)
 npm run render
