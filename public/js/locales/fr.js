@@ -125,6 +125,10 @@ export default {
     midiConnected: 'Clavier MIDI connecté',
     midiKeyboard: 'Clavier MIDI',
     connectMidi: '🎹 Connecter clavier MIDI',
+    micButton: '🎤 Mode micro',
+    micActive: '🎤 Écoute en cours…',
+    micTitle:
+      'Mode micro (bêta) : détection des notes via le microphone, une note à la fois — les accords ne sont pas reconnus',
     history: '📜 Historique',
     historyAria: 'Historique',
     modeGroupAria: 'Mode de pratique',
@@ -209,6 +213,9 @@ export default {
     windowsStep3: 'Configurez BLE MIDI Bridge pour rediriger vers le port loopMIDI',
     windowsReturn: 'Une fois le pont configuré, revenez sur cette page et cliquez sur « Connecter clavier MIDI ».',
     linuxBody: 'Connectez votre clavier MIDI via USB ou configurez la connexion Bluetooth MIDI via BlueZ. Revenez ensuite sur cette page et cliquez sur « Connecter clavier MIDI ».',
+    micHelpAlt:
+      "Piano acoustique ou pas de MIDI ? Essayez le mode micro (bêta) : l'application écoute votre piano via le microphone et valide les notes jouées, une note à la fois (les accords ne sont pas encore reconnus).",
+    midiHelpTryMic: '🎤 Essayer le mode micro (bêta)',
     midiHelpRetry: 'Réessayer la connexion',
     resultTitleStrict: '⏱ Playthrough strict terminé',
     resultTitleTraining: '🎉 Félicitations — Entraînement terminé',
@@ -227,6 +234,8 @@ export default {
     invalidMusicXml: 'Ce fichier ne semble pas être un fichier MusicXML valide',
     musicXmlLoad: 'Erreur lors du chargement du fichier MusicXML',
     cassetteSave: 'Erreur lors de la sauvegarde de la cassette',
+    micUnsupported: "L'accès au microphone n'est pas supporté par ce navigateur",
+    micDenied: "Impossible d'accéder au microphone. Vérifiez les permissions du navigateur.",
   },
   landing: {
     pageTitle: 'Piano Trainer · Apprenez le piano avec un retour en temps réel',

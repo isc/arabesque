@@ -79,6 +79,16 @@
           x-text="$t('score.connectMidi')"
         >🎹 Connecter clavier MIDI</button>
 
+        <!-- Mic mode (non MIDI) — hidden once a MIDI keyboard is connected -->
+        <button
+          class="pt-midi-status"
+          :class="{ 'is-disconnected': !micActive }"
+          x-show="micActive || !bluetoothConnected"
+          @click="toggleMic"
+          :title="$t('score.micTitle')"
+          x-text="micActive ? $t('score.micActive') : $t('score.micButton')"
+        >🎤 Mode micro</button>
+
         <!-- History (only for library scores) -->
         <button
           class="pt-topbar__pill"
@@ -467,7 +477,10 @@
           </div>
         </template>
 
+        <p x-text="$t('score.micHelpAlt')">Piano acoustique ou pas de MIDI ? Essayez le mode micro (bêta) : l'application écoute votre piano via le microphone et valide les notes jouées, une note à la fois.</p>
+
         <footer>
+          <button class="pt-action-button" @click="showMidiHelpModal = false; toggleMic()" x-text="$t('score.midiHelpTryMic')">🎤 Essayer le mode micro (bêta)</button>
           <button class="pt-action-button is-primary" @click="showMidiHelpModal = false; connectMIDI()" x-text="$t('score.midiHelpRetry')">Réessayer la connexion</button>
         </footer>
       </article>

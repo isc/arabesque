@@ -125,6 +125,9 @@ export default {
     midiConnected: 'MIDI keyboard connected',
     midiKeyboard: 'MIDI keyboard',
     connectMidi: '🎹 Connect MIDI keyboard',
+    micButton: '🎤 Mic mode',
+    micActive: '🎤 Listening…',
+    micTitle: 'Mic mode (beta): note detection through the microphone, one note at a time — chords are not recognised',
     history: '📜 History',
     historyAria: 'History',
     modeGroupAria: 'Practice mode',
@@ -209,6 +212,9 @@ export default {
     windowsStep3: 'Set up BLE MIDI Bridge to route to the loopMIDI port',
     windowsReturn: 'Once the bridge is set up, come back to this page and click “Connect MIDI keyboard”.',
     linuxBody: 'Connect your MIDI keyboard over USB or set up the Bluetooth MIDI connection via BlueZ. Then come back to this page and click “Connect MIDI keyboard”.',
+    micHelpAlt:
+      'Acoustic piano or no MIDI? Try mic mode (beta): the app listens to your piano through the microphone and validates the notes you play, one note at a time (chords are not recognised yet).',
+    midiHelpTryMic: '🎤 Try mic mode (beta)',
     midiHelpRetry: 'Retry the connection',
     resultTitleStrict: '⏱ Strict playthrough finished',
     resultTitleTraining: '🎉 Congratulations — Training finished',
@@ -227,6 +233,8 @@ export default {
     invalidMusicXml: 'This file does not appear to be a valid MusicXML file',
     musicXmlLoad: 'Error loading the MusicXML file',
     cassetteSave: 'Error saving the cassette',
+    micUnsupported: 'Microphone access is not supported by this browser',
+    micDenied: 'Could not access the microphone. Check your browser permissions.',
   },
   landing: {
     pageTitle: 'Piano Trainer · Learn the piano with real-time feedback',

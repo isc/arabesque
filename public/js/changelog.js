@@ -16,6 +16,17 @@
 
 export const CHANGELOG = [
   {
+    date: '2026-07-06',
+    items: {
+      fr: [
+        "Mode micro (bêta) : pas de clavier MIDI ? Sur la page partition, le bouton 🎤 fait écouter votre piano par le microphone et valide les notes jouées. Une note à la fois pour l'instant — idéal pour les mélodies et le travail mains séparées ; les accords ne sont pas encore reconnus.",
+      ],
+      en: [
+        "Mic mode (beta): no MIDI keyboard? On the score page, the 🎤 button lets the app listen to your piano through the microphone and validate the notes you play. One note at a time for now — great for melodies and hands-separate practice; chords aren't recognised yet.",
+      ],
+    },
+  },
+  {
     date: '2026-06-24',
     items: {
       fr: [

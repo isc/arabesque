@@ -81,12 +81,15 @@ dans le `CHANGELOG`.
   pour le confirmer ; sans lecture de confirmation à temps (ou si elle se passe
   mal), le morceau redescend en perfectionnement.
 
-- **Mode micro (non MIDI)** — détecter les notes jouées via le microphone pour
-  les pianos acoustiques et claviers sans MIDI. Ouvrirait l'application à un
-  public beaucoup plus large. Grande inconnue : la qualité atteignable de la
-  détection de pitch, surtout en polyphonie (accords, deux mains) et en
-  conditions réelles (micro de laptop, acoustique de la pièce). À prototyper
-  pour évaluer la faisabilité avant d'en faire un vrai chantier.
+- **Mode micro : polyphonie** — le prototype monophonique est livré (bouton 🎤
+  sur la page partition : détection de pitch dans le navigateur via
+  [pitchy](https://github.com/ianprime0509/pitchy) (McLeod Pitch Method), une
+  note à la fois — mélodies et travail mains séparées). La grande inconnue
+  reste entière pour la polyphonie (accords, deux mains), qui demande une
+  autre approche que le DSP classique — l'état de l'art navigateur est un
+  modèle de transcription type Onsets and Frames (Magenta.js) ou Basic Pitch
+  (Spotify), pensés pour l'offline plus que le temps réel — et à évaluer en
+  conditions réelles (micro de laptop, acoustique de la pièce).
 
 - **Clavier à l'écran** — afficher une bande clavier sous la partition, avec
   les notes attendues allumées et les notes jouées en vert/rouge (l'équivalent
