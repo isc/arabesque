@@ -6,3 +6,7 @@ composition/assets/
 node_modules/
 composition/node_modules/
 composition/renders/
+
+# Created by `npm install` when regenerating the video; the pinned toolchain
+# lives in the HyperFrames version pinned in composition/package.json.
+package-lock.json

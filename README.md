@@ -1,4 +1,4 @@
-# Piano Trainer
+# Arabesque
 
 A web-based piano training application that helps musicians practice by connecting MIDI devices, displaying sheet music, and providing real-time feedback on note accuracy.
 

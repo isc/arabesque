@@ -79,7 +79,7 @@ basse, *tastello* frôle *tassello*, la cheville à visser).
       Suppose le compte Apple Developer payant (99 €/an), qui est par ailleurs
       le seul blocage dur restant pour TestFlight (voir `ios/README.md`).
 - [ ] **Déposer `arabesque.app`.**
-- [ ] **Renommer.** Une vingtaine de fichiers portent la chaîne, hors artefacts
+- [x] **Renommer.** Fait dans cette PR. Une vingtaine de fichiers portent la chaîne, hors artefacts
       de build : `public/*.html`, `public/js/{locales/fr,locales/en,changelog,data,feedback}.js`,
       `public/favicon.svg`, `public/styles.css`, `ios/project.yml`
       (`CFBundleDisplayName` + `bundleIdPrefix`), `ios/PianoTrainer/ViewController.swift`,

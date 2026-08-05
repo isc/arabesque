@@ -1,5 +1,5 @@
 {
-  "name": "piano-trainer-landing-video",
+  "name": "arabesque-landing-video",
   "private": true,
   "type": "module",
   "description": "Build pipeline for the landing-page hero video (capture app states → HyperFrames → MP4).",

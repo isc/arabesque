@@ -19,7 +19,7 @@ class DataTest < CapybaraTestBase
       click_button '📤 Exporter sauvegarde'
     end
 
-    exported_file = wait_for_download('piano-trainer-backup-*.json')
+    exported_file = wait_for_download('arabesque-backup-*.json')
     assert exported_file, 'Export file should be downloaded'
 
     imported_data = JSON.parse(File.read(fixture_path))

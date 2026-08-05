@@ -36,7 +36,7 @@ export default {
     stale: '💤 Pas joué depuis {n} j',
   },
   library: {
-    pageTitle: 'Piano Trainer · Bibliothèque',
+    pageTitle: 'Arabesque · Bibliothèque',
     heading: 'Bibliothèque',
     searchPlaceholder: 'Rechercher une partition… (/)',
     searchAria: 'Rechercher une partition',
@@ -93,7 +93,7 @@ export default {
     error: 'L’envoi a échoué.',
   },
   data: {
-    pageTitle: 'Piano Trainer · Données',
+    pageTitle: 'Arabesque · Données',
     heading: 'Données',
     back: '← Bibliothèque',
     localHeading: 'Sauvegarde locale',
@@ -116,7 +116,7 @@ export default {
     syncSummary: '{up} envoyé(s) · {down} reçu(s)',
   },
   score: {
-    pageTitle: 'Piano Trainer',
+    pageTitle: 'Arabesque',
     back: '← Bibliothèque',
     titleFallback: 'Partition',
     prevExercise: 'Exercice précédent',
@@ -229,10 +229,10 @@ export default {
     cassetteSave: 'Erreur lors de la sauvegarde de la cassette',
   },
   landing: {
-    pageTitle: 'Piano Trainer · Apprenez le piano avec un retour en temps réel',
+    pageTitle: 'Arabesque · Apprenez le piano avec un retour en temps réel',
     metaDescription:
-      'Branchez votre clavier MIDI, ouvrez une partition et jouez : Piano Trainer colore les notes en temps réel, suit votre pratique et vous aide à progresser sur un répertoire classique.',
-    heroAria: 'Ouvrir Piano Trainer',
+      'Branchez votre clavier MIDI, ouvrez une partition et jouez : Arabesque colore les notes en temps réel, suit votre pratique et vous aide à progresser sur un répertoire classique.',
+    heroAria: 'Ouvrir Arabesque',
     heroTitle: 'Travaillez votre piano avec un retour en temps réel.',
     heroLead:
       "Branchez votre clavier MIDI, ouvrez une partition et jouez. Chaque note se colore selon que vous l'avez réussie, manquée ou anticipée — et votre progression se note toute seule, mesure après mesure.",
@@ -266,6 +266,6 @@ export default {
     step3Title: 'Jouez et progressez',
     step3Body:
       'Suivez les notes qui défilent, laissez le retour en temps réel vous guider, et retrouvez vos progrès dans le journal de pratique.',
-    footer: 'Piano Trainer · partitions du domaine public · vos données restent dans votre navigateur.',
+    footer: 'Arabesque · partitions du domaine public · vos données restent dans votre navigateur.',
   },
 }

@@ -1,4 +1,4 @@
-# Piano Trainer — Hero video design system
+# Arabesque — Hero video design system
 
 Brand identity for the landing-page hero. Light, calm, premium — matches the
 app's own UI (PicoCSS + the `--pt-*` token set).
