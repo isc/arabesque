@@ -114,7 +114,26 @@ Passer d'abord par le domaine rend le renommage sans effet sur l'URL publique.
 5. **Renommer le dépôt** en `arabesque` (le nom est libre). L'URL publique ne
    bouge plus, elle ne dépend que du domaine.
 6. **Mettre à jour Supabase** : `site_url` et la liste blanche de redirection de
-   l'auth contiennent l'ancienne URL. Oubliés, les magic links cassent.
+   l'auth contiennent l'ancienne URL. Oubliés, les magic links cassent. Y
+   ré-appliquer aussi `supabase/feedback.sql`, dont l'expéditeur portait
+   l'ancien nom — le fichier est la référence, mais il s'applique à la main
+   (pas de système de migration), donc l'éditer ne change rien en production.
+
+## Messagerie du domaine
+
+`arabesque.app` ne reçoit ni n'envoie de courrier : la zone déclare un **null MX**
+(RFC 7505), un SPF `v=spf1 -all` et un DMARC `p=reject`, ce qui empêche
+d'usurper le domaine pour envoyer en son nom. Les deux fonctionnalités qui
+envoient des mails — les magic links et la notification de feedback — expédient
+depuis `onboarding@resend.dev`, pas depuis le domaine, donc rien n'en dépend.
+
+⚠️ Le jour où l'on vérifiera `arabesque.app` dans Resend pour que les magic
+links partent du domaine (nécessaire pour d'autres utilisateurs que le
+propriétaire du compte Resend), ces trois enregistrements devront être revus :
+le SPF devra inclure Resend, il faudra ajouter la clé DKIM fournie, et le null
+MX empêchera d'utiliser l'apex comme domaine d'envoi (Resend passe de toute
+façon par un sous-domaine). L'alignement DMARC a volontairement été laissé
+souple pour que ce jour-là rien ne casse.
 
 ⚠️ Ne jamais recréer ensuite un dépôt nommé `piano-trainer` : les redirections
 git du dépôt renommé s'effondreraient.

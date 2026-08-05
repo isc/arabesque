@@ -60,7 +60,7 @@ set search_path = public, extensions, vault
 as $$
 declare
   api_key   text;
-  from_addr text := 'Piano Trainer <onboarding@resend.dev>';  -- test mode; switch to feedback@<domain> once verified in Resend
+  from_addr text := 'Arabesque <onboarding@resend.dev>';  -- test mode; switch to feedback@<domain> once verified in Resend
   to_addr   text := 'ivan.schneider@hey.com';
   excerpt   text;
 begin
