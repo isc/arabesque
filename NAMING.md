@@ -101,10 +101,13 @@ Passer d'abord par le domaine rend le renommage sans effet sur l'URL publique.
    les poser avant la bascule évite une coupure. (La doc GitHub suggère
    l'inverse — déclarer le domaine puis configurer le DNS ; les deux
    aboutissent, mais cet ordre-ci réduit la fenêtre d'indisponibilité.)
-3. **Merger la PR qui ajoute `public/CNAME`.** ⚠️ C'est ce fichier qui déclenche
-   la bascule : le workflow publie `public/` tel quel, GitHub y lit le domaine
-   et `isc.github.io/piano-trainer/` se met alors à rediriger. À ne merger
-   qu'une fois le DNS propagé.
+3. **Déclarer le domaine dans *Settings → Pages → Custom domain*.** C'est la
+   seule action qui bascule le site, et elle se fait à la main. Un fichier
+   `public/CNAME` serait sans effet : ce dépôt publie Pages **via Actions**, et
+   dans ce mode [GitHub ignore le CNAME](https://docs.github.com/en/pages/configuring-a-custom-domain-for-your-github-pages-site/managing-a-custom-domain-for-your-github-pages-site)
+   (il n'en crée aucun et n'en lit aucun — ce n'est vrai que des déploiements
+   depuis une branche). À faire une fois le DNS propagé ; à partir de là,
+   `isc.github.io/piano-trainer/` redirige vers le domaine.
 4. **Attendre le certificat.** `.app` est un TLD à HSTS préchargé : le HTTPS y
    est obligatoire, donc le site reste injoignable tant que GitHub n'a pas émis
    le certificat (jusqu'à 24 h). Activer ensuite *Enforce HTTPS*.
