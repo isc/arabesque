@@ -17,7 +17,11 @@
     <script>
       try {
         if (
-          localStorage.getItem('pt-returning') &&
+          // The legacy key is read too: this inline script runs before any
+          // module, so on a returning visitor's first post-rename landing it
+          // beats legacyKeys.js to the rename. Without it they would get the
+          // pitch once more instead of going straight to their library.
+          (localStorage.getItem('arabesque:returning') || localStorage.getItem('pt-returning')) &&
           !new URLSearchParams(location.search).has('accueil')
         ) {
           location.replace('library.html')

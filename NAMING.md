@@ -85,9 +85,12 @@ basse, *tastello* frôle *tassello*, la cheville à visser).
       (`CFBundleDisplayName` + `bundleIdPrefix`), `ios/PianoTrainer/ViewController.swift`,
       les deux `README.md`, et quatre fichiers de `test/`.
 
-      ⚠️ **Ne pas renommer `DB_NAME = 'piano-trainer'` dans
-      `public/js/storage.js`.** C'est le nom de la base IndexedDB qui contient
-      les doigtés, les sessions et les agrégats de pratique : le changer
-      orpheline les données de tous les utilisateurs actuels. Même prudence
-      pour les clés `localStorage` (`pt-returning`, `pt:midiLog`,
-      `pt:perfTrace`), même si l'enjeu y est mineur.
+- [x] **Renommer la couche de données.** La consigne initiale était de *ne pas*
+      toucher au `DB_NAME` de `public/js/storage.js` ni aux clés `localStorage`,
+      pour ne pas orpheliner les doigtés, sessions et agrégats des utilisateurs.
+      Finalement fait, mais avec une migration plutôt qu'un renommage sec : au
+      premier chargement, le contenu de l'ancienne base est recopié dans la
+      nouvelle, puis l'ancienne est supprimée ; les clés `localStorage` passent
+      des préfixes `pt-` / `pt:` à un `arabesque:` unique. Personne n'a de
+      backup à réimporter. Détails dans `public/js/storage.js` et
+      `public/js/legacyKeys.js`.

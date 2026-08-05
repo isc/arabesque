@@ -37,6 +37,7 @@ class PracticeTrackingTest < CapybaraTestBase
     visit "/score.html?url=/test-fixtures/two-measures.xml"
     assert_selector 'svg g.vf-stavenote', count: 2
 
+    wait_for_store('sessions')
     page.execute_script(<<~JS)
       const SCORE_ID = '/test-fixtures/two-measures.xml'
       const now = Date.now()
@@ -60,7 +61,7 @@ class PracticeTrackingTest < CapybaraTestBase
           measures: [{ sourceMeasureIndex: 0, attempts: [{ startedAt, durationMs: s.durationMin * 60000, wrongNotes: 0, clean: true }] }],
         }
       })
-      const req = indexedDB.open('piano-trainer', 3)
+      const req = indexedDB.open('arabesque', 3)
       req.onsuccess = () => {
         const tx = req.result.transaction('sessions', 'readwrite')
         const store = tx.objectStore('sessions')

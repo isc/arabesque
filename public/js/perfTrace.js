@@ -22,8 +22,8 @@
 // perturbs what it measures (it was enough to make the training-mode autoscroll
 // test fail intermittently). Turn it on for a practice session with
 //
-//   localStorage.setItem('pt:perfTrace', '1')   // then reload
-//   localStorage.removeItem('pt:perfTrace')     // to stop
+//   localStorage.setItem('arabesque:perfTrace', '1')   // then reload
+//   localStorage.removeItem('arabesque:perfTrace')     // to stop
 //
 // Everything is also pushed (with a timestamp) to `window.__ptFreezeLog`, so after
 // a freeze you can open the console and type `__ptFreezeLog` to see the history —
@@ -51,7 +51,7 @@ const HEARTBEAT_MS = 30_000
 
 export const ENABLED = (() => {
   try {
-    return localStorage.getItem('pt:perfTrace') === '1'
+    return localStorage.getItem('arabesque:perfTrace') === '1'
   } catch {
     return false // no localStorage (non-browser env, private mode, sandboxed iframe)
   }
@@ -158,7 +158,7 @@ if (ENABLED && typeof PerformanceObserver !== 'undefined') {
     // being opened rather than anything the player did.
     window.addEventListener('resize', () => record(`🔁 resize ${innerWidth}×${innerHeight} → re-render OSMD`))
 
-    console.info("🐌 perfTrace actif — window.__ptFreezeLog pour l'historique, localStorage.removeItem('pt:perfTrace') pour couper")
+    console.info("🐌 perfTrace actif — window.__ptFreezeLog pour l'historique, localStorage.removeItem('arabesque:perfTrace') pour couper")
   } catch {
     /* longtask not supported */
   }

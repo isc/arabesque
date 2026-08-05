@@ -58,6 +58,32 @@ class CapybaraTestBase < Minitest::Test
     nil
   end
 
+  # Block until the app has created its IndexedDB store, so seeding scripts
+  # don't race the page. Opening the database from a test before the app has
+  # built it creates an empty one at the same version, which then never
+  # upgrades — the stores are missing for good and the page renders nothing.
+  def wait_for_store(store, timeout: Capybara.default_max_wait_time)
+    Timeout.timeout(timeout) do
+      # `databases()` is used rather than open(): probing with open() would
+      # itself create the database this is waiting for.
+      until page.evaluate_async_script(<<~JS, store)
+        const [store, done] = [arguments[0], arguments[arguments.length - 1]];
+        indexedDB.databases().then((dbs) => {
+          if (!dbs.some((d) => d.name === 'arabesque')) return done(false);
+          const request = indexedDB.open('arabesque');
+          request.onerror = () => done(false);
+          request.onsuccess = () => {
+            const present = request.result.objectStoreNames.contains(store);
+            request.result.close();
+            done(present);
+          };
+        });
+      JS
+        sleep 0.05
+      end
+    end
+  end
+
   # Helper to run code with a virtual browser time
   # Accepts a Time object or a string like "2026-01-10 12:00"
   # Resets the browser page after the block to restore normal time behavior
