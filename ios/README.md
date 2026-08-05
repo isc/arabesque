@@ -49,7 +49,7 @@ hardware).
 ## Configuration
 
 The web app URL lives in the `PTWebAppURL` Info.plist key (see `project.yml`),
-and defaults to the production deployment (https://isc.github.io/piano-trainer/).
+and defaults to the production deployment (https://arabesque.app/).
 For development against a local server, point it at your Mac
 (e.g. `http://<your-mac>.local:4567`) — `NSAllowsLocalNetworking` is already
 enabled — and regenerate the project.

@@ -1,6 +1,6 @@
 require_relative 'test_helper'
 
-class PianoTrainerTest < CapybaraTestBase
+class ArabesqueTest < CapybaraTestBase
   def setup
     page.driver.set_cookie('test-env', 'true')
     visit '/score.html'

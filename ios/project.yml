@@ -42,7 +42,7 @@ targets:
           Accès au réseau local uniquement pour le développement, quand l'app
           charge une instance locale d'Arabesque.
         # URL loaded by the WKWebView
-        PTWebAppURL: https://isc.github.io/piano-trainer/
+        PTWebAppURL: https://arabesque.app/
     settings:
       base:
         TARGETED_DEVICE_FAMILY: 1,2

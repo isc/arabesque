@@ -78,7 +78,69 @@ basse, *tastello* frôle *tassello*, la cheville à visser).
       Store, qui est un moteur classé par pertinence, pas un registre de noms.
       Suppose le compte Apple Developer payant (99 €/an), qui est par ailleurs
       le seul blocage dur restant pour TestFlight (voir `ios/README.md`).
-- [ ] **Déposer `arabesque.app`.**
+- [ ] **Déposer `arabesque.app`** et basculer le site dessus — voir le mode
+      opératoire ci-dessous.
+
+## Bascule vers `arabesque.app` puis renommage du dépôt
+
+L'ordre compte. **GitHub ne redirige pas les URLs de GitHub Pages après un
+renommage de dépôt** : les URLs du dépôt et les opérations git redirigent, mais
+les sites de projet sont [explicitement exclus](https://docs.github.com/en/repositories/creating-and-managing-repositories/renaming-a-repository)
+et l'ancienne adresse renvoie un 404. Renommer le dépôt avant d'avoir un domaine
+propre obligerait donc à migrer deux fois l'URL — dans le wrapper iOS et dans
+les réglages d'authentification Supabase.
+
+Passer d'abord par le domaine rend le renommage sans effet sur l'URL publique.
+
+Les quatre premières étapes sont faites : le site répond sur
+<https://arabesque.app> en HTTPS forcé, et `isc.github.io/piano-trainer/`
+redirige dessus. Restent le renommage du dépôt et Supabase.
+
+1. ✅ **Déposer `arabesque.app`.** Fait (OVH, 2026-08-05).
+2. ✅ **Créer les enregistrements DNS** pour l'apex, vers
+   [les adresses de GitHub Pages](https://docs.github.com/en/pages/configuring-a-custom-domain-for-your-github-pages-site/managing-a-custom-domain-for-your-github-pages-site) :
+   `A` → `185.199.108.153`, `185.199.109.153`, `185.199.110.153`,
+   `185.199.111.153`, et `AAAA` → `2606:50c0:8000::153` à `2606:50c0:8003::153`.
+   Ces enregistrements sont inertes tant que le domaine n'est pas revendiqué :
+   les poser avant la bascule évite une coupure. (La doc GitHub suggère
+   l'inverse — déclarer le domaine puis configurer le DNS ; les deux
+   aboutissent, mais cet ordre-ci réduit la fenêtre d'indisponibilité.)
+3. ✅ **Déclarer le domaine dans *Settings → Pages → Custom domain*.** C'est la
+   seule action qui bascule le site, et elle se fait à la main. Un fichier
+   `public/CNAME` serait sans effet : ce dépôt publie Pages **via Actions**, et
+   dans ce mode [GitHub ignore le CNAME](https://docs.github.com/en/pages/configuring-a-custom-domain-for-your-github-pages-site/managing-a-custom-domain-for-your-github-pages-site)
+   (il n'en crée aucun et n'en lit aucun — ce n'est vrai que des déploiements
+   depuis une branche). À faire une fois le DNS propagé ; à partir de là,
+   `isc.github.io/piano-trainer/` redirige vers le domaine.
+4. ✅ **Attendre le certificat.** `.app` est un TLD à HSTS préchargé : le HTTPS y
+   est obligatoire, donc le site reste injoignable tant que GitHub n'a pas émis
+   le certificat (jusqu'à 24 h). Activer ensuite *Enforce HTTPS*.
+5. ⬜ **Renommer le dépôt** en `arabesque` (le nom est libre). L'URL publique ne
+   bouge plus, elle ne dépend que du domaine.
+6. ⬜ **Mettre à jour Supabase** : `site_url` et la liste blanche de redirection de
+   l'auth contiennent l'ancienne URL. Oubliés, les magic links cassent. Y
+   ré-appliquer aussi `supabase/feedback.sql`, dont l'expéditeur portait
+   l'ancien nom — le fichier est la référence, mais il s'applique à la main
+   (pas de système de migration), donc l'éditer ne change rien en production.
+
+## Messagerie du domaine
+
+`arabesque.app` ne reçoit ni n'envoie de courrier : la zone déclare un **null MX**
+(RFC 7505), un SPF `v=spf1 -all` et un DMARC `p=reject`, ce qui empêche
+d'usurper le domaine pour envoyer en son nom. Les deux fonctionnalités qui
+envoient des mails — les magic links et la notification de feedback — expédient
+depuis `onboarding@resend.dev`, pas depuis le domaine, donc rien n'en dépend.
+
+⚠️ Le jour où l'on vérifiera `arabesque.app` dans Resend pour que les magic
+links partent du domaine (nécessaire pour d'autres utilisateurs que le
+propriétaire du compte Resend), ces trois enregistrements devront être revus :
+le SPF devra inclure Resend, il faudra ajouter la clé DKIM fournie, et le null
+MX empêchera d'utiliser l'apex comme domaine d'envoi (Resend passe de toute
+façon par un sous-domaine). L'alignement DMARC a volontairement été laissé
+souple pour que ce jour-là rien ne casse.
+
+⚠️ Ne jamais recréer ensuite un dépôt nommé `piano-trainer` : les redirections
+git du dépôt renommé s'effondreraient.
 - [x] **Renommer.** Fait dans cette PR. Une vingtaine de fichiers portent la chaîne, hors artefacts
       de build : `public/*.html`, `public/js/{locales/fr,locales/en,changelog,data,feedback}.js`,
       `public/favicon.svg`, `public/styles.css`, `ios/project.yml`
