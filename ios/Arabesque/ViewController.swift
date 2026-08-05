@@ -11,7 +11,7 @@ final class ViewController: UIViewController {
 
   private var appURL: URL {
     let configured = Bundle.main.object(forInfoDictionaryKey: "PTWebAppURL") as? String
-    return URL(string: configured ?? "https://isc.github.io/piano-trainer/")!
+    return URL(string: configured ?? "https://arabesque.app/")!
   }
 
   override func viewDidLoad() {

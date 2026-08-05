@@ -78,7 +78,43 @@ basse, *tastello* frôle *tassello*, la cheville à visser).
       Store, qui est un moteur classé par pertinence, pas un registre de noms.
       Suppose le compte Apple Developer payant (99 €/an), qui est par ailleurs
       le seul blocage dur restant pour TestFlight (voir `ios/README.md`).
-- [ ] **Déposer `arabesque.app`.**
+- [ ] **Déposer `arabesque.app`** et basculer le site dessus — voir le mode
+      opératoire ci-dessous.
+
+## Bascule vers `arabesque.app` puis renommage du dépôt
+
+L'ordre compte. **GitHub ne redirige pas les URLs de GitHub Pages après un
+renommage de dépôt** : les URLs du dépôt et les opérations git redirigent, mais
+les sites de projet sont [explicitement exclus](https://docs.github.com/en/repositories/creating-and-managing-repositories/renaming-a-repository)
+et l'ancienne adresse renvoie un 404. Renommer le dépôt avant d'avoir un domaine
+propre obligerait donc à migrer deux fois l'URL — dans le wrapper iOS et dans
+les réglages d'authentification Supabase.
+
+Passer d'abord par le domaine rend le renommage sans effet sur l'URL publique.
+
+1. **Déposer `arabesque.app`.**
+2. **Créer les enregistrements DNS** pour l'apex, vers
+   [les adresses de GitHub Pages](https://docs.github.com/en/pages/configuring-a-custom-domain-for-your-github-pages-site/managing-a-custom-domain-for-your-github-pages-site) :
+   `A` → `185.199.108.153`, `185.199.109.153`, `185.199.110.153`,
+   `185.199.111.153`, et `AAAA` → `2606:50c0:8000::153` à `2606:50c0:8003::153`.
+   Ces enregistrements sont inertes tant que le domaine n'est pas revendiqué :
+   les poser avant la bascule évite une coupure. (La doc GitHub suggère
+   l'inverse — déclarer le domaine puis configurer le DNS ; les deux
+   aboutissent, mais cet ordre-ci réduit la fenêtre d'indisponibilité.)
+3. **Merger la PR qui ajoute `public/CNAME`.** ⚠️ C'est ce fichier qui déclenche
+   la bascule : le workflow publie `public/` tel quel, GitHub y lit le domaine
+   et `isc.github.io/piano-trainer/` se met alors à rediriger. À ne merger
+   qu'une fois le DNS propagé.
+4. **Attendre le certificat.** `.app` est un TLD à HSTS préchargé : le HTTPS y
+   est obligatoire, donc le site reste injoignable tant que GitHub n'a pas émis
+   le certificat (jusqu'à 24 h). Activer ensuite *Enforce HTTPS*.
+5. **Renommer le dépôt** en `arabesque` (le nom est libre). L'URL publique ne
+   bouge plus, elle ne dépend que du domaine.
+6. **Mettre à jour Supabase** : `site_url` et la liste blanche de redirection de
+   l'auth contiennent l'ancienne URL. Oubliés, les magic links cassent.
+
+⚠️ Ne jamais recréer ensuite un dépôt nommé `piano-trainer` : les redirections
+git du dépôt renommé s'effondreraient.
 - [x] **Renommer.** Fait dans cette PR. Une vingtaine de fichiers portent la chaîne, hors artefacts
       de build : `public/*.html`, `public/js/{locales/fr,locales/en,changelog,data,feedback}.js`,
       `public/favicon.svg`, `public/styles.css`, `ios/project.yml`

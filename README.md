@@ -78,7 +78,7 @@ MIDI Device → Web MIDI API → MIDI Message Parser → Note Validator → Visu
 - `public/js/midi_mock.js`: Mock implementation for testing
 - `public/js/utils.js`: Utility functions
 - `public/styles.css`: Custom styling
-- `test/piano_trainer_test.rb`: Piano trainer tests
+- `test/arabesque_test.rb`: core app tests
 - `test/library_test.rb`: Library page tests
 - `Rakefile`: Test runner configuration
 
@@ -92,8 +92,8 @@ MIDI Device → Web MIDI API → MIDI Message Parser → Note Validator → Visu
 
 ```bash
 # Clone the repository
-git clone git@github.com:isc/piano-trainer.git
-cd piano-trainer
+git clone git@github.com:isc/arabesque.git
+cd arabesque
 
 # Install Ruby dependencies
 bundle install
@@ -271,7 +271,7 @@ Standard MIDI format (3 bytes):
 bundle exec rake test
 
 # Or run individual test files
-bundle exec ruby test/piano_trainer_test.rb
+bundle exec ruby test/arabesque_test.rb
 bundle exec ruby test/library_test.rb
 
 # Run with UI (non-headless)
@@ -280,7 +280,7 @@ DISABLE_HEADLESS=1 bundle exec rake test
 
 ### Test Files
 
-- `test/piano_trainer_test.rb`: 10 tests for core piano training features
+- `test/arabesque_test.rb`: 10 tests for core piano training features
 - `test/library_test.rb`: 6 tests for score library functionality
 - `test/fixtures/simple-score.xml`: Basic 4-note test score
 - `test/fixtures/schumann-melodie.xml`: Complex multi-part score (256 notes)
