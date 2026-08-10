@@ -19,6 +19,11 @@ targets:
       path: Arabesque/Info.plist
       properties:
         CFBundleDisplayName: Arabesque
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        # Declares that the app uses no encryption beyond the exempt kind (it
+        # only talks HTTPS). Without it App Store Connect asks on every upload.
+        ITSAppUsesNonExemptEncryption: false
         UILaunchScreen: {}
         UIApplicationSceneManifest:
           UIApplicationSupportsMultipleScenes: false
@@ -46,4 +51,9 @@ targets:
     settings:
       base:
         TARGETED_DEVICE_FAMILY: 1,2
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        # Version shown to users; bump by hand for a release.
+        MARKETING_VERSION: '1.0'
+        # Build number: must be unique for every upload to App Store Connect.
+        CURRENT_PROJECT_VERSION: '1'
         SUPPORTS_MACCATALYST: false

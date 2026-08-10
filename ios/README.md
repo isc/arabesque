@@ -60,3 +60,43 @@ enabled — and regenerate the project.
   picked up automatically, including when plugged in after launch.
 - **Bluetooth**: tap the antenna button in the bottom-right corner and pair
   the keyboard from the system sheet. Pairing is remembered by the app.
+
+## Icône
+
+`Arabesque/Assets.xcassets/AppIcon.appiconset/icon-1024.png` est dérivée de
+`public/favicon.svg`, avec deux différences imposées par Apple : le fond est à
+plein bord (iOS applique lui-même le masque arrondi — garder l'arrondi du
+favicon donnerait un double arrondi) et l'image n'a pas de canal alpha. Pour la
+regénérer après un changement de favicon :
+
+```bash
+rsvg-convert -w 1024 -h 1024 -b '#1095c1' icon.svg -o \
+  ios/Arabesque/Assets.xcassets/AppIcon.appiconset/icon-1024.png
+```
+
+où `icon.svg` est le favicon dont on a retiré le `rx` du rectangle de fond.
+
+## Publier sur TestFlight
+
+Prérequis : l'**Apple Developer Program** (99 €/an). Aucune voie gratuite n'y
+mène — la signature personnelle d'Xcode expire au bout de 7 jours et n'installe
+que sur ses propres appareils.
+
+1. **S'inscrire** sur <https://developer.apple.com/programs/enroll/>, puis
+   récupérer le **Team ID** dans *Membership*.
+2. **Réserver le nom** dans App Store Connect en créant l'app : nom
+   `Arabesque`, bundle ID `com.arabesque.Arabesque`. C'est la seule
+   vérification de disponibilité qui fasse foi (voir `NAMING.md`).
+3. **Signer** : après `xcodegen generate`, ouvrir le projet et choisir l'équipe
+   dans *Signing & Capabilities*. ⚠️ Le projet étant généré, régénérer efface ce
+   choix — à refaire, ou à figer plus tard dans le spec quand on aura le Team ID.
+4. **Incrémenter `CURRENT_PROJECT_VERSION`** dans `project.yml` : App Store
+   Connect refuse deux envois avec le même numéro de build.
+5. **Archiver** : destination *Any iOS Device*, puis *Product → Archive*, puis
+   *Distribute App → TestFlight & App Store*.
+
+Ce qui n'est **pas** fait : l'envoi automatisé depuis la CI. Il suppose une clé
+d'API App Store Connect et un certificat de distribution importés dans le
+trousseau du runner — un chantier à part, qui ne vaut le coup qu'une fois les
+envois devenus fréquents. Pour les premiers builds, l'archive depuis Xcode est
+plus courte.
