@@ -100,3 +100,40 @@ d'API App Store Connect et un certificat de distribution importés dans le
 trousseau du runner — un chantier à part, qui ne vaut le coup qu'une fois les
 envois devenus fréquents. Pour les premiers builds, l'archive depuis Xcode est
 plus courte.
+
+### Envoi automatisé (workflow `TestFlight`)
+
+Le workflow `.github/workflows/testflight.yml` archive, signe, exporte et
+envoie sur TestFlight. Il se déclenche **à la main** (*Actions → TestFlight →
+Run workflow*) : un envoi consomme un numéro de build et lance un cycle de
+traitement chez Apple, ça se décide.
+
+La signature n'a besoin d'aucun `.p12` : `-allowProvisioningUpdates` avec une
+clé d'API App Store Connect laisse `xcodebuild` créer certificat et profil à la
+demande. En revanche l'export et l'envoi sont deux commandes, la clé n'étant
+pas honorée pour la destination `upload` de l'export.
+
+**Créer la clé d'API** : App Store Connect → *Users and Access* → *Integrations*
+→ *App Store Connect API* → *Team Keys* → générer une clé de rôle **App
+Manager** (rôle nécessaire pour créer des certificats). Le fichier `.p8` ne se
+télécharge **qu'une fois** — le perdre oblige à révoquer et recommencer. Noter
+au passage le *Key ID* et l'*Issuer ID*.
+
+**Renseigner quatre secrets** dans *Settings → Secrets and variables → Actions* :
+
+| Secret | Valeur |
+|---|---|
+| `APPSTORE_KEY_ID` | le *Key ID* de la clé |
+| `APPSTORE_ISSUER_ID` | l'*Issuer ID*, commun à toute l'équipe |
+| `APPSTORE_PRIVATE_KEY` | le contenu du `.p8`, lignes `BEGIN`/`END` comprises |
+| `APPLE_TEAM_ID` | le Team ID (*Membership*) |
+
+Le numéro de build vient de `github.run_number`, donc il est unique sans état à
+maintenir. La version affichée aux testeurs se passe en paramètre du workflow,
+ou reste celle de `project.yml`.
+
+⚠️ Deux limites à connaître. La signature à la volée crée un **certificat de
+distribution**, et Apple en limite le nombre à trois par compte — les révoquer
+depuis le portail si le quota est atteint. Et ce workflow **n'a jamais tourné**
+à ce jour : il est écrit d'après la documentation, pas éprouvé. Prévoir un ou
+deux allers-retours au premier envoi.

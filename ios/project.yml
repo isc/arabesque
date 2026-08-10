@@ -48,6 +48,9 @@ targets:
           charge une instance locale d'Arabesque.
         # URL loaded by the WKWebView
         PTWebAppURL: https://arabesque.app/
+    # `xcodebuild archive` works on schemes, not targets, so the release
+    # workflow needs one committed rather than left to Xcode's autocreation.
+    scheme: {}
     settings:
       base:
         TARGETED_DEVICE_FAMILY: 1,2

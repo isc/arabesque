@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Export options for the TestFlight build (.github/workflows/testflight.yml).
+
+  teamID is filled in at build time from the APPLE_TEAM_ID secret, so the
+  identifier never lives in the repository.
+
+  destination stays "export": the archive is written as an .ipa and uploaded in
+  a separate step. xcodebuild's App Store Connect API key authenticates signing
+  but is not honoured for the "upload" destination, so exporting and uploading
+  have to be two commands.
+-->
+<plist version="1.0">
+<dict>
+	<key>method</key>
+	<string>app-store-connect</string>
+	<key>destination</key>
+	<string>export</string>
+	<key>signingStyle</key>
+	<string>automatic</string>
+	<key>teamID</key>
+	<string>PLACEHOLDER</string>
+	<!-- TestFlight symbolicates crash reports with these. -->
+	<key>uploadSymbols</key>
+	<true/>
+	<!-- Thinning off: one universal .ipa, simpler to reason about for a
+	     WKWebView wrapper with no heavy per-device assets. -->
+	<key>stripSwiftSymbols</key>
+	<true/>
+</dict>
+</plist>
