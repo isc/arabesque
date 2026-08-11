@@ -115,8 +115,10 @@ demande. En revanche l'export et l'envoi sont deux commandes, la clé n'étant
 pas honorée pour la destination `upload` de l'export.
 
 **Créer la clé d'API** : App Store Connect → *Users and Access* → *Integrations*
-→ *App Store Connect API* → *Team Keys* → générer une clé de rôle **App
-Manager** (rôle nécessaire pour créer des certificats). Le fichier `.p8` ne se
+→ *App Store Connect API* → *Team Keys* → générer une clé de rôle **Admin**.
+*App Manager* ne suffit pas : il permet de créer un certificat via l'API, mais
+pas d'utiliser la **signature cloud** d'`xcodebuild`, qui échoue alors sur
+`Cloud signing permission error` au moment de l'export. Le fichier `.p8` ne se
 télécharge **qu'une fois** — le perdre oblige à révoquer et recommencer. Noter
 au passage le *Key ID* et l'*Issuer ID*.
 
@@ -136,6 +138,11 @@ n'importe quelle app distribuée. Le committer évite en prime que
 Le numéro de build vient de `github.run_number`, donc il est unique sans état à
 maintenir. La version affichée aux testeurs se passe en paramètre du workflow,
 ou reste celle de `project.yml`.
+
+Le job tourne sur **`macos-26`** : Apple refuse tout envoi construit avec un SDK
+antérieur à iOS 26, et `macos-15` s'arrête à Xcode 16.4 / SDK 18.5. Le message
+d'erreur est explicite (`This app was built with the iOS 18.5 SDK`) mais
+n'arrive qu'à la toute fin, après l'archive et l'export.
 
 ⚠️ Deux limites à connaître. La signature à la volée crée un **certificat de
 distribution**, et Apple en limite le nombre à trois par compte — les révoquer

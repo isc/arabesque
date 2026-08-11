@@ -13,9 +13,21 @@ on:
 
 jobs:
   upload:
-    runs-on: macos-15
+    # macos-26, not macos-15: Apple rejects uploads built with anything older
+    # than the iOS 26 SDK ("This app was built with the iOS 18.5 SDK"), which
+    # ships with Xcode 26.
+    runs-on: macos-26
     steps:
       - uses: actions/checkout@v4
+
+      # The image carries several Xcode versions; pin the newest rather than
+      # trust the default symlink, which has lagged behind before.
+      - name: Select the newest Xcode
+        run: |
+          latest=$(ls -d /Applications/Xcode_*.app | sort -V | tail -1)
+          echo "Using $latest"
+          sudo xcode-select -s "$latest"
+          xcodebuild -version
 
       # Fail here rather than 20 minutes in, with a message that says which
       # secret is missing. See ios/README.md for how to create them.
