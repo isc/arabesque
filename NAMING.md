@@ -73,11 +73,20 @@ basse, *tastello* frôle *tassello*, la cheville à visser).
 ## Reste à faire
 
 - [ ] **Recherche de marque déposée** (INPI / EUIPO) — non faite à ce jour.
-- [ ] **Réserver le nom sur App Store Connect.** Seule vérification qui fasse
-      foi ; les contrôles ci-dessus reposent sur l'API de recherche de l'App
-      Store, qui est un moteur classé par pertinence, pas un registre de noms.
-      Suppose le compte Apple Developer payant (99 €/an), qui est par ailleurs
-      le seul blocage dur restant pour TestFlight (voir `ios/README.md`).
+- [ ] **Réserver le nom sur App Store Connect** en créant la fiche d'app.
+      Seule vérification qui fasse foi ; les contrôles ci-dessus reposent sur
+      l'API de recherche de l'App Store, qui est un moteur classé par
+      pertinence, pas un registre de noms. À faire **à la main** : l'API
+      App Store Connect n'autorise pas la création d'app (`The resource 'apps'
+      does not allow 'CREATE'`).
+- [x] **Compte Apple Developer** — adhésion individuelle active depuis le
+      2026-08-11, Team ID `HGPUW9Q6BQ` (l'inscription a converti l'équipe
+      personnelle existante plutôt que d'en créer une).
+- [x] **Bundle ID** — `app.arabesque.Arabesque`, enregistré. DNS inversé du
+      domaine, et ce que XcodeGen compose depuis `bundleIdPrefix`.
+      `com.arabesque.Arabesque`, prévu initialement, s'est révélé **pris par un
+      tiers** : les App IDs sont uniques à l'échelle de tout Apple. Sans
+      conséquence sur la disponibilité du nom, qui relève d'un autre espace.
 - [x] **Déposer `arabesque.app`** et basculer le site dessus — fait, voir le
       mode opératoire ci-dessous.
 
