@@ -24,13 +24,11 @@ jobs:
           KEY_ID: ${{ secrets.APPSTORE_KEY_ID }}
           ISSUER_ID: ${{ secrets.APPSTORE_ISSUER_ID }}
           PRIVATE_KEY: ${{ secrets.APPSTORE_PRIVATE_KEY }}
-          TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
           missing=""
           [ -z "$KEY_ID" ]     && missing="$missing APPSTORE_KEY_ID"
           [ -z "$ISSUER_ID" ]  && missing="$missing APPSTORE_ISSUER_ID"
           [ -z "$PRIVATE_KEY" ] && missing="$missing APPSTORE_PRIVATE_KEY"
-          [ -z "$TEAM_ID" ]    && missing="$missing APPLE_TEAM_ID"
           if [ -n "$missing" ]; then
             echo "::error::Missing repository secrets:$missing — see ios/README.md"
             exit 1
@@ -57,7 +55,6 @@ jobs:
         env:
           KEY_ID: ${{ secrets.APPSTORE_KEY_ID }}
           ISSUER_ID: ${{ secrets.APPSTORE_ISSUER_ID }}
-          TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           MARKETING_VERSION_INPUT: ${{ inputs.marketing_version }}
         working-directory: ios
         run: |
@@ -76,7 +73,6 @@ jobs:
             -authenticationKeyPath ~/.appstoreconnect/private_keys/AuthKey_${KEY_ID}.p8 \
             -authenticationKeyID "$KEY_ID" \
             -authenticationKeyIssuerID "$ISSUER_ID" \
-            DEVELOPMENT_TEAM="$TEAM_ID" \
             CURRENT_PROJECT_VERSION=${{ github.run_number }} \
             $version_flag
 
@@ -84,10 +80,8 @@ jobs:
         env:
           KEY_ID: ${{ secrets.APPSTORE_KEY_ID }}
           ISSUER_ID: ${{ secrets.APPSTORE_ISSUER_ID }}
-          TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         working-directory: ios
         run: |
-          plutil -replace teamID -string "$TEAM_ID" ExportOptions.plist
           xcodebuild -exportArchive \
             -archivePath "$PWD/build/Arabesque.xcarchive" \
             -exportOptionsPlist ExportOptions.plist \

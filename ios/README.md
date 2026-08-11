@@ -87,9 +87,7 @@ que sur ses propres appareils.
 2. **Réserver le nom** dans App Store Connect en créant l'app : nom
    `Arabesque`, bundle ID `com.arabesque.Arabesque`. C'est la seule
    vérification de disponibilité qui fasse foi (voir `NAMING.md`).
-3. **Signer** : après `xcodegen generate`, ouvrir le projet et choisir l'équipe
-   dans *Signing & Capabilities*. ⚠️ Le projet étant généré, régénérer efface ce
-   choix — à refaire, ou à figer plus tard dans le spec quand on aura le Team ID.
+3. **Signer** : rien à faire, l'équipe `HGPUW9Q6BQ` est figée dans `project.yml`.
 4. **Incrémenter `CURRENT_PROJECT_VERSION`** dans `project.yml` : App Store
    Connect refuse deux envois avec le même numéro de build.
 5. **Archiver** : destination *Any iOS Device*, puis *Product → Archive*, puis
@@ -119,14 +117,18 @@ Manager** (rôle nécessaire pour créer des certificats). Le fichier `.p8` ne s
 télécharge **qu'une fois** — le perdre oblige à révoquer et recommencer. Noter
 au passage le *Key ID* et l'*Issuer ID*.
 
-**Renseigner quatre secrets** dans *Settings → Secrets and variables → Actions* :
+**Renseigner trois secrets** dans *Settings → Secrets and variables → Actions* :
 
 | Secret | Valeur |
 |---|---|
 | `APPSTORE_KEY_ID` | le *Key ID* de la clé |
 | `APPSTORE_ISSUER_ID` | l'*Issuer ID*, commun à toute l'équipe |
 | `APPSTORE_PRIVATE_KEY` | le contenu du `.p8`, lignes `BEGIN`/`END` comprises |
-| `APPLE_TEAM_ID` | le Team ID (*Membership*) |
+
+Le Team ID (`HGPUW9Q6BQ`) est écrit en clair dans `project.yml` et
+`ExportOptions.plist` : ce n'est pas un secret, il se lit dans le bundle de
+n'importe quelle app distribuée. Le committer évite en prime que
+`xcodegen generate` efface l'équipe choisie dans Xcode à chaque régénération.
 
 Le numéro de build vient de `github.run_number`, donc il est unique sans état à
 maintenir. La version affichée aux testeurs se passe en paramètre du workflow,
