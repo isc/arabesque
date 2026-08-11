@@ -85,8 +85,11 @@ que sur ses propres appareils.
 1. **S'inscrire** sur <https://developer.apple.com/programs/enroll/>, puis
    récupérer le **Team ID** dans *Membership*.
 2. **Réserver le nom** dans App Store Connect en créant l'app : nom
-   `Arabesque`, bundle ID `com.arabesque.Arabesque`. C'est la seule
-   vérification de disponibilité qui fasse foi (voir `NAMING.md`).
+   `Arabesque`, bundle ID `app.arabesque.Arabesque`. C'est la seule
+   vérification de disponibilité du **nom** qui fasse foi (voir `NAMING.md`).
+   L'API App Store Connect ne sait pas créer une fiche d'app — elle répond
+   `The resource 'apps' does not allow 'CREATE'` — donc cette étape reste
+   manuelle. Le bundle ID, lui, est déjà enregistré.
 3. **Signer** : rien à faire, l'équipe `HGPUW9Q6BQ` est figée dans `project.yml`.
 4. **Incrémenter `CURRENT_PROJECT_VERSION`** dans `project.yml` : App Store
    Connect refuse deux envois avec le même numéro de build.

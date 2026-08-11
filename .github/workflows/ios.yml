@@ -44,7 +44,7 @@ jobs:
       - name: Launch app and check it stays alive
         run: |
           xcrun simctl install "$SIM_UDID" ios/build/Debug-iphonesimulator/Arabesque.app
-          xcrun simctl launch --console-pty "$SIM_UDID" com.arabesque.Arabesque \
+          xcrun simctl launch --console-pty "$SIM_UDID" app.arabesque.Arabesque \
             > app-console.log 2>&1 &
           LAUNCH_PID=$!
           sleep 20

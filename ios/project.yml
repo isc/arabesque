@@ -2,7 +2,7 @@
 # Arabesque.xcodeproj (not committed, see .gitignore).
 name: Arabesque
 options:
-  bundleIdPrefix: com.arabesque
+  bundleIdPrefix: app.arabesque
   deploymentTarget:
     iOS: '15.0'
 targets:
