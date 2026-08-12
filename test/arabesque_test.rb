@@ -35,16 +35,29 @@ class ArabesqueTest < CapybaraTestBase
     # Verify measure rectangles are present in training mode
     assert_selector 'svg rect.measure-click-area.selected'
 
-    replay_cassette('simple-score-3-repeats', wait_for_end: false)
+    # Recorded rather than sampled: the highlighting is transient, and polling
+    # for it mid-replay misses whatever happens between two polls.
+    record_played_notes
+    replay_cassette('simple-score-3-repeats')
 
-    # Verify visual transitions during playback
-    assert_selector 'svg g.vf-notehead.played-note', count: 4  # After 1st repetition
-    assert_selector 'svg g.vf-notehead.played-note', count: 0  # After automatic reset (500ms)
-    assert_selector 'svg g.vf-notehead.played-note', minimum: 1, maximum: 3  # During 2nd repetition
-
-    assert_text 'Rejeu terminé'
     assert_text 'Félicitations'
     assert_text 'complété toutes les mesures'
+
+    # The cassette repeats the measure 3 times. Each repetition lights its 4
+    # notes one by one, and the automatic reset clears them before the next.
+    repetitions = played_notes_timeline.slice_before(0).to_a
+    # The reset that follows the last repetition may or may not have fired yet.
+    repetitions.pop if repetitions.last == [0]
+
+    assert_equal 3, repetitions.size, "expected 3 repetitions, got #{repetitions.inspect}"
+    repetitions.each do |lit_counts|
+      assert_equal 0, lit_counts.first, "repetition should start cleared: #{lit_counts.inspect}"
+      assert_equal 4, lit_counts.last, "repetition should end with the measure lit: #{lit_counts.inspect}"
+      assert_equal lit_counts.sort, lit_counts, "notes should never un-light mid-repetition: #{lit_counts.inspect}"
+    end
+    # Note by note, not all at once — what makes the highlighting readable.
+    assert repetitions.any? { |lit| lit.any? { |n| (1..3).cover?(n) } },
+           "expected a partially lit measure at some point, got #{repetitions.inspect}"
   end
 
   def test_training_mode_requires_clean_repetitions
