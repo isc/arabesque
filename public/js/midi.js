@@ -1,3 +1,4 @@
+import { countMidiEvent } from './perfTrace.js' // TEMP diagnostic
 import { isTestEnv } from './utils.js'
 import mockMIDI from './midi_mock.js'
 import { t } from './i18n.js'
@@ -67,6 +68,12 @@ async function connectMIDI(options = {}) {
   try {
     state.midiAccess = await navigator.requestMIDIAccess()
 
+    // Registered before anything can return early: a device that shows up
+    // later is the normal case, not the exception. Bluetooth MIDI is paired
+    // from inside the app, well after the page has loaded, so the port list
+    // is empty at this point and only the listener will catch the piano.
+    state.midiAccess.onstatechange = (event) => onPortStateChange(event.port)
+
     // Get available MIDI inputs
     const inputs = Array.from(state.midiAccess.inputs.values())
 
@@ -105,33 +112,36 @@ async function connectMIDI(options = {}) {
       selectMIDIOutput(outputs[0])
     }
 
-    // Listen for device changes and auto-reconnect
-    state.midiAccess.onstatechange = (event) => {
-      const { port } = event
-      console.log('MIDI device state change:', port.name, port.state)
-
-      if (port.state === 'disconnected') {
-        if (port === state.midiInput) {
-          state.midiConnected = false
-          state.midiInput = null
-          console.log('MIDI input disconnected')
-        } else if (port === state.midiOutput) {
-          state.midiOutput = null
-          console.log('MIDI output disconnected')
-        }
-      } else if (port.state === 'connected') {
-        if (port.type === 'input' && !state.midiConnected) {
-          console.log('New MIDI input detected, auto-connecting:', port.name)
-          selectMIDIInput(port)
-        } else if (port.type === 'output' && !state.midiOutput) {
-          console.log('New MIDI output detected, auto-connecting:', port.name)
-          selectMIDIOutput(port)
-        }
-      }
-    }
   } catch (e) {
     console.error('Erreur MIDI:', e)
     if (!silent) alert(t('errors.midiConnection', { message: e.message }))
+  }
+}
+
+// A port appearing or vanishing after the page loaded. On desktop this is the
+// rare case — the keyboard is usually plugged in before the page opens — but
+// on iOS it is how the piano always arrives, since Bluetooth MIDI is paired
+// from inside the app.
+function onPortStateChange(port) {
+  console.log('MIDI device state change:', port.name, port.state)
+
+  if (port.state === 'disconnected') {
+    if (port === state.midiInput) {
+      state.midiConnected = false
+      state.midiInput = null
+      console.log('MIDI input disconnected')
+    } else if (port === state.midiOutput) {
+      state.midiOutput = null
+      console.log('MIDI output disconnected')
+    }
+  } else if (port.state === 'connected') {
+    if (port.type === 'input' && !state.midiConnected) {
+      console.log('New MIDI input detected, auto-connecting:', port.name)
+      selectMIDIInput(port)
+    } else if (port.type === 'output' && !state.midiOutput) {
+      console.log('New MIDI output detected, auto-connecting:', port.name)
+      selectMIDIOutput(port)
+    }
   }
 }
 
@@ -144,6 +154,7 @@ function selectMIDIInput(input) {
   state.midiInput = input
 
   input.onmidimessage = (event) => {
+    countMidiEvent() // TEMP diagnostic
     parseMidiMessage(event.data)
   }
 
