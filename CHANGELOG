@@ -1,3 +1,10 @@
+2026-08-11
+
+- Première version iOS distribuée par **TestFlight**. L'app native (WKWebView
+  + pont CoreMIDI) s'installe désormais sur iPad et iPhone sans câble ni Xcode,
+  et sans la signature personnelle qui expirait tous les 7 jours. Chaîne
+  d'envoi automatisée : archive, signature, export et upload depuis la CI.
+
 2026-08-04
 
 - Renommage : l'application s'appelle désormais **Arabesque**. Le nom est

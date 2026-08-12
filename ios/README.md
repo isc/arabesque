@@ -144,8 +144,23 @@ antérieur à iOS 26, et `macos-15` s'arrête à Xcode 16.4 / SDK 18.5. Le messa
 d'erreur est explicite (`This app was built with the iOS 18.5 SDK`) mais
 n'arrive qu'à la toute fin, après l'archive et l'export.
 
-⚠️ Deux limites à connaître. La signature à la volée crée un **certificat de
-distribution**, et Apple en limite le nombre à trois par compte — les révoquer
-depuis le portail si le quota est atteint. Et ce workflow **n'a jamais tourné**
-à ce jour : il est écrit d'après la documentation, pas éprouvé. Prévoir un ou
-deux allers-retours au premier envoi.
+⚠️ La signature à la volée crée un **certificat de distribution**, et Apple en
+limite le nombre à trois par compte — les révoquer depuis le portail si le quota
+est atteint.
+
+**Éprouvé le 2026-08-11**, au troisième essai : le build 3 est passé en `VALID`
+et s'installe. Les deux échecs précédents sont désormais couverts par la
+configuration (rôle Admin de la clé, runner `macos-26`), donc ils ne devraient
+pas se reproduire.
+
+### Un build TestFlight expire au bout de 90 jours
+
+À l'échéance, l'app **cesse de s'ouvrir** chez les testeurs qui l'ont installée
+— elle n'est pas seulement retirée du catalogue — et les données locales
+partent avec, donc l'historique de pratique stocké dans l'IndexedDB de la
+WebView. L'expiration ne se prolonge pas.
+
+Le remède est un nouvel envoi : *Actions → TestFlight → Run workflow*, sans
+rien modifier, le numéro de build s'incrémentant via `github.run_number`. À
+faire au moins une fois par trimestre tant que l'app n'est pas publiée sur
+l'App Store — une version publiée, elle, n'expire pas.
