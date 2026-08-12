@@ -1,17 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 
-// midi.js calls countMidiEvent() on every inbound message, from the TEMP
-// perfTrace probe. Neutralised here: this suite is about reconnection, and the
-// real module resolved to an empty namespace on CI — reproducible neither
-// locally on Node 20 nor 22 — which made the import undefined at call time.
-// Mocking removes an incidental dependency the test never needed.
-vi.mock('../../public/js/perfTrace.js', () => ({
-  countMidiEvent: () => {},
-  traced: (_label, fn) => fn(),
-  mark: () => {},
-  ENABLED: false,
-}))
-
 import { initMidi } from '../../public/js/midi.js'
 
 // A MIDI port that turns up after the page has loaded — the normal case on

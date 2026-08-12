@@ -1,4 +1,3 @@
-import { countMidiEvent } from './perfTrace.js' // TEMP diagnostic
 import { isTestEnv } from './utils.js'
 import mockMIDI from './midi_mock.js'
 import { t } from './i18n.js'
@@ -153,10 +152,7 @@ function selectMIDIOutput(output) {
 function selectMIDIInput(input) {
   state.midiInput = input
 
-  input.onmidimessage = (event) => {
-    countMidiEvent() // TEMP diagnostic
-    parseMidiMessage(event.data)
-  }
+  input.onmidimessage = (event) => parseMidiMessage(event.data)
 
   state.midiConnected = true
   console.log('MIDI connected:', input.name)
