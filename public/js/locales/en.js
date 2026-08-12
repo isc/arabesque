@@ -109,6 +109,7 @@ export default {
     cloudUnavailable: 'Cloud sync is not configured.',
     authError: 'Could not send the link:',
     autoSync: 'Automatic sync',
+    autoSyncHint: 'Syncs after each piece you play and when you come back to the app.',
     syncNow: 'Sync now',
     lastSync: 'Last synced:',
     syncNever: 'never',

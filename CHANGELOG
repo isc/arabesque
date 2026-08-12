@@ -1,3 +1,16 @@
+2026-08-12
+
+- La **synchronisation automatique** est enfin automatique. Le réglage ne
+  déclenchait une synchro qu'à l'ouverture de la page Données ; elle part
+  maintenant à la fin de chaque session de travail (morceau terminé, séance
+  d'entraînement ou de renforcement), au retour sur l'onglet, et à l'ouverture
+  de la bibliothèque — qui se rafraîchit toute seule si des données sont
+  arrivées d'un autre appareil. Garde-fous : une synchro à la fois, une par
+  minute au maximum pour les déclencheurs passifs, et le client Supabase n'est
+  chargé (et préchargé hors du chemin critique) que si la synchro est activée.
+  Au passage, une synchro ne retélécharge plus tous les doigtés à chaque fois,
+  seulement ceux qui ont réellement changé.
+
 2026-08-11
 
 - Première version iOS distribuée par **TestFlight**. L'app native (WKWebView

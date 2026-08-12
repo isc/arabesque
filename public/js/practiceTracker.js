@@ -160,6 +160,15 @@ export function initPracticeTracker(storageInstance = null) {
     await storage.clearAggregates()
     for (const session of sessions) {
       if (!session.measures || session.measures.length === 0) continue
+      // Only ended sessions were ever credited by endSession(), and only they
+      // are pushed to the cloud (see sync.js) — so replaying an unfinished one
+      // would invent practice time no other device can see. They do pile up:
+      // measure attempts save incrementally, and beforeunload's endSession()
+      // can be abandoned before it commits (see endMeasureAttempt).
+      if (!session.endedAt) continue
+      // Ended but not yet aggregated: endSession() saves the session, then
+      // credits it. A sync landing between the two would count it twice.
+      if (session.id === currentSession?.id) continue
       await updateAggregates(session, metaFor(session.scoreId))
     }
   }

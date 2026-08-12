@@ -36,7 +36,15 @@ function makeFakeSupabase({ sessions = [], fingerings = [] } = {}) {
       }
       return {
         select() {
-          return { data: [...fing.values()], error: null }
+          const all = [...fing.values()]
+          return {
+            data: all,
+            error: null,
+            in(_col, vals) {
+              const set = new Set(vals)
+              return { data: all.filter((r) => set.has(r.score_url)), error: null }
+            },
+          }
         },
         upsert(rows) {
           for (const r of rows) fing.set(r.score_url, r)
@@ -128,6 +136,28 @@ describe('runSync', () => {
     expect(aggs.length).toBe(1)
     expect(aggs[0].scoreId).toBe('/s/9.xml')
     expect(aggs[0].measures['0'].totalAttempts).toBe(1)
+  })
+
+  it('does not credit the session being played to the aggregates it rebuilds', async () => {
+    practiceTracker.startSession('/s/live.xml', 'Live', 'Composer', 'free', 10)
+    practiceTracker.startMeasureAttempt(0)
+    await practiceTracker.endMeasureAttempt(true)
+    // endMeasureAttempt persists in the background; make sure the in-progress
+    // session is on disk before the sync replays what it finds there.
+    await storage.saveSession(practiceTracker.getCurrentSession())
+
+    // A pull is what triggers the rebuild.
+    const remote = endedSession('z', '/s/9.xml')
+    const supabase = makeFakeSupabase({
+      sessions: [{ user_id: USER, id: 'z', data: remote, ended_at: remote.endedAt }],
+    })
+    await runSync({ supabase, storage, practiceTracker })
+
+    await practiceTracker.endSession()
+
+    const agg = await storage.getAggregate('/s/live.xml')
+    expect(agg.totalSessions).toBe(1)
+    expect(agg.measures['0'].totalAttempts).toBe(1)
   })
 
   it('fingerings: pushes local-newer, pulls remote-newer (last-write-wins)', async () => {

@@ -80,6 +80,9 @@
                 <input type="checkbox" role="switch" x-model="autoSync" @change="onAutoSyncChanged()" />
                 <span x-text="$t('data.autoSync')">Synchronisation automatique</span>
               </label>
+              <p class="pt-text-muted" x-text="$t('data.autoSyncHint')">
+                Synchronise à la fin de chaque morceau joué et au retour sur l’app.
+              </p>
 
               <div class="pt-data-actions">
                 <button type="button" @click="syncNow()" :aria-busy="syncStatus === 'syncing'" :disabled="syncStatus === 'syncing'" x-text="$t('data.syncNow')">Synchroniser maintenant</button>
