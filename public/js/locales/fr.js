@@ -109,6 +109,7 @@ export default {
     cloudUnavailable: 'La synchronisation cloud n’est pas configurée.',
     authError: 'Échec de l’envoi du lien :',
     autoSync: 'Synchronisation automatique',
+    autoSyncHint: 'Synchronise à la fin de chaque morceau joué et au retour sur l’app.',
     syncNow: 'Synchroniser maintenant',
     lastSync: 'Dernière synchro :',
     syncNever: 'jamais',

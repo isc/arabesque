@@ -4,6 +4,7 @@ import { initStorage } from './storage.js'
 import { formatDuration, formatDate, formatRelativeDate, statusLabel, scorePageUrl } from './utils.js'
 import { PERIODS, periodLabel, getPeriodForComposer } from './musicalPeriods.js'
 import { headerMenu } from './headerMenu.js'
+import { initAutoSync } from './autoSync.js'
 import { t, locale } from './i18n.js'
 
 const MIN_MATCH = 5
@@ -74,9 +75,7 @@ export function libraryApp() {
       // re-running. Refresh just the practice-derived data so the journal
       // and status pills reflect what was just played.
       window.addEventListener('pageshow', (event) => {
-        if (!event.persisted) return
-        this.refreshPracticeData()
-        this.reloadDailyLogs()
+        if (event.persisted) this.refreshPracticeViews()
       })
 
       const [scoresResponse, fingerprintsResponse] = await Promise.all([
@@ -110,6 +109,22 @@ export function libraryApp() {
       this.searchQuery = params.get('q') || ''
 
       await this.reloadDailyLogs()
+
+      // The library is where synced data shows up (journal, status pills), so
+      // it syncs on open and on tab focus, and redraws whatever came down.
+      initAutoSync({ storage, practiceTracker }, {
+        syncOnOpen: true,
+        onSynced: (summary) => {
+          if (summary.pulled) this.refreshPracticeViews()
+        },
+      })
+    },
+
+    // Everything on this page derived from practice data, redrawn together.
+    // The two reads are independent, and each walks the whole session store —
+    // no reason to pay for them one after the other.
+    refreshPracticeViews() {
+      return Promise.all([this.refreshPracticeData(), this.reloadDailyLogs()])
     },
 
     // Recomputes lastPlayedByScore/aggregatesByScore/sessionCountByFile from

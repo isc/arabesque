@@ -10,6 +10,7 @@ import { injectFingerings } from './fingeringInjector.js'
 import { initPlayback, getBPM } from './playback.js'
 import { initStrictPlaythrough } from './strictPlaythrough.js'
 import { headerMenu } from './headerMenu.js'
+import { initAutoSync, triggerSync } from './autoSync.js'
 import { traced, mark } from './perfTrace.js' // TEMP diagnostic
 import { t, locale } from './i18n.js'
 
@@ -38,6 +39,13 @@ export function midiApp() {
   const practiceTracker = initPracticeTracker(storage)
   const playback = initPlayback(midi.state)
   const strictPlaythrough = initStrictPlaythrough()
+  // The end of a session is the moment its data becomes worth pushing: runSync
+  // only takes sessions that have ended, so a playthrough finished here would
+  // otherwise sit on this device until the data page is opened.
+  async function endSessionAndSync() {
+    await practiceTracker.endSession()
+    triggerSync('session ended')
+  }
 
   return {
     ...headerMenu(),
@@ -165,7 +173,7 @@ export function midiApp() {
       musicxml.setCallbacks({
         onScoreCompleted: async () => {
           practiceTracker.markScoreCompleted()
-          await practiceTracker.endSession()
+          await endSessionAndSync()
 
           const allPlaythroughs = this.scoreUrl ? await practiceTracker.getAllPlaythroughs(this.scoreUrl) : []
           window.scrollTo({ top: 0, behavior: 'smooth' })
@@ -180,7 +188,7 @@ export function midiApp() {
         },
         onTrainingComplete: async () => {
           this.openResultModal('training')
-          await practiceTracker.endSession()
+          await endSessionAndSync()
           // Start new session for next playthrough
           const metadata = musicxml.getScoreMetadata()
           practiceTracker.startSession(this.scoreUrl, metadata.title, metadata.composer, 'training', metadata.totalMeasures)
@@ -203,7 +211,7 @@ export function midiApp() {
           this.reinforcementMode = false
           this.trainingMode = false
           musicxml.setTrainingMode(false)
-          await practiceTracker.endSession()
+          await endSessionAndSync()
           this.openResultModal('reinforcement')
 
           // Start new free session so subsequent play is tracked
@@ -240,6 +248,10 @@ export function midiApp() {
       if (scoreUrl) await this.loadScoreFromURL(scoreUrl)
 
       window.addEventListener('beforeunload', () => practiceTracker.endSession())
+      // No sync on open: this page's own end-of-session trigger is what it has
+      // to contribute, and pulling here would rebuild aggregates while a piece
+      // is on screen.
+      initAutoSync({ storage, practiceTracker })
     },
 
     syncMidiState() {

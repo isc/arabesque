@@ -16,6 +16,17 @@
 
 export const CHANGELOG = [
   {
+    date: '2026-08-12',
+    items: {
+      fr: [
+        "La synchronisation automatique mérite enfin son nom : une fois activée (Données → Compte), vos données partent et arrivent à la fin de chaque morceau joué, au retour sur l'app et à l'ouverture de la bibliothèque — plus besoin de passer par « Synchroniser maintenant ».",
+      ],
+      en: [
+        'Automatic sync finally deserves its name: once turned on (Data → Account), your data goes up and comes down at the end of each piece you play, when you come back to the app and when the library opens — no more going through "Sync now".',
+      ],
+    },
+  },
+  {
     date: '2026-08-04',
     items: {
       fr: [

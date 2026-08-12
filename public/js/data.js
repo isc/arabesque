@@ -5,7 +5,8 @@
 // export/import that used to live in the ⚙️ menu, plus passwordless sign-in.
 import { initStorage } from './storage.js'
 import { initPracticeTracker } from './practiceTracker.js'
-import { runSync, syncEnabled, setSyncEnabled, lastSyncAt } from './sync.js'
+import { syncEnabled, setSyncEnabled, lastSyncAt } from './sync.js'
+import { initAutoSync, requestSync } from './autoSync.js'
 import { t, locale } from './i18n.js'
 
 export function dataApp() {
@@ -47,6 +48,12 @@ export function dataApp() {
         supabase.auth.onAuthStateChange((_event, session) => {
           this.user = session?.user ?? null
         })
+        // No syncOnOpen: this page opens with syncNow() just below, which
+        // reports the outcome instead of syncing silently. The callback keeps
+        // "Last synced" honest for the syncs that do fire on their own.
+        initAutoSync({ storage, practiceTracker }, {
+          onSynced: () => { this.lastSync = lastSyncAt() },
+        })
         // Opening this page is a natural moment to sync, if it's enabled.
         if (this.user && this.autoSync) this.syncNow()
       }
@@ -65,8 +72,16 @@ export function dataApp() {
       this.syncError = ''
       this.syncSummary = ''
       try {
-        const r = await runSync({ supabase, storage, practiceTracker })
-        this.lastSync = lastSyncAt()
+        // Through requestSync so a sync started elsewhere (this page also gets
+        // the tab-back trigger) isn't run twice over. It returns null if the
+        // session expired out from under this.user — nothing synced, nothing
+        // to report.
+        const r = await requestSync()
+        if (!r) {
+          this.syncStatus = 'idle'
+          return
+        }
+        // this.lastSync is set by the onSynced callback above.
         this.syncSummary = t('data.syncSummary', {
           up: r.pushed + r.fingeringsPushed,
           down: r.pulled + r.fingeringsPulled,
