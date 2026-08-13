@@ -121,6 +121,33 @@ class CapybaraTestBase < Minitest::Test
     end
   end
 
+  # Write records into an IndexedDB store and block until the transaction has
+  # actually committed.
+  #
+  # A put() request resolves well before the transaction it belongs to, so a
+  # test that fires the puts and then sleeps is betting on a fixed delay. The
+  # bet pays while the page is idle and loses on a loaded machine — or as soon
+  # as the suite is split and each process gets a fraction of the cores.
+  # `oncomplete` is the only signal that says the data is durable and will be
+  # there for the next page load.
+  def seed_store(store, records)
+    wait_for_store(store)
+    committed = page.evaluate_async_script(<<~JS, store, records)
+      const [store, records, done] = [arguments[0], arguments[1], arguments[arguments.length - 1]];
+      const request = indexedDB.open('arabesque', 3);
+      request.onerror = () => done(false);
+      request.onsuccess = () => {
+        const db = request.result;
+        const tx = db.transaction(store, 'readwrite');
+        tx.oncomplete = () => { db.close(); done(true); };
+        tx.onabort = tx.onerror = () => { db.close(); done(false); };
+        const objectStore = tx.objectStore(store);
+        for (const record of records) objectStore.put(record);
+      };
+    JS
+    assert committed, "seeding the '#{store}' store did not commit"
+  end
+
   # Helper to run code with a virtual browser time
   # Accepts a Time object or a string like "2026-01-10 12:00"
   # Resets the browser page after the block to restore normal time behavior

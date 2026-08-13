@@ -40,24 +40,18 @@ class CollectionTest < CapybaraTestBase
   def test_collection_resumes_last_played_part
     # Inject a practice session on exercise 3, then reload the library: the
     # collection row should link to that exercise instead of the first one.
-    wait_for_store('sessions')
-    page.execute_script(<<~JS)
-      const startedAt = new Date(Date.now() - 3600000).toISOString()
-      const session = {
-        id: 'hanon-resume-test',
-        scoreId: 'scores/Hanon_Le_Pianiste_Virtuose_Ex_03.mxl',
-        mode: 'free',
-        startedAt,
-        endedAt: startedAt,
-        totalMeasures: 29,
-        measures: [{ sourceMeasureIndex: 0, attempts: [{ startedAt, durationMs: 5000, wrongNotes: 0, clean: true }] }],
-      }
-      const req = indexedDB.open('arabesque', 3)
-      req.onsuccess = () => {
-        req.result.transaction('sessions', 'readwrite').objectStore('sessions').put(session)
-      }
-    JS
-    sleep 0.2
+    started_at = (Time.now - 3600).utc.iso8601(3)
+    attempt = { startedAt: started_at, durationMs: 5000, wrongNotes: 0, clean: true }
+    session = {
+      id: 'hanon-resume-test',
+      scoreId: 'scores/Hanon_Le_Pianiste_Virtuose_Ex_03.mxl',
+      mode: 'free',
+      startedAt: started_at,
+      endedAt: started_at,
+      totalMeasures: 29,
+      measures: [{ sourceMeasureIndex: 0, attempts: [attempt] }]
+    }
+    seed_store('sessions', [session])
 
     visit '/library.html'
     assert_selector 'tbody tr', minimum: 1
