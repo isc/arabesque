@@ -140,8 +140,9 @@ class ArabesqueTest < CapybaraTestBase
         [128, 64, 64],  # Note OFF E4
       ]
 
-      # Give a moment for MIDI events to be recorded
-      sleep 0.1
+      # No wait needed before stopping: the mock dispatches MIDI events
+      # synchronously, so they are in the recording buffer by the time
+      # play_note returns.
 
       accept_alert do
         accept_prompt(with: cassette_name) do
@@ -427,7 +428,7 @@ class ArabesqueTest < CapybaraTestBase
   def test_reinforcement_mode_after_playthrough_with_mistakes
     visit '/score.html?url=/test-fixtures/repeat-endings.xml'
     assert_selector 'svg g.vf-stavenote', count: 4
-    sleep 0.05  # Wait for all initialization to complete
+    assert_selector '#score[data-render-complete]'
 
     # Play with mistakes on measure 1
     # Sequence: C4 -> D4 -> E4 -> C4 -> D4 -> F4
