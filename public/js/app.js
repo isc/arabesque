@@ -270,10 +270,13 @@ export function midiApp() {
           this.requestWakeLock()
         }
       })
-      // No sync on open: this page's own end-of-session trigger is what it has
-      // to contribute, and pulling here would rebuild aggregates while a piece
-      // is on screen.
-      initAutoSync({ storage, practiceTracker })
+      // This page never pulls — not on open, not on tab-back. A pull can
+      // trigger rebuildAggregates(), which clears every aggregate and replays
+      // every stored session one by one; doing that with a score on screen and
+      // MIDI coming in is how you freeze mid-piece. It has nothing to gain
+      // either: it displays no synced data, and what it has to contribute goes
+      // up through its own end-of-session trigger.
+      initAutoSync({ storage, practiceTracker }, { syncOnReturn: false })
     },
 
     syncMidiState() {
