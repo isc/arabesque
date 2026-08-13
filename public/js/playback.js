@@ -1,4 +1,5 @@
 import { Piano } from '@tonejs/piano'
+import { isTestEnv } from './utils.js'
 import { tsToSeconds, buildMeasureStartTimes, buildCursorTimeline, cursorStepsBeforeMeasure } from './playbackTiming.js'
 import { scrollSystemIntoView } from './utils.js'
 
@@ -54,6 +55,13 @@ function pedalUp() {
 
 async function ensurePianoLoaded() {
   if (midiState?.midiOutput || piano) return
+  // Under test, play silently. The samples are a ~6s CDN download, and it sits
+  // between the click on ▶ Écouter and the button becoming ⏹ Stop — so a test
+  // asserting that transition was really asserting that a CDN answered within
+  // Capybara's 10s, which it does until the machine is busy. Everything the
+  // tests do check — scheduling, the cursor, isPlaying — runs without it, and
+  // sendMidi() already no-ops when there is neither an output nor a piano.
+  if (isTestEnv()) return
   piano = new Piano({ velocities: 1 })
   piano.toDestination()
   await piano.load()
