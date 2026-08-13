@@ -5,7 +5,7 @@
 // it carries, see supabaseClient.js — and the switch that drives cloud sync.
 import { initStorage } from './storage.js'
 import { initPracticeTracker } from './practiceTracker.js'
-import { syncEnabled, setSyncEnabled, lastSyncAt } from './sync.js'
+import { setSyncSignedIn, lastSyncAt } from './sync.js'
 import { initAutoSync, requestSync } from './autoSync.js'
 import { t, locale } from './i18n.js'
 
@@ -36,7 +36,6 @@ export function dataApp() {
     get codeSent() {
       return this.authStatus === 'sent' || this.authStatus === 'verifying'
     },
-    autoSync: syncEnabled(),
     lastSync: lastSyncAt(),
     syncStatus: 'idle', // 'idle' | 'syncing' | 'done' | 'error'
     syncError: '',
@@ -57,12 +56,9 @@ export function dataApp() {
       }
       if (supabase) {
         const { data } = await supabase.auth.getSession()
-        this.user = data.session?.user ?? null
+        this.setSession(data.session)
         // Keep the UI in sync with sign-in/out and the magic-link redirect.
-        supabase.auth.onAuthStateChange((_event, session) => {
-          this.user = session?.user ?? null
-          if (session) setPendingSignIn(null)
-        })
+        supabase.auth.onAuthStateChange((_event, session) => this.setSession(session))
         // Came back from the mail app (or reloaded): reopen the code form on
         // the address that was asked for, rather than starting over.
         const pending = pendingSignIn()
@@ -76,16 +72,19 @@ export function dataApp() {
         initAutoSync({ storage, practiceTracker }, {
           onSynced: () => { this.lastSync = lastSyncAt() },
         })
-        // Opening this page is a natural moment to sync, if it's enabled.
-        if (this.user && this.autoSync) this.syncNow()
+        // Opening this page is a natural moment to sync.
+        if (this.user) this.syncNow()
       }
       this.authReady = true
     },
 
-    // x-model already flipped this.autoSync; persist it and sync if enabling.
-    onAutoSyncChanged() {
-      setSyncEnabled(this.autoSync)
-      if (this.autoSync && this.user) this.syncNow()
+    // The one place that knows whether an account is signed in on this device.
+    // Mirrored into storage so the score and library pages can decide whether
+    // to sync without loading the Supabase client to ask (see sync.js).
+    setSession(session) {
+      this.user = session?.user ?? null
+      setSyncSignedIn(!!session)
+      if (session) setPendingSignIn(null)
     },
 
     async syncNow() {
@@ -162,21 +161,21 @@ export function dataApp() {
         // onAuthStateChange sets this.user; clear the sign-in form's state.
         this.authStatus = 'idle'
         this.otp = ''
-        setPendingSignIn(null)
         // Signing in here doesn't reload the page, so nothing else would pull
         // what this account already has — the whole point of signing in.
-        if (this.autoSync) this.syncNow()
+        this.syncNow()
       }
     },
 
     async signOut() {
       await supabase?.auth.signOut()
-      this.user = null
+      // Signing out is what turns syncing off, so don't wait on the auth
+      // callback to record it.
+      this.setSession(null)
       this.authStatus = 'idle'
       this.email = ''
       this.otp = ''
       this.authError = ''
-      setPendingSignIn(null)
     },
 
     async exportBackup() {

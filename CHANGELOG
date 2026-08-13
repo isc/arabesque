@@ -1,3 +1,13 @@
+2026-08-14
+
+- La case **« Synchronisation automatique »** disparaît : être connecté suffit à
+  synchroniser, se déconnecter est l'interrupteur. La case venait de la phase où
+  la synchro ne partait qu'à l'ouverture de la page Données ; une fois les
+  déclencheurs ambiants en place, elle ne pouvait plus produire qu'un compte
+  connecté qui ne fait rien — l'état qui avait laissé un an d'historique en
+  local. Le drapeau reste en interne, écrit à la connexion, pour que les pages
+  partition et bibliothèque sachent s'abstenir sans charger le client Supabase.
+
 2026-08-13
 
 - **Connexion par code** en plus du lien magique. Un lien connecte le navigateur

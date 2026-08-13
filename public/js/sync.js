@@ -8,23 +8,34 @@
 //
 // runSync() takes its dependencies (the supabase client, storage,
 // practiceTracker) so it stays page-agnostic.
-const SYNC_ENABLED_KEY = 'arabesque:sync-enabled'
+// Whether an account is signed in on this device, which is the whole condition
+// for syncing: signing in has no other purpose in the app, so an account that
+// doesn't sync is an account that does nothing. It used to be a switch of its
+// own on the data page, from when ambient sync didn't exist yet and "automatic"
+// only meant "when the data page opens" — hence the key's name, kept so nobody
+// who had it on has to turn anything back on.
+//
+// Mirrored here, rather than asked of the Supabase client, because every sync
+// trigger consults it: the score and library pages must be able to decide not
+// to sync without paying for the @supabase/supabase-js bundle first. The data
+// page owns it and writes it whenever it observes the session change.
+const SYNC_SIGNED_IN_KEY = 'arabesque:sync-enabled'
 const LAST_SYNC_KEY = 'arabesque:last-sync'
 const CHUNK = 200
 
-export function syncEnabled() {
+export function syncSignedIn() {
   try {
-    return localStorage.getItem(SYNC_ENABLED_KEY) === '1'
+    return localStorage.getItem(SYNC_SIGNED_IN_KEY) === '1'
   } catch {
     return false
   }
 }
 
-export function setSyncEnabled(on) {
+export function setSyncSignedIn(signedIn) {
   try {
-    localStorage.setItem(SYNC_ENABLED_KEY, on ? '1' : '0')
+    localStorage.setItem(SYNC_SIGNED_IN_KEY, signedIn ? '1' : '0')
   } catch {
-    /* ignore: setting just won't persist */
+    /* ignore: it just won't persist */
   }
 }
 

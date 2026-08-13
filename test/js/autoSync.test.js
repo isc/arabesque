@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 import 'fake-indexeddb/auto'
 import { initStorage } from '../../public/js/storage.js'
 import { initPracticeTracker } from '../../public/js/practiceTracker.js'
-import { setSyncEnabled } from '../../public/js/sync.js'
+import { setSyncSignedIn } from '../../public/js/sync.js'
 
 // The module under test only ever reaches Supabase through this one import,
 // which the real page loads lazily from a CDN.
@@ -57,11 +57,11 @@ describe('autoSync', () => {
     deps = { storage, practiceTracker: initPracticeTracker(storage) }
     // Fresh module state (the throttle is module-level) for every test.
     autoSync = await import('../../public/js/autoSync.js')
-    setSyncEnabled(true)
+    setSyncSignedIn(true)
   })
 
-  it('does nothing when automatic sync is off', () => {
-    setSyncEnabled(false)
+  it('does nothing when no account is signed in on this device', () => {
+    setSyncSignedIn(false)
     autoSync.initAutoSync(deps, { syncOnOpen: true })
     autoSync.triggerSync('test')
     expect(runSync).not.toHaveBeenCalled()
