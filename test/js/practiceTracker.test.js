@@ -347,6 +347,35 @@ describe('practiceTracker', () => {
       expect(log[0].measuresWorked).toContain(0)
     })
 
+    it('getDailyLogs matches per-day reads, in a single pass over the store', async () => {
+      tracker.startSession('/scores/test.xml', 'Test', 'Composer', 'training')
+      tracker.startMeasureAttempt(0)
+      tracker.endMeasureAttempt(true)
+      await tracker.endSession()
+
+      const today = new Date()
+      const yesterday = new Date()
+      yesterday.setDate(yesterday.getDate() - 1)
+      const dates = [today, yesterday]
+
+      const perDay = [await tracker.getDailyLog(today), await tracker.getDailyLog(yesterday)]
+
+      let reads = 0
+      const getSessions = storage.getSessions.bind(storage)
+      storage.getSessions = (...args) => {
+        reads++
+        return getSessions(...args)
+      }
+      const batched = await tracker.getDailyLogs(dates)
+      storage.getSessions = getSessions
+
+      expect(batched).toEqual(perDay)
+      expect(batched[0]).toHaveLength(1)
+      expect(batched[1]).toHaveLength(0)
+      // The journal asks for a fortnight; that must stay one read, not fourteen.
+      expect(reads).toBe(1)
+    })
+
     it('counts timesPlayedInFull across multiple sessions', async () => {
       // First session: complete playthrough
       tracker.startSession('/scores/test.xml', 'Test', 'Composer', 'free', 2)

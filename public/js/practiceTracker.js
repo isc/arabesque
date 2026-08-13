@@ -140,6 +140,7 @@ export function initPracticeTracker(storageInstance = null) {
     analyzeMeasuresFromSession,
     getLastCompletedSession,
     getDailyLog,
+    getDailyLogs,
     getScoreHistory,
     getAllPlaythroughs,
     getAllScores,
@@ -516,22 +517,58 @@ export function initPracticeTracker(storageInstance = null) {
   }
 
   async function getDailyLog(date) {
-    const startOfDay = new Date(date)
-    startOfDay.setHours(0, 0, 0, 0)
-    const endOfDay = new Date(date)
-    endOfDay.setHours(23, 59, 59, 999)
+    return (await getDailyLogs([date]))[0]
+  }
 
-    const sessions = await storage.getSessions(null, {
-      start: startOfDay,
-      end: endOfDay,
-    })
+  // The journal asks for a run of consecutive days at once. Reading them one at
+  // a time means one storage.getSessions() per day, and that has no index on
+  // startedAt: it cursors the whole store and filters in JS, so every extra day
+  // deserializes every session again. One read for the whole span instead, with
+  // the aggregate lookups shared across days.
+  async function getDailyLogs(dates) {
+    if (dates.length === 0) return []
 
+    const bounds = dates.map((d) => new Date(d).setHours(0, 0, 0, 0))
+    const start = new Date(Math.min(...bounds))
+    const end = new Date(Math.max(...bounds))
+    end.setHours(23, 59, 59, 999)
+
+    const sessions = await storage.getSessions(null, { start, end })
+    const byDay = new Map()
+    for (const session of sessions) {
+      const key = localDayKey(session.startedAt)
+      if (!byDay.has(key)) byDay.set(key, [])
+      byDay.get(key).push(session)
+    }
+
+    const aggregates = new Map()
+    const logs = []
+    for (const date of dates) {
+      logs.push(await buildDailyLog(byDay.get(localDayKey(date)) ?? [], aggregates))
+    }
+    return logs
+  }
+
+  // Day the session belongs to in the viewer's timezone — the journal is a
+  // calendar, so a session played at 00:30 belongs to that morning, not to the
+  // previous UTC day.
+  function localDayKey(date) {
+    const d = new Date(date)
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  }
+
+  // `aggregateCache` is shared across the days of one journal read: the same
+  // score shows up on many days and its aggregate never changes mid-read.
+  async function buildDailyLog(sessions, aggregateCache) {
     const scoreMap = new Map()
 
     for (const session of sessions) {
       if (!scoreMap.has(session.scoreId)) {
         // Look up metadata from aggregate (single source of truth)
-        const aggregate = await storage.getAggregate(session.scoreId)
+        if (!aggregateCache.has(session.scoreId)) {
+          aggregateCache.set(session.scoreId, await storage.getAggregate(session.scoreId))
+        }
+        const aggregate = aggregateCache.get(session.scoreId)
 
         scoreMap.set(session.scoreId, {
           scoreId: session.scoreId,
