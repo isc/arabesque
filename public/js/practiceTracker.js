@@ -1,5 +1,9 @@
 import { initStorage } from './storage.js'
 
+// Where a session interrupted by a page teardown waits to be closed properly
+// (see stashPendingSession).
+const PENDING_SESSION_KEY = 'arabesque:pending-session'
+
 // Default knobs for interruption removal. A segment is "aberrant" (an
 // interruption) when it exceeds max(floor, factor × median) of its own kind.
 // Measures (~7s) and gaps (~0.7s) live on different scales, so each has its own
@@ -127,7 +131,12 @@ export function initPracticeTracker(storageInstance = null) {
   let aggregateTitleEnsured = false
 
   return {
-    init: () => storage.init(),
+    init: async () => {
+      await storage.init()
+      await flushPendingSession()
+    },
+    stashPendingSession,
+    clearPendingSession,
     startSession,
     toggleMode,
     startMeasureAttempt,
@@ -147,6 +156,74 @@ export function initPracticeTracker(storageInstance = null) {
     computeScoreStatus,
     rebuildAggregates,
     getCurrentSession: () => currentSession,
+  }
+
+  // A session is only closed — endedAt stamped, practice time credited — by
+  // endSession(), which writes to IndexedDB and is therefore async. When the
+  // page is being torn down (navigating to another score, back to the library,
+  // closing the tab), those writes can be abandoned before they commit: the row
+  // saved incrementally by endMeasureAttempt() stays with endedAt: null, its
+  // time is credited to no aggregate, and cloud sync will never push it because
+  // runSync only takes ended sessions. That is how 15 of my first 500 sessions
+  // ended up stranded, all of them interrupted mid-piece.
+  //
+  // localStorage is synchronous, so a snapshot taken on the way out always
+  // survives. The next page load reverses it into IndexedDB.
+  function stashPendingSession() {
+    if (!currentSession || currentSession.measures.length === 0) return
+    try {
+      localStorage.setItem(
+        PENDING_SESSION_KEY,
+        JSON.stringify({
+          session: { ...currentSession, endedAt: new Date().toISOString() },
+          scoreTitle: currentScoreTitle,
+          composer: currentComposer,
+        })
+      )
+    } catch {
+      // Quota exceeded or no localStorage: nothing better available.
+    }
+  }
+
+  // With an id, drops the snapshot only if it is that session's — a snapshot
+  // belongs to the session that left it behind, and the next session to end
+  // must not throw it away before the next page load can replay it.
+  function clearPendingSession(sessionId = null) {
+    try {
+      if (sessionId) {
+        const raw = localStorage.getItem(PENDING_SESSION_KEY)
+        if (raw && JSON.parse(raw)?.session?.id !== sessionId) return
+      }
+      localStorage.removeItem(PENDING_SESSION_KEY)
+    } catch {
+      /* ignore */
+    }
+  }
+
+  // Closes the session left behind by a page that went away mid-practice.
+  // Skips one whose row is already closed: endSession() can have committed and
+  // then died before clearing the stash, and crediting it twice would inflate
+  // the practice time on every reload.
+  async function flushPendingSession() {
+    let pending
+    try {
+      const raw = localStorage.getItem(PENDING_SESSION_KEY)
+      if (!raw) return
+      pending = JSON.parse(raw)
+    } catch {
+      clearPendingSession()
+      return
+    }
+
+    const { session, scoreTitle, composer } = pending ?? {}
+    if (session?.id && session.measures?.length) {
+      const stored = await storage.getSession(session.id)
+      if (!stored?.endedAt) {
+        await storage.saveSession(session)
+        await updateAggregates(session, { title: scoreTitle, composer })
+      }
+    }
+    clearPendingSession()
   }
 
   // Recompute every aggregate from scratch by replaying all stored sessions in
@@ -310,6 +387,8 @@ export function initPracticeTracker(storageInstance = null) {
       await storage.saveSession(sessionToSave)
       await updateAggregates(sessionToSave)
     }
+    // Committed: whatever a pagehide stashed for *this* session is redundant.
+    clearPendingSession(sessionToSave.id)
 
     currentSession = null
     currentMeasureAttempt = null
