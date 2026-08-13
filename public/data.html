@@ -50,7 +50,7 @@
               <p x-text="$t('data.accountIntro')"></p>
               <!-- Email sent: the code is the path that works everywhere, the
                    link only in the browser that opens it. -->
-              <template x-if="authStatus === 'sent' || authStatus === 'verifying'">
+              <template x-if="codeSent">
                 <div>
                   <p class="pt-sync-ok" x-text="$t('data.linkSent')">Lien envoyé !</p>
                   <form @submit.prevent="verifyOtp()" class="pt-account-form">
@@ -69,8 +69,8 @@
                   <p class="pt-text-muted" x-text="$t('data.otpHint')"></p>
                 </div>
               </template>
-              <template x-if="authStatus !== 'sent' && authStatus !== 'verifying'">
-                <form @submit.prevent="sendMagicLink()" class="pt-account-form">
+              <template x-if="!codeSent">
+                <form @submit.prevent="requestSignInEmail()" class="pt-account-form">
                   <input
                     type="email"
                     x-model="email"
@@ -82,11 +82,11 @@
                   <button type="submit" :aria-busy="authStatus === 'sending'" :disabled="!email.trim() || authStatus === 'sending'" x-text="$t('data.sendLink')">Recevoir un lien</button>
                 </form>
               </template>
-              <!-- Shown on any authError, not just authStatus 'error': a
-                   rejected code keeps the status on 'sent' so the form stays
-                   open for another try. -->
+              <!-- Shown on any authError: a rejected code keeps the status on
+                   'sent' so the form stays open for another try. The label says
+                   which step failed, decided where the failure happened. -->
               <p x-show="authError" role="alert" class="pt-feedback-error">
-                <span x-text="authStatus === 'error' ? $t('data.authError') : $t('data.otpError')">Échec :</span>
+                <span x-text="$t(authErrorLabel)">Échec :</span>
                 <span x-text="authError"></span>
               </p>
             </div>
