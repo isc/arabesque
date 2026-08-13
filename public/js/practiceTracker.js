@@ -4,6 +4,15 @@ import { initStorage } from './storage.js'
 // (see stashPendingSession).
 const PENDING_SESSION_KEY = 'arabesque:pending-session'
 
+// Marks the one-off repair of sessions stranded before those snapshots existed
+// (see closeStrandedSessions).
+const STRANDED_REPAIR_KEY = 'arabesque:stranded-sessions-closed'
+
+// How quiet a session must be before the repair treats it as abandoned rather
+// than in progress somewhere else. Well beyond any gap between two measures,
+// and the sessions this exists for are months old.
+const STRANDED_MIN_AGE_MS = 60 * 60 * 1000
+
 // Default knobs for interruption removal. A segment is "aberrant" (an
 // interruption) when it exceeds max(floor, factor × median) of its own kind.
 // Measures (~7s) and gaps (~0.7s) live on different scales, so each has its own
@@ -134,6 +143,7 @@ export function initPracticeTracker(storageInstance = null) {
     init: async () => {
       await storage.init()
       await flushPendingSession()
+      await closeStrandedSessions()
     },
     stashPendingSession,
     clearPendingSession,
@@ -224,6 +234,56 @@ export function initPracticeTracker(storageInstance = null) {
       }
     }
     clearPendingSession()
+  }
+
+  // One-off repair for the sessions stranded before pagehide snapshots existed:
+  // played, saved measure by measure, then abandoned by a page teardown that
+  // outran endSession(). They sit in the store with endedAt: null, which leaves
+  // their practice time credited nowhere and makes them invisible to cloud sync.
+  //
+  // Crediting them now cannot double-count: endSession() saves the session
+  // *before* it calls updateAggregates(), so a row still missing endedAt proves
+  // the aggregate step never ran for it.
+  //
+  // They are closed at the end of their last measure attempt — the moment the
+  // player actually stopped, which is what endSession() would have recorded
+  // anyway (getLastMeasureEndTime drives lastPlayedAt).
+  //
+  // Correctness comes from the endedAt filter, which empties after one run; the
+  // marker only spares every later page load a full scan of the sessions store.
+  async function closeStrandedSessions() {
+    try {
+      if (localStorage.getItem(STRANDED_REPAIR_KEY)) return
+    } catch {
+      return // no localStorage: skip rather than rescan on every load
+    }
+
+    const stranded = (await storage.getSessions()).filter(
+      (s) =>
+        !s.endedAt &&
+        s.measures?.length &&
+        // Not the session this page is playing, and not one another tab is:
+        // its row looks identical to a stranded one until it ends. Anything
+        // still being played has a recent attempt, so age tells them apart —
+        // and closing a live session would credit it here and again when its
+        // own tab finishes.
+        s.id !== currentSession?.id &&
+        Date.now() - getLastMeasureEndTime(s).getTime() > STRANDED_MIN_AGE_MS
+    )
+    for (const session of stranded) {
+      const closed = { ...session, endedAt: getLastMeasureEndTime(session).toISOString() }
+      await storage.saveSession(closed)
+      // No meta: the aggregate keeps whatever title it already has, and every
+      // stranded session belongs to a score that has been played properly since.
+      await updateAggregates(closed)
+    }
+
+    try {
+      localStorage.setItem(STRANDED_REPAIR_KEY, '1')
+    } catch {
+      /* ignore: the filter above keeps a re-run harmless anyway */
+    }
+    if (stranded.length) console.info(`Closed ${stranded.length} interrupted session(s) from before the fix.`)
   }
 
   // Recompute every aggregate from scratch by replaying all stored sessions in

@@ -418,6 +418,59 @@ describe('practiceTracker', () => {
       expect((await storage.getAggregate('/scores/test.xml')).totalSessions).toBe(1)
     })
 
+    // A session stranded long ago, as left behind by a version with no
+    // snapshots: measures played and saved, endedAt never stamped.
+    async function strandedSession(id, hoursAgo = 24) {
+      const started = new Date(Date.now() - hoursAgo * 3600e3)
+      await storage.saveSession({
+        id, scoreId: '/scores/old.xml', mode: 'free', totalMeasures: 4,
+        startedAt: started.toISOString(), playthroughStartedAt: null, endedAt: null,
+        measures: [{ sourceMeasureIndex: 0, attempts: [
+          { startedAt: started.toISOString(), durationMs: 5000, wrongNotes: 0, clean: true }] }],
+      })
+      return started
+    }
+
+    it('closes sessions left with no endedAt by an older version', async () => {
+      const started = await strandedSession('old-1')
+
+      await initPracticeTracker(storage).init()
+
+      const closed = await storage.getSession('old-1')
+      // Closed when the player actually stopped, not when the repair ran.
+      expect(closed.endedAt).toBe(new Date(started.getTime() + 5000).toISOString())
+      const agg = await storage.getAggregate('/scores/old.xml')
+      expect(agg.totalSessions).toBe(1)
+      expect(agg.measures['0'].totalAttempts).toBe(1)
+    })
+
+    it('repairs stranded sessions only once', async () => {
+      await strandedSession('old-1')
+
+      await initPracticeTracker(storage).init()
+      const after = await storage.getAggregate('/scores/old.xml')
+      // A second load with the marker in place, and a third with it removed:
+      // the endedAt filter is what makes the repair safe to re-run.
+      await initPracticeTracker(storage).init()
+      localStorage.removeItem('arabesque:stranded-sessions-closed')
+      await initPracticeTracker(storage).init()
+
+      const again = await storage.getAggregate('/scores/old.xml')
+      expect(again.totalSessions).toBe(after.totalSessions)
+      expect(again.totalPracticeTimeMs).toBe(after.totalPracticeTimeMs)
+    })
+
+    it('leaves a session that is still being played alone', async () => {
+      // Recent activity is what says "in progress", here or in another tab —
+      // closing it would credit it now and again when its own tab finishes.
+      await strandedSession('live-elsewhere', 0)
+
+      await initPracticeTracker(storage).init()
+
+      expect((await storage.getSession('live-elsewhere')).endedAt).toBeNull()
+      expect((await storage.getAggregate('/scores/old.xml'))?.totalSessions ?? 0).toBe(0)
+    })
+
     it('ignores a snapshot the page cleared on its way back', async () => {
       await interruptedSession()
       tracker.clearPendingSession()
