@@ -84,6 +84,43 @@ class CapybaraTestBase < Minitest::Test
     end
   end
 
+  # Drive the page's clock by hand instead of waiting on the wall clock.
+  #
+  # Chrome's virtual time makes `performance.now()`, `Date.now()` and every
+  # timer advance on command. The strict-playthrough engine schedules its whole
+  # run with setTimeout and matches input against `performance.now()`, so a test
+  # that steps the clock exercises exactly the same millisecond arithmetic as
+  # one that sleeps — the count-in, the ±450ms tolerance window and the note
+  # spacing all keep their real values. What disappears is only the waiting.
+  #
+  # It also removes the load-sensitivity: a note dispatched while the clock is
+  # parked lands on an exact virtual instant, where a `sleep 2` lands wherever a
+  # loaded CI runner happens to schedule it.
+  def with_clock_control
+    cdp = page.driver.browser.page
+    # `pause` parks virtual time; every later advance is explicit. Timers keep
+    # firing in order, they just wait for a budget to be granted.
+    cdp.command('Emulation.setVirtualTimePolicy', policy: 'pause')
+    yield
+  ensure
+    # Hand the page back to the wall clock so teardown and any later
+    # interaction behave normally.
+    cdp&.command('Emulation.setVirtualTimePolicy', policy: 'advance')
+  end
+
+  # Advance the parked clock by `ms` of virtual time and block until the page
+  # has actually consumed it. Chrome burns the budget as fast as the CPU
+  # allows, so this returns in a few real milliseconds.
+  def advance_clock(ms, timeout: 10)
+    cdp = page.driver.browser.page
+    target = page.evaluate_script('performance.now()') + ms
+    # Chrome pauses virtual time again once the budget is spent.
+    cdp.command('Emulation.setVirtualTimePolicy', policy: 'advance', budget: ms)
+    Timeout.timeout(timeout) do
+      sleep 0.01 until page.evaluate_script('performance.now()') >= target - 1
+    end
+  end
+
   # Helper to run code with a virtual browser time
   # Accepts a Time object or a string like "2026-01-10 12:00"
   # Resets the browser page after the block to restore normal time behavior

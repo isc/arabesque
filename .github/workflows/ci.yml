@@ -17,12 +17,23 @@ jobs:
       - run: npm ci
       - run: npm run test:js
 
+  # The browser suite is CPU-bound on OSMD rendering, so running the workers
+  # side by side inside one runner buys nothing — four Chromes on four vCPUs
+  # just starve each other. Splitting across runners gives each slice a whole
+  # machine instead.
   ruby-tests:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2, 3]
     steps:
       - uses: actions/checkout@v4
       - uses: ruby/setup-ruby@v1
         with:
           ruby-version: '3.3'
           bundler-cache: true
-      - run: bundle exec rake test
+      - run: bundle exec rake test:shard
+        env:
+          SHARD_INDEX: ${{ matrix.shard }}
+          SHARD_COUNT: 4

@@ -6,8 +6,14 @@
 
 **IMPORTANT:** When running tests, ALWAYS save output to temp file (never pipe to tail):
 ```bash
-bundle exec rake test > tmp/test-output.txt 2>&1; cat tmp/test-output.txt
+bundle exec rake test:parallel > tmp/test-output.txt 2>&1; cat tmp/test-output.txt
 ```
+`test:parallel` splits the suite over one process per core (`TEST_WORKERS=n` to
+override) and prints a combined summary; `rake test` still runs everything
+serially in one process, which is what you want when debugging a single test.
+The work is CPU-bound on OSMD rendering, so workers only pay off on free cores
+— CI uses `rake test:shard` (`SHARD_INDEX`/`SHARD_COUNT`) to give each slice a
+runner of its own instead.
 
 PR titles and descriptions must be in English.
 
