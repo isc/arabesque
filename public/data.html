@@ -48,10 +48,28 @@
           <template x-if="!user">
             <div>
               <p x-text="$t('data.accountIntro')"></p>
-              <template x-if="authStatus === 'sent'">
-                <p class="pt-sync-ok" x-text="$t('data.linkSent')">Lien envoyé !</p>
+              <!-- Email sent: the code is the path that works everywhere, the
+                   link only in the browser that opens it. -->
+              <template x-if="authStatus === 'sent' || authStatus === 'verifying'">
+                <div>
+                  <p class="pt-sync-ok" x-text="$t('data.linkSent')">Lien envoyé !</p>
+                  <form @submit.prevent="verifyOtp()" class="pt-account-form">
+                    <input
+                      type="text"
+                      x-model="otp"
+                      required
+                      inputmode="numeric"
+                      autocomplete="one-time-code"
+                      :disabled="authStatus === 'verifying'"
+                      :placeholder="$t('data.otpPlaceholder')"
+                      :aria-label="$t('data.otpLabel')"
+                    />
+                    <button type="submit" :aria-busy="authStatus === 'verifying'" :disabled="!otp.trim() || authStatus === 'verifying'" x-text="$t('data.verifyOtp')">Valider le code</button>
+                  </form>
+                  <p class="pt-text-muted" x-text="$t('data.otpHint')"></p>
+                </div>
               </template>
-              <template x-if="authStatus !== 'sent'">
+              <template x-if="authStatus !== 'sent' && authStatus !== 'verifying'">
                 <form @submit.prevent="sendMagicLink()" class="pt-account-form">
                   <input
                     type="email"
@@ -64,8 +82,11 @@
                   <button type="submit" :aria-busy="authStatus === 'sending'" :disabled="!email.trim() || authStatus === 'sending'" x-text="$t('data.sendLink')">Recevoir un lien</button>
                 </form>
               </template>
-              <p x-show="authStatus === 'error'" role="alert" class="pt-feedback-error">
-                <span x-text="$t('data.authError')">Échec :</span>
+              <!-- Shown on any authError, not just authStatus 'error': a
+                   rejected code keeps the status on 'sent' so the form stays
+                   open for another try. -->
+              <p x-show="authError" role="alert" class="pt-feedback-error">
+                <span x-text="authStatus === 'error' ? $t('data.authError') : $t('data.otpError')">Échec :</span>
                 <span x-text="authError"></span>
               </p>
             </div>

@@ -9,6 +9,35 @@ import { syncEnabled, setSyncEnabled, lastSyncAt } from './sync.js'
 import { initAutoSync, requestSync } from './autoSync.js'
 import { t, locale } from './i18n.js'
 
+// A sign-in waiting for its code, so the form survives the trip to the mail app
+// (and the reload that trip can cause). Not a secret: the code itself never
+// touches storage, and the address is already typed in the form.
+const PENDING_SIGNIN_KEY = 'arabesque:pending-signin'
+
+function rememberPendingSignIn(email) {
+  try {
+    localStorage.setItem(PENDING_SIGNIN_KEY, email)
+  } catch {
+    /* the form just won't survive a reload */
+  }
+}
+
+function pendingSignIn() {
+  try {
+    return localStorage.getItem(PENDING_SIGNIN_KEY)
+  } catch {
+    return null
+  }
+}
+
+function forgetPendingSignIn() {
+  try {
+    localStorage.removeItem(PENDING_SIGNIN_KEY)
+  } catch {
+    /* ignore */
+  }
+}
+
 export function dataApp() {
   const storage = initStorage()
   const practiceTracker = initPracticeTracker(storage)
@@ -22,8 +51,13 @@ export function dataApp() {
     authReady: false,
     user: null, // the signed-in Supabase user, or null
     email: '',
-    authStatus: 'idle', // 'idle' | 'sending' | 'sent' | 'error'
+    authStatus: 'idle', // 'idle' | 'sending' | 'sent' | 'verifying' | 'error'
     authError: '',
+    // The same email carries a link and a code. The code is the one that works
+    // everywhere: inside the iOS app, whose WKWebView has its own storage and
+    // never sees a link opened in Safari, and when the mail is read on another
+    // device than the one being signed in.
+    otp: '',
     autoSync: syncEnabled(),
     lastSync: lastSyncAt(),
     syncStatus: 'idle', // 'idle' | 'syncing' | 'done' | 'error'
@@ -47,7 +81,15 @@ export function dataApp() {
         // Keep the UI in sync with sign-in/out and the magic-link redirect.
         supabase.auth.onAuthStateChange((_event, session) => {
           this.user = session?.user ?? null
+          if (session) forgetPendingSignIn()
         })
+        // Came back from the mail app (or reloaded): reopen the code form on
+        // the address that was asked for, rather than starting over.
+        const pending = pendingSignIn()
+        if (!this.user && pending) {
+          this.email = pending
+          this.authStatus = 'sent'
+        }
         // No syncOnOpen: this page opens with syncNow() just below, which
         // reports the outcome instead of syncing silently. The callback keeps
         // "Last synced" honest for the syncs that do fire on their own.
@@ -113,6 +155,39 @@ export function dataApp() {
         this.authError = error.message
       } else {
         this.authStatus = 'sent'
+        this.otp = ''
+        // Reading the code means leaving for the mail app, and coming back can
+        // reload the page — on iOS the webview is reloaded routinely. Without
+        // this, the code form would be gone and the code useless.
+        rememberPendingSignIn(email)
+      }
+    },
+
+    // Signing in with the code from the email, rather than its link. The link
+    // hands the session to whichever browser opens it, which is the wrong one
+    // when the app is a WKWebView (its storage is its own) or when the mail is
+    // read on another device.
+    async verifyOtp() {
+      const token = this.otp.replace(/\s/g, '')
+      if (!token || this.authStatus === 'verifying') return
+      this.authStatus = 'verifying'
+      this.authError = ''
+      const { error } = await supabase.auth.verifyOtp({
+        email: this.email.trim(),
+        token,
+        type: 'email',
+      })
+      if (error) {
+        // Back to 'sent': the form stays open so a mistyped code can be redone
+        // without asking for another email.
+        this.authStatus = 'sent'
+        this.authError = error.message
+      } else {
+        // onAuthStateChange sets this.user; clear the sign-in form's state.
+        this.authStatus = 'idle'
+        this.otp = ''
+        this.authError = ''
+        forgetPendingSignIn()
       }
     },
 
@@ -121,6 +196,9 @@ export function dataApp() {
       this.user = null
       this.authStatus = 'idle'
       this.email = ''
+      this.otp = ''
+      this.authError = ''
+      forgetPendingSignIn()
     },
 
     async exportBackup() {
