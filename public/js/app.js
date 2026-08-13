@@ -39,6 +39,9 @@ export function midiApp() {
   const practiceTracker = initPracticeTracker(storage)
   const playback = initPlayback(midi.state)
   const strictPlaythrough = initStrictPlaythrough()
+  // The browser drops this on its own whenever the page is hidden; kept so the
+  // page can tell whether it still holds one (see requestWakeLock).
+  let wakeLock = null
   // The end of a session is the moment its data becomes worth pushing: runSync
   // only takes sessions that have ended, so a playthrough finished here would
   // otherwise sit on this device until the data page is opened.
@@ -258,6 +261,15 @@ export function midiApp() {
       window.addEventListener('pageshow', (event) => {
         if (event.persisted) practiceTracker.clearPendingSession()
       })
+      // Coming back to the page: take the wake lock again, since being hidden
+      // released it. Only with a score up — that's when the screen is watched
+      // rather than touched.
+      document.addEventListener('visibilitychange', () => {
+        const held = wakeLock && !wakeLock.released
+        if (document.visibilityState === 'visible' && this.osmdInstance && !held) {
+          this.requestWakeLock()
+        }
+      })
       // No sync on open: this page's own end-of-session trigger is what it has
       // to contribute, and pulling here would rebuild aggregates while a piece
       // is on screen.
@@ -404,13 +416,18 @@ export function midiApp() {
       await this.requestWakeLock()
     },
 
+    // A screen wake lock is released as soon as the document is hidden — tab
+    // switch, app backgrounded, screen off — and is never restored on the way
+    // back, so it has to be taken again. Asking once when the score loaded left
+    // the screen free to sleep for the rest of the session.
     async requestWakeLock() {
-      if ('wakeLock' in navigator) {
-        try {
-          await navigator.wakeLock.request('screen')
-        } catch (err) {
-          console.warn('Wake lock non disponible:', err)
-        }
+      if (!('wakeLock' in navigator) || document.visibilityState !== 'visible') return
+      try {
+        wakeLock = await navigator.wakeLock.request('screen')
+      } catch (err) {
+        // Refused rather than absent: WebKit grants this in Safari proper only,
+        // so the iOS wrapper keeps the screen awake natively instead.
+        console.warn('Wake lock non disponible:', err)
       }
     },
 

@@ -22,6 +22,15 @@ final class ViewController: UIViewController {
     overrideUserInterfaceStyle = .light
     view.backgroundColor = .systemBackground
 
+    // Keep the screen on while practising. The web app asks for a screen wake
+    // lock, but WebKit only grants it in Safari proper — not in a WKWebView,
+    // nor in a home-screen web app (webkit.org/b/254545) — and the refusal is
+    // silent, so the iPad simply fell asleep mid-piece. Playing a score means
+    // minutes without touching the glass, which is exactly what the idle timer
+    // is watching for. iOS applies this only while the app is in the
+    // foreground, and restores normal behaviour by itself once it isn't.
+    UIApplication.shared.isIdleTimerDisabled = true
+
     let contentController = WKUserContentController()
     if let shimURL = Bundle.main.url(forResource: "webmidi-shim", withExtension: "js"),
       let shim = try? String(contentsOf: shimURL) {
