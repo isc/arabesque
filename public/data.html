@@ -97,12 +97,8 @@
             <div>
               <p><span x-text="$t('data.signedInAs')">Connecté :</span> <strong x-text="user.email"></strong></p>
 
-              <label class="pt-sync-toggle">
-                <input type="checkbox" role="switch" x-model="autoSync" @change="onAutoSyncChanged()" />
-                <span x-text="$t('data.autoSync')">Synchronisation automatique</span>
-              </label>
-              <p class="pt-text-muted" x-text="$t('data.autoSyncHint')">
-                Synchronise à la fin de chaque morceau joué et au retour sur l’app.
+              <p class="pt-text-muted" x-text="$t('data.syncHint')">
+                Vos données se synchronisent à la fin de chaque morceau joué et au retour sur l’app.
               </p>
 
               <div class="pt-data-actions">

@@ -576,8 +576,6 @@ button.pt-topbar__pill:disabled { opacity: 0.4; cursor: default; }
 .pt-account-form button { margin: 0; width: auto; flex: 0 0 auto; }
 .pt-sync-ok { color: var(--pt-status-repertoire); font-weight: 500; }
 .pt-text-muted { color: var(--pt-text-muted); }
-.pt-sync-toggle { display: flex; align-items: center; gap: var(--pt-space-2); margin: var(--pt-space-4) 0 var(--pt-space-3); cursor: pointer; }
-.pt-sync-toggle input { margin: 0; }
 
 /* =============================================================================
    Pills (status, generic)

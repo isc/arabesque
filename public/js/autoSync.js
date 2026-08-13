@@ -1,15 +1,14 @@
 // Automatic sync triggers.
 //
-// The "Automatic sync" switch (data page) only ever meant "sync when the data
-// page opens" — nothing pushed what you had just played, on the very pages
-// where practice happens. This module carries the same switch to those pages:
-// a sync fires when a practice session ends, when the tab comes back, and when
-// a page that displays synced data opens.
+// Syncing follows the account: once signed in, a sync fires when a practice
+// session ends, when the tab comes back, and when a page that displays synced
+// data opens. There is no separate switch — signing in has no other purpose,
+// so wanting an account and not wanting sync isn't a state worth offering.
 //
-// Every trigger here is best-effort: silent when the switch is off, when nobody
-// is signed in, or when the network fails. The data page stays the one place
-// that reports a sync's outcome.
-import { syncEnabled, lastSyncAt, runSync } from './sync.js'
+// Every trigger here is best-effort: silent when nobody is signed in or when
+// the network fails. The data page stays the one place that reports a sync's
+// outcome.
+import { syncSignedIn, setSyncSignedIn, lastSyncAt, runSync } from './sync.js'
 
 // How long each trigger waits behind the previous sync. A tab coming back or a
 // page opening brings nothing new of our own, so one round-trip a minute is
@@ -41,10 +40,10 @@ export function initAutoSync(pageDeps, { syncOnOpen = false, onSynced: callback 
 
   if (syncOnOpen) triggerSync('page opened')
 
-  // Fetching @supabase/supabase-js lazily is what keeps it off pages that never
-  // sync — but paying for the CDN waterfall at the end of a playthrough would
-  // put it right on the result screen. Warm it while the page is idle instead.
-  if (syncEnabled()) onIdle(() => import('./supabaseClient.js').catch(() => {}))
+  // Fetching @supabase/supabase-js lazily is what keeps it off pages of signed
+  // out users — but paying for the CDN waterfall at the end of a playthrough
+  // would put it right on the result screen. Warm it while idle instead.
+  if (syncSignedIn()) onIdle(() => import('./supabaseClient.js').catch(() => {}))
 }
 
 // Time since the last sync *attempt*, in-memory or persisted by a previous page
@@ -61,11 +60,17 @@ async function signedInClient() {
   const { supabase } = await import('./supabaseClient.js')
   if (!supabase) return null
   const { data } = await supabase.auth.getSession()
+  // The flag is written by the data page, which may not have been open since
+  // the session ended — expired refresh token, revoked, signed out in another
+  // tab. This is the one place that finds out cheaply, so correct it here
+  // rather than let every later page load import the client to rediscover it.
+  if (!data.session) setSyncSignedIn(false)
   return data.session ? { supabase, userId: data.session.user.id } : null
 }
 
-// Syncs now, whatever the switch says, collapsing concurrent callers onto the
-// same round-trip. Resolves to the runSync summary, or null when nobody is
+// Syncs now, past the throttle and without consulting the mirrored flag — it
+// asks the session itself. Collapses concurrent callers onto the same
+// round-trip. Resolves to the runSync summary, or null when nobody is
 // signed in; rejects on a sync error so a caller with UI can report it.
 export function requestSync() {
   if (inFlight) return inFlight
@@ -82,10 +87,10 @@ export function requestSync() {
   return inFlight
 }
 
-// Fire-and-forget sync for an automatic trigger: no-op unless automatic sync is
-// on and the previous one is old enough, and never rejects.
+// Fire-and-forget sync for an automatic trigger: no-op unless an account is
+// signed in and the previous sync is old enough, and never rejects.
 export function triggerSync(reason) {
-  if (!syncEnabled() || inFlight) return
+  if (!syncSignedIn() || inFlight) return
   if (msSinceLastSync() < (MIN_INTERVAL_MS[reason] ?? DEFAULT_MIN_INTERVAL_MS)) return
   requestSync().catch((err) => console.warn(`Automatic sync (${reason}) failed:`, err))
 }

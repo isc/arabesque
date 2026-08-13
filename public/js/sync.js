@@ -8,23 +8,34 @@
 //
 // runSync() takes its dependencies (the supabase client, storage,
 // practiceTracker) so it stays page-agnostic.
-const SYNC_ENABLED_KEY = 'arabesque:sync-enabled'
+
+// Whether an account is signed in on this device — the condition every sync
+// trigger checks (autoSync.js explains why that is the whole condition).
+//
+// Mirrored here rather than asked of the Supabase client because the score and
+// library pages have to be able to decide *not* to sync without first paying
+// for the @supabase/supabase-js bundle to ask. The data page writes it when it
+// observes the session; autoSync clears it if it ever finds the session gone.
+//
+// The key keeps the name it had as a user-facing switch, so nobody who had that
+// switch on has to turn anything back on.
+const SYNC_SIGNED_IN_KEY = 'arabesque:sync-enabled'
 const LAST_SYNC_KEY = 'arabesque:last-sync'
 const CHUNK = 200
 
-export function syncEnabled() {
+export function syncSignedIn() {
   try {
-    return localStorage.getItem(SYNC_ENABLED_KEY) === '1'
+    return localStorage.getItem(SYNC_SIGNED_IN_KEY) === '1'
   } catch {
     return false
   }
 }
 
-export function setSyncEnabled(on) {
+export function setSyncSignedIn(signedIn) {
   try {
-    localStorage.setItem(SYNC_ENABLED_KEY, on ? '1' : '0')
+    localStorage.setItem(SYNC_SIGNED_IN_KEY, signedIn ? '1' : '0')
   } catch {
-    /* ignore: setting just won't persist */
+    /* ignore: it just won't persist */
   }
 }
 

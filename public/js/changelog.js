@@ -16,6 +16,17 @@
 
 export const CHANGELOG = [
   {
+    date: '2026-08-14',
+    items: {
+      fr: [
+        "Plus de case « Synchronisation automatique » : être connecté suffit. Vos données se synchronisent, et se déconnecter est ce qui arrête tout. La case datait d'une époque où la synchro ne partait qu'à l'ouverture de la page Données ; elle ne servait plus qu'à laisser croire qu'un compte était actif alors qu'il ne faisait rien.",
+      ],
+      en: [
+        'No more "Automatic sync" checkbox: being signed in is enough. Your data syncs, and signing out is what stops it. The checkbox dated from when sync only fired on opening the Data page; all it did was let an account look active while doing nothing.',
+      ],
+    },
+  },
+  {
     date: '2026-08-13',
     items: {
       fr: [
