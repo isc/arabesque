@@ -8,17 +8,17 @@
 //
 // runSync() takes its dependencies (the supabase client, storage,
 // practiceTracker) so it stays page-agnostic.
-// Whether an account is signed in on this device, which is the whole condition
-// for syncing: signing in has no other purpose in the app, so an account that
-// doesn't sync is an account that does nothing. It used to be a switch of its
-// own on the data page, from when ambient sync didn't exist yet and "automatic"
-// only meant "when the data page opens" — hence the key's name, kept so nobody
-// who had it on has to turn anything back on.
+
+// Whether an account is signed in on this device — the condition every sync
+// trigger checks (autoSync.js explains why that is the whole condition).
 //
-// Mirrored here, rather than asked of the Supabase client, because every sync
-// trigger consults it: the score and library pages must be able to decide not
-// to sync without paying for the @supabase/supabase-js bundle first. The data
-// page owns it and writes it whenever it observes the session change.
+// Mirrored here rather than asked of the Supabase client because the score and
+// library pages have to be able to decide *not* to sync without first paying
+// for the @supabase/supabase-js bundle to ask. The data page writes it when it
+// observes the session; autoSync clears it if it ever finds the session gone.
+//
+// The key keeps the name it had as a user-facing switch, so nobody who had that
+// switch on has to turn anything back on.
 const SYNC_SIGNED_IN_KEY = 'arabesque:sync-enabled'
 const LAST_SYNC_KEY = 'arabesque:last-sync'
 const CHUNK = 200

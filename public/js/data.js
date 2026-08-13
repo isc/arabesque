@@ -1,8 +1,9 @@
 // Data page: local backup (export/import) + account (passwordless sign-in).
 //
 // This page is the home for everything data-related: the export/import that
-// used to live in the ⚙️ menu, signing in by email — with the link or the code
-// it carries, see supabaseClient.js — and the switch that drives cloud sync.
+// used to live in the ⚙️ menu, and signing in by email — with the link or the
+// code it carries, see supabaseClient.js. Signing in is what turns cloud sync
+// on; this page is where that becomes true for the device.
 import { initStorage } from './storage.js'
 import { initPracticeTracker } from './practiceTracker.js'
 import { setSyncSignedIn, lastSyncAt } from './sync.js'
@@ -72,8 +73,9 @@ export function dataApp() {
         initAutoSync({ storage, practiceTracker }, {
           onSynced: () => { this.lastSync = lastSyncAt() },
         })
-        // Opening this page is a natural moment to sync.
-        if (this.user) this.syncNow()
+        // Opening this page is a natural moment to sync. syncNow() is a no-op
+        // when signed out.
+        this.syncNow()
       }
       this.authReady = true
     },
@@ -81,6 +83,10 @@ export function dataApp() {
     // The one place that knows whether an account is signed in on this device.
     // Mirrored into storage so the score and library pages can decide whether
     // to sync without loading the Supabase client to ask (see sync.js).
+    //
+    // Only a session clears the pending sign-in, never its absence: being
+    // signed out is the normal state while waiting for a code, and init()
+    // calls this before reading it back.
     setSession(session) {
       this.user = session?.user ?? null
       setSyncSignedIn(!!session)
@@ -170,8 +176,10 @@ export function dataApp() {
     async signOut() {
       await supabase?.auth.signOut()
       // Signing out is what turns syncing off, so don't wait on the auth
-      // callback to record it.
+      // callback to record it. It also abandons any sign-in in flight — the
+      // one case where losing the session should forget the pending address.
       this.setSession(null)
+      setPendingSignIn(null)
       this.authStatus = 'idle'
       this.email = ''
       this.otp = ''

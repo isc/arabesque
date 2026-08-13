@@ -60,14 +60,14 @@ describe('autoSync', () => {
     setSyncSignedIn(true)
   })
 
-  it('does nothing when no account is signed in on this device', () => {
+  it('does nothing when the device flag says no account is signed in', () => {
     setSyncSignedIn(false)
     autoSync.initAutoSync(deps, { syncOnOpen: true })
     autoSync.triggerSync('test')
     expect(runSync).not.toHaveBeenCalled()
   })
 
-  it('syncs on open when automatic sync is on', async () => {
+  it('syncs on open when an account is signed in', async () => {
     autoSync.initAutoSync(deps, { syncOnOpen: true })
     await vi.waitFor(() => expect(runSync).toHaveBeenCalledTimes(1))
   })
@@ -115,10 +115,16 @@ describe('autoSync', () => {
     expect(a).toBe(b)
   })
 
-  it('does not sync when nobody is signed in', async () => {
+  it('does not sync when the session itself is gone, and clears the flag', async () => {
     getSession.mockResolvedValueOnce({ data: { session: null } })
     autoSync.initAutoSync(deps)
     expect(await autoSync.requestSync()).toBeNull()
+    expect(runSync).not.toHaveBeenCalled()
+    // The data page may not have been open when the session ended, so this is
+    // where the device stops claiming it has an account — otherwise every later
+    // page load would import the Supabase client to find out again.
+    expect(localStorage.getItem('arabesque:sync-enabled')).toBe('0')
+    autoSync.triggerSync('tab back')
     expect(runSync).not.toHaveBeenCalled()
   })
 
