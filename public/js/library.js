@@ -10,6 +10,10 @@ import { t, locale } from './i18n.js'
 const MIN_MATCH = 5
 const STATUS_ORDER = ['dechiffrage', 'perfectionnement', 'repertoire']
 const STATUS_RANK = Object.fromEntries(STATUS_ORDER.map((s, i) => [s, i]))
+// Two weeks of journal: eight days dropped a Tuesday/Wednesday pair out of
+// sight after a single weekend, which reads as a hole in the history rather
+// than as the edge of the window.
+const DAYS_TO_SHOW = 14
 const STALE_DAYS = 7
 const STALE_MS = STALE_DAYS * 24 * 60 * 60 * 1000
 
@@ -407,19 +411,13 @@ export function libraryApp() {
     },
 
     async reloadDailyLogs() {
-      const DAYS_TO_SHOW = 8
-      const logPromises = []
-      for (let i = 0; i < DAYS_TO_SHOW; i++) {
+      const dates = Array.from({ length: DAYS_TO_SHOW }, (_, i) => {
         const date = new Date()
         date.setDate(date.getDate() - i)
-        logPromises.push(
-          practiceTracker.getDailyLog(date).then((log) => ({
-            date: new Date(date),
-            log,
-          }))
-        )
-      }
-      this.dailyLogsByDate = await Promise.all(logPromises)
+        return date
+      })
+      const logs = await practiceTracker.getDailyLogs(dates)
+      this.dailyLogsByDate = dates.map((date, i) => ({ date, log: logs[i] }))
     },
   }
 }
