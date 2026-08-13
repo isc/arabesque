@@ -8,7 +8,7 @@ class PracticeTrackingTest < CapybaraTestBase
   def test_score_complete_modal_shows_time_and_ranking
     visit "/score.html?url=/test-fixtures/two-measures.xml"
     assert_selector 'svg g.vf-stavenote', count: 2
-    sleep 0.2
+    assert_selector '#score[data-render-complete]'
 
     # First playthrough
     play_notes(%w[C4 D4])
@@ -19,14 +19,15 @@ class PracticeTrackingTest < CapybaraTestBase
     # Close modal
     find('button[aria-label="Close"]').click
     assert_no_selector 'dialog[open]'
-    sleep 0.5 # Wait for session to be saved
+    # The playthrough is written asynchronously; the second one must not start
+    # before the first is on record, or the ranking table has nothing to rank.
+    wait_for_records('sessions', where: 'record.completedAt')
 
     # Second playthrough
     play_notes(%w[C4 D4])
 
     # Verify modal shows ranking table with both playthroughs
     assert_selector 'dialog[open]'
-    sleep 0.3 # Wait for async data loading
     assert_selector 'table tbody tr', minimum: 2
     assert_text 'maintenant'
   end
@@ -55,14 +56,15 @@ class PracticeTrackingTest < CapybaraTestBase
     # Play a score to generate practice data
     visit "/score.html?url=/test-fixtures/simple-score.xml"
     assert_selector 'svg g.vf-stavenote', count: 4
-    sleep 0.2 # Wait for callbacks to initialize
+    assert_selector '#score[data-render-complete]'
 
     # Play the complete score (C4, E4, F4, G4)
     play_notes(%w[C4 E4 F4 G4])
 
     # Wait for score complete modal (dialog[open])
     assert_selector 'dialog[open]'
-    sleep 0.3
+    # Leaving the page before the session lands would lose it from the log.
+    wait_for_records('sessions', where: 'record.completedAt')
 
     # Go to library and check daily log
     visit '/library.html'

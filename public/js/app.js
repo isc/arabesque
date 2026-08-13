@@ -335,6 +335,7 @@ export function midiApp() {
       await musicxml.loadMusicXML(file)
       await this.afterScoreLoad()
       this.captureScoreMetadata()
+      this.markScoreReady()
     },
 
     async loadScoreFromURL(url) {
@@ -350,6 +351,17 @@ export function midiApp() {
 
       // Load reinforcement suggestions from last completed playthrough
       await this.refreshReinforcementSuggestions()
+      this.markScoreReady()
+    },
+
+    // Marks the score page as ready to be driven: OSMD has painted, metadata
+    // is captured, the practice session is started and the handlers are wired.
+    // Set at the end of the load path rather than as soon as OSMD paints,
+    // because "pixels are on screen" and "the page will answer input" are not
+    // the same instant — tests that treated them as one had to bridge the gap
+    // with a sleep.
+    markScoreReady() {
+      document.getElementById('score').dataset.renderComplete = Date.now()
     },
 
     // If the loaded file is one part of a collection in the catalog, expose
@@ -407,7 +419,6 @@ export function midiApp() {
       musicxml.renderScore()
       fingeringEditor.alignFingeringLabelsToNoteheads()
       this.lastRelayoutWidth = document.getElementById('score').clientWidth
-      document.getElementById('score').dataset.renderComplete = Date.now()
       const savedBpm = this.scoreUrl ? Number(localStorage.getItem(`arabesque:strictBpm:${this.scoreUrl}`)) : NaN
       this.strictBpm = Number.isFinite(savedBpm) && savedBpm > 0 ? savedBpm : Math.round(getBPM(this.osmdInstance))
       // Modebar / context band become visible only after the score loads, so

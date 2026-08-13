@@ -148,6 +148,28 @@ class CapybaraTestBase < Minitest::Test
     assert committed, "seeding the '#{store}' store did not commit"
   end
 
+  # Block until an IndexedDB store holds `count` records matching `where`, a JS
+  # expression evaluated against each `record`.
+  #
+  # The app writes practice sessions asynchronously once a playthrough ends, so
+  # a test that navigates away or starts a second playthrough right after the
+  # completion modal appears can outrun the write. Waiting on the record itself
+  # states what the test is actually waiting for, and takes exactly as long as
+  # it needs to instead of a guessed half-second.
+  def wait_for_records(store, where: 'true', count: 1, timeout: Capybara.default_max_wait_time)
+    deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + timeout
+    loop do
+      matching = count_records(store, where)
+      return if matching >= count
+
+      if Process.clock_gettime(Process::CLOCK_MONOTONIC) > deadline
+        flunk "'#{store}' still held #{matching} record(s) matching #{where.inspect} " \
+              "after #{timeout}s, expected #{count}"
+      end
+      sleep 0.05
+    end
+  end
+
   # Helper to run code with a virtual browser time
   # Accepts a Time object or a string like "2026-01-10 12:00"
   # Resets the browser page after the block to restore normal time behavior
@@ -180,7 +202,12 @@ class CapybaraTestBase < Minitest::Test
     simulate_midi_input("OFF #{note}")
   end
 
-  # Helper to play a sequence of notes
+  # Helper to play a sequence of notes.
+  #
+  # The gap between notes is deliberate rather than a wait for something to
+  # settle: it is what makes these separate notes instead of a chord. Dispatch
+  # them back to back and the engine sees one simultaneous group — which is
+  # exactly what play_chord below does on purpose.
   def play_notes(notes)
     notes.each do |note|
       play_note(note)
@@ -241,7 +268,6 @@ class CapybaraTestBase < Minitest::Test
     attach_file('musicxml-upload', File.expand_path("fixtures/#{filename}", __dir__))
     assert_selector '#score[data-render-complete]'
     assert_selector 'svg g.vf-stavenote', count: expected_notes
-    sleep 0.05  # Wait for DOM and callbacks to fully initialize
   end
 
   # Helper to click on a measure in the score
@@ -250,6 +276,23 @@ class CapybaraTestBase < Minitest::Test
   end
 
   private
+
+  def count_records(store, where)
+    page.evaluate_async_script(<<~JS, store)
+      const [store, done] = [arguments[0], arguments[arguments.length - 1]];
+      const request = indexedDB.open('arabesque', 3);
+      request.onerror = () => done(0);
+      request.onsuccess = () => {
+        const db = request.result;
+        const all = db.transaction(store, 'readonly').objectStore(store).getAll();
+        all.onerror = () => { db.close(); done(0); };
+        all.onsuccess = () => {
+          db.close();
+          done(all.result.filter((record) => #{where}).length);
+        };
+      };
+    JS
+  end
 
   def parse_midi_notation(notation)
     # Parse notation like "ON C4", "OFF C#4", "ON Bb4", or "ON G#5"
