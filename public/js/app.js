@@ -247,7 +247,17 @@ export function midiApp() {
       const scoreUrl = new URLSearchParams(window.location.search).get('url')
       if (scoreUrl) await this.loadScoreFromURL(scoreUrl)
 
+      // endSession() is the clean close, but its IndexedDB writes need the page
+      // to stay alive long enough to commit — leaving mid-piece regularly
+      // stranded a session. pagehide additionally drops a synchronous snapshot
+      // that the next page load turns into a proper close.
       window.addEventListener('beforeunload', () => practiceTracker.endSession())
+      window.addEventListener('pagehide', () => practiceTracker.stashPendingSession())
+      // Restored from the back/forward cache: the page was never destroyed and
+      // the session is still live, so the snapshot must not be replayed.
+      window.addEventListener('pageshow', (event) => {
+        if (event.persisted) practiceTracker.clearPendingSession()
+      })
       // No sync on open: this page's own end-of-session trigger is what it has
       // to contribute, and pulling here would rebuild aggregates while a piece
       // is on screen.

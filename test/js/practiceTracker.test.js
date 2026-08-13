@@ -333,6 +333,101 @@ describe('practiceTracker', () => {
     })
   })
 
+  describe('sessions interrupted by a page teardown', () => {
+    // The tracker reaches for localStorage only through the stash; the suite
+    // runs in node, so it needs one.
+    beforeEach(() => {
+      const store = new Map()
+      globalThis.localStorage = {
+        getItem: (k) => store.get(k) ?? null,
+        setItem: (k, v) => store.set(k, String(v)),
+        removeItem: (k) => store.delete(k),
+      }
+    })
+
+    // What a page teardown looks like: measures played and saved incrementally,
+    // then the snapshot, then endSession() never getting to commit.
+    async function interruptedSession() {
+      tracker.startSession('/scores/test.xml', 'Test', 'Composer', 'free', 4)
+      tracker.startMeasureAttempt(0)
+      await tracker.endMeasureAttempt(true)
+      await storage.saveSession(tracker.getCurrentSession())
+      const id = tracker.getCurrentSession().id
+      tracker.stashPendingSession()
+      return id
+    }
+
+    it('closes and credits the session on the next load', async () => {
+      const id = await interruptedSession()
+      expect((await storage.getSession(id)).endedAt).toBeNull()
+      // endMeasureAttempt() has written a title-only aggregate row; what it has
+      // never done is credit the session itself.
+      expect((await storage.getAggregate('/scores/test.xml'))?.totalSessions ?? 0).toBe(0)
+
+      const revived = initPracticeTracker(storage)
+      await revived.init()
+
+      expect((await storage.getSession(id)).endedAt).toBeTruthy()
+      const agg = await storage.getAggregate('/scores/test.xml')
+      expect(agg.totalSessions).toBe(1)
+      expect(agg.scoreTitle).toBe('Test')
+      expect(agg.measures['0'].totalAttempts).toBe(1)
+    })
+
+    it('does not credit twice when the session did commit after all', async () => {
+      await interruptedSession()
+      const stash = localStorage.getItem('arabesque:pending-session')
+      // endSession() won the race, then the page died before it could clear the
+      // stash — so the snapshot is still there on the next load.
+      await tracker.endSession()
+      localStorage.setItem('arabesque:pending-session', stash)
+      const before = await storage.getAggregate('/scores/test.xml')
+      expect(before.totalSessions).toBe(1)
+
+      const revived = initPracticeTracker(storage)
+      await revived.init()
+
+      const after = await storage.getAggregate('/scores/test.xml')
+      expect(after.totalSessions).toBe(before.totalSessions)
+      expect(after.totalPracticeTimeMs).toBe(before.totalPracticeTimeMs)
+    })
+
+    it('replays the snapshot only once', async () => {
+      await interruptedSession()
+
+      await initPracticeTracker(storage).init()
+      await initPracticeTracker(storage).init()
+
+      expect((await storage.getAggregate('/scores/test.xml')).totalSessions).toBe(1)
+    })
+
+    it('keeps a snapshot when a different session ends', async () => {
+      await interruptedSession()
+      const stash = localStorage.getItem('arabesque:pending-session')
+
+      // Another session runs to a clean close — a new score opened on the same
+      // page, say. It must not consume the stranded one's snapshot.
+      tracker.startSession('/scores/other.xml', 'Other', 'Composer', 'free', 4)
+      tracker.startMeasureAttempt(0)
+      await tracker.endMeasureAttempt(true)
+      await tracker.endSession()
+
+      expect(localStorage.getItem('arabesque:pending-session')).toBe(stash)
+
+      await initPracticeTracker(storage).init()
+      expect((await storage.getAggregate('/scores/test.xml')).totalSessions).toBe(1)
+    })
+
+    it('ignores a snapshot the page cleared on its way back', async () => {
+      await interruptedSession()
+      tracker.clearPendingSession()
+
+      await initPracticeTracker(storage).init()
+
+      expect((await storage.getAggregate('/scores/test.xml'))?.totalSessions ?? 0).toBe(0)
+    })
+  })
+
   describe('daily log', () => {
     it('returns practiced scores for today', async () => {
       tracker.startSession('/scores/test.xml', 'Test', 'Composer', 'training')
