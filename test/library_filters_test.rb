@@ -125,19 +125,6 @@ class LibraryFiltersTest < CapybaraTestBase
       },
     ]
 
-    wait_for_store('aggregates')
-    page.execute_script(<<~JS, aggregates)
-      const aggregates = arguments[0];
-      const request = indexedDB.open('arabesque', 3);
-      request.onsuccess = () => {
-        const db = request.result;
-        const tx = db.transaction('aggregates', 'readwrite');
-        const store = tx.objectStore('aggregates');
-        for (const agg of aggregates) {
-          store.put(agg);
-        }
-      };
-    JS
-    sleep 0.1
+    seed_store('aggregates', aggregates)
   end
 end
