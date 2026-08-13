@@ -84,7 +84,13 @@ namespace :test do
     ids = TestSharding.ids
     abort 'No tests found' if ids.empty?
 
-    workers = (ENV['TEST_WORKERS'] || Etc.nprocessors).to_i.clamp(1, ids.size)
+    # Half the cores, because a worker is not one busy core: Chrome spreads a
+    # single test over a renderer, a GPU process and its own threads, so it
+    # eats about two. Measured on a 16-core box — 2 workers: 40s, 4: 23s,
+    # 8: 15s, 16: 21s and a flaky run. Oversubscribing is slower *and* starts
+    # losing tests to timing.
+    default_workers = [Etc.nprocessors / 2, 1].max
+    workers = (ENV['TEST_WORKERS'] || default_workers).to_i.clamp(1, ids.size)
     FileUtils.mkdir_p('tmp')
     started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
 

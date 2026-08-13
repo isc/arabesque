@@ -8,12 +8,24 @@
 ```bash
 bundle exec rake test:parallel > tmp/test-output.txt 2>&1; cat tmp/test-output.txt
 ```
-`test:parallel` splits the suite over one process per core (`TEST_WORKERS=n` to
-override) and prints a combined summary; `rake test` still runs everything
-serially in one process, which is what you want when debugging a single test.
-The work is CPU-bound on OSMD rendering, so workers only pay off on free cores
-— CI uses `rake test:shard` (`SHARD_INDEX`/`SHARD_COUNT`) to give each slice a
-runner of its own instead.
+`test:parallel` splits the suite across processes and prints a combined
+summary; `rake test` still runs everything serially in one process, which is
+what you want when debugging a single test.
+
+It defaults to half the cores (`TEST_WORKERS=n` to override) because a worker
+eats about two cores — Chrome spreads one test over a renderer, a GPU process
+and its threads. Going wider is slower *and* starts losing tests to timing: on
+a 16-core box, 8 workers take 15s where 16 take 21s and flake. For the same
+reason CI does not run workers inside a runner; it uses `rake test:shard`
+(`SHARD_INDEX`/`SHARD_COUNT`) to give each slice a runner of its own.
+
+No Ruby or Chrome on the machine? `scripts/test-in-docker.sh` runs any of the
+above in a container built from `test/Dockerfile`, on the same Ruby as CI:
+```bash
+scripts/test-in-docker.sh                              # the whole suite
+scripts/test-in-docker.sh ruby -Itest test/data_test.rb  # one file
+CPUS=4 scripts/test-in-docker.sh rake test             # mimic a CI runner
+```
 
 PR titles and descriptions must be in English.
 
