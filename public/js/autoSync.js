@@ -8,7 +8,8 @@
 // Every trigger here is best-effort: silent when nobody is signed in or when
 // the network fails. The data page stays the one place that reports a sync's
 // outcome.
-import { syncSignedIn, setSyncSignedIn, lastSyncAt, runSync } from './sync.js'
+import { lastSyncAt, runSync } from './sync.js'
+import { signedInOnThisDevice } from './supabaseConfig.js'
 
 // How long each trigger waits behind the previous sync. A tab coming back or a
 // page opening brings nothing new of our own, so one round-trip a minute is
@@ -43,7 +44,7 @@ export function initAutoSync(pageDeps, { syncOnOpen = false, onSynced: callback 
   // Fetching @supabase/supabase-js lazily is what keeps it off pages of signed
   // out users — but paying for the CDN waterfall at the end of a playthrough
   // would put it right on the result screen. Warm it while idle instead.
-  if (syncSignedIn()) onIdle(() => import('./supabaseClient.js').catch(() => {}))
+  if (signedInOnThisDevice()) onIdle(() => import('./supabaseClient.js').catch(() => {}))
 }
 
 // Time since the last sync *attempt*, in-memory or persisted by a previous page
@@ -60,11 +61,6 @@ async function signedInClient() {
   const { supabase } = await import('./supabaseClient.js')
   if (!supabase) return null
   const { data } = await supabase.auth.getSession()
-  // The flag is written by the data page, which may not have been open since
-  // the session ended — expired refresh token, revoked, signed out in another
-  // tab. This is the one place that finds out cheaply, so correct it here
-  // rather than let every later page load import the client to rediscover it.
-  if (!data.session) setSyncSignedIn(false)
   return data.session ? { supabase, userId: data.session.user.id } : null
 }
 
@@ -90,7 +86,7 @@ export function requestSync() {
 // Fire-and-forget sync for an automatic trigger: no-op unless an account is
 // signed in and the previous sync is old enough, and never rejects.
 export function triggerSync(reason) {
-  if (!syncSignedIn() || inFlight) return
+  if (!signedInOnThisDevice() || inFlight) return
   if (msSinceLastSync() < (MIN_INTERVAL_MS[reason] ?? DEFAULT_MIN_INTERVAL_MS)) return
   requestSync().catch((err) => console.warn(`Automatic sync (${reason}) failed:`, err))
 }
