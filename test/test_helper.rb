@@ -139,6 +139,39 @@ class CapybaraTestBase < Minitest::Test
     JS
   end
 
+  # Records every change in the number of lit noteheads, from now until the page
+  # navigates away. Assertions then run on the whole progression once the replay
+  # is over, instead of trying to catch a transient state while it happens:
+  # polling for "between 1 and 3 notes lit" is a race the test loses whenever a
+  # repetition starts and finishes between two Capybara polls, which is exactly
+  # what a loaded CI runner produces.
+  def record_played_notes
+    page.execute_script(<<~JS)
+      window.__playedNotes = [];
+      const sample = () => {
+        const lit = document.querySelectorAll('svg g.vf-notehead.played-note').length;
+        const log = window.__playedNotes;
+        if (log[log.length - 1] !== lit) log.push(lit);
+      };
+      sample();
+      // Observe #score, not the SVG: OSMD replaces the whole SVG on a redraw,
+      // which would strand an observer attached to it. Class changes are what
+      // note highlighting does; childList catches the redraws themselves.
+      new MutationObserver(sample).observe(document.getElementById('score'), {
+        subtree: true,
+        childList: true,
+        attributes: true,
+        attributeFilter: ['class'],
+      });
+    JS
+  end
+
+  # The recorded progression, with consecutive duplicates collapsed — e.g.
+  # [0, 1, 2, 3, 4, 0, 1, ...] for a measure lit note by note, then reset.
+  def played_notes_timeline
+    page.evaluate_script('window.__playedNotes')
+  end
+
   # Helper to load a score from test fixtures
   def load_score(filename, expected_notes)
     attach_file('musicxml-upload', File.expand_path("fixtures/#{filename}", __dir__))
