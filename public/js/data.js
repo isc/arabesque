@@ -1,8 +1,8 @@
-// Data page: local backup (export/import) + account (magic-link sign-in).
+// Data page: local backup (export/import) + account (passwordless sign-in).
 //
-// This page is the home for everything data-related. Cloud sync of training
-// data builds on the account section here (next step); for now it owns the
-// export/import that used to live in the ⚙️ menu, plus passwordless sign-in.
+// This page is the home for everything data-related: the export/import that
+// used to live in the ⚙️ menu, signing in by email — with the link or the code
+// it carries, see supabaseClient.js — and the switch that drives cloud sync.
 import { initStorage } from './storage.js'
 import { initPracticeTracker } from './practiceTracker.js'
 import { syncEnabled, setSyncEnabled, lastSyncAt } from './sync.js'
@@ -16,14 +16,26 @@ export function dataApp() {
   // reaching) the @supabase/supabase-js CDN module.
   let supabase = null
   let authRedirectUrl = null
+  let pendingSignIn = () => null
+  let setPendingSignIn = () => {}
 
   return {
     cloudConfigured: false,
     authReady: false,
     user: null, // the signed-in Supabase user, or null
     email: '',
-    authStatus: 'idle', // 'idle' | 'sending' | 'sent' | 'error'
+    authStatus: 'idle', // 'idle' | 'sending' | 'sent' | 'verifying' | 'error'
     authError: '',
+    authErrorLabel: '', // i18n key naming which step failed
+    // The code from the sign-in email — the half of it that reaches us wherever
+    // the mail is read (see supabaseClient.js for why a link cannot).
+    otp: '',
+
+    // Whether the email is out and we are waiting for its code. Written once
+    // here rather than as a compound status test in three places of the markup.
+    get codeSent() {
+      return this.authStatus === 'sent' || this.authStatus === 'verifying'
+    },
     autoSync: syncEnabled(),
     lastSync: lastSyncAt(),
     syncStatus: 'idle', // 'idle' | 'syncing' | 'done' | 'error'
@@ -36,6 +48,8 @@ export function dataApp() {
         const mod = await import('./supabaseClient.js')
         supabase = mod.supabase
         authRedirectUrl = mod.authRedirectUrl
+        pendingSignIn = mod.pendingSignIn
+        setPendingSignIn = mod.setPendingSignIn
         this.cloudConfigured = !!supabase
       } catch (err) {
         console.error('Supabase client failed to load:', err)
@@ -47,7 +61,15 @@ export function dataApp() {
         // Keep the UI in sync with sign-in/out and the magic-link redirect.
         supabase.auth.onAuthStateChange((_event, session) => {
           this.user = session?.user ?? null
+          if (session) setPendingSignIn(null)
         })
+        // Came back from the mail app (or reloaded): reopen the code form on
+        // the address that was asked for, rather than starting over.
+        const pending = pendingSignIn()
+        if (!this.user && pending) {
+          this.email = pending
+          this.authStatus = 'sent'
+        }
         // No syncOnOpen: this page opens with syncNow() just below, which
         // reports the outcome instead of syncing silently. The callback keeps
         // "Last synced" honest for the syncs that do fire on their own.
@@ -99,7 +121,8 @@ export function dataApp() {
       return new Date(this.lastSync).toLocaleString(locale())
     },
 
-    async sendMagicLink() {
+    // Asks for the sign-in email, which carries both a link and a code.
+    async requestSignInEmail() {
       const email = this.email.trim()
       if (!email || this.authStatus === 'sending') return
       this.authStatus = 'sending'
@@ -111,8 +134,38 @@ export function dataApp() {
       if (error) {
         this.authStatus = 'error'
         this.authError = error.message
+        this.authErrorLabel = 'data.authError'
       } else {
         this.authStatus = 'sent'
+        setPendingSignIn(email)
+      }
+    },
+
+    // Signing in with the code rather than the link (see supabaseClient.js).
+    async verifyOtp() {
+      const token = this.otp.replace(/\s/g, '')
+      if (!token || this.authStatus === 'verifying') return
+      this.authStatus = 'verifying'
+      this.authError = ''
+      const { error } = await supabase.auth.verifyOtp({
+        email: this.email.trim(),
+        token,
+        type: 'email',
+      })
+      if (error) {
+        // Back to 'sent': the form stays open so a mistyped code can be redone
+        // without asking for another email.
+        this.authStatus = 'sent'
+        this.authError = error.message
+        this.authErrorLabel = 'data.otpError'
+      } else {
+        // onAuthStateChange sets this.user; clear the sign-in form's state.
+        this.authStatus = 'idle'
+        this.otp = ''
+        setPendingSignIn(null)
+        // Signing in here doesn't reload the page, so nothing else would pull
+        // what this account already has — the whole point of signing in.
+        if (this.autoSync) this.syncNow()
       }
     },
 
@@ -121,6 +174,9 @@ export function dataApp() {
       this.user = null
       this.authStatus = 'idle'
       this.email = ''
+      this.otp = ''
+      this.authError = ''
+      setPendingSignIn(null)
     },
 
     async exportBackup() {

@@ -18,6 +18,12 @@ export const supabase = supabaseConfigured
         // `#access_token=…`. PKCE would need a code-verifier stored in the same
         // browser that requested the link, which breaks magic links opened on
         // another device (or triggered server-side).
+        //
+        // A link still only signs in the browser that opens it, which is the
+        // wrong one whenever the mail is read elsewhere — on iOS decisively so,
+        // since the wrapper's webview has its own storage and hands links to
+        // Safari. That is why the same email also carries a code (see
+        // pendingSignIn below, and verifyOtp on the data page).
         flowType: 'implicit',
       },
     })
@@ -28,4 +34,32 @@ export const supabase = supabaseConfigured
 // allow-listed in the project's auth config).
 export function authRedirectUrl() {
   return new URL('data.html', window.location.href).href
+}
+
+// A sign-in waiting for its code. The same email carries a link and a code, and
+// the code is the half that works when the link cannot reach us (see the note
+// on flowType above): reading it means leaving for the mail app, and coming
+// back reloads the page — routinely so in the iOS wrapper's webview. Without
+// this the form would be gone and the code useless.
+//
+// Not a secret: the code itself is never stored, and the address is the one
+// already typed into the form.
+const PENDING_SIGNIN_KEY = 'arabesque:pending-signin'
+
+export function pendingSignIn() {
+  try {
+    return localStorage.getItem(PENDING_SIGNIN_KEY)
+  } catch {
+    return null
+  }
+}
+
+// Pass an address to remember it, null to forget it.
+export function setPendingSignIn(email) {
+  try {
+    if (email) localStorage.setItem(PENDING_SIGNIN_KEY, email)
+    else localStorage.removeItem(PENDING_SIGNIN_KEY)
+  } catch {
+    /* no localStorage: the form just won't survive a reload */
+  }
 }

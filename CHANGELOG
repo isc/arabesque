@@ -1,3 +1,21 @@
+2026-08-13
+
+- **Connexion par code** en plus du lien magique. Un lien connecte le navigateur
+  qui l'ouvre : dans l'app iOS, dont la WKWebView a son propre stockage, le lien
+  s'ouvre dans Safari et la session n'atteint jamais l'app — la synchro y était
+  donc inutilisable, et c'est la seule configuration qui donne le MIDI sur iPad.
+  L'e-mail porte maintenant un code à 8 chiffres, saisi dans l'app. La demande
+  en cours est mémorisée, pour survivre à l'aller-retour vers l'app Mail.
+  Correctif purement web : il atteint l'app iOS sans nouveau build TestFlight,
+  puisqu'elle charge le site déployé.
+
+- Journal de pratique sur **14 jours** au lieu de 8, en une seule lecture de la
+  base (contre une par jour affiché).
+
+- Les sessions interrompues par une fermeture de page ne sont plus perdues : un
+  instantané synchrone est repris au chargement suivant. Les sessions déjà
+  échouées sont réparées une fois (52 min récupérées sur mon historique).
+
 2026-08-12
 
 - La **synchronisation automatique** est enfin automatique. Le réglage ne

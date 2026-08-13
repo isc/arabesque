@@ -569,7 +569,10 @@ button.pt-topbar__pill:disabled { opacity: 0.4; cursor: default; }
 .pt-data-actions { display: flex; flex-wrap: wrap; gap: var(--pt-space-2); align-items: center; }
 .pt-data-actions button, .pt-data-actions [role="button"] { margin: 0; width: auto; }
 .pt-account-form { display: flex; flex-wrap: wrap; gap: var(--pt-space-2); align-items: center; }
-.pt-account-form input[type="email"] { margin: 0; flex: 1 1 240px; }
+/* Any input, not just the email one: the sign-in code field is type="text" and
+   would otherwise keep Pico's full width and bottom margin, wrapping the
+   button onto its own line. */
+.pt-account-form input { margin: 0; flex: 1 1 240px; }
 .pt-account-form button { margin: 0; width: auto; flex: 0 0 auto; }
 .pt-sync-ok { color: var(--pt-status-repertoire); font-weight: 500; }
 .pt-text-muted { color: var(--pt-text-muted); }
