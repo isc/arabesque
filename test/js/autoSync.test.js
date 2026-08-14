@@ -2,7 +2,12 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 import 'fake-indexeddb/auto'
 import { initStorage } from '../../public/js/storage.js'
 import { initPracticeTracker } from '../../public/js/practiceTracker.js'
-import { setSyncSignedIn } from '../../public/js/sync.js'
+import { AUTH_STORAGE_KEY } from '../../public/js/supabaseConfig.js'
+
+// Signed in, as far as any page can tell without loading the client: the
+// session supabase-js persists is present.
+const signIn = () => localStorage.setItem(AUTH_STORAGE_KEY, '{"access_token":"x"}')
+const signOut = () => localStorage.removeItem(AUTH_STORAGE_KEY)
 
 // The module under test only ever reaches Supabase through this one import,
 // which the real page loads lazily from a CDN.
@@ -57,11 +62,11 @@ describe('autoSync', () => {
     deps = { storage, practiceTracker: initPracticeTracker(storage) }
     // Fresh module state (the throttle is module-level) for every test.
     autoSync = await import('../../public/js/autoSync.js')
-    setSyncSignedIn(true)
+    signIn()
   })
 
-  it('does nothing when the device flag says no account is signed in', () => {
-    setSyncSignedIn(false)
+  it('does nothing when no session is stored on this device', () => {
+    signOut()
     autoSync.initAutoSync(deps, { syncOnOpen: true })
     autoSync.triggerSync('test')
     expect(runSync).not.toHaveBeenCalled()
@@ -115,15 +120,14 @@ describe('autoSync', () => {
     expect(a).toBe(b)
   })
 
-  it('does not sync when the session itself is gone, and clears the flag', async () => {
+  it('does not sync when the session is gone, and stops gating on it', async () => {
     getSession.mockResolvedValueOnce({ data: { session: null } })
     autoSync.initAutoSync(deps)
     expect(await autoSync.requestSync()).toBeNull()
     expect(runSync).not.toHaveBeenCalled()
-    // The data page may not have been open when the session ended, so this is
-    // where the device stops claiming it has an account — otherwise every later
-    // page load would import the Supabase client to find out again.
-    expect(localStorage.getItem('arabesque:sync-enabled')).toBe('0')
+    // And once supabase-js drops the stored session, the cheap gate closes on
+    // its own — nothing of ours has to be told.
+    signOut()
     autoSync.triggerSync('tab back')
     expect(runSync).not.toHaveBeenCalled()
   })

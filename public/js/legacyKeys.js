@@ -11,6 +11,11 @@
 const LEGACY_PREFIXES = ['pt-', 'pt:']
 export const KEY_PREFIX = 'arabesque:'
 
+// Keys the app no longer reads, swept so a stale value can't outlive its
+// meaning. `sync-enabled` was the "Automatic sync" switch; syncing now follows
+// the stored session itself (supabaseConfig.js).
+const OBSOLETE_KEYS = ['arabesque:sync-enabled']
+
 function migrate() {
   const renames = []
   for (let i = 0; i < localStorage.length; i++) {
@@ -23,6 +28,7 @@ function migrate() {
     if (localStorage.getItem(to) === null) localStorage.setItem(to, localStorage.getItem(from))
     localStorage.removeItem(from)
   }
+  for (const key of OBSOLETE_KEYS) localStorage.removeItem(key)
 }
 
 try {

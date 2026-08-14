@@ -5,12 +5,16 @@
 // and auto-refreshes the token; detectSessionInUrl lets it pick up the
 // magic-link token when the user lands back on data.html after clicking it.
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4'
-import { SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, supabaseConfigured } from './supabaseConfig.js'
+import { SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, AUTH_STORAGE_KEY, supabaseConfigured } from './supabaseConfig.js'
 
 export const supabase = supabaseConfigured
   ? createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
       auth: {
         persistSession: true,
+        // Pinned, not defaulted: the presence of this key is what the score and
+        // library pages read to decide whether to sync (supabaseConfig.js), so
+        // its name is a contract rather than an implementation detail.
+        storageKey: AUTH_STORAGE_KEY,
         autoRefreshToken: true,
         detectSessionInUrl: true,
         // Implicit flow (session tokens in the URL hash), NOT pkce: Supabase's

@@ -6,7 +6,7 @@
 // on; this page is where that becomes true for the device.
 import { initStorage } from './storage.js'
 import { initPracticeTracker } from './practiceTracker.js'
-import { setSyncSignedIn, lastSyncAt } from './sync.js'
+import { lastSyncAt } from './sync.js'
 import { initAutoSync, requestSync } from './autoSync.js'
 import { t, locale } from './i18n.js'
 
@@ -80,16 +80,11 @@ export function dataApp() {
       this.authReady = true
     },
 
-    // The one place that knows whether an account is signed in on this device.
-    // Mirrored into storage so the score and library pages can decide whether
-    // to sync without loading the Supabase client to ask (see sync.js).
-    //
     // Only a session clears the pending sign-in, never its absence: being
-    // signed out is the normal state while waiting for a code, and init()
-    // calls this before reading it back.
+    // signed out is the normal state while waiting for a code, and init() calls
+    // this before reading it back.
     setSession(session) {
       this.user = session?.user ?? null
-      setSyncSignedIn(!!session)
       if (session) setPendingSignIn(null)
     },
 
