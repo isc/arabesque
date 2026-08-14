@@ -84,12 +84,25 @@ namespace :test do
     ids = TestSharding.ids
     abort 'No tests found' if ids.empty?
 
-    # Half the cores, because a worker is not one busy core: Chrome spreads a
-    # single test over a renderer, a GPU process and its own threads, so it
-    # eats about two. Measured on a 16-core box — 2 workers: 40s, 4: 23s,
-    # 8: 15s, 16: 21s and a flaky run. Oversubscribing is slower *and* starts
-    # losing tests to timing.
-    default_workers = [Etc.nprocessors / 2, 1].max
+    # Eight, or fewer on a small machine. The wall clock stops improving at
+    # eight workers on both machines measured, whatever their core count:
+    #
+    #   16-core Linux — 4: 21.7s, 8: 14.9s, 12: 15.2s, 16: 14.9s / 19.1s + an
+    #                   error, 24: 15.7s
+    #   8-core Mac    — 4: 42.8s, 8: 29.3s (7 runs), 12: 30.4s
+    #
+    # Past that the limit isn't the CPU: with ~66 tests, eight workers already
+    # leave a handful of tests each, so the slowest single test sets the floor
+    # and more processes can only add contention. Sixteen still loses a test to
+    # timing now and then, as it did before the playback libraries were
+    # vendored (#250) — oversubscribing was never only about the network.
+    #
+    # Halving the cores, which this used to do, happens to land on eight on the
+    # 16-core box and left a third of the time on the table on an 8-core Mac,
+    # where half the cores are efficiency ones. Calibrated on those two points:
+    # a 4-core machine is untested, hence the floor of one rather than a
+    # confident fraction.
+    default_workers = [Etc.nprocessors, 8].min
     workers = (ENV['TEST_WORKERS'] || default_workers).to_i.clamp(1, ids.size)
     FileUtils.mkdir_p('tmp')
     started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
