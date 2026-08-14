@@ -1,5 +1,14 @@
 2026-08-14
 
+- **OpenSheetMusicDisplay 2.1.2**, en version stock : le correctif d'ordre des
+  doigtés multi-voix qu'on portait à la main est passé upstream (PR #1685), et
+  la 2.0.0 sur laquelle notre bundle était bâti n'avait plus rien d'autre en
+  propre. Fin du build maison. Au passage, le rendu accélère nettement — la
+  Ballade op. 23 se redessine en ~0,7 s contre ~2,0 s — et OSMD apporte ses
+  correctifs de liaisons (arcs aplatis), de liaisons de tenue enharmoniques
+  (Gb→F#), d'alignement des voix à durées pointées et de crash sur `octave-shift`
+  non terminé.
+
 - La case **« Synchronisation automatique »** disparaît : être connecté suffit à
   synchroniser, se déconnecter est l'interrupteur. La case venait de la phase où
   la synchro ne partait qu'à l'ouverture de la page Données ; une fois les
