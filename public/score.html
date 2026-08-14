@@ -10,8 +10,8 @@
     <script type="importmap">
     {
       "imports": {
-        "tone": "https://esm.sh/tone@14.8.49",
-        "@tonejs/piano": "https://esm.sh/@tonejs/piano@0.2.1?external=tone"
+        "tone": "./vendor/tone.14.8.49.min.js",
+        "@tonejs/piano": "./vendor/tonejs-piano.0.2.1.min.js"
       }
     }
     </script>
@@ -21,9 +21,9 @@
       // Register the Alpine root component before Alpine boots, then load Alpine.
       // Loading Alpine from inside this module (rather than a sibling `defer`
       // script) guarantees `midiApp` exists before Alpine evaluates `x-data`,
-      // even when app.js's import graph is slow to resolve (e.g. the
-      // cross-origin esm.sh dependency). Otherwise Alpine can win the race and
-      // every expression throws "<name> is not defined".
+      // even when app.js's import graph is slow to resolve (it pulls in the
+      // vendored Tone bundle). Otherwise Alpine can win the race and every
+      // expression throws "<name> is not defined".
       import { midiApp } from './js/app.js'
       import { initAlpineI18n } from './js/i18n.js'
       import { mountHeaderMenu } from './js/headerMenu.js'
