@@ -500,9 +500,13 @@ class ArabesqueTest < CapybaraTestBase
 
     click_on 'Écouter'
     assert_text '⏹ Stop'
+    # The label follows isPlaying, so it only says the engine started. The
+    # cursor being shown says it is actually running on the score.
+    assert_selector 'img#cursorImg-0'
 
     click_on 'Stop'
     assert_text '▶ Écouter'
+    assert_no_selector 'img#cursorImg-0', visible: :visible
   end
 
   private
