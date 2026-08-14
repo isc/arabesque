@@ -139,6 +139,16 @@ describe('autoSync', () => {
     expect(seen).toEqual([SUMMARY])
   })
 
+  it('does not watch the tab when the page declines it', async () => {
+    // The score page: a pull can rebuild aggregates, which it cannot afford
+    // with a score on screen.
+    autoSync.initAutoSync(deps, { syncOnReturn: false })
+    setVisibility('hidden')
+    setVisibility('visible')
+    await new Promise((r) => setTimeout(r, 50))
+    expect(runSync).not.toHaveBeenCalled()
+  })
+
   it('syncs when the tab comes back, not when it leaves', async () => {
     autoSync.initAutoSync(deps)
     setVisibility('hidden')

@@ -27,7 +27,10 @@ let lastAttemptAt = 0
 
 // Wires a page in. `syncOnOpen` is for pages that display synced data;
 // `onSynced` receives each successful sync's summary so the page can redraw.
-export function initAutoSync(pageDeps, { syncOnOpen = false, onSynced: callback = null } = {}) {
+export function initAutoSync(
+  pageDeps,
+  { syncOnOpen = false, syncOnReturn = true, onSynced: callback = null } = {}
+) {
   deps = pageDeps
   onSynced = callback
 
@@ -35,9 +38,14 @@ export function initAutoSync(pageDeps, { syncOnOpen = false, onSynced: callback 
   // unfinished session isn't pushable (runSync skips it) and a finished one
   // already fired its own trigger — so syncing there would spend the round-trip
   // *and* the throttle window that the return needs to pull with.
-  document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') triggerSync('tab back')
-  })
+  //
+  // A page that can't afford a pull declines this the same way it declines
+  // syncOnOpen: what arrives is the same, and so is the cost of receiving it.
+  if (syncOnReturn) {
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') triggerSync('tab back')
+    })
+  }
 
   if (syncOnOpen) triggerSync('page opened')
 
