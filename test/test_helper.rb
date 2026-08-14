@@ -22,9 +22,13 @@ Capybara.register_driver(:cuprite) do |app|
     # resolves to 'fr' — the UI assertions in these tests are in French.
     browser_options: { 'disable-gpu' => nil, 'lang' => 'fr-FR', 'accept-lang' => 'fr-FR' },
     save_path: DOWNLOAD_DIR,
-    # The 10s default occasionally fails to spawn Chrome on cold/slow CI runners
-    # ("Browser did not produce websocket url within 10 seconds"). Give it room.
-    process_timeout: 30
+    # Spawning Chrome, not running a test: the 10s default failed on cold CI
+    # runners, and 30s still does — "Browser did not produce websocket url
+    # within 30 seconds" took a shard down on main twice in a day, and it also
+    # shows up locally when eight workers start their browsers at once. This is
+    # a ceiling on how long we wait for a process to exist, so raising it costs
+    # nothing when the machine is healthy and buys a green run when it isn't.
+    process_timeout: 60
   )
 end
 Capybara.default_driver = :cuprite
