@@ -40,7 +40,7 @@ class LibraryFiltersTest < CapybaraTestBase
     assert_current_path %r{\?.*status=dechiffrage}
 
     titles = all('tbody tr td:first-child').map(&:text)
-    assert_includes titles, 'Nocturne No. 20 in C Minor'
+    assert_includes titles, 'Nocturne No. 20 in C# Minor'
     assert_includes titles, 'Prelude Op. 28 No. 4 in E Minor'
     refute_includes titles, 'Waltz in A Minor'
   end
@@ -116,7 +116,7 @@ class LibraryFiltersTest < CapybaraTestBase
       },
       {
         scoreId: 'scores/Nocturne_No._20_in_C_Minor.mxl',
-        scoreTitle: 'Nocturne No. 20 in C Minor',
+        scoreTitle: 'Nocturne No. 20 in C# Minor',
         composer: 'Chopin',
         status: 'dechiffrage',
         lastPlayedAt: '2026-03-15T10:00:00.000Z',
