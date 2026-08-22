@@ -52,10 +52,25 @@ export async function arrayBufferToXml(arrayBuffer) {
 }
 
 export async function loadMxlAsXml(url) {
+  return arrayBufferToXml(await fetchScoreBytes(url))
+}
+
+// score.html starts the download from its <head>, before OSMD and the module
+// graph are even fetched; by the time this runs the bytes are usually already
+// there. Consumed once, then dropped so a score's worth of ArrayBuffer isn't
+// pinned for the session. A prefetch that failed resolves to null and is simply
+// retried here, so a transient error doesn't outlive the request that caused it.
+async function fetchScoreBytes(url) {
+  const prefetch = window.__scorePrefetch
+  if (prefetch?.url === url) {
+    window.__scorePrefetch = null
+    const bytes = await prefetch.promise
+    if (bytes) return bytes
+  }
+
   const response = await fetch(url)
   if (!response.ok) {
     throw new Error(`Failed to fetch ${url}: ${response.statusText}`)
   }
-
-  return arrayBufferToXml(await response.arrayBuffer())
+  return response.arrayBuffer()
 }

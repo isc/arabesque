@@ -3,7 +3,7 @@ import { initMusicXML } from './musicxml.js'
 import { initFingeringEditor } from './fingeringEditor.js'
 import { initCassettes } from './cassettes.js'
 import { initPracticeTracker } from './practiceTracker.js'
-import { formatDuration, formatDate, applyStickyOffset, scorePageUrl } from './utils.js'
+import { formatDuration, formatDate, applyStickyOffset, scorePageUrl, onIdle } from './utils.js'
 import { initStorage } from './storage.js'
 import { loadMxlAsXml } from './mxlLoader.js'
 import { injectFingerings } from './fingeringInjector.js'
@@ -24,6 +24,11 @@ const CHART_DATE_AXIS = new Intl.DateTimeFormat(locale(), { day: 'numeric', mont
 // continuously — wait for the drag to settle before paying for it once.
 const RESIZE_RELAYOUT_DEBOUNCE_MS = 250
 
+// Resolves once the browser has had a frame to itself. Two rAFs, not one: the
+// first only gets us into the frame that is already being prepared, so work
+// resumed there still lands before that frame is painted.
+const nextPaint = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))
+
 export function midiApp() {
   const midi = initMidi()
   const musicxml = initMusicXML()
@@ -42,6 +47,8 @@ export function midiApp() {
   // The browser drops this on its own whenever the page is hidden; kept so the
   // page can tell whether it still holds one (see requestWakeLock).
   let wakeLock = null
+  // Settles when the MIDI handshake is done; awaited by markScoreReady().
+  let midiReady = Promise.resolve()
   // The end of a session is the moment its data becomes worth pushing: runSync
   // only takes sessions that have ended, so a playthrough finished here would
   // otherwise sit on this device until the data page is opened.
@@ -70,6 +77,13 @@ export function midiApp() {
     selectedCassette: '',
     cassetteApiAvailable: false,
     trainingMode: false,
+
+    // Read off the flag score.html's head script raised during parsing, so
+    // Alpine agrees with the CSS about whether a score is on its way. Without
+    // it x-show would put the onboarding card back on screen the moment Alpine
+    // booted — osmdInstance is still null for the rest of the load — in front of
+    // a score that was already coming.
+    scoreLoading: document.documentElement.hasAttribute('data-loading-score'),
 
     // scoreUrl is set only for scores loaded from the library, not for
     // local file uploads — the practice tracker keys on it.
@@ -135,14 +149,19 @@ export function midiApp() {
         }
       })
 
-      // loadCassettesList hits a backend endpoint, storage.init opens
-      // IndexedDB — independent and OK to run in parallel. practiceTracker
-      // shares the storage instance so its init just hits the same cache.
-      await Promise.all([this.loadCassettesList(), storage.init()])
-      await practiceTracker.init()
-
-      await midi.connectMIDI({ silent: true, autoSelectFirst: true })
-      this.syncMidiState()
+      // Startup errands, none of which has to finish before a score can be
+      // drawn — they used to run one after another in front of the load. What
+      // the render actually needs is the database open, to read the fingerings;
+      // practiceTracker.init() goes on to flush a stashed session and scan for
+      // stranded ones, which is housekeeping that grows with the user's history
+      // and is only depended on when a new session starts (see loadScoreFromURL).
+      // The MIDI handshake and the cassette endpoint — a round trip that 404s
+      // outright on static hosting — are nobody's prerequisite at all.
+      const dbReady = storage.init()
+      const trackerReady = dbReady.then(() => practiceTracker.init())
+      midiReady = midi.connectMIDI({ silent: true, autoSelectFirst: true })
+        .then(() => this.syncMidiState())
+      onIdle(() => this.loadCassettesList())
 
       const NAVIGATE_BACK_KEY = 108 // C8 - highest piano key (less jarring sound)
 
@@ -247,8 +266,9 @@ export function midiApp() {
         },
       })
 
+      await dbReady
       const scoreUrl = new URLSearchParams(window.location.search).get('url')
-      if (scoreUrl) await this.loadScoreFromURL(scoreUrl)
+      if (scoreUrl) await this.loadScoreFromURL(scoreUrl, trackerReady)
 
       // endSession() is the clean close, but its IndexedDB writes need the page
       // to stay alive long enough to commit — leaving mid-piece regularly
@@ -337,24 +357,25 @@ export function midiApp() {
       this.scoreUrl = null
       await musicxml.loadMusicXML(file)
       await this.afterScoreLoad()
-      this.captureScoreMetadata()
-      this.markScoreReady()
+      await this.markScoreReady()
     },
 
-    async loadScoreFromURL(url) {
+    // `trackerReady` is the practice tracker's own init, which the render does
+    // not wait on (see init) — only the session started below does.
+    async loadScoreFromURL(url, trackerReady = Promise.resolve()) {
       this.scoreUrl = url
       this.fingeringEnabled = true
       this.loadCollectionInfo(url) // fire-and-forget: the navigator appears when ready
 
       await this.renderScoreWithFingerings()
-      this.captureScoreMetadata()
 
       const metadata = musicxml.getScoreMetadata()
+      await trackerReady
       practiceTracker.startSession(url, metadata.title, metadata.composer, 'free', metadata.totalMeasures)
 
       // Load reinforcement suggestions from last completed playthrough
       await this.refreshReinforcementSuggestions()
-      this.markScoreReady()
+      await this.markScoreReady()
     },
 
     // Marks the score page as ready to be driven: OSMD has painted, metadata
@@ -363,7 +384,10 @@ export function midiApp() {
     // because "pixels are on screen" and "the page will answer input" are not
     // the same instant — tests that treated them as one had to bridge the gap
     // with a sleep.
-    markScoreReady() {
+    async markScoreReady() {
+      // The keyboard is half of "will answer input", and it is connected in
+      // parallel with the load rather than in front of it.
+      await midiReady
       document.getElementById('score').dataset.renderComplete = Date.now()
     },
 
@@ -406,8 +430,12 @@ export function midiApp() {
     },
 
     async renderScoreWithFingerings() {
-      const { fingerings } = await storage.getFingerings(this.scoreUrl)
-      const xml = await loadMxlAsXml(this.scoreUrl)
+      // Independent: one is IndexedDB, the other the score bytes (already in
+      // flight since the head script, so this is where its await belongs).
+      const [{ fingerings }, xml] = await Promise.all([
+        storage.getFingerings(this.scoreUrl),
+        loadMxlAsXml(this.scoreUrl),
+      ])
       const modified = injectFingerings(xml, fingerings)
       await musicxml.renderMusicXML(modified)
       await this.afterScoreLoad()
@@ -416,10 +444,24 @@ export function midiApp() {
 
     async afterScoreLoad() {
       this.osmdInstance = musicxml.getOsmdInstance()
+      // As soon as OSMD has parsed the sheet — the title and composer are read
+      // straight off it, and waiting for the render meant the topbar sat on its
+      // "Partition" placeholder for the whole of it.
+      this.captureScoreMetadata()
       // Wait for Alpine to update DOM (show #score container), then render
       await this.$nextTick()
-      await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))
-      musicxml.renderScore()
+      await nextPaint()
+      await musicxml.renderScore({
+        // Between OSMD's draw and its indexing pass: drop the spinner in the
+        // same frame the score lands in (leave it up and its 70vh would push the
+        // score below the fold), then hand the frame back so the score is
+        // actually painted before indexing blocks the thread again.
+        afterDraw: async () => {
+          this.scoreLoading = false
+          delete document.documentElement.dataset.loadingScore
+          await nextPaint()
+        },
+      })
       fingeringEditor.alignFingeringLabelsToNoteheads()
       this.lastRelayoutWidth = document.getElementById('score').clientWidth
       const savedBpm = this.scoreUrl ? Number(localStorage.getItem(`arabesque:strictBpm:${this.scoreUrl}`)) : NaN

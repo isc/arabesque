@@ -10,6 +10,7 @@
 // outcome.
 import { lastSyncAt, runSync } from './sync.js'
 import { signedInOnThisDevice } from './supabaseConfig.js'
+import { onIdle } from './utils.js'
 
 // How long each trigger waits behind the previous sync. A tab coming back or a
 // page opening brings nothing new of our own, so one round-trip a minute is
@@ -17,8 +18,6 @@ import { signedInOnThisDevice } from './supabaseConfig.js'
 // collapsing bursts (a run of short Hanon playthroughs).
 const MIN_INTERVAL_MS = { 'session ended': 5000 }
 const DEFAULT_MIN_INTERVAL_MS = 60000
-
-const onIdle = window.requestIdleCallback ?? ((fn) => setTimeout(fn, 0))
 
 let deps = null
 let onSynced = null

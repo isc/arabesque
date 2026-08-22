@@ -1,3 +1,18 @@
+2026-08-22
+
+- **Affichage initial de la page partition.** Plus de clignotement : la carte
+  d'onboarding, la barre de modes et le titre de repli s'affichaient tant
+  qu'Alpine n'avait pas démarré, puis étaient remplacés. Un drapeau posé pendant
+  le parsing du HTML décide de l'état d'ouverture (indicateur de chargement ou
+  onboarding), `x-cloak` couvre le reste, et le titre est lu dès qu'OSMD a parsé
+  la partition.
+- Sur le chemin critique : le téléchargement de la partition part du `<head>`,
+  Tone.js (~400 Ko) passe en import dynamique dans « Écouter », les scripts
+  vendor passent en `defer`, MIDI et cassettes ne bloquent plus le rendu, et
+  OSMD reçoit le Document déjà parsé au lieu d'une chaîne à reparser. Le premier
+  paint passe de 3,3 s à 0,4 s et la partition s'affiche ~1,5 s plus tôt (CPU
+  4× ralenti, 5 Mb/s).
+
 2026-08-14
 
 - **OpenSheetMusicDisplay 2.1.2**, en version stock : le correctif d'ordre des

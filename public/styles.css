@@ -99,7 +99,11 @@
 }
 
 /* Tighter base */
-html { font-size: 100%; }
+/* The background goes on html as well as body: body only grows to fit its
+   content, so any page shorter than the viewport — the score page while it is
+   still loading, most of all — showed Pico's white html background as a band
+   underneath. */
+html { font-size: 100%; background: var(--pt-bg); }
 body {
   background: var(--pt-bg);
   color: var(--pt-text);
@@ -955,8 +959,28 @@ table tbody td:nth-child(2) a:hover { color: var(--pt-accent); }
 }
 
 /* =============================================================================
-   Onboarding card (when no score loaded on score.html)
+   Score loading skeleton + onboarding card (score.html)
    ========================================================================== */
+
+/* The page opens in one of two states, decided during HTML parsing by the head
+   script that sets data-loading-score: either a score is on its way (spinner,
+   no onboarding) or none was asked for (onboarding, no spinner). It has to be
+   CSS off a documentElement flag rather than Alpine state, because Alpine boots
+   hundreds of milliseconds into the load and this is what the page looks like
+   until it does. From boot on, the same flag is mirrored into the component as
+   scoreLoading and x-show takes the card over — hence no !important here.
+
+   The spinner box is sized to roughly where the score will be rather than to
+   the spinner itself, so the page holds its shape while it loads. Pico draws
+   the aria-busy spinner at 1em, hence the font-size. */
+.pt-score-loading {
+  display: none;
+  place-content: center;
+  min-height: 70vh;
+  font-size: 2rem;
+}
+html[data-loading-score] .pt-score-loading { display: grid; }
+html[data-loading-score] .pt-onboarding { display: none; }
 
 .pt-onboarding {
   max-width: 520px;
