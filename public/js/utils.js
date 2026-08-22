@@ -8,6 +8,16 @@ export function isTestEnv() {
   return document.cookie.includes('test-env')
 }
 
+// Runs `fn` once the browser has nothing better to do. The one policy for
+// "wanted, but not at the cost of what the page is doing right now" — a warm-up
+// import, an endpoint whose answer only feeds an optional control. Resolved per
+// call rather than once at module load: this module is imported by the node
+// test environment too, where there is no window to read it off.
+export function onIdle(fn) {
+  if (typeof requestIdleCallback === 'function') return requestIdleCallback(fn)
+  return setTimeout(fn, 0)
+}
+
 // Pixel offset for the currently-visible sticky bars (topbar + modebar +
 // optional mode-context band), used both by scrollToMeasure() and by the
 // CSS scroll-margin-top via the --pt-sticky-offset variable.

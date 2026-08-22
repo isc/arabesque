@@ -1,4 +1,3 @@
-import { Piano } from '@tonejs/piano'
 import { isTestEnv } from './utils.js'
 import { tsToSeconds, buildMeasureStartTimes, buildCursorTimeline, cursorStepsBeforeMeasure } from './playbackTiming.js'
 import { scrollSystemIntoView } from './utils.js'
@@ -62,6 +61,12 @@ async function ensurePianoLoaded() {
   // tests do check — scheduling, the cursor, isPlaying — runs without it, and
   // sendMidi() already no-ops when there is neither an output nor a piano.
   if (isTestEnv()) return
+  // Imported here, not at the top of the module: @tonejs/piano pulls in Tone
+  // (~400KB with its dependencies) and the score page's whole module graph hangs
+  // off this file, so a static import made every score wait on a bundle that is
+  // only needed once someone presses ▶ Écouter — and only when no MIDI output is
+  // connected to play through instead.
+  const { Piano } = await import('@tonejs/piano')
   piano = new Piano({ velocities: 1 })
   piano.toDestination()
   await piano.load()

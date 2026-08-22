@@ -207,10 +207,19 @@ async function loadMusicXML(file) {
 // training and reinforcement state stay put, where extractNotesFromScore() would
 // reset them all. Either way the SVG elements are new, so the caller repaints the
 // marks (app.js does it in repaintScore).
-function renderScore({ reextract = true } = {}) {
+// `afterDraw` runs between the draw and the indexing, and is how the initial
+// load gets the score on screen sooner: the fresh SVG is in the DOM once
+// render() returns, but nothing is painted until the task ends, and indexing is
+// a long task of its own — so the loader hands the frame back there. Re-renders
+// pass nothing and stay synchronous throughout: they already have a score up,
+// and an intermediate paint would only make it flicker. Keeping it a parameter
+// rather than exporting the two halves means no caller can leave a score drawn
+// but un-indexed (no allNotes, no measure click handlers).
+async function renderScore({ reextract = true, afterDraw = null } = {}) {
   if (!osmdInstance) return
   osmdInstance.render()
   disableInvisibleNoteClicks()
+  if (afterDraw) await afterDraw()
   // Must precede setupMeasureClickHandlers, which reads allNotes.
   if (reextract) extractNotesFromScore()
   setupMeasureClickHandlers()

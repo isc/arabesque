@@ -7,6 +7,32 @@
     <link rel="icon" href="favicon.svg" type="image/svg+xml" />
     <link rel="stylesheet" href="vendor/pico.2.1.1min.css" />
     <link rel="stylesheet" href="styles.css" />
+    <script>
+      // Runs during parsing, before a single byte of JS has been evaluated, and
+      // does the two things that are worth doing that early:
+      //
+      //  1. Starts downloading the score. Left to the module graph, that request
+      //     only went out once OSMD (1.3MB) and every module had been fetched,
+      //     evaluated and Alpine had booted — a second or more of doing nothing
+      //     with the connection. loadMxlAsXml() picks the bytes up from here.
+      //  2. Flags the document as loading a score, which is what puts the
+      //     spinner below on screen in place of the onboarding card.
+      ;(function () {
+        var url = new URLSearchParams(location.search).get('url')
+        if (!url) return
+        document.documentElement.dataset.loadingScore = '1'
+        // Resolves to null rather than rejecting on failure: nobody awaits this
+        // for another second or so, and a rejection with no handler yet is an
+        // unhandled-rejection report. null simply sends the consumer back to a
+        // normal fetch, which reports the error in its own right.
+        window.__scorePrefetch = {
+          url: url,
+          promise: fetch(url).then(function (response) {
+            return response.ok ? response.arrayBuffer() : null
+          }, function () { return null }),
+        }
+      })()
+    </script>
     <script type="importmap">
     {
       "imports": {
@@ -15,8 +41,12 @@
       }
     }
     </script>
-    <script src="vendor/jszip.3.10.1.min.js"></script>
-    <script src="vendor/opensheetmusicdisplay.2.1.2.min.js"></script>
+    <!-- defer, not blocking: these two are only needed once a score is being
+         rendered, and evaluating 1.4MB of vendor code up front held back both
+         the first paint and the fetch of the module graph below. Deferred
+         classic scripts still run in document order, before the module. -->
+    <script defer src="vendor/jszip.3.10.1.min.js"></script>
+    <script defer src="vendor/opensheetmusicdisplay.2.1.2.min.js"></script>
     <script type="module">
       // Register the Alpine root component before Alpine boots, then load Alpine.
       // Loading Alpine from inside this module (rather than a sibling `defer`
@@ -42,13 +72,13 @@
     <div class="pt-stickybars">
     <header class="pt-topbar">
       <a href="library.html" class="pt-topbar__back" data-i18n="score.back">&larr; Bibliothèque</a>
-      <div class="pt-topbar__title" x-show="osmdInstance">
+      <div class="pt-topbar__title" x-show="osmdInstance" x-cloak>
         <span x-text="collection ? collection.title : (scoreTitle || $t('score.titleFallback'))"></span>
         <small x-show="scoreComposer" x-text="scoreComposer"></small>
       </div>
 
       <!-- Part navigator, shown when the score belongs to a collection -->
-      <div class="pt-part-nav" x-show="collection && osmdInstance">
+      <div class="pt-part-nav" x-show="collection && osmdInstance" x-cloak>
         <button
           class="pt-topbar__pill"
           :disabled="collectionIndex <= 0"
@@ -69,12 +99,13 @@
       </div>
       <div class="pt-topbar__actions">
         <!-- MIDI status / connect -->
-        <span class="pt-midi-status" x-show="bluetoothConnected" :title="$t('score.midiConnected')">
+        <span class="pt-midi-status" x-show="bluetoothConnected" x-cloak :title="$t('score.midiConnected')">
           🎹 <span x-text="midiDeviceName || $t('score.midiKeyboard')"></span>
         </span>
         <button
           class="pt-midi-status is-disconnected"
           x-show="!bluetoothConnected"
+          x-cloak
           @click="connectMIDI"
           x-text="$t('score.connectMidi')"
         >🎹 Connecter clavier MIDI</button>
@@ -83,6 +114,7 @@
         <button
           class="pt-topbar__pill"
           x-show="!!scoreUrl"
+          x-cloak
           @click="openScoreHistory"
           :aria-label="$t('score.historyAria')"
           x-text="$t('score.history')"
@@ -93,7 +125,7 @@
     </header>
 
     <!-- Modebar: segmented mode selector + reinforcement badge + listen -->
-    <nav class="pt-modebar" x-show="!!osmdInstance">
+    <nav class="pt-modebar" x-show="!!osmdInstance" x-cloak>
       <div class="pt-segmented" role="group" :aria-label="$t('score.modeGroupAria')">
         <button
           data-mode="free"
@@ -178,25 +210,31 @@
     <!-- Mode-context band: shows mode-specific hints. Strict-mode controls
          now live in the sticky modebar; the band only carries a passive
          hint about clicking measures to set a start point. -->
-    <div class="pt-context pt-context--strict" x-show="currentMode === 'strict' && !isStrictPlaying && !!osmdInstance">
+    <div class="pt-context pt-context--strict" x-show="currentMode === 'strict' && !isStrictPlaying && !!osmdInstance" x-cloak>
       <strong x-text="$t('score.strictBand')">⏱ Mode strict</strong>
       <span x-show="strictStartMeasure === 0" x-text="$t('score.strictHint')">Cliquez sur une mesure pour démarrer la lecture à partir de ce point.</span>
       <span x-show="strictStartMeasure > 0" x-text="$t('score.strictStartAt', { n: strictStartMeasure + 1 })"></span>
     </div>
 
-    <div class="pt-context pt-context--training" x-show="currentMode === 'training' && !reinforcementMode && !!osmdInstance">
+    <div class="pt-context pt-context--training" x-show="currentMode === 'training' && !reinforcementMode && !!osmdInstance" x-cloak>
       <strong x-text="$t('score.trainingBand')">🎯 Entraînement</strong>
       <span x-text="$t('score.trainingHint')">Chaque mesure doit être jouée 3× sans erreur.</span>
     </div>
 
     <main class="container pt-score-main">
+      <!-- Shown from the first paint until the score is drawn, for a page opened
+           with ?url= (the head script raises the flag, afterScoreLoad() in
+           app.js drops it). Deliberately outside Alpine: it has to be up long
+           before Alpine boots, which is most of the wait. -->
+      <div class="pt-score-loading" aria-busy="true"></div>
+
       <!-- Onboarding: shown when no score is loaded. The "Bibliothèque"
            link in the topbar handles catalog access, so this card focuses
            only on the case the topbar doesn't cover: importing a local
            MusicXML file. -->
       <div
         class="pt-onboarding"
-        x-show="!osmdInstance"
+        x-show="!osmdInstance && !scoreLoading"
         x-data="{ dragOver: false }"
         :class="{ 'is-dragover': dragOver }"
         @dragover.prevent="dragOver = true"
