@@ -115,7 +115,7 @@ class LibraryFiltersTest < CapybaraTestBase
         practiceDays: ['2026-03-08', '2026-03-09', '2026-03-10'],
       },
       {
-        scoreId: 'scores/Nocturne_No._20_in_C_Minor.mxl',
+        scoreId: 'scores/Nocturne_No._20_in_C_sharp_Minor.mxl',
         scoreTitle: 'Nocturne No. 20 in C# Minor',
         composer: 'Chopin',
         status: 'dechiffrage',
