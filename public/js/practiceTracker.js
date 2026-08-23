@@ -32,6 +32,18 @@ const INTERRUPTION_NORMALIZATION = {
   gapFactor: 4,
 }
 
+// Reinforcement suggestions look at this many of a score's most recent
+// sessions. What was fumbled months ago says nothing about what needs work
+// today, and the window bounds a computation that runs at every measure.
+const REINFORCEMENT_WINDOW_SESSIONS = 10
+
+// Consecutive clean passes that retire a measure from the suggestions — the
+// bar reinforcement mode itself sets to declare a measure done.
+const REINFORCEMENT_CLEAN_STREAK = 3
+
+// Sessions a measure must span before its error rate can be called stagnant.
+const STAGNATION_MIN_SESSIONS = 3
+
 function median(values) {
   if (values.length === 0) return 0
   const sorted = [...values].sort((a, b) => a - b)
@@ -138,6 +150,9 @@ export function initPracticeTracker(storageInstance = null) {
   // Set once ensureAggregateTitle() has written title/composer for the
   // current session, so later measures skip the IndexedDB round-trip.
   let aggregateTitleEnsured = false
+  // Sessions read for the reinforcement suggestions, kept between measures
+  // (see recentSessions).
+  let reinforcementSessions = { scoreId: null, sessions: [] }
 
   return {
     init: async () => {
@@ -156,8 +171,8 @@ export function initPracticeTracker(storageInstance = null) {
     restartPlaythrough,
     endSession,
     getScoreStats,
-    analyzeMeasuresFromSession,
-    getLastCompletedSession,
+    getMeasuresToReinforce,
+    rankMeasuresToReinforce,
     getDailyLog,
     getDailyLogs,
     getScoreHistory,
@@ -449,6 +464,9 @@ export function initPracticeTracker(storageInstance = null) {
     }
     // Committed: whatever a pagehide stashed for *this* session is redundant.
     clearPendingSession(sessionToSave.id)
+    // The session just left the "live" slot for the stored history the
+    // reinforcement window reads, so that window has to be read again.
+    invalidateReinforcementSessions()
 
     currentSession = null
     currentMeasureAttempt = null
@@ -597,33 +615,116 @@ export function initPracticeTracker(storageInstance = null) {
     return storage.getAggregate(scoreId)
   }
 
-  function analyzeMeasuresFromSession(session, limit = 5) {
-    if (!session?.measures?.length) return []
+  // Measures worth reinforcing right now. Reads the score's recent history —
+  // the session under way included — so the suggestion is there as soon as a
+  // measure has been fumbled, without waiting for the piece to be played from
+  // end to end: on a long score, the first half gets worked on long before the
+  // rest has even been sight-read.
+  async function getMeasuresToReinforce(scoreId, limit = 5) {
+    if (!scoreId) return []
+    return rankMeasuresToReinforce(await recentSessions(scoreId), limit)
+  }
 
-    const measureStats = session.measures.map((measure) => {
-      const lastAttempt = measure.attempts[measure.attempts.length - 1]
-      const totalWrongNotes = measure.attempts.reduce((sum, a) => sum + a.wrongNotes, 0)
-      return {
-        sourceMeasureIndex: measure.sourceMeasureIndex,
-        wrongNotes: totalWrongNotes,
-        durationMs: lastAttempt?.durationMs || 0,
-      }
-    })
+  // The window of sessions the suggestions look at, oldest first, with the
+  // in-memory session substituted for the copy endMeasureAttempt saved: that
+  // one is a measure behind by construction.
+  //
+  // Sessions are re-read from storage only when the score changes or a session
+  // is closed, because this runs at every measure boundary and getSessions()
+  // deserializes the score's whole history.
+  async function recentSessions(scoreId) {
+    if (reinforcementSessions.scoreId !== scoreId) {
+      reinforcementSessions = { scoreId, sessions: await storage.getSessions(scoreId) }
+    }
 
-    // Filter measures with errors, sort by nb errors then duration
-    return measureStats
-      .filter((m) => m.wrongNotes > 0)
-      .sort((a, b) => b.wrongNotes - a.wrongNotes || b.durationMs - a.durationMs)
+    const live = currentSession?.scoreId === scoreId ? currentSession : null
+    const sessions = reinforcementSessions.sessions.filter((s) => s.id !== live?.id)
+    if (live) sessions.push(live)
+    sessions.sort((a, b) => new Date(a.startedAt) - new Date(b.startedAt))
+    return sessions.slice(-REINFORCEMENT_WINDOW_SESSIONS)
+  }
+
+  function invalidateReinforcementSessions() {
+    reinforcementSessions = { scoreId: null, sessions: [] }
+  }
+
+  // Ranks the fumbled measures of a run of sessions (oldest first), stagnating
+  // ones ahead of the rest: those are the passages practice has stopped paying
+  // off on, and the reason to look past the last session at all.
+  function rankMeasuresToReinforce(sessions, limit = 5) {
+    const candidates = []
+
+    for (const { sourceMeasureIndex, bySession } of measureHistories(sessions)) {
+      const attempts = bySession.flat()
+      const wrongNotes = attempts.reduce((sum, a) => sum + (a.wrongNotes || 0), 0)
+      if (!attempts.some(fumbled)) continue
+      // Settled: the measure has since been played cleanly as many times in a
+      // row as reinforcement mode itself demands to call it done.
+      if (cleanStreak(attempts) >= REINFORCEMENT_CLEAN_STREAK) continue
+
+      candidates.push({
+        sourceMeasureIndex,
+        wrongNotes,
+        durationMs: attempts[attempts.length - 1].durationMs || 0,
+        stagnant: isStagnant(bySession),
+      })
+    }
+
+    return candidates
+      .sort(
+        (a, b) =>
+          Number(b.stagnant) - Number(a.stagnant) ||
+          b.wrongNotes - a.wrongNotes ||
+          b.durationMs - a.durationMs
+      )
       .slice(0, limit)
   }
 
-  async function getLastCompletedSession(scoreId) {
-    const sessions = await storage.getSessions(scoreId)
-    const completed = sessions.filter((s) => s.completedAt)
-    if (completed.length === 0) return null
-    // Sort by completedAt descending and return the most recent
-    completed.sort((a, b) => new Date(b.completedAt) - new Date(a.completedAt))
-    return completed[0]
+  // Attempts per measure across the given sessions, kept grouped by session:
+  // the totals answer "how badly", the grouping answers "is it getting better".
+  function measureHistories(sessions) {
+    const histories = new Map()
+
+    for (const session of sessions) {
+      for (const measure of session.measures || []) {
+        if (!measure.attempts?.length) continue
+        let history = histories.get(measure.sourceMeasureIndex)
+        if (!history) {
+          history = { sourceMeasureIndex: measure.sourceMeasureIndex, bySession: [] }
+          histories.set(measure.sourceMeasureIndex, history)
+        }
+        history.bySession.push(measure.attempts)
+      }
+    }
+
+    return [...histories.values()]
+  }
+
+  // A wrong note always fails the attempt, but the matcher can fail one on its
+  // own (a missed note ends the measure unclean without recording anything).
+  function fumbled(attempt) {
+    return attempt.clean === false || (attempt.wrongNotes || 0) > 0
+  }
+
+  function cleanStreak(attempts) {
+    let streak = 0
+    for (let i = attempts.length - 1; i >= 0 && !fumbled(attempts[i]); i--) streak++
+    return streak
+  }
+
+  // Stagnation is the trend over sessions, not within one: a measure stagnates
+  // when the error rate of its recent sessions is no better than that of the
+  // earlier ones. Below STAGNATION_MIN_SESSIONS there is no trend to read, only
+  // the noise of a good day and a bad one.
+  function isStagnant(bySession) {
+    if (bySession.length < STAGNATION_MIN_SESSIONS) return false
+    const rates = bySession.map((attempts) => attempts.filter(fumbled).length / attempts.length)
+    const split = Math.floor(rates.length / 2)
+    return mean(rates.slice(split)) >= mean(rates.slice(0, split))
+  }
+
+  function mean(values) {
+    return values.reduce((sum, v) => sum + v, 0) / values.length
   }
 
   function countFullPlaythroughs(sessions, totalMeasures) {

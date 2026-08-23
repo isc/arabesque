@@ -13,16 +13,6 @@ dans le `CHANGELOG`.
 - **Marqueur de passages** — outil pour surligner / marquer les passages
   difficiles d'un morceau, afin d'attirer l'attention dessus et d'y revenir.
 
-- **Renforcement avant un jeu complet** — les suggestions de mesures à renforcer
-  ne se déclenchent qu'après une lecture complète du morceau. Sur les longs
-  morceaux, on travaille la première partie et on veut renforcer des mesures
-  avant d'avoir tout déchiffré. Proposer le renforcement sur les mesures déjà
-  jouées, sans exiger une session complète. Et baser la détection sur
-  l'historique agrégé plutôt que sur la seule dernière session : repérer les
-  mesures qui **stagnent** (taux d'erreur qui ne baisse plus au fil des
-  sessions malgré le renforcement), pas seulement celles ratées la dernière
-  fois.
-
 - **Tempo trainer (suite du mode strict)** — l'évolution envisagée dès les
   premières PRs du mode strict (#161, #165) : construire un entraîneur de tempo
   par-dessus le moteur existant, avec **sélection d'une plage de mesures**,

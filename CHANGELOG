@@ -1,3 +1,13 @@
+2026-08-23
+
+- **Le renforcement n'attend plus une lecture complète.** Dès qu'une mesure vous
+  a fait trébucher, le bouton « Renforcer » apparaît — utile sur les longues
+  pièces, où l'on travaille le début bien avant d'avoir déchiffré la fin.
+- Les mesures proposées sont choisies sur vos dernières séances et non plus sur
+  la seule dernière lecture : celles qui **stagnent** — un taux d'erreur qui ne
+  baisse plus d'une séance à l'autre — passent en tête, et une mesure quitte la
+  liste après trois passages propres d'affilée.
+
 2026-08-22
 
 - **Affichage initial de la page partition.** Plus de clignotement : la carte

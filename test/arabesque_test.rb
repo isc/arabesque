@@ -425,6 +425,28 @@ class ArabesqueTest < CapybaraTestBase
     end
   end
 
+  def test_reinforcement_is_offered_before_the_score_has_been_played_through
+    visit '/score.html?url=/test-fixtures/repeat-endings.xml'
+    assert_selector 'svg g.vf-stavenote', count: 4
+    assert_selector '#score[data-render-complete]'
+
+    # Measure 1 only: a wrong note, then the right one. Three measures still
+    # lie ahead — nothing here is a playthrough.
+    play_note('D4')
+    play_note('C4')
+
+    assert_text 'Renforcer 1 mesure'
+    assert_no_text 'Partition terminée'
+
+    click_on 'Renforcer 1 mesure'
+    assert_text 'Mode Entraînement Actif'
+    assert_selector 'svg rect.measure-click-area.selected'
+
+    # The free session interrupted mid-piece is closed rather than stranded
+    # with a null endedAt.
+    wait_for_records('sessions', where: 'record.endedAt')
+  end
+
   def test_reinforcement_mode_after_playthrough_with_mistakes
     visit '/score.html?url=/test-fixtures/repeat-endings.xml'
     assert_selector 'svg g.vf-stavenote', count: 4
