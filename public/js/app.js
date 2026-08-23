@@ -49,6 +49,9 @@ export function midiApp() {
   let wakeLock = null
   // Settles when the MIDI handshake is done; awaited by markScoreReady().
   let midiReady = Promise.resolve()
+  // Orders the reinforcement refreshes fired at every measure boundary (see
+  // refreshReinforcementSuggestions).
+  let reinforcementRefreshSeq = 0
   // The end of a session is the moment its data becomes worth pushing: runSync
   // only takes sessions that have ended, so a playthrough finished here would
   // otherwise sit on this device until the data page is opened.
@@ -205,7 +208,6 @@ export function midiApp() {
           const metadata = musicxml.getScoreMetadata()
           practiceTracker.startSession(this.scoreUrl, metadata.title, metadata.composer, 'free', metadata.totalMeasures)
 
-          // Refresh reinforcement suggestions from the just-completed session
           await this.refreshReinforcementSuggestions()
         },
         onTrainingComplete: async () => {
@@ -222,6 +224,7 @@ export function midiApp() {
           // TEMP: fire-and-forget, so its IndexedDB work never showed up in the
           // traced() around activateNote.
           traced('endMeasureAttempt', () => practiceTracker.endMeasureAttempt(data.clean))
+          this.refreshReinforcementSuggestions()
         },
         onWrongNote: () => {
           practiceTracker.recordWrongNote()
@@ -373,7 +376,7 @@ export function midiApp() {
       await trackerReady
       practiceTracker.startSession(url, metadata.title, metadata.composer, 'free', metadata.totalMeasures)
 
-      // Load reinforcement suggestions from last completed playthrough
+      // Suggestions from the score's recent history, before a note is played
       await this.refreshReinforcementSuggestions()
       await this.markScoreReady()
     },
@@ -624,24 +627,31 @@ export function midiApp() {
       }
     },
 
+    // Refreshed at every measure boundary, so the badge shows up as soon as a
+    // passage has been fumbled rather than at the end of a playthrough. Reads
+    // are ordered by sequence number: at that rate a slow one could otherwise
+    // land on top of a fresher result.
     async refreshReinforcementSuggestions() {
-      if (!this.scoreUrl) {
-        this.measuresToReinforce = []
-        return
-      }
-      const lastSession = await practiceTracker.getLastCompletedSession(this.scoreUrl)
-      this.measuresToReinforce = practiceTracker.analyzeMeasuresFromSession(lastSession)
+      const seq = ++reinforcementRefreshSeq
+      const measures = await practiceTracker.getMeasuresToReinforce(this.scoreUrl)
+      if (seq === reinforcementRefreshSeq) this.measuresToReinforce = measures
     },
 
-    startReinforcementMode() {
+    async startReinforcementMode() {
+      // Pinned before the await below, which leaves room for a measure
+      // boundary to refresh the suggestions under us.
+      const measures = this.measuresToReinforce
       this.reinforcementMode = true
       this.trainingMode = true
 
-      // Start new training session before activating reinforcement mode
+      // Close the session under way first: reinforcement can now be started
+      // mid-piece, and simply starting the training session on top of a free
+      // one would strand it with no endedAt (see endSession).
+      await endSessionAndSync()
       const metadata = musicxml.getScoreMetadata()
       practiceTracker.startSession(this.scoreUrl, metadata.title, metadata.composer, 'training', metadata.totalMeasures)
 
-      musicxml.setReinforcementMode(this.measuresToReinforce)
+      musicxml.setReinforcementMode(measures)
     },
 
     updateActiveHands() {

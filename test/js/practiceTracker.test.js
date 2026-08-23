@@ -240,96 +240,101 @@ describe('practiceTracker', () => {
     })
   })
 
-  describe('analyzeMeasuresFromSession', () => {
-    it('returns empty array for null session', () => {
-      const result = tracker.analyzeMeasuresFromSession(null)
-      expect(result).toEqual([])
+  describe('measures to reinforce', () => {
+    // Sessions as the ranking takes them: oldest first, one entry per measure.
+    const session = (measures) => ({
+      measures: Object.entries(measures).map(([index, attempts]) => ({
+        sourceMeasureIndex: Number(index),
+        attempts: attempts.map(([wrongNotes, durationMs = 100]) => ({
+          wrongNotes,
+          durationMs,
+          clean: wrongNotes === 0,
+        })),
+      })),
     })
 
-    it('returns empty array for session with no measures', () => {
-      const result = tracker.analyzeMeasuresFromSession({ measures: [] })
-      expect(result).toEqual([])
+    it('returns nothing without sessions', () => {
+      expect(tracker.rankMeasuresToReinforce([])).toEqual([])
     })
 
-    it('excludes measures with no wrong notes', () => {
-      const session = {
-        measures: [
-          { sourceMeasureIndex: 0, attempts: [{ wrongNotes: 0, durationMs: 100 }] },
-          { sourceMeasureIndex: 1, attempts: [{ wrongNotes: 2, durationMs: 100 }] },
-        ],
-      }
-      const result = tracker.analyzeMeasuresFromSession(session)
-      expect(result).toHaveLength(1)
-      expect(result[0].sourceMeasureIndex).toBe(1)
+    it('excludes measures played without a fumble', () => {
+      const result = tracker.rankMeasuresToReinforce([session({ 0: [[0]], 1: [[2]] })])
+      expect(result.map((m) => m.sourceMeasureIndex)).toEqual([1])
     })
 
-    it('sorts by total wrong notes descending', () => {
-      const session = {
-        measures: [
-          { sourceMeasureIndex: 0, attempts: [{ wrongNotes: 1, durationMs: 100 }] },
-          { sourceMeasureIndex: 1, attempts: [{ wrongNotes: 3, durationMs: 100 }] },
-          { sourceMeasureIndex: 2, attempts: [{ wrongNotes: 2, durationMs: 100 }] },
-        ],
-      }
-      const result = tracker.analyzeMeasuresFromSession(session)
+    it('drops a measure once it has been played cleanly three times in a row', () => {
+      const fumbled = [session({ 0: [[2]] })]
+      expect(tracker.rankMeasuresToReinforce([...fumbled, session({ 0: [[0], [0]] })])).toHaveLength(1)
+      expect(tracker.rankMeasuresToReinforce([...fumbled, session({ 0: [[0], [0], [0]] })])).toEqual([])
+    })
+
+    it('sorts by wrong notes, then by duration', () => {
+      const result = tracker.rankMeasuresToReinforce([
+        session({ 0: [[2, 100]], 1: [[3, 100]], 2: [[2, 300]] }),
+      ])
       expect(result.map((m) => m.sourceMeasureIndex)).toEqual([1, 2, 0])
     })
 
-    it('uses duration as secondary sort criterion', () => {
-      const session = {
-        measures: [
-          { sourceMeasureIndex: 0, attempts: [{ wrongNotes: 2, durationMs: 100 }] },
-          { sourceMeasureIndex: 1, attempts: [{ wrongNotes: 2, durationMs: 300 }] },
-          { sourceMeasureIndex: 2, attempts: [{ wrongNotes: 2, durationMs: 200 }] },
-        ],
-      }
-      const result = tracker.analyzeMeasuresFromSession(session)
-      expect(result.map((m) => m.sourceMeasureIndex)).toEqual([1, 2, 0])
+    it('sums wrong notes across sessions and keeps the last duration', () => {
+      const result = tracker.rankMeasuresToReinforce([
+        session({ 0: [[1, 100]] }),
+        session({ 0: [[2, 300]] }),
+      ])
+      expect(result[0]).toMatchObject({ wrongNotes: 3, durationMs: 300 })
     })
 
-    it('sums wrong notes across multiple attempts', () => {
-      const session = {
-        measures: [
-          {
-            sourceMeasureIndex: 0,
-            attempts: [
-              { wrongNotes: 1, durationMs: 100 },
-              { wrongNotes: 2, durationMs: 100 },
-            ],
-          },
-        ],
-      }
-      const result = tracker.analyzeMeasuresFromSession(session)
-      expect(result[0].wrongNotes).toBe(3)
-    })
-
-    it('uses last attempt duration', () => {
-      const session = {
-        measures: [
-          {
-            sourceMeasureIndex: 0,
-            attempts: [
-              { wrongNotes: 1, durationMs: 100 },
-              { wrongNotes: 1, durationMs: 200 },
-            ],
-          },
-        ],
-      }
-      const result = tracker.analyzeMeasuresFromSession(session)
-      expect(result[0].durationMs).toBe(200)
-    })
-
-    it('respects limit parameter', () => {
-      const session = {
-        measures: [
-          { sourceMeasureIndex: 0, attempts: [{ wrongNotes: 3, durationMs: 100 }] },
-          { sourceMeasureIndex: 1, attempts: [{ wrongNotes: 2, durationMs: 100 }] },
-          { sourceMeasureIndex: 2, attempts: [{ wrongNotes: 1, durationMs: 100 }] },
-        ],
-      }
-      const result = tracker.analyzeMeasuresFromSession(session, 2)
-      expect(result).toHaveLength(2)
+    it('respects the limit', () => {
+      const result = tracker.rankMeasuresToReinforce([session({ 0: [[3]], 1: [[2]], 2: [[1]] })], 2)
       expect(result.map((m) => m.sourceMeasureIndex)).toEqual([0, 1])
+    })
+
+    it('flags a measure whose error rate stops falling, and ranks it first', () => {
+      const stagnating = { 0: [[1]] } // fumbled in every session
+      const improving = { 1: [[4]] } // heavier, but on the mend below
+      const result = tracker.rankMeasuresToReinforce([
+        session({ ...stagnating, ...improving }),
+        session({ ...stagnating, 1: [[1], [0]] }),
+        session({ ...stagnating, 1: [[0]] }),
+      ])
+      expect(result.map((m) => m.sourceMeasureIndex)).toEqual([0, 1])
+      expect(result.map((m) => m.stagnant)).toEqual([true, false])
+    })
+
+    it('needs three sessions before calling a measure stagnant', () => {
+      const twoSessions = [session({ 0: [[1]] }), session({ 0: [[1]] })]
+      expect(tracker.rankMeasuresToReinforce(twoSessions)[0].stagnant).toBe(false)
+    })
+
+    it('suggests measures from the session under way, before any playthrough', async () => {
+      tracker.startSession('/scores/test.xml', 'Test', 'Composer', 'free')
+      tracker.startMeasureAttempt(3)
+      tracker.recordWrongNote()
+      await tracker.endMeasureAttempt()
+
+      const result = await tracker.getMeasuresToReinforce('/scores/test.xml')
+      expect(result.map((m) => m.sourceMeasureIndex)).toEqual([3])
+    })
+
+    it('keeps a measure fumbled in an earlier session', async () => {
+      tracker.startSession('/scores/test.xml', 'Test', 'Composer', 'free')
+      tracker.startMeasureAttempt(2)
+      tracker.recordWrongNote()
+      await tracker.endMeasureAttempt()
+      await tracker.endSession()
+
+      tracker.startSession('/scores/test.xml', 'Test', 'Composer', 'free')
+      const result = await tracker.getMeasuresToReinforce('/scores/test.xml')
+      expect(result.map((m) => m.sourceMeasureIndex)).toEqual([2])
+    })
+
+    it('ignores other scores', async () => {
+      tracker.startSession('/scores/other.xml', 'Other', 'Composer', 'free')
+      tracker.startMeasureAttempt(0)
+      tracker.recordWrongNote()
+      await tracker.endMeasureAttempt()
+
+      expect(await tracker.getMeasuresToReinforce('/scores/test.xml')).toEqual([])
+      expect(await tracker.getMeasuresToReinforce(null)).toEqual([])
     })
   })
 
