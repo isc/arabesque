@@ -5,10 +5,6 @@ dans le `CHANGELOG`.
 
 ## Idées
 
-- **Renommage en _Arabesque_** — le nom est tranché, le renommage reste à faire.
-  Décision, critères et candidats écartés dans `NAMING.md`, qui liste aussi les
-  fichiers concernés et le piège à éviter (le nom de la base IndexedDB).
-
 - **Validation des pédales** — valider l'usage de la pédale de sustain (CC 64),
   pas seulement les notes. Très pertinent sur des pièces comme la *Sonate au clair
   de lune*. Nécessite les marques `<pedal>` dans le MusicXML et l'écoute des
