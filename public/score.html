@@ -283,66 +283,70 @@
           <button aria-label="Close" rel="prev" @click="closeResultModal()"></button>
         </header>
 
-        <!-- Free / Training: playthrough rankings + evolution chart -->
-        <template x-if="resultMode === 'free' || resultMode === 'training'">
-          <div>
-            <p x-show="currentPlaythroughDuration && previousPlaythroughs.length === 0" class="pt-modal-stat pt-modal-stat--accent">
-              <span x-text="$t('score.resultTime')">Temps : </span><strong x-text="formatDuration(currentPlaythroughDuration)"></strong>
-            </p>
-            <div class="pt-result-cols">
-              <table class="pt-playthrough-table" x-show="previousPlaythroughs.length > 0">
-                <tbody>
-                  <template x-for="(pt, idx) in previousPlaythroughs" :key="idx">
-                    <tr :class="{ 'is-current': pt.isCurrent }">
-                      <td>
-                        <strong x-show="pt.isCurrent" x-text="formatDuration(pt.durationMs)"></strong>
-                        <span x-show="!pt.isCurrent" x-text="formatDuration(pt.durationMs)"></span>
-                      </td>
-                      <td><small x-text="pt.isCurrent ? $t('score.now') : formatDate(pt.startedAt)"></small></td>
-                    </tr>
-                  </template>
-                </tbody>
-              </table>
-              <template x-if="playthroughChartSvg(previousPlaythroughs)">
-                <div class="pt-modal-section">
-                  <h4 x-text="$t('score.playtimeEvolution')">Évolution du temps de jeu</h4>
-                  <div x-html="playthroughChartSvg(previousPlaythroughs)"></div>
+        <div class="pt-modal-body">
+          <!-- Free / Training: playthrough rankings + evolution chart -->
+          <template x-if="resultMode === 'free' || resultMode === 'training'">
+            <div>
+              <p x-show="currentPlaythroughDuration && previousPlaythroughs.length === 0" class="pt-modal-stat pt-modal-stat--accent">
+                <span x-text="$t('score.resultTime')">Temps : </span><strong x-text="formatDuration(currentPlaythroughDuration)"></strong>
+              </p>
+              <div class="pt-result-cols">
+                <div class="pt-playthrough-scroll" x-show="previousPlaythroughs.length > 0">
+                  <table class="pt-playthrough-table">
+                    <tbody>
+                      <template x-for="(pt, idx) in previousPlaythroughs" :key="idx">
+                        <tr :class="{ 'is-current': pt.isCurrent }">
+                          <td>
+                            <strong x-show="pt.isCurrent" x-text="formatDuration(pt.durationMs)"></strong>
+                            <span x-show="!pt.isCurrent" x-text="formatDuration(pt.durationMs)"></span>
+                          </td>
+                          <td><small x-text="pt.isCurrent ? $t('score.now') : formatDate(pt.startedAt)"></small></td>
+                        </tr>
+                      </template>
+                    </tbody>
+                  </table>
                 </div>
-              </template>
+                <template x-if="playthroughChartSvg(previousPlaythroughs)">
+                  <div class="pt-modal-section">
+                    <h4 x-text="$t('score.playtimeEvolution')">Évolution du temps de jeu</h4>
+                    <div x-html="playthroughChartSvg(previousPlaythroughs)"></div>
+                  </div>
+                </template>
+              </div>
+              <p x-show="resultMode === 'training'" class="pt-modal-note" x-text="$t('score.trainingDone')">
+                Vous avez complété toutes les mesures du morceau.
+              </p>
             </div>
-            <p x-show="resultMode === 'training'" class="pt-modal-note" x-text="$t('score.trainingDone')">
-              Vous avez complété toutes les mesures du morceau.
-            </p>
-          </div>
-        </template>
+          </template>
 
-        <!-- Strict: accuracy + breakdown -->
-        <template x-if="resultMode === 'strict'">
-          <div>
-            <p class="pt-modal-stat pt-modal-stat--strict">
-              <strong x-text="strictAccuracyPercent() + '%'"></strong>
-              <span x-text="$t('score.strictInTempo', { hit: strictResult?.hit ?? 0, total: strictResult?.total ?? 0 })"></span>
-            </p>
-            <ul class="pt-strict-breakdown">
-              <li x-show="strictOffTempoTotal() > 0">
-                ⚠️ <span x-text="strictOffTempoTotal()"></span> <span x-text="$t('score.strictOffTempo')">hors tempo</span>
-                (<span x-text="strictResult?.offTempoEarly ?? 0"></span> <span x-text="$t('score.strictTooEarly')">trop tôt</span>,
-                <span x-text="strictResult?.offTempoLate ?? 0"></span> <span x-text="$t('score.strictTooLate')">trop tard</span>)
-              </li>
-              <li x-show="strictResult?.missed > 0">
-                ❌ <span x-text="strictResult?.missed ?? 0"></span> <span x-text="$t('score.strictMissed')">manquées</span>
-              </li>
-              <li x-show="strictResult?.wrongNotes > 0">
-                🚫 <span x-text="strictResult?.wrongNotes ?? 0"></span> <span x-text="$t('score.strictWrongNotes')">fausses notes</span>
-              </li>
-            </ul>
-          </div>
-        </template>
+          <!-- Strict: accuracy + breakdown -->
+          <template x-if="resultMode === 'strict'">
+            <div>
+              <p class="pt-modal-stat pt-modal-stat--strict">
+                <strong x-text="strictAccuracyPercent() + '%'"></strong>
+                <span x-text="$t('score.strictInTempo', { hit: strictResult?.hit ?? 0, total: strictResult?.total ?? 0 })"></span>
+              </p>
+              <ul class="pt-strict-breakdown">
+                <li x-show="strictOffTempoTotal() > 0">
+                  ⚠️ <span x-text="strictOffTempoTotal()"></span> <span x-text="$t('score.strictOffTempo')">hors tempo</span>
+                  (<span x-text="strictResult?.offTempoEarly ?? 0"></span> <span x-text="$t('score.strictTooEarly')">trop tôt</span>,
+                  <span x-text="strictResult?.offTempoLate ?? 0"></span> <span x-text="$t('score.strictTooLate')">trop tard</span>)
+                </li>
+                <li x-show="strictResult?.missed > 0">
+                  ❌ <span x-text="strictResult?.missed ?? 0"></span> <span x-text="$t('score.strictMissed')">manquées</span>
+                </li>
+                <li x-show="strictResult?.wrongNotes > 0">
+                  🚫 <span x-text="strictResult?.wrongNotes ?? 0"></span> <span x-text="$t('score.strictWrongNotes')">fausses notes</span>
+                </li>
+              </ul>
+            </div>
+          </template>
 
-        <!-- Reinforcement: brief acknowledgement -->
-        <template x-if="resultMode === 'reinforcement'">
-          <p class="pt-modal-note" x-text="$t('score.reinforcementDone')">Toutes les mesures ont été renforcées avec succès.</p>
-        </template>
+          <!-- Reinforcement: brief acknowledgement -->
+          <template x-if="resultMode === 'reinforcement'">
+            <p class="pt-modal-note" x-text="$t('score.reinforcementDone')">Toutes les mesures ont été renforcées avec succès.</p>
+          </template>
+        </div>
 
         <footer>
           <button class="pt-action-button" x-show="!!scoreUrl" @click="closeResultModal(); openScoreHistory()" x-text="$t('score.history')">📜 Historique</button>

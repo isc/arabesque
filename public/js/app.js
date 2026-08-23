@@ -589,6 +589,11 @@ export function midiApp() {
       mark(`modale résultat (${mode})`) // TEMP: to date the 🔁 resize against
       this.resultMode = mode
       this.showResultModal = true
+      // The ranking is fastest-first and scrolls in its own column, so the run
+      // that just ended can sit well below the fold. Bring it into view.
+      this.$nextTick(() => {
+        document.querySelector('.pt-playthrough-table tr.is-current')?.scrollIntoView({ block: 'center' })
+      })
     },
 
     closeResultModal() {
