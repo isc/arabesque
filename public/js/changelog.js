@@ -16,6 +16,17 @@
 
 export const CHANGELOG = [
   {
+    date: '2026-08-23',
+    items: {
+      fr: [
+        "Sur la fenêtre de fin de partition, les boutons « Renforcer », « Historique » et « Fermer » restent visibles même avec un long palmarès : c'est désormais la liste des temps qui défile, dans sa colonne, positionnée d'emblée sur le passage que vous venez de jouer.",
+      ],
+      en: [
+        'On the score-finished window, the "Reinforce", "History" and "Close" buttons stay in view however long your ranking gets: the list of times now scrolls inside its own column, and opens on the run you just played.',
+      ],
+    },
+  },
+  {
     date: '2026-08-22',
     items: {
       fr: [

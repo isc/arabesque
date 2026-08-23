@@ -1068,6 +1068,12 @@ dialog > article {
   max-height: calc(100vh - 64px);
   overflow-y: auto;
 }
+/* A card that wraps its content in .pt-modal-body scrolls that body rather
+   than the whole card, so its header and footer buttons stay in view however
+   long the content gets. Opt-in: cards without the wrapper keep scrolling
+   whole, which is fine as long as their footer holds nothing to click. */
+dialog > article:has(> .pt-modal-body) { display: flex; flex-direction: column; overflow: hidden; }
+dialog > article > .pt-modal-body { overflow-y: auto; }
 dialog > article > header {
   padding: 0 0 var(--pt-space-3);
   margin: 0 0 var(--pt-space-3);
@@ -1129,29 +1135,19 @@ dialog > article > footer button { margin: 0; }
 .pt-playthrough-table tbody td small { color: var(--pt-text-muted); }
 
 /* Side-by-side layout for the playthrough list + evolution chart inside
-   the result modal. Falls back to a stack at narrow widths. */
+   the result modal. Falls back to a stack at narrow widths. The list gets
+   its own scroller so a long history scrolls past the chart instead of
+   pushing it out of the card. */
 .pt-result-dialog article { max-width: 960px; }
 .pt-result-cols { display: flex; gap: var(--pt-space-6); align-items: flex-start; }
-.pt-result-cols > .pt-playthrough-table { flex: 0 0 auto; width: auto; }
+.pt-result-cols > .pt-playthrough-scroll { flex: 0 0 auto; max-height: 50vh; overflow-y: auto; }
 .pt-result-cols > .pt-modal-section { flex: 1 1 0; min-width: 0; margin-top: 0; }
 .pt-result-cols > .pt-modal-section svg { width: 100%; height: auto; }
 @media (max-width: 700px) {
   .pt-result-cols { flex-direction: column; }
+  .pt-result-cols > .pt-playthrough-scroll { max-height: 35vh; }
   .pt-result-cols > .pt-modal-section { margin-top: var(--pt-space-4); }
 }
-
-.pt-playthrough-list { list-style: none; padding: 0; margin: 0; }
-.pt-playthrough-list li {
-  display: flex;
-  justify-content: space-between;
-  gap: var(--pt-space-3);
-  padding: 6px 0;
-  border-bottom: 1px solid var(--pt-border);
-  font-size: 0.9rem;
-}
-.pt-playthrough-list li:last-child { border-bottom: none; }
-.pt-playthrough-list li.is-current { background: var(--pt-accent-soft); margin: 0 -8px; padding: 6px 8px; border-radius: var(--pt-radius-sm); border-bottom: none; font-weight: 600; }
-.pt-playthrough-list small { color: var(--pt-text-muted); }
 
 .pt-modal-section { margin-top: var(--pt-space-4); }
 .pt-modal-section h4 { color: var(--pt-text-muted); font-size: 0.85rem; letter-spacing: 0.01em; margin-bottom: var(--pt-space-2); font-weight: 600; }
