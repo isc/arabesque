@@ -114,6 +114,7 @@
           class="pt-midi-status"
           :class="{ 'is-disconnected': !micActive }"
           x-show="micActive || !bluetoothConnected"
+          x-cloak
           @click="toggleMic"
           :title="$t('score.micTitle')"
           x-text="micActive ? $t('score.micActive') : $t('score.micButton')"
