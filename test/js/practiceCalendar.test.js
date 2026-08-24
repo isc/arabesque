@@ -1,6 +1,11 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import 'fake-indexeddb/auto'
-import { initPracticeTracker, practiceStreaks, shiftDayKey } from '../../public/js/practiceTracker.js'
+import {
+  initPracticeTracker,
+  practiceStreaks,
+  practiceYearStats,
+  shiftDayKey,
+} from '../../public/js/practiceTracker.js'
 import { initStorage } from '../../public/js/storage.js'
 import { levelFor } from '../../public/js/practice.js'
 
@@ -43,10 +48,7 @@ describe('practice calendar', () => {
       const calendar = await tracker.getPracticeCalendar()
 
       expect(calendar.get('2026-03-04')).toEqual({
-        date: '2026-03-04',
         practiceTimeMs: 15 * 60 * 1000,
-        sessions: 2,
-        scores: 2,
         timesPlayedInFull: 1,
       })
       expect(calendar.get('2026-03-06').practiceTimeMs).toBe(20 * 60 * 1000)
@@ -91,6 +93,23 @@ describe('practice calendar', () => {
 
       expect(calendar.size).toBe(3)
       expect(reads).toBe(1)
+    })
+  })
+
+  describe('practiceYearStats', () => {
+    it('totals only the days of the year asked for', async () => {
+      await storage.saveSession(sessionOn('2025-12-31', 10, { id: 'a', completed: true }))
+      await storage.saveSession(sessionOn('2026-01-01', 20, { id: 'b', completed: true }))
+      await storage.saveSession(sessionOn('2026-06-15', 30, { id: 'c' }))
+
+      const calendar = await tracker.getPracticeCalendar()
+
+      expect(practiceYearStats(calendar, 2026)).toEqual({
+        days: 2,
+        practiceTimeMs: 50 * 60 * 1000,
+        playthroughs: 1,
+      })
+      expect(practiceYearStats(calendar, 2024)).toEqual({ days: 0, practiceTimeMs: 0, playthroughs: 0 })
     })
   })
 

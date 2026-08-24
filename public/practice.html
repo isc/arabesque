@@ -9,7 +9,10 @@
     <script type="module">
       import { practiceApp } from './js/practice.js'
       import { initAlpineI18n } from './js/i18n.js'
+      import { mountJournalEntries } from './js/journalEntries.js'
       window.practiceApp = practiceApp
+      // Inject the shared journal entry line before Alpine boots.
+      mountJournalEntries()
       initAlpineI18n()
       const alpine = document.createElement('script')
       alpine.src = 'vendor/alpinejs.3.14.9.min.js'
@@ -24,35 +27,35 @@
       </div>
 
       <article class="pt-card pt-stack">
-        <div class="pt-practice-toolbar">
+        <div class="pt-row-between pt-practice-toolbar">
           <p class="pt-hint" x-text="$t('practice.intro')"></p>
-          <div class="pt-yearnav" role="group" :aria-label="$t('practice.yearNavAria')" x-show="years.length > 1" x-cloak>
-            <button type="button" class="pt-icon-button" :disabled="year <= years[0]" @click="setYear(year - 1)" :aria-label="$t('practice.previousYear')">‹</button>
+          <div class="pt-yearnav" role="group" :aria-label="$t('practice.yearNavAria')" x-show="firstYear < latestYear" x-cloak>
+            <button type="button" class="pt-icon-button" :disabled="year <= firstYear" @click="setYear(year - 1)" :aria-label="$t('practice.previousYear')">‹</button>
             <strong class="pt-yearnav__year" x-text="year">2026</strong>
-            <button type="button" class="pt-icon-button" :disabled="year >= years[years.length - 1]" @click="setYear(year + 1)" :aria-label="$t('practice.nextYear')">›</button>
+            <button type="button" class="pt-icon-button" :disabled="year >= latestYear" @click="setYear(year + 1)" :aria-label="$t('practice.nextYear')">›</button>
           </div>
         </div>
 
         <!-- Year totals. Streaks are all-time by design (see buildStats). -->
         <dl class="pt-statrow" x-show="ready" x-cloak>
           <div class="pt-stat">
-            <dt x-text="$t('practice.statDays')">Jours de pratique</dt>
+            <dt class="pt-eyebrow" x-text="$t('practice.statDays')">Jours de pratique</dt>
             <dd x-text="stats.days"></dd>
           </div>
           <div class="pt-stat">
-            <dt x-text="$t('practice.statTime')">Temps de pratique</dt>
+            <dt class="pt-eyebrow" x-text="$t('practice.statTime')">Temps de pratique</dt>
             <dd x-text="formatDuration(stats.practiceTimeMs)"></dd>
           </div>
           <div class="pt-stat">
-            <dt x-text="$t('practice.statPlaythroughs')">Lectures complètes</dt>
+            <dt class="pt-eyebrow" x-text="$t('practice.statPlaythroughs')">Lectures complètes</dt>
             <dd x-text="stats.playthroughs"></dd>
           </div>
           <div class="pt-stat">
-            <dt x-text="$t('practice.statCurrentStreak')">Série en cours</dt>
+            <dt class="pt-eyebrow" x-text="$t('practice.statCurrentStreak')">Série en cours</dt>
             <dd x-text="$tn('practice.dayCount', stats.current)"></dd>
           </div>
           <div class="pt-stat">
-            <dt x-text="$t('practice.statLongestStreak')">Meilleure série</dt>
+            <dt class="pt-eyebrow" x-text="$t('practice.statLongestStreak')">Meilleure série</dt>
             <dd x-text="$tn('practice.dayCount', stats.longest)"></dd>
           </div>
         </dl>
@@ -75,17 +78,20 @@
               <div class="pt-calendar__cells">
                 <template x-for="(week, index) in weeks" :key="index">
                   <div class="pt-calendar__week">
-                    <template x-for="day in week" :key="day.key">
+                    <!-- Keyed by row, not by date: positions are stable across
+                         years, so switching year patches the cells in place
+                         instead of tearing down all 371 buttons. -->
+                    <template x-for="(day, row) in week" :key="row">
                       <button
                         type="button"
                         class="pt-calendar__day"
                         :data-level="day.level"
-                        :data-outside="!day.inYear || day.future"
+                        :data-outside="!day.playable"
                         :data-today="day.isToday"
                         :aria-pressed="selected?.key === day.key"
-                        :disabled="!day.inYear || day.future"
-                        :title="day.inYear && !day.future ? dayLabel(day) : null"
-                        :aria-label="day.inYear && !day.future ? dayLabel(day) : null"
+                        :disabled="!day.playable"
+                        :title="day.label"
+                        :aria-label="day.label"
                         @click="toggleDay(day)"
                       ></button>
                     </template>
@@ -98,7 +104,7 @@
 
         <div class="pt-calendar-legend">
           <span x-text="$t('practice.legendLess')">Moins</span>
-          <template x-for="level in [0, 1, 2, 3, 4]" :key="level">
+          <template x-for="level in levels" :key="level">
             <span class="pt-calendar__day" :data-level="level" aria-hidden="true"></span>
           </template>
           <span x-text="$t('practice.legendMore')">Plus</span>
@@ -107,27 +113,14 @@
 
       <!-- Detail of the clicked day. Closed by clicking the same square again. -->
       <article class="pt-card pt-stack" x-show="selected" x-cloak>
-        <div class="pt-practice-toolbar">
+        <div class="pt-row-between pt-practice-toolbar">
           <h2 x-text="selectedLabel()"></h2>
           <button type="button" class="pt-icon-button" @click="closeDay()" :aria-label="$t('common.close')">✕</button>
         </div>
         <template x-if="selectedEntries.length === 0">
           <p class="pt-hint" x-text="$t('practice.noPractice')">Aucune pratique ce jour-là.</p>
         </template>
-        <div class="pt-journal__entries">
-          <template x-for="entry in selectedEntries" :key="entry.scoreId">
-            <div class="pt-journal__entry">
-              <a :href="scorePageUrl(entry.scoreId)" x-text="(entry.scoreTitle || $t('library.untitled')) + ' · ' + entry.composer"></a>
-              <small>
-                <span x-text="formatDuration(entry.totalPracticeTimeMs)"></span>
-                <span x-show="entry.timesPlayedInFull === 1"> · <span x-text="$t('library.playedFull')"></span></span>
-                <span x-show="entry.timesPlayedInFull > 1"> · <span x-text="$t('library.playedFullTimes', { n: entry.timesPlayedInFull })"></span></span>
-                <span x-show="entry.timesPlayedInFull === 0"> · <span x-text="$tn('library.measuresCount', entry.measuresWorked.length)"></span></span>
-                <span x-show="entry.measuresReinforced.length > 0"> · <span x-text="$tn('library.reinforcedCount', entry.measuresReinforced.length)"></span></span>
-              </small>
-            </div>
-          </template>
-        </div>
+        <div data-journal-entries="selectedEntries"></div>
       </article>
     </main>
   </body>

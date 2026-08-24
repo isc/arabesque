@@ -47,13 +47,15 @@
   --pt-note-missed: #ef4444;
 
   /* Practice calendar (practice.html) — one ramp from "nothing" to "a real
-     session", built on the accent so the grid reads as part of the app rather
-     than as a borrowed GitHub green. */
-  --pt-cal-0: #eceef4;
-  --pt-cal-1: #ccd3ef;
-  --pt-cal-2: #97a3dd;
-  --pt-cal-3: #5c6cbe;
-  --pt-cal-4: #2f3b8c;
+     session", derived from the accent so the grid reads as part of the app
+     rather than as a borrowed GitHub green, and follows it if it ever moves. */
+  --pt-cal-0: var(--pt-surface-2);
+  --pt-cal-1: color-mix(in srgb, var(--pt-accent) 22%, var(--pt-surface-2));
+  --pt-cal-2: color-mix(in srgb, var(--pt-accent) 48%, var(--pt-surface-2));
+  --pt-cal-3: color-mix(in srgb, var(--pt-accent) 72%, var(--pt-surface-2));
+  --pt-cal-4: var(--pt-accent);
+  --pt-cal-cell: 12px;
+  --pt-cal-gap: 3px;
 
   /* Feedback */
   --pt-error: #dc2626;
@@ -845,14 +847,17 @@ button.pt-topbar__pill:disabled { opacity: 0.4; cursor: default; }
 /* The container drops its inline padding above 576px (it assumes a box
    narrower than the viewport, centred by its auto margins), so a narrow page
    has to restore the gutters itself — as .pt-landing does. */
-.pt-data-page {
-  --pt-page-max: 720px;
+.pt-data-page,
+.pt-practice-page {
   padding-inline: var(--pt-space-4);
   padding-block: var(--pt-space-5) var(--pt-space-8);
   display: flex;
   flex-direction: column;
   gap: var(--pt-space-4);
 }
+.pt-data-page { --pt-page-max: 720px; }
+/* Wide enough that a full 53-column year fits without scrolling on a laptop. */
+.pt-practice-page { --pt-page-max: 1080px; }
 .pt-data-actions { display: flex; flex-wrap: wrap; gap: var(--pt-space-2); align-items: center; }
 .pt-data-actions button, .pt-data-actions [role="button"] { margin: 0; width: auto; }
 .pt-account-form { display: flex; flex-wrap: wrap; gap: var(--pt-space-2); align-items: center; }
@@ -878,6 +883,24 @@ button.pt-topbar__pill:disabled { opacity: 0.4; cursor: default; }
 
 .pt-sync-ok { color: var(--pt-status-repertoire); font-weight: 500; }
 .pt-hint { color: var(--pt-text-muted); font-size: 0.9rem; }
+
+/* A title on the left, its controls pushed to the right. */
+.pt-row-between {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--pt-space-3);
+  flex-wrap: wrap;
+}
+
+/* The small uppercase label above a section or a figure. */
+.pt-eyebrow {
+  margin: 0;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--pt-text-subtle);
+}
 
 /* =============================================================================
    Pills (status, generic)
@@ -1156,19 +1179,9 @@ table tbody td:nth-child(2) a:hover { color: var(--pt-accent); }
 }
 
 /* Journal sidebar */
-.pt-journal__header {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--pt-space-2);
-}
-.pt-journal__header h2 {
-  margin: 0;
-  font-size: 0.78rem;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--pt-text-subtle);
-}
+/* Layout from .pt-row-between, label from .pt-eyebrow; baseline alignment is
+   what this one adds, so the link sits on the heading's baseline. */
+.pt-journal__header { align-items: baseline; gap: var(--pt-space-2); }
 .pt-journal__header a { font-size: 0.78rem; white-space: nowrap; }
 .pt-journal__day {
   background: var(--pt-bg-elevated);
@@ -1196,30 +1209,13 @@ table tbody td:nth-child(2) a:hover { color: var(--pt-accent); }
 /* =============================================================================
    Practice calendar (practice.html) — a year of days as coloured squares.
    ========================================================================== */
-/* Same gutter restoration as .pt-landing: the container drops its inline
-   padding above 576px, and this page is wider than that breakpoint. */
-.pt-practice-page {
-  --pt-page-max: 1080px;
-  padding-inline: var(--pt-space-4);
-  padding-block: var(--pt-space-5) var(--pt-space-8);
-  display: flex;
-  flex-direction: column;
-  gap: var(--pt-space-4);
-}
-
-/* A title (or a hint) on the left, its controls pushed to the right. */
-.pt-practice-toolbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--pt-space-3);
-  flex-wrap: wrap;
-}
-.pt-practice-toolbar h2 { margin: 0; font-size: 1.1rem; }
+/* .pt-practice-page shares its shell with .pt-data-page (see there); the width
+   it needs is the only thing of its own. .pt-row-between carries the toolbar
+   layout, .pt-eyebrow the stat labels. */
+.pt-practice-toolbar h2 { font-size: 1.1rem; }
 
 .pt-yearnav { display: inline-flex; align-items: center; gap: var(--pt-space-2); }
 .pt-yearnav__year { font-variant-numeric: tabular-nums; min-width: 4ch; text-align: center; }
-.pt-yearnav .pt-icon-button:disabled { opacity: 0.4; cursor: default; }
 
 /* Year totals: a row of figures that wraps rather than scrolls. */
 .pt-statrow {
@@ -1228,22 +1224,13 @@ table tbody td:nth-child(2) a:hover { color: var(--pt-accent); }
   gap: var(--pt-space-3) var(--pt-space-6);
   margin: 0;
 }
-.pt-stat dt { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--pt-text-subtle); }
 .pt-stat dd { margin: 2px 0 0; font-size: 1.25rem; font-weight: 600; font-variant-numeric: tabular-nums; }
 
 /* 53 columns don't fit a phone, so the grid scrolls inside its own box and the
    page never scrolls sideways. */
 .pt-calendar-scroll { overflow-x: auto; padding-bottom: var(--pt-space-1); }
 
-.pt-calendar {
-  /* Sized so a full 53-column year fits the page without scrolling on a
-     laptop; below that the grid scrolls in its own box. */
-  --pt-cal-cell: 12px;
-  --pt-cal-gap: 3px;
-  display: flex;
-  gap: var(--pt-space-2);
-  width: max-content;
-}
+.pt-calendar { display: flex; gap: var(--pt-space-2); width: max-content; }
 /* Row labels, on the same 7-row rhythm as the cells so "mer." sits on the
    Wednesday row rather than between two of them. */
 .pt-calendar__weekdays {
@@ -1307,7 +1294,7 @@ table tbody td:nth-child(2) a:hover { color: var(--pt-accent); }
    the columns aligned without pretending to be days you could have played. */
 .pt-calendar__day[data-outside="true"] { background: transparent; cursor: default; }
 .pt-calendar__day[data-today="true"] { border-color: var(--pt-text-muted); }
-.pt-calendar__day:not(:disabled):hover { outline: 2px solid var(--pt-border-strong); outline-offset: 1px; }
+.pt-calendar__day:hover { outline: 2px solid var(--pt-border-strong); outline-offset: 1px; }
 .pt-calendar__day[aria-pressed="true"] { outline: 2px solid var(--pt-accent); outline-offset: 1px; }
 
 .pt-calendar-legend {
@@ -1315,7 +1302,7 @@ table tbody td:nth-child(2) a:hover { color: var(--pt-accent); }
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 3px;
+  gap: var(--pt-cal-gap);
   font-size: 0.72rem;
   color: var(--pt-text-subtle);
 }

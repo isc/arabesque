@@ -7,9 +7,9 @@
 // and the streaks stay honest across a year boundary, which a per-year read
 // could not do.
 import { initStorage } from './storage.js'
-import { initPracticeTracker, localDayKey, practiceStreaks } from './practiceTracker.js'
+import { initPracticeTracker, localDayKey, practiceStreaks, practiceYearStats } from './practiceTracker.js'
 import { initAutoSync } from './autoSync.js'
-import { formatDuration, scorePageUrl } from './utils.js'
+import { formatDuration, formatVerboseDate, scorePageUrl } from './utils.js'
 import { t, locale } from './i18n.js'
 
 // Colour bands for a day's square, in minutes of practice. Fixed rather than
@@ -18,8 +18,12 @@ import { t, locale } from './i18n.js'
 // would repaint every ordinary half-hour as pale.
 const LEVEL_THRESHOLDS_MS = [10, 30, 60].map((minutes) => minutes * 60 * 1000)
 
+// Every band, "nothing" included — what the legend draws, and the one place
+// that says how many there are. styles.css supplies a colour per level.
+export const LEVELS = LEVEL_THRESHOLDS_MS.map((_, index) => index + 1)
+LEVELS.unshift(0)
+
 const MONTH_FORMATTER = new Intl.DateTimeFormat(locale(), { month: 'short' })
-const DAY_FORMATTER = new Intl.DateTimeFormat(locale(), { weekday: 'long', day: 'numeric', month: 'long' })
 
 // Rows 0..6 are Monday..Sunday — the columns run Monday-first, as every
 // European calendar prints them. Only every other row is labelled: seven
@@ -28,7 +32,11 @@ const WEEKDAY_LABEL_ROWS = [0, 2, 4]
 
 export function levelFor(practiceTimeMs) {
   if (!practiceTimeMs) return 0
-  return 1 + LEVEL_THRESHOLDS_MS.filter((limit) => practiceTimeMs >= limit).length
+  let level = 1
+  for (const limit of LEVEL_THRESHOLDS_MS) {
+    if (practiceTimeMs >= limit) level += 1
+  }
+  return level
 }
 
 // The Monday on or before `date`.
@@ -42,17 +50,28 @@ export function practiceApp() {
   const storage = initStorage()
   const practiceTracker = initPracticeTracker(storage)
 
-  // Map<'YYYY-MM-DD', { practiceTimeMs, sessions, scores, timesPlayedInFull }>
+  // Map<'YYYY-MM-DD', { practiceTimeMs, timesPlayedInFull }>, the whole history.
   let calendar = new Map()
+  // All-time and therefore independent of the displayed year: computed once
+  // per read rather than on every year switch.
+  let streaks = { current: 0, longest: 0 }
+  // Day panels already opened, by day key. Each miss costs a full pass over the
+  // sessions store (getDailyLog has no index on startedAt to lean on), and
+  // clicking around the grid is the whole point of the panel. Dropped whenever
+  // the underlying data is re-read.
+  let dayEntries = new Map()
 
   return {
     ready: false,
     year: new Date().getFullYear(),
-    years: [new Date().getFullYear()],
+    // The bounds of the year arrows: this year, back to the first with data.
+    firstYear: new Date().getFullYear(),
+    latestYear: new Date().getFullYear(),
+    levels: LEVELS,
     weeks: [],
     monthLabels: [],
     weekdayLabels: [],
-    stats: { days: 0, practiceTimeMs: 0, current: 0, longest: 0, playthroughs: 0 },
+    stats: { days: 0, practiceTimeMs: 0, playthroughs: 0, current: 0, longest: 0 },
     // The day whose detail panel is open, and the scores it holds.
     selected: null,
     selectedEntries: [],
@@ -75,18 +94,14 @@ export function practiceApp() {
 
     async reload() {
       calendar = await practiceTracker.getPracticeCalendar()
-      const currentYear = new Date().getFullYear()
-      const firstYear = Math.min(currentYear, ...[...calendar.keys()].map((key) => Number(key.slice(0, 4))))
-      this.years = Array.from({ length: currentYear - firstYear + 1 }, (_, i) => firstYear + i)
-      if (!this.years.includes(this.year)) this.year = currentYear
+      streaks = practiceStreaks(calendar.keys())
+      dayEntries = new Map()
+
+      this.firstYear = Math.min(this.latestYear, ...[...calendar.keys()].map((key) => Number(key.slice(0, 4))))
+      if (this.year < this.firstYear) this.year = this.latestYear
       this.buildGrid()
-      // buildGrid() rebuilt every day object; re-point the open panel at the
-      // fresh one and re-read it, rather than leaving it stale (a sync that
-      // pulled today's practice must show up in the panel too).
-      if (!this.selected) return
-      const reopened = this.weeks.flat().find((day) => day.key === this.selected.key)
-      if (reopened) await this.openDay(reopened)
-      else this.closeDay()
+      // The panel's day is unchanged, but a sync may have added practice to it.
+      if (this.selected) await this.openDay(this.selected)
     },
 
     // Rebuilds the grid, its month labels and the year's stats. Everything the
@@ -97,33 +112,38 @@ export function practiceApp() {
       const lastDay = new Date(this.year, 11, 31)
       const cursor = mondayOnOrBefore(new Date(this.year, 0, 1))
 
-      this.weeks = []
+      const weeks = []
       while (cursor <= lastDay) {
         const week = []
-        for (let i = 0; i < 7; i += 1) {
+        for (let row = 0; row < 7; row += 1) {
           const date = new Date(cursor)
           const key = localDayKey(date)
-          const day = calendar.get(key)
+          const practiceTimeMs = calendar.get(key)?.practiceTimeMs ?? 0
+          // A day is playable when it is one of this year's and has happened:
+          // the neighbouring years' days keep the columns aligned, and so do
+          // the rest of the current one, but neither is a day you could have
+          // practised.
+          const playable = date.getFullYear() === this.year && key <= todayKey
           week.push({
             key,
             date,
-            // Days of the neighbouring years keep the columns aligned but stay
-            // blank: this grid is one year, not a rolling window.
-            inYear: date.getFullYear() === this.year,
-            future: key > todayKey,
+            playable,
             isToday: key === todayKey,
-            practiceTimeMs: day?.practiceTimeMs ?? 0,
-            scores: day?.scores ?? 0,
-            timesPlayedInFull: day?.timesPlayedInFull ?? 0,
-            level: levelFor(day?.practiceTimeMs),
+            level: levelFor(practiceTimeMs),
+            // Precomputed rather than bound as a call: the template reads it
+            // twice (title + aria-label), on every cell.
+            label: playable ? dayLabel(date, practiceTimeMs) : null,
           })
           cursor.setDate(cursor.getDate() + 1)
         }
-        this.weeks.push(week)
+        weeks.push(week)
       }
 
-      this.monthLabels = buildMonthLabels(this.weeks, this.year)
-      this.stats = buildStats(calendar, this.year)
+      // Assigned whole, so Alpine proxies the grid and notifies its x-for once
+      // rather than 53 times.
+      this.weeks = weeks
+      this.monthLabels = buildMonthLabels(weeks, this.year)
+      this.stats = { ...practiceYearStats(calendar, this.year), ...streaks }
       this.scrollToToday()
     },
 
@@ -145,7 +165,7 @@ export function practiceApp() {
     },
 
     setYear(year) {
-      if (!this.years.includes(year) || year === this.year) return
+      if (year < this.firstYear || year > this.latestYear || year === this.year) return
       this.year = year
       this.closeDay()
       this.buildGrid()
@@ -154,7 +174,7 @@ export function practiceApp() {
     // Clicking the open day closes it, the way the library's filter pills
     // toggle off on a second click.
     async toggleDay(day) {
-      if (!day.inYear || day.future) return
+      if (!day.playable) return
       if (this.selected?.key === day.key) return this.closeDay()
       await this.openDay(day)
     },
@@ -164,7 +184,8 @@ export function practiceApp() {
     // for the one day anybody clicks.
     async openDay(day) {
       this.selected = day
-      this.selectedEntries = await practiceTracker.getDailyLog(day.date)
+      if (!dayEntries.has(day.key)) dayEntries.set(day.key, await practiceTracker.getDailyLog(day.date))
+      this.selectedEntries = dayEntries.get(day.key)
     },
 
     closeDay() {
@@ -172,19 +193,20 @@ export function practiceApp() {
       this.selectedEntries = []
     },
 
-    dayLabel(day) {
-      const date = DAY_FORMATTER.format(day.date)
-      if (!day.practiceTimeMs) return t('practice.dayEmpty', { date })
-      return t('practice.dayTooltip', { date, duration: formatDuration(day.practiceTimeMs) })
-    },
-
     selectedLabel() {
-      return this.selected ? DAY_FORMATTER.format(this.selected.date) : ''
+      return this.selected ? formatVerboseDate(this.selected.date) : ''
     },
 
     formatDuration,
     scorePageUrl,
   }
+}
+
+// The square's tooltip: the day, and what was played on it.
+function dayLabel(date, practiceTimeMs) {
+  const day = formatVerboseDate(date)
+  if (!practiceTimeMs) return t('practice.dayEmpty', { date: day })
+  return t('practice.dayTooltip', { date: day, duration: formatDuration(practiceTimeMs) })
 }
 
 // Row labels, taken from a real week so they follow the active locale.
@@ -214,21 +236,4 @@ function buildMonthLabels(weeks, year) {
     labels[index] = MONTH_FORMATTER.format(monday)
   })
   return labels
-}
-
-// Year totals, plus the streaks — which are read over the whole history, not
-// over the displayed year: a run that started in December is one run, and
-// cutting it at 1 January would be an artefact of the view.
-function buildStats(calendar, year) {
-  const prefix = `${year}-`
-  let days = 0
-  let practiceTimeMs = 0
-  let playthroughs = 0
-  for (const [key, day] of calendar) {
-    if (!key.startsWith(prefix)) continue
-    days += 1
-    practiceTimeMs += day.practiceTimeMs
-    playthroughs += day.timesPlayedInFull
-  }
-  return { days, practiceTimeMs, playthroughs, ...practiceStreaks(calendar.keys()) }
 }

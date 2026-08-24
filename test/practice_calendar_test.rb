@@ -61,14 +61,11 @@ class PracticeCalendarTest < CapybaraTestBase
   # Three practised days in the current year, at three different intensities.
   # Anchored on 1 March so the dates never fall in the future, whatever day the
   # suite runs — the calendar refuses to open a day that hasn't happened.
-  def calendar_days
+  def calendar_sessions
     year = Time.now.year
     [[Time.new(year, 3, 1, 19, 0, 0), 5], [Time.new(year, 3, 3, 19, 0, 0), 20],
      [Time.new(year, 3, 5, 19, 0, 0), 45]]
-  end
-
-  def calendar_sessions
-    calendar_days.each_with_index.map { |(started_at, minutes), index| calendar_session(started_at, minutes, index) }
+      .each_with_index.map { |(started_at, minutes), index| calendar_session(started_at, minutes, index) }
   end
 
   def calendar_session(started_at, minutes, index)

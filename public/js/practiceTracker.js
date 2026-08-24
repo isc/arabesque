@@ -155,6 +155,23 @@ export function shiftDayKey(key, delta) {
   return localDayKey(new Date(year, month - 1, day + delta, 12))
 }
 
+// What a year of the calendar adds up to. The streaks are deliberately not in
+// here: a run that started in December is one run, and cutting it at 1 January
+// would be an artefact of the view — practiceStreaks() reads the whole history.
+export function practiceYearStats(calendar, year) {
+  const prefix = `${year}-`
+  let days = 0
+  let practiceTimeMs = 0
+  let playthroughs = 0
+  for (const [key, day] of calendar) {
+    if (!key.startsWith(prefix)) continue
+    days += 1
+    practiceTimeMs += day.practiceTimeMs
+    playthroughs += day.timesPlayedInFull
+  }
+  return { days, practiceTimeMs, playthroughs }
+}
+
 // Runs of consecutive practised days, from a collection of day keys: the one
 // ending now, and the longest anywhere in the history.
 //
@@ -811,34 +828,16 @@ export function initPracticeTracker(storageInstance = null) {
   // an aggregate lookup per score — and its cost grows with the number of days
   // asked for. A year of coloured squares needs one duration per day, so this
   // walks the sessions once and keeps only what a square and its tooltip show.
-  async function getPracticeCalendar(range = null) {
-    const sessions = await storage.getSessions(null, range)
-
+  async function getPracticeCalendar() {
     const byDay = new Map()
-    for (const session of sessions) {
+    for (const session of await storage.getSessions()) {
       const key = localDayKey(session.startedAt)
-      if (!byDay.has(key)) {
-        byDay.set(key, { date: key, practiceTimeMs: 0, sessions: 0, scoreIds: new Set(), timesPlayedInFull: 0 })
-      }
+      if (!byDay.has(key)) byDay.set(key, { practiceTimeMs: 0, timesPlayedInFull: 0 })
       const day = byDay.get(key)
       day.practiceTimeMs += computeSessionDuration(session)
-      day.sessions += 1
-      day.scoreIds.add(session.scoreId)
       if (session.completedAt) day.timesPlayedInFull += 1
     }
-
-    return new Map(
-      Array.from(byDay, ([key, day]) => [
-        key,
-        {
-          date: day.date,
-          practiceTimeMs: day.practiceTimeMs,
-          sessions: day.sessions,
-          scores: day.scoreIds.size,
-          timesPlayedInFull: day.timesPlayedInFull,
-        },
-      ])
-    )
+    return byDay
   }
 
   async function getDailyLog(date) {

@@ -114,9 +114,15 @@ export function formatRelativeDate(date) {
   return t(years > 1 ? 'date.yearsAgo' : 'date.yearAgo', { n: years })
 }
 
+// "vendredi 8 mai" — the long form, whatever the day. formatDate() below is
+// the same thing with a relative shortcut for the two most recent days.
+export function formatVerboseDate(date) {
+  return VERBOSE_DATE_FORMATTER.format(new Date(date))
+}
+
 export function formatDate(date) {
   const { compareDate, diffDays } = daysAgo(date)
   if (diffDays === 0) return t('date.today')
   if (diffDays === 1) return t('date.yesterday')
-  return VERBOSE_DATE_FORMATTER.format(compareDate)
+  return formatVerboseDate(compareDate)
 }
