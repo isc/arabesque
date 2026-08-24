@@ -92,6 +92,14 @@ playwright-cli -s=pt close
 full command list. Interactive exploration works the same way — `snapshot` to get element
 refs, then `click`/`fill`/`eval` against them.
 
+## App Store screenshots
+
+`scripts/demo/capture.sh` regenerates the whole set from real simulators — run
+it after any UI change that the listing shows. It seeds a practice history,
+plays the opening of a piece through the mock MIDI input, and captures both
+required sizes. Nothing in `public/` is touched: it works on a throwaway copy.
+See `scripts/demo/README.md`.
+
 ## Code Style
 
 - Focus on writing DRY code
