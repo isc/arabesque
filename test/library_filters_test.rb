@@ -40,7 +40,7 @@ class LibraryFiltersTest < CapybaraTestBase
     assert_current_path %r{\?.*status=dechiffrage}
 
     titles = all('tbody tr td:first-child').map(&:text)
-    assert_includes titles, 'Nocturne No. 20 in C Minor'
+    assert_includes titles, 'Nocturne No. 20 in C# Minor'
     assert_includes titles, 'Prelude Op. 28 No. 4 in E Minor'
     refute_includes titles, 'Waltz in A Minor'
   end
@@ -115,8 +115,8 @@ class LibraryFiltersTest < CapybaraTestBase
         practiceDays: ['2026-03-08', '2026-03-09', '2026-03-10'],
       },
       {
-        scoreId: 'scores/Nocturne_No._20_in_C_Minor.mxl',
-        scoreTitle: 'Nocturne No. 20 in C Minor',
+        scoreId: 'scores/Nocturne_No._20_in_C_sharp_Minor.mxl',
+        scoreTitle: 'Nocturne No. 20 in C# Minor',
         composer: 'Chopin',
         status: 'dechiffrage',
         lastPlayedAt: '2026-03-15T10:00:00.000Z',
@@ -125,18 +125,6 @@ class LibraryFiltersTest < CapybaraTestBase
       },
     ]
 
-    page.execute_script(<<~JS, aggregates)
-      const aggregates = arguments[0];
-      const request = indexedDB.open('piano-trainer', 3);
-      request.onsuccess = () => {
-        const db = request.result;
-        const tx = db.transaction('aggregates', 'readwrite');
-        const store = tx.objectStore('aggregates');
-        for (const agg of aggregates) {
-          store.put(agg);
-        }
-      };
-    JS
-    sleep 0.1
+    seed_store('aggregates', aggregates)
   end
 end

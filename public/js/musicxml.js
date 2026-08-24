@@ -1,5 +1,5 @@
 import { noteName } from './midi.js'
-import { traced } from './perfTrace.js' // TEMP diagnostic
+import { traced, ENABLED as PERF_TRACE } from './perfTrace.js' // TEMP diagnostic
 import {
   extractNotesFromScore as extractNotes,
   isNoteActiveForHands as isNoteActiveForHandsShared,
@@ -62,10 +62,17 @@ export function initMusicXML() {
   return {
     loadMusicXML,
     renderScore,
+    relayoutScore: () => renderScore({ reextract: false }),
     renderMusicXML,
     extractNotesFromScore,
-    activateNote: (m) => traced(`activateNote(${m}) m${currentMeasureIndex} held=${heldMidiNotes.size}`, () => activateNote(m)), // TEMP
-    deactivateNote: (m) => traced(`deactivateNote(${m}) held=${heldMidiNotes.size}`, () => deactivateNote(m)), // TEMP
+    // TEMP: the wrapper is chosen once, so with the probe off this hottest path
+    // (every note on/off) builds no label string and no closure.
+    activateNote: PERF_TRACE
+      ? (m) => traced(`activateNote(${m}) m${currentMeasureIndex} held=${heldMidiNotes.size}`, () => activateNote(m))
+      : activateNote,
+    deactivateNote: PERF_TRACE
+      ? (m) => traced(`deactivateNote(${m}) held=${heldMidiNotes.size}`, () => deactivateNote(m))
+      : deactivateNote,
     resetProgress,
     setCallbacks,
     setActiveHands: (hands) => {
@@ -85,6 +92,9 @@ export function initMusicXML() {
       targetRepeatCount,
     }),
     updateRepeatIndicators: () => updateRepeatIndicators(),
+    // The training cursor and repeat dots live in the SVG, so a redraw takes
+    // them with it. No-op outside training mode.
+    updateMeasureCursor: () => updateMeasureCursor(),
     setTrainingMode: (enabled) => {
       trainingMode = enabled
       repeatCount = 0
@@ -191,11 +201,27 @@ async function loadMusicXML(file) {
   }
 }
 
-function renderScore() {
+// `reextract: false` re-draws at the container's current width without rebuilding
+// the note model. osmd.render() replaces every graphical object, but allNotes
+// holds *source* notes, which survive it — so played/active flags plus the
+// training and reinforcement state stay put, where extractNotesFromScore() would
+// reset them all. Either way the SVG elements are new, so the caller repaints the
+// marks (app.js does it in repaintScore).
+// `afterDraw` runs between the draw and the indexing, and is how the initial
+// load gets the score on screen sooner: the fresh SVG is in the DOM once
+// render() returns, but nothing is painted until the task ends, and indexing is
+// a long task of its own — so the loader hands the frame back there. Re-renders
+// pass nothing and stay synchronous throughout: they already have a score up,
+// and an intermediate paint would only make it flicker. Keeping it a parameter
+// rather than exporting the two halves means no caller can leave a score drawn
+// but un-indexed (no allNotes, no measure click handlers).
+async function renderScore({ reextract = true, afterDraw = null } = {}) {
   if (!osmdInstance) return
   osmdInstance.render()
   disableInvisibleNoteClicks()
-  extractNotesFromScore()
+  if (afterDraw) await afterDraw()
+  // Must precede setupMeasureClickHandlers, which reads allNotes.
+  if (reextract) extractNotesFromScore()
   setupMeasureClickHandlers()
 }
 
@@ -230,6 +256,12 @@ async function renderMusicXML(xmlContent) {
     const scoreContainer = document.getElementById('score')
     const osmd = new opensheetmusicdisplay.OpenSheetMusicDisplay(scoreContainer, {
       drawPartNames: false,
+      // OSMD's autoResize re-renders behind our back, and the fresh SVG carries
+      // none of the played/active notehead classes — so any window resize
+      // silently wiped the player's progress (and left measureClickRectangles
+      // pointing at detached nodes). We drive the re-layout ourselves instead,
+      // see handleViewportResize() in app.js.
+      autoResize: false,
     })
     osmd.rules.MetronomeMarkYShift = -2.8;
     await osmd.load(xmlContent)

@@ -134,10 +134,17 @@ export function initFingeringEditor({ getOsmdInstance, getAllNotes, getNoteDataB
 
   // Restore played/active state captured positionally as savedStates[measureIndex][noteIndex],
   // then update each rendered notehead to reflect the current pass's occurrence.
+  // Repaints played/active marks onto a freshly rendered SVG. `savedStates` is the
+  // positional snapshot taken around a redraw that rebuilt the note model; pass null
+  // when the model survived it and the live flags are already correct.
   function restoreNoteStates(savedStates, currentMeasureIndex) {
     const allNotes = getAllNotes()
-    applyPositionalNoteStates(allNotes, savedStates)
+    if (savedStates) applyPositionalNoteStates(allNotes, savedStates)
     for (const noteData of chooseCurrentPassOccurrences(allNotes, currentMeasureIndex).values()) {
+      // Callers always run this against a just-rendered SVG, so an unmarked note has
+      // nothing to clear — skipping it avoids a GNote + querySelectorAll lookup for
+      // the vast majority of noteheads.
+      if (!noteData.played && !noteData.active) continue
       const notehead = svgNotehead(noteData)
       notehead?.classList.toggle('played-note', noteData.played)
       notehead?.classList.toggle('active-note', noteData.active)
@@ -154,12 +161,15 @@ export function initFingeringEditor({ getOsmdInstance, getAllNotes, getNoteDataB
     return false
   }
 
+  // Semitone height of a source note, undefined for an unpitched one
+  const halfToneOf = (sourceNote) => sourceNote?.Pitch?.getHalfTone()
+
   // Find the highest-pitched source note across all voice entries in a staff entry
   function findTopNoteInStaffEntry(staffEntry) {
     let topNote = null
     for (const gve of staffEntry.graphicalVoiceEntries || []) {
       for (const gn of gve.notes || []) {
-        if (!topNote || gn.sourceNote?.Pitch?.getHalfTone() > topNote.Pitch?.getHalfTone()) {
+        if (!topNote || halfToneOf(gn.sourceNote) > halfToneOf(topNote)) {
           topNote = gn.sourceNote
         }
       }
@@ -190,12 +200,31 @@ export function initFingeringEditor({ getOsmdInstance, getAllNotes, getNoteDataB
 
   // Order a staff entry's fingerings to match OSMD's FingeringEntries array, so
   // orderedFingeringsForStaffEntry(...)[i] pairs with staffEntry.FingeringEntries[i].
+  // Mirrors calculateFingerings() in OSMD's MusicSheetCalculator -- keep in sync
+  // when the vendored bundle moves.
   function orderedFingeringsForStaffEntry(staffEntry, graphicalMeasure) {
     const fingerings = collectFingeringsFromStaffEntry(staffEntry)
-    if (!isFingeringsPlacedAbove(graphicalMeasure)) {
+    if (fingerings.length < 2) return fingerings
+    const above = isFingeringsPlacedAbove(graphicalMeasure)
+
+    // When every fingering belongs to a distinct pitched note, OSMD stacks them in
+    // the pitch order of their notes, so the stack mirrors the chord. This is the
+    // usual case, and the only one where collection order (voice by voice) can
+    // disagree with what gets rendered -- e.g. a chord in voice 1 plus a lower note
+    // in voice 2 (Pathetique 2nd mvt, m24).
+    const distinctPitchedNotes = fingerings.every(
+      (fingering, index) =>
+        fingering.sourceNote?.Pitch !== undefined &&
+        fingerings.findIndex((other) => other.sourceNote === fingering.sourceNote) === index,
+    )
+    if (distinctPitchedNotes) {
+      fingerings.sort((a, b) => halfToneOf(a.sourceNote) - halfToneOf(b.sourceNote))
+      if (!above) fingerings.reverse()
+    } else if (!above) {
+      // Fallback for bulk fingerings (several per note) and unpitched notes: OSMD
+      // keeps the collection order and applies these heuristics instead.
       fingerings.reverse()
-    } else if (fingerings[0]?.sourceNote === findTopNoteInStaffEntry(staffEntry)) {
-      // When placed above, OSMD reverses if first fingering belongs to the top note
+    } else if (fingerings[0].sourceNote === findTopNoteInStaffEntry(staffEntry)) {
       fingerings.reverse()
     }
     return fingerings

@@ -1,4 +1,4 @@
-import { Piano } from '@tonejs/piano'
+import { isTestEnv } from './utils.js'
 import { tsToSeconds, buildMeasureStartTimes, buildCursorTimeline, cursorStepsBeforeMeasure } from './playbackTiming.js'
 import { scrollSystemIntoView } from './utils.js'
 
@@ -54,6 +54,19 @@ function pedalUp() {
 
 async function ensurePianoLoaded() {
   if (midiState?.midiOutput || piano) return
+  // Under test, play silently. The samples are a ~6s CDN download, and it sits
+  // between the click on ▶ Écouter and the button becoming ⏹ Stop — so a test
+  // asserting that transition was really asserting that a CDN answered within
+  // Capybara's 10s, which it does until the machine is busy. Everything the
+  // tests do check — scheduling, the cursor, isPlaying — runs without it, and
+  // sendMidi() already no-ops when there is neither an output nor a piano.
+  if (isTestEnv()) return
+  // Imported here, not at the top of the module: @tonejs/piano pulls in Tone
+  // (~400KB with its dependencies) and the score page's whole module graph hangs
+  // off this file, so a static import made every score wait on a bundle that is
+  // only needed once someone presses ▶ Écouter — and only when no MIDI output is
+  // connected to play through instead.
+  const { Piano } = await import('@tonejs/piano')
   piano = new Piano({ velocities: 1 })
   piano.toDestination()
   await piano.load()
@@ -188,7 +201,7 @@ export function scheduleCursorAdvances(cursor, cursorTimes, { centerOnCursor = f
   }, t))
 }
 
-export function syncCursorStyle(cursor) {
+function syncCursorStyle(cursor) {
   const el = cursor.cursorElement
   if (!el) return
   el.style.height = el.getAttribute('height') + 'px'

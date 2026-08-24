@@ -8,25 +8,9 @@
 //
 // runSync() takes its dependencies (the supabase client, storage,
 // practiceTracker) so it stays page-agnostic.
-const SYNC_ENABLED_KEY = 'pt-sync-enabled'
-const LAST_SYNC_KEY = 'pt-last-sync'
+
+const LAST_SYNC_KEY = 'arabesque:last-sync'
 const CHUNK = 200
-
-export function syncEnabled() {
-  try {
-    return localStorage.getItem(SYNC_ENABLED_KEY) === '1'
-  } catch {
-    return false
-  }
-}
-
-export function setSyncEnabled(on) {
-  try {
-    localStorage.setItem(SYNC_ENABLED_KEY, on ? '1' : '0')
-  } catch {
-    /* ignore: setting just won't persist */
-  }
-}
 
 export function lastSyncAt() {
   try {
@@ -52,7 +36,12 @@ function chunk(arr, size) {
 
 // Map scoreId → { title, composer } from the score catalog, so aggregates
 // rebuilt from pulled sessions keep their titles (sessions don't store them).
-async function fetchCatalogMeta() {
+// Memoized: the catalog can't change within a page load, and syncs are now
+// frequent enough that re-fetching and re-mapping it each time is pure waste.
+let catalogMeta = null
+
+export async function fetchCatalogMeta() {
+  if (catalogMeta) return catalogMeta
   try {
     const res = await fetch('data/scores.json')
     const data = await res.json()
@@ -65,6 +54,7 @@ async function fetchCatalogMeta() {
         map[base + s.file] = { title: s.title, composer: s.composer }
       }
     }
+    catalogMeta = map
     return map
   } catch {
     return {}
@@ -74,12 +64,18 @@ async function fetchCatalogMeta() {
 // Pull missing sessions, push local-only sessions, reconcile fingerings, then
 // recompute aggregates if anything was pulled. Returns a summary; throws on a
 // hard error so the caller can surface it.
-export async function runSync({ supabase, storage, practiceTracker }) {
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) throw new Error('Not signed in')
-  const uid = user.id
+// `userId` comes from the caller's local session when it has one: getUser() is
+// a network round-trip against /auth/v1/user, and at the automatic trigger rate
+// that would be one wasted request per playthrough and per tab switch.
+export async function runSync({ supabase, storage, practiceTracker, userId = null }) {
+  let uid = userId
+  if (!uid) {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+    if (!user) throw new Error('Not signed in')
+    uid = user.id
+  }
 
   // --- Sessions (union by id) ---
   const { data: remoteIdRows, error: idErr } = await supabase.from('training_sessions').select('id')
@@ -110,9 +106,12 @@ export async function runSync({ supabase, storage, practiceTracker }) {
 
   // --- Fingerings (last-write-wins by updatedAt) ---
   const localFingerings = await storage.getAllFingerings()
-  const { data: remoteFingerings, error: fErr } = await supabase.from('user_fingerings').select('*')
+  // Stamps only. The blobs are fetched below for the scores that actually won,
+  // which is usually none: selecting '*' here meant re-downloading the entire
+  // fingering corpus on every sync, and syncs are no longer rare.
+  const { data: remoteStamps, error: fErr } = await supabase.from('user_fingerings').select('score_url, updated_at')
   if (fErr) throw fErr
-  const remoteByUrl = new Map(remoteFingerings.map((r) => [r.score_url, r]))
+  const remoteByUrl = new Map(remoteStamps.map((r) => [r.score_url, r]))
   const localByUrl = new Map(localFingerings.map((f) => [f.scoreUrl, f]))
 
   const fingeringsToPush = localFingerings
@@ -126,10 +125,21 @@ export async function runSync({ supabase, storage, practiceTracker }) {
     if (error) throw error
   }
 
+  const staleUrls = remoteStamps
+    .filter((r) => {
+      const local = localByUrl.get(r.score_url)
+      return !local || Number(r.updated_at) > (local.updatedAt || 0)
+    })
+    .map((r) => r.score_url)
+
   let fingeringsPulled = 0
-  for (const r of remoteFingerings) {
-    const local = localByUrl.get(r.score_url)
-    if (!local || Number(r.updated_at) > (local.updatedAt || 0)) {
+  for (const part of chunk(staleUrls, CHUNK)) {
+    const { data: rows, error } = await supabase
+      .from('user_fingerings')
+      .select('score_url, fingerings, updated_at')
+      .in('score_url', part)
+    if (error) throw error
+    for (const r of rows) {
       await storage.putFingeringRecord({
         scoreUrl: r.score_url,
         fingerings: r.fingerings,

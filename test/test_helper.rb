@@ -22,16 +22,34 @@ Capybara.register_driver(:cuprite) do |app|
     # resolves to 'fr' — the UI assertions in these tests are in French.
     browser_options: { 'disable-gpu' => nil, 'lang' => 'fr-FR', 'accept-lang' => 'fr-FR' },
     save_path: DOWNLOAD_DIR,
-    # The 10s default occasionally fails to spawn Chrome on cold/slow CI runners
-    # ("Browser did not produce websocket url within 10 seconds"). Give it room.
-    process_timeout: 30
+    # Spawning Chrome, not running a test: the 10s default failed on cold CI
+    # runners, and 30s still does — "Browser did not produce websocket url
+    # within 30 seconds" took a shard down on main twice in a day, and it also
+    # shows up locally when eight workers start their browsers at once. This is
+    # a ceiling on how long we wait for a process to exist, so raising it costs
+    # nothing when the machine is healthy and buys a green run when it isn't.
+    process_timeout: 60,
+    # How long one CDP command may take — a different clock from both
+    # process_timeout (waiting for Chrome to exist) and default_max_wait_time
+    # (Capybara re-querying until a selector matches). Ferrum defaults it to
+    # **5 seconds**, and `visit` is one such command: it waits for the page to
+    # load. score.html pulls 1.8 MB of vendored JS, OSMD alone being 1.3 MB, and
+    # a shared CI runner does not always parse and render that inside 5s — which
+    # surfaces as `Ferrum::TimeoutError: Timed out waiting for response`, a
+    # failure with no test assertion anywhere near it. Locally the same render
+    # settles in ~0.6s, so 30 is out of reach of a healthy machine and never
+    # paid: like the ceilings above, it only bounds how long we are willing to
+    # wait, not how long we do.
+    timeout: 30
   )
 end
 Capybara.default_driver = :cuprite
 # Cold-start OSMD renders are borderline on slower CI runners (the default 2s
-# was already raised to 5s); the heavier OSMD 1.9.9 bundle pushed some renders
-# past 5s, so give selector waits more headroom.
-Capybara.default_max_wait_time = 10
+# was already raised to 5s, then to 10s); a cold render still overran 10s on a
+# shared runner — "expected to find css svg g.vf-stavenote 4 times but there
+# were no matches" — so give selector waits more headroom again. A passing
+# assertion returns as soon as it matches, so this costs nothing when green.
+Capybara.default_max_wait_time = 20
 Capybara.enable_aria_label = true
 
 # Clean up download directory at exit
@@ -58,18 +76,137 @@ class CapybaraTestBase < Minitest::Test
     nil
   end
 
-  # Helper to run code with a virtual browser time
-  # Accepts a Time object or a string like "2026-01-10 12:00"
-  # Resets the browser page after the block to restore normal time behavior
-  def with_virtual_time(time)
-    time = Time.parse(time) if time.is_a?(String)
-    page.driver.browser.page.command('Emulation.setVirtualTimePolicy',
-      policy: 'advance',
-      initialVirtualTime: time.to_i
-    )
+  # Block until the app has created its IndexedDB store, so seeding scripts
+  # don't race the page. Opening the database from a test before the app has
+  # built it creates an empty one at the same version, which then never
+  # upgrades — the stores are missing for good and the page renders nothing.
+  def wait_for_store(store, timeout: Capybara.default_max_wait_time)
+    Timeout.timeout(timeout) do
+      # `databases()` is used rather than open(): probing with open() would
+      # itself create the database this is waiting for.
+      until page.evaluate_async_script(<<~JS, store)
+        const [store, done] = [arguments[0], arguments[arguments.length - 1]];
+        indexedDB.databases().then((dbs) => {
+          if (!dbs.some((d) => d.name === 'arabesque')) return done(false);
+          const request = indexedDB.open('arabesque');
+          request.onerror = () => done(false);
+          request.onsuccess = () => {
+            const present = request.result.objectStoreNames.contains(store);
+            request.result.close();
+            done(present);
+          };
+        });
+      JS
+        sleep 0.05
+      end
+    end
+  end
+
+  # Drive the page's clock by hand instead of waiting on the wall clock.
+  #
+  # Chrome's virtual time makes `performance.now()`, `Date.now()` and every
+  # timer advance on command. The strict-playthrough engine schedules its whole
+  # run with setTimeout and matches input against `performance.now()`, so a test
+  # that steps the clock exercises exactly the same millisecond arithmetic as
+  # one that sleeps — the count-in, the ±450ms tolerance window and the note
+  # spacing all keep their real values. What disappears is only the waiting.
+  #
+  # It also removes the load-sensitivity: a note dispatched while the clock is
+  # parked lands on an exact virtual instant, where a `sleep 2` lands wherever a
+  # loaded CI runner happens to schedule it.
+  def with_clock_control
+    cdp = page.driver.browser.page
+    # `pause` parks virtual time; every later advance is explicit. Timers keep
+    # firing in order, they just wait for a budget to be granted.
+    #
+    # Interactions inside the block must use trigger_click_on, never click_on.
+    cdp.command('Emulation.setVirtualTimePolicy', policy: 'pause')
     yield
   ensure
-    Capybara.current_session.reset!
+    # Hand the page back to the wall clock so teardown and any later
+    # interaction behave normally.
+    cdp&.command('Emulation.setVirtualTimePolicy', policy: 'advance')
+  end
+
+  # Click a button by its label without going through the browser's real input
+  # pipeline.
+  #
+  # Required inside with_clock_control, and the reason is worth stating: Chrome
+  # only answers Input.dispatchMouseEvent once the renderer has produced a
+  # frame, and parked virtual time produces none. A real click there therefore
+  # waits on a frame that cannot arrive until the clock moves — which is the
+  # very thing the click was going to start. It resolves only if a frame
+  # happened to already be in flight, so it passes on an idle machine and hangs
+  # on a loaded one, surfacing as `Ferrum::TimeoutError` with no assertion
+  # anywhere near it.
+  #
+  # Dispatching the DOM event directly sidesteps the pipeline and spends no
+  # virtual time, so the timing the block exists to control is untouched.
+  # click_measure below already clicks this way.
+  def trigger_click_on(label)
+    find_button(label).trigger('click')
+  end
+
+  # Advance the parked clock by `ms` of virtual time and block until the page
+  # has actually consumed it. Chrome burns the budget as fast as the CPU
+  # allows, so this returns in a few real milliseconds.
+  def advance_clock(ms, timeout: 10)
+    cdp = page.driver.browser.page
+    target = page.evaluate_script('performance.now()') + ms
+    # Chrome pauses virtual time again once the budget is spent.
+    cdp.command('Emulation.setVirtualTimePolicy', policy: 'advance', budget: ms)
+    Timeout.timeout(timeout) do
+      sleep 0.01 until page.evaluate_script('performance.now()') >= target - 1
+    end
+  end
+
+  # Write records into an IndexedDB store and block until the transaction has
+  # actually committed.
+  #
+  # A put() request resolves well before the transaction it belongs to, so a
+  # test that fires the puts and then sleeps is betting on a fixed delay. The
+  # bet pays while the page is idle and loses on a loaded machine — or as soon
+  # as the suite is split and each process gets a fraction of the cores.
+  # `oncomplete` is the only signal that says the data is durable and will be
+  # there for the next page load.
+  def seed_store(store, records)
+    wait_for_store(store)
+    committed = page.evaluate_async_script(<<~JS, store, records)
+      const [store, records, done] = [arguments[0], arguments[1], arguments[arguments.length - 1]];
+      const request = indexedDB.open('arabesque', 3);
+      request.onerror = () => done(false);
+      request.onsuccess = () => {
+        const db = request.result;
+        const tx = db.transaction(store, 'readwrite');
+        tx.oncomplete = () => { db.close(); done(true); };
+        tx.onabort = tx.onerror = () => { db.close(); done(false); };
+        const objectStore = tx.objectStore(store);
+        for (const record of records) objectStore.put(record);
+      };
+    JS
+    assert committed, "seeding the '#{store}' store did not commit"
+  end
+
+  # Block until an IndexedDB store holds `count` records matching `where`, a JS
+  # expression evaluated against each `record`.
+  #
+  # The app writes practice sessions asynchronously once a playthrough ends, so
+  # a test that navigates away or starts a second playthrough right after the
+  # completion modal appears can outrun the write. Waiting on the record itself
+  # states what the test is actually waiting for, and takes exactly as long as
+  # it needs to instead of a guessed half-second.
+  def wait_for_records(store, where: 'true', count: 1, timeout: Capybara.default_max_wait_time)
+    deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + timeout
+    loop do
+      matching = count_records(store, where)
+      return if matching >= count
+
+      if Process.clock_gettime(Process::CLOCK_MONOTONIC) > deadline
+        flunk "'#{store}' still held #{matching} record(s) matching #{where.inspect} " \
+              "after #{timeout}s, expected #{count}"
+      end
+      sleep 0.05
+    end
   end
 
   # Helper to simulate MIDI input events
@@ -90,7 +227,12 @@ class CapybaraTestBase < Minitest::Test
     simulate_midi_input("OFF #{note}")
   end
 
-  # Helper to play a sequence of notes
+  # Helper to play a sequence of notes.
+  #
+  # The gap between notes is deliberate rather than a wait for something to
+  # settle: it is what makes these separate notes instead of a chord. Dispatch
+  # them back to back and the engine sees one simultaneous group — which is
+  # exactly what play_chord below does on purpose.
   def play_notes(notes)
     notes.each do |note|
       play_note(note)
@@ -113,12 +255,56 @@ class CapybaraTestBase < Minitest::Test
     JS
   end
 
+  # Records every change in the number of lit noteheads, from now until the page
+  # navigates away. Assertions then run on the whole progression once the replay
+  # is over, instead of trying to catch a transient state while it happens:
+  # polling for "between 1 and 3 notes lit" is a race the test loses whenever a
+  # repetition starts and finishes between two Capybara polls, which is exactly
+  # what a loaded CI runner produces.
+  def record_played_notes
+    page.execute_script(<<~JS)
+      window.__playedNotes = [];
+      const sample = () => {
+        const lit = document.querySelectorAll('svg g.vf-notehead.played-note').length;
+        const log = window.__playedNotes;
+        if (log[log.length - 1] !== lit) log.push(lit);
+      };
+      sample();
+      // Observe #score, not the SVG: OSMD replaces the whole SVG on a redraw,
+      // which would strand an observer attached to it. Class changes are what
+      // note highlighting does; childList catches the redraws themselves.
+      new MutationObserver(sample).observe(document.getElementById('score'), {
+        subtree: true,
+        childList: true,
+        attributes: true,
+        attributeFilter: ['class'],
+      });
+    JS
+  end
+
+  # The recorded progression, with consecutive duplicates collapsed — e.g.
+  # [0, 1, 2, 3, 4, 0, 1, ...] for a measure lit note by note, then reset.
+  def played_notes_timeline
+    page.evaluate_script('window.__playedNotes')
+  end
+
   # Helper to load a score from test fixtures
   def load_score(filename, expected_notes)
     attach_file('musicxml-upload', File.expand_path("fixtures/#{filename}", __dir__))
+    wait_for_score_render(expected_notes)
+  end
+
+  # Block until the score is on screen. Order matters: the app's own
+  # "I am done" flag is waited on FIRST, and the note count only after.
+  #
+  # Each assertion gets its own fresh default_max_wait_time, so gating on the
+  # flag gives a cold render two budgets instead of one — and it fails naming
+  # the thing that was actually late. Counting notes first spends the whole
+  # budget inside an assertion that can only be satisfied once the render is
+  # over anyway, then reports "no matches", which reads like a broken score.
+  def wait_for_score_render(expected_notes = nil)
     assert_selector '#score[data-render-complete]'
-    assert_selector 'svg g.vf-stavenote', count: expected_notes
-    sleep 0.05  # Wait for DOM and callbacks to fully initialize
+    assert_selector 'svg g.vf-stavenote', count: expected_notes if expected_notes
   end
 
   # Helper to click on a measure in the score
@@ -127,6 +313,23 @@ class CapybaraTestBase < Minitest::Test
   end
 
   private
+
+  def count_records(store, where)
+    page.evaluate_async_script(<<~JS, store)
+      const [store, done] = [arguments[0], arguments[arguments.length - 1]];
+      const request = indexedDB.open('arabesque', 3);
+      request.onerror = () => done(0);
+      request.onsuccess = () => {
+        const db = request.result;
+        const all = db.transaction(store, 'readonly').objectStore(store).getAll();
+        all.onerror = () => { db.close(); done(0); };
+        all.onsuccess = () => {
+          db.close();
+          done(all.result.filter((record) => #{where}).length);
+        };
+      };
+    JS
+  end
 
   def parse_midi_notation(notation)
     # Parse notation like "ON C4", "OFF C#4", "ON Bb4", or "ON G#5"
@@ -149,3 +352,32 @@ class CapybaraTestBase < Minitest::Test
     [status, midi_note, velocity]
   end
 end
+
+# Pay the browser's cold start before the first assertion instead of inside it.
+#
+# Only ever the FIRST score test of a shard failed — "F................." twice
+# on CI, seventeen passes behind one failure — because that one test alone pays
+# a fresh Chrome, an empty HTTP cache for score.html's 1.8 MB of vendored JS, a
+# cold V8 compile of OSMD's 1.3 MB, and the first layout, all inside its own
+# wait budget. Every later test in the process inherits that work, which is why
+# raising the ceiling only moved the failure from one message to the next.
+#
+# Rendering one small fixture here spends that cost where no assertion is
+# watching: a slow warm-up makes the run longer, never red. Failures are
+# swallowed for the same reason — a warm-up that cannot run leaves the suite
+# exactly where it was, rather than taking every test file down with it.
+#
+# Runs once per process, which is once per worker (rake test:parallel) and once
+# per runner (rake test:shard); both spawn real processes, so each pays its own
+# cold start and each gets its own warm-up.
+def warm_up_browser
+  session = Capybara.current_session
+  session.visit('/score.html?url=/test-fixtures/two-measures.xml')
+  session.assert_selector('#score[data-render-complete]', wait: 120)
+rescue StandardError
+  nil
+ensure
+  Capybara.reset_sessions!
+end
+
+warm_up_browser

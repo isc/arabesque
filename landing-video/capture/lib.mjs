@@ -1,4 +1,4 @@
-// Shared Playwright helpers for capturing the Piano Trainer app states that
+// Shared Playwright helpers for capturing the Arabesque app states that
 // feed the landing hero video. See ../README.md for the full workflow.
 import { chromium } from 'playwright'
 import { fileURLToPath } from 'url'
@@ -16,13 +16,17 @@ export const VIEWPORT = { width: 1280, height: 800 }
 // `npx playwright install chromium` is unavailable on your network.
 const EXECUTABLE_PATH = process.env.PT_CHROMIUM || undefined
 
-export async function launch({ record = false } = {}) {
+// `now` freezes the page's clock (see build-assets.mjs for why). setFixedTime
+// only pins Date.now() and new Date(): timers keep running, so animations, the
+// OSMD render and the mock-MIDI sleeps behave normally.
+export async function launch({ record = false, now = null } = {}) {
   const ctx = await chromium.launchPersistentContext(path.join(WORKDIR, 'userdata'), {
     viewport: VIEWPORT,
     deviceScaleFactor: 2,
     executablePath: EXECUTABLE_PATH,
     ...(record ? { recordVideo: { dir: path.join(WORKDIR, 'clip'), size: VIEWPORT } } : {}),
   })
+  if (now) await ctx.clock.setFixedTime(now)
   // Activate the in-app mock MIDI keyboard (isTestEnv() === test-env cookie).
   await ctx.addCookies([{ name: 'test-env', value: '1', url: BASE }])
   // Capture the UI in a specific language (PT_LANG=fr|en) by seeding the same
@@ -31,6 +35,9 @@ export async function launch({ record = false } = {}) {
   if (captureLang) {
     await ctx.addInitScript((lang) => {
       try {
+        // Both spellings: the key was renamed with the app, and this script has
+        // to work whichever side of that change the checkout sits on.
+        localStorage.setItem('arabesque:lang', lang)
         localStorage.setItem('pt-lang', lang)
       } catch {
         /* ignore */

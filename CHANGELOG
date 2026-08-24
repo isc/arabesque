@@ -1,0 +1,110 @@
+2026-08-24
+
+- **Page « Assiduité »** : l'année entière en cases, une par jour, façon
+  graphique de contributions — plus la journée a été longue, plus la case est
+  foncée. Jours joués, temps total, lectures complètes, série en cours et
+  meilleure série ; les flèches remontent aux années précédentes, et cliquer
+  une case rouvre le détail de ce jour-là. Accessible depuis le menu ⚙️ et
+  depuis l'en-tête du journal de pratique.
+- **Suppression de compte.** La page Données permet d'effacer son compte et
+  toutes les données de pratique synchronisées, en deux temps. Les données de
+  l'appareil restent en place — la sauvegarde dans un fichier sert à les
+  emporter.
+
+2026-08-23
+
+- **Le renforcement n'attend plus une lecture complète.** Dès qu'une mesure vous
+  a fait trébucher, le bouton « Renforcer » apparaît — utile sur les longues
+  pièces, où l'on travaille le début bien avant d'avoir déchiffré la fin.
+- Les mesures proposées sont choisies sur vos dernières séances et non plus sur
+  la seule dernière lecture : celles qui **stagnent** — un taux d'erreur qui ne
+  baisse plus d'une séance à l'autre — passent en tête, et une mesure quitte la
+  liste après trois passages propres d'affilée.
+
+2026-08-22
+
+- **Affichage initial de la page partition.** Plus de clignotement : la carte
+  d'onboarding, la barre de modes et le titre de repli s'affichaient tant
+  qu'Alpine n'avait pas démarré, puis étaient remplacés. Un drapeau posé pendant
+  le parsing du HTML décide de l'état d'ouverture (indicateur de chargement ou
+  onboarding), `x-cloak` couvre le reste, et le titre est lu dès qu'OSMD a parsé
+  la partition.
+- Sur le chemin critique : le téléchargement de la partition part du `<head>`,
+  Tone.js (~400 Ko) passe en import dynamique dans « Écouter », les scripts
+  vendor passent en `defer`, MIDI et cassettes ne bloquent plus le rendu, et
+  OSMD reçoit le Document déjà parsé au lieu d'une chaîne à reparser. Le premier
+  paint passe de 3,3 s à 0,4 s et la partition s'affiche ~1,5 s plus tôt (CPU
+  4× ralenti, 5 Mb/s).
+
+2026-08-14
+
+- **OpenSheetMusicDisplay 2.1.2**, en version stock : le correctif d'ordre des
+  doigtés multi-voix qu'on portait à la main est passé upstream (PR #1685), et
+  la 2.0.0 sur laquelle notre bundle était bâti n'avait plus rien d'autre en
+  propre. Fin du build maison. Au passage, le rendu accélère nettement — la
+  Ballade op. 23 se redessine en ~0,7 s contre ~2,0 s — et OSMD apporte ses
+  correctifs de liaisons (arcs aplatis), de liaisons de tenue enharmoniques
+  (Gb→F#), d'alignement des voix à durées pointées et de crash sur `octave-shift`
+  non terminé.
+
+- La case **« Synchronisation automatique »** disparaît : être connecté suffit à
+  synchroniser, se déconnecter est l'interrupteur. La case venait de la phase où
+  la synchro ne partait qu'à l'ouverture de la page Données ; une fois les
+  déclencheurs ambiants en place, elle ne pouvait plus produire qu'un compte
+  connecté qui ne fait rien — l'état qui avait laissé un an d'historique en
+  local. Le drapeau reste en interne, écrit à la connexion, pour que les pages
+  partition et bibliothèque sachent s'abstenir sans charger le client Supabase.
+
+2026-08-13
+
+- **Connexion par code** en plus du lien magique. Un lien connecte le navigateur
+  qui l'ouvre : dans l'app iOS, dont la WKWebView a son propre stockage, le lien
+  s'ouvre dans Safari et la session n'atteint jamais l'app — la synchro y était
+  donc inutilisable, et c'est la seule configuration qui donne le MIDI sur iPad.
+  L'e-mail porte maintenant un code à 8 chiffres, saisi dans l'app. La demande
+  en cours est mémorisée, pour survivre à l'aller-retour vers l'app Mail.
+  Correctif purement web : il atteint l'app iOS sans nouveau build TestFlight,
+  puisqu'elle charge le site déployé.
+
+- Journal de pratique sur **14 jours** au lieu de 8, en une seule lecture de la
+  base (contre une par jour affiché).
+
+- Les sessions interrompues par une fermeture de page ne sont plus perdues : un
+  instantané synchrone est repris au chargement suivant. Les sessions déjà
+  échouées sont réparées une fois (52 min récupérées sur mon historique).
+
+2026-08-12
+
+- La **synchronisation automatique** est enfin automatique. Le réglage ne
+  déclenchait une synchro qu'à l'ouverture de la page Données ; elle part
+  maintenant à la fin de chaque session de travail (morceau terminé, séance
+  d'entraînement ou de renforcement), au retour sur l'onglet, et à l'ouverture
+  de la bibliothèque — qui se rafraîchit toute seule si des données sont
+  arrivées d'un autre appareil. Garde-fous : une synchro à la fois, une par
+  minute au maximum pour les déclencheurs passifs, et le client Supabase n'est
+  chargé (et préchargé hors du chemin critique) que si la synchro est activée.
+  Au passage, une synchro ne retélécharge plus tous les doigtés à chaque fois,
+  seulement ceux qui ont réellement changé.
+
+2026-08-11
+
+- Première version iOS distribuée par **TestFlight**. L'app native (WKWebView
+  + pont CoreMIDI) s'installe désormais sur iPad et iPhone sans câble ni Xcode,
+  et sans la signature personnelle qui expirait tous les 7 jours. Chaîne
+  d'envoi automatisée : archive, signature, export et upload depuis la CI.
+
+2026-08-04
+
+- Renommage : l'application s'appelle désormais **Arabesque**. Le nom est
+  changé partout dans l'interface, dans le wrapper iOS (nom affiché, cible
+  Xcode, bundle ID `com.arabesque.Arabesque`) et dans le nom des fichiers de
+  sauvegarde exportés. Rien n'est touché côté données : la base IndexedDB
+  garde son nom, donc l'historique de pratique et les doigtés sont conservés.
+
+2026-07-04
+
+- App iOS (wrapper natif) : nouvelle app iPad/iPhone minimale dans `ios/` — une
+  WKWebView charge l'app web déployée, inchangée ; la collecte MIDI se fait
+  côté natif (CoreMIDI, USB ou Bluetooth) et un shim injecté émule l'API Web
+  MIDI absente de Safari/iOS. Appairage Bluetooth MIDI intégré via la feuille
+  système.

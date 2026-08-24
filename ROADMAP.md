@@ -13,16 +13,6 @@ dans le `CHANGELOG`.
 - **Marqueur de passages** — outil pour surligner / marquer les passages
   difficiles d'un morceau, afin d'attirer l'attention dessus et d'y revenir.
 
-- **Renforcement avant un jeu complet** — les suggestions de mesures à renforcer
-  ne se déclenchent qu'après une lecture complète du morceau. Sur les longs
-  morceaux, on travaille la première partie et on veut renforcer des mesures
-  avant d'avoir tout déchiffré. Proposer le renforcement sur les mesures déjà
-  jouées, sans exiger une session complète. Et baser la détection sur
-  l'historique agrégé plutôt que sur la seule dernière session : repérer les
-  mesures qui **stagnent** (taux d'erreur qui ne baisse plus au fil des
-  sessions malgré le renforcement), pas seulement celles ratées la dernière
-  fois.
-
 - **Tempo trainer (suite du mode strict)** — l'évolution envisagée dès les
   premières PRs du mode strict (#161, #165) : construire un entraîneur de tempo
   par-dessus le moteur existant, avec **sélection d'une plage de mesures**,
@@ -31,6 +21,32 @@ dans le `CHANGELOG`.
   strict dans le suivi de pratique (stats séparées des lectures libres). Les
   mesures à renforcer pourraient déclencher automatiquement une boucle à tempo
   réduit sur le passage concerné.
+
+- **Objectif de tempo sur le graphique des jeux complets** (inspiration
+  Sostenuto, cf. `COMPETITORS.md`) — le graphique de la page morceau trace déjà
+  la durée de chaque lecture intégrale (`playthroughChartSvg`, `app.js`). Or la
+  durée d'une lecture *est* une mesure de tempo moyen : avec
+  `tsToSeconds(ts, bpm) = ts * 4 * 60 / bpm` et la longueur totale du morceau en
+  fractions de ronde (déjà calculée par `buildMeasureStartTimes`), on a
+  `bpm = longueur × 240 / durée`. Trois conséquences, par ordre de coût :
+  1. **Chaque point du graphique gagne un tempo**, rétroactivement et sans
+     stocker quoi que ce soit de nouveau — l'infobulle affiche « 2 min 14 —
+     ≈ 72 BPM », et l'axe des ordonnées peut se doubler d'une échelle de BPM.
+  2. **L'objectif de tempo devient une ligne horizontale** sur ce graphique,
+     puisqu'un BPM cible se convertit en durée cible. On *voit* la courbe
+     descendre vers la ligne au fil des semaines.
+  3. **L'objectif par défaut est la marque métronomique de la partition**
+     quand elle existe, donc utile sans que le joueur ait rien à régler ; un
+     objectif manuel par morceau viendrait ensuite.
+
+  Deux réserves. La durée est du temps de jeu **normalisé** (interruptions
+  déduites, cf. #221) mais inclut les hésitations : c'est donc un *tempo moyen
+  effectif*, qui mélange vitesse et fluidité — à nommer comme tel, pas comme un
+  réglage de métronome. Et en mode strict le BPM est **imposé**, pas mesuré :
+  ces lectures se poseraient exactement sur la ligne par construction. Les
+  distinguer suppose la seule donnée nouvelle du chantier — enregistrer le mode
+  (et le BPM) sur le playthrough, ce que `buildPlaythroughs` ne fait pas
+  aujourd'hui.
 
 - **Validation des silences / durées** — aujourd'hui rien ne signale qu'on
   maintient une note trop longtemps (ou qu'on ne respecte pas un silence), ni
@@ -61,9 +77,10 @@ dans le `CHANGELOG`.
 
 - **Objectifs de pratique hebdomadaires** — se fixer des objectifs par semaine
   (nombre de sessions et/ou temps de pratique) et voir en cours de semaine où
-  on en est de leur atteinte. Voire un calendrier complet qui visualise
-  l'atteinte des objectifs dans le temps (semaines réussies / manquées, façon
-  heatmap).
+  on en est de leur atteinte. Le calendrier annuel de la page « Assiduité »
+  existe déjà ; il montre ce qui a été joué, pas si l'objectif a été tenu.
+  Reste donc à définir l'objectif et à en colorer les semaines réussies /
+  manquées.
 
 - **Statut répertoire plus exigeant** — le passage en statut répertoire pourrait
   demander plus que les seuils actuels (passes propres par mesure, jours de
@@ -86,13 +103,6 @@ dans le `CHANGELOG`.
   modèle de transcription type Onsets and Frames (Magenta.js) ou Basic Pitch
   (Spotify), pensés pour l'offline plus que le temps réel — et à évaluer en
   conditions réelles (micro de laptop, acoustique de la pièce).
-
-- **App iOS (wrapper natif)** — même objectif d'élargir le public, mais plus
-  simple et balisé que le mode micro : Safari/iOS ne supporte pas le Web MIDI,
-  donc l'app est inutilisable sur iPad/iPhone alors que l'iPad posé sur le
-  pupitre est le device idéal. Un wrapper natif minimal (WKWebView) ferait le
-  pont : collecte MIDI côté natif (CoreMIDI, USB ou Bluetooth) et propagation
-  des événements vers le code web existant, inchangé.
 
 - **Clavier à l'écran** — afficher une bande clavier sous la partition, avec
   les notes attendues allumées et les notes jouées en vert/rouge (l'équivalent
@@ -133,3 +143,10 @@ dans le `CHANGELOG`.
 - **Accès prof** — permettre à un professeur de suivre la pratique d'un élève :
   consulter sa progression, ses mesures faibles, ses jeux récents, voire lui
   assigner des morceaux ou passages à travailler.
+
+## Paysage concurrentiel
+
+Les concurrents et sources d'inspiration cités ci-dessus (Piano Marvel,
+Modacity, Tonara, Pianote, ROLI) sont recensés et évalués dans
+`COMPETITORS.md`, qui contient aussi une passe sur les fonctionnalités des
+journaux de travail concurrents qu'on pourrait reprendre.

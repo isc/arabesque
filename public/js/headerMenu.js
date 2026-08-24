@@ -18,7 +18,7 @@ import { CHANGELOG } from './changelog.js'
 import { feedbackEnabled, buildBaseContext, submitFeedback } from './feedback.js'
 import { getLang, locale } from './i18n.js'
 
-const CHANGELOG_SEEN_KEY = 'pt-changelog-seen'
+const CHANGELOG_SEEN_KEY = 'arabesque:changelog-seen'
 const CHANGELOG_DATE_FORMATTER = new Intl.DateTimeFormat(locale(), {
   day: 'numeric',
   month: 'long',
@@ -126,7 +126,10 @@ const TRIGGER_HTML = `
         <span class="pt-menu-dot" x-show="hasUnseenChangelog" aria-hidden="true"></span>
       </button>
       <button type="button" class="pt-menu-item" x-show="feedbackEnabled" @click="openFeedback()" x-text="$t('library.feedback')">💬 Avis</button>
+      <a href="practice.html" class="pt-menu-item" @click="closeMenu()" x-text="$t('menu.practice')">📅 Assiduité</a>
       <a href="data.html" class="pt-menu-item" @click="closeMenu()" x-text="$t('menu.data')">🗂 Données</a>
+      <a href="support.html" class="pt-menu-item" @click="closeMenu()" x-text="$t('menu.support')">🛟 Assistance</a>
+      <a href="privacy.html" class="pt-menu-item" @click="closeMenu()" x-text="$t('menu.privacy')">🔒 Confidentialité</a>
     </div>
     <hr />
     <div class="pt-popover__section">

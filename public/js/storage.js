@@ -1,8 +1,22 @@
-const DB_NAME = 'piano-trainer'
+import { traced } from './perfTrace.js' // TEMP diagnostic
+
+const DB_NAME = 'arabesque'
+// The name the database carried before the app was renamed. Its contents are
+// moved over on first open (see readLegacyDatabase) so nobody has to re-import
+// a backup.
+const LEGACY_DB_NAME = 'piano-trainer'
 const DB_VERSION = 3
 const FINGERINGS_STORE = 'fingerings'
 const SESSIONS_STORE = 'sessions'
 const AGGREGATES_STORE = 'aggregates'
+const STORES = [FINGERINGS_STORE, SESSIONS_STORE, AGGREGATES_STORE]
+
+// TEMP: built once so the probe costs no per-put string when it's disabled.
+const PUT_LABELS = {
+  [FINGERINGS_STORE]: 'IDB put fingerings',
+  [SESSIONS_STORE]: 'IDB put sessions',
+  [AGGREGATES_STORE]: 'IDB put aggregates',
+}
 
 function promisifyRequest(request) {
   return new Promise((resolve, reject) => {
@@ -27,14 +41,45 @@ function putAllToStore(transaction, storeName, items) {
   return items.length
 }
 
+// Everything the pre-rename database holds, or null when there is nothing to
+// move. indexedDB.databases() is the only way to ask whether a database exists
+// without creating an empty one as a side effect — and creating one here would
+// make every future first-time visitor pay for a database they never had.
+// Browsers that can run this app at all (Web MIDI, or the iOS wrapper's
+// WKWebView) support it; anywhere else we simply start fresh.
+async function readLegacyDatabase() {
+  if (!indexedDB.databases) return null
+  const existing = await indexedDB.databases()
+  if (!existing.some((entry) => entry.name === LEGACY_DB_NAME)) return null
+
+  // No version passed: this opens the database as it stands, never upgrading it.
+  const legacy = await promisifyRequest(indexedDB.open(LEGACY_DB_NAME))
+  const names = STORES.filter((name) => legacy.objectStoreNames.contains(name))
+  const data = {}
+  if (names.length > 0) {
+    const transaction = legacy.transaction(names, 'readonly')
+    for (const name of names) {
+      data[name] = await promisifyRequest(transaction.objectStore(name).getAll())
+    }
+  }
+  legacy.close()
+  return data
+}
+
 async function openDatabase() {
-  return new Promise((resolve, reject) => {
+  const legacy = await readLegacyDatabase()
+  // Only a database we just created may be filled from the old one: if this
+  // browser already has data under the new name, it is the newer of the two.
+  let created = false
+
+  const database = await new Promise((resolve, reject) => {
     const request = indexedDB.open(DB_NAME, DB_VERSION)
 
     request.onerror = () => reject(request.error)
     request.onsuccess = () => resolve(request.result)
 
     request.onupgradeneeded = (event) => {
+      created ||= event.oldVersion === 0
       const database = event.target.result
 
       // Create fingerings store if needed
@@ -55,6 +100,18 @@ async function openDatabase() {
       }
     }
   })
+
+  if (legacy) {
+    if (created) {
+      const transaction = database.transaction(STORES, 'readwrite')
+      for (const [name, items] of Object.entries(legacy)) putAllToStore(transaction, name, items)
+      await promisifyTransaction(transaction)
+    }
+    // Dropped only once its contents are safely committed under the new name.
+    indexedDB.deleteDatabase(LEGACY_DB_NAME)
+  }
+
+  return database
 }
 
 export function initStorage() {
@@ -82,7 +139,10 @@ export function initStorage() {
   async function dbPut(storeName, data) {
     await ensureDb()
     const store = db.transaction(storeName, 'readwrite').objectStore(storeName)
-    return promisifyRequest(store.put(data))
+    // TEMP: put() structure-clones the value synchronously on the main thread,
+    // and the session object grows with every measure played. Wrapping put()
+    // itself is what isolates that clone from the transaction's own latency.
+    return promisifyRequest(traced(PUT_LABELS[storeName], () => store.put(data)))
   }
 
   return {
@@ -221,16 +281,6 @@ export function initStorage() {
         importedAggregates: importCounts.aggregates,
         importedFingerings: importCounts.fingerings,
       }
-    },
-
-    async clearAll() {
-      await ensureDb()
-      const stores = [SESSIONS_STORE, AGGREGATES_STORE, FINGERINGS_STORE]
-      const transaction = db.transaction(stores, 'readwrite')
-      for (const storeName of stores) {
-        transaction.objectStore(storeName).clear()
-      }
-      await promisifyTransaction(transaction)
     },
 
     // Wipe only the aggregates store. Aggregates are derived from sessions, so

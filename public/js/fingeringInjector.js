@@ -3,6 +3,12 @@ function getElementInt(parent, tagName, defaultValue) {
   return el ? parseInt(el.textContent, 10) : defaultValue
 }
 
+// Returns whatever costs least to hand to osmd.load(), which accepts either a
+// MusicXML string or an already-parsed Document: the untouched string when
+// there is nothing to inject, and otherwise the Document this function had to
+// parse anyway. Serializing it back only to have OSMD re-parse it was a full
+// serialize plus a full parse of a several-hundred-KB document, on the load
+// path, for every score carrying fingerings.
 export function injectFingerings(xmlString, fingerings) {
   if (!fingerings || Object.keys(fingerings).length === 0) {
     return xmlString
@@ -35,7 +41,7 @@ export function injectFingerings(xmlString, fingerings) {
     }
   }
 
-  return new XMLSerializer().serializeToString(doc)
+  return doc
 }
 
 function getOrCreateChild(doc, parent, tagName) {

@@ -1,0 +1,88 @@
+name: iOS
+
+on:
+  pull_request:
+    paths:
+      - 'ios/**'
+      - '.github/workflows/ios.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'ios/**'
+      - '.github/workflows/ios.yml'
+
+jobs:
+  build:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - run: brew install xcodegen
+      - run: xcodegen generate
+        working-directory: ios
+      # Unsigned simulator build; SYMROOT pinned so later steps know the path.
+      - run: >
+          xcodebuild
+          -project Arabesque.xcodeproj
+          -target Arabesque
+          -sdk iphonesimulator
+          -configuration Debug
+          build
+          CODE_SIGNING_ALLOWED=NO
+          SYMROOT="$PWD/build"
+        working-directory: ios
+
+      # Smoke test: boot a simulator, launch the app, assert it survives 20s
+      # and that the screen shows actual content (not black / not blank).
+      - name: Boot simulator
+        run: |
+          UDID=$(xcrun simctl list devices available --json \
+            | jq -r '[.devices[] | .[] | select(.isAvailable)] | .[0].udid')
+          echo "Using simulator $UDID"
+          echo "SIM_UDID=$UDID" >> "$GITHUB_ENV"
+          xcrun simctl boot "$UDID"
+          xcrun simctl bootstatus "$UDID" -b
+      - name: Launch app and check it stays alive
+        run: |
+          xcrun simctl install "$SIM_UDID" ios/build/Debug-iphonesimulator/Arabesque.app
+          xcrun simctl launch --console-pty "$SIM_UDID" app.arabesque.Arabesque \
+            > app-console.log 2>&1 &
+          LAUNCH_PID=$!
+          sleep 20
+          if ! kill -0 "$LAUNCH_PID" 2>/dev/null; then
+            echo "::error::App exited within 20s of launch"
+            exit 1
+          fi
+          echo "App still running after 20s"
+      - name: Screenshot and reject a black/blank screen
+        run: |
+          xcrun simctl io "$SIM_UDID" screenshot screenshot.png
+          python3 -m venv .imgcheck
+          .imgcheck/bin/pip install --quiet pillow
+          .imgcheck/bin/python - <<'EOF'
+          from PIL import Image
+          im = Image.open('screenshot.png').convert('L')
+          pixels = list(im.getdata())
+          mean = sum(pixels) / len(pixels)
+          distinct = len(set(pixels))
+          print(f'brightness mean={mean:.1f}, distinct gray levels={distinct}')
+          # Pure black launch failure ~= mean < 10; a uniform screen (all
+          # white/all black) means the web app did not render.
+          if mean < 10 or distinct < 20:
+              raise SystemExit('Screen looks black or blank - app did not render')
+          EOF
+      - name: Dump app console and crash reports
+        if: always()
+        run: |
+          echo '--- app console ---'
+          cat app-console.log 2>/dev/null || true
+          echo '--- crash reports ---'
+          find "$HOME/Library/Logs/DiagnosticReports" -name 'Arabesque*' -newer ios/project.yml -print \
+            -exec cat {} \; 2>/dev/null || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: simulator-screenshot
+          path: |
+            screenshot.png
+            app-console.log
+          if-no-files-found: ignore

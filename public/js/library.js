@@ -4,11 +4,16 @@ import { initStorage } from './storage.js'
 import { formatDuration, formatDate, formatRelativeDate, statusLabel, scorePageUrl } from './utils.js'
 import { PERIODS, periodLabel, getPeriodForComposer } from './musicalPeriods.js'
 import { headerMenu } from './headerMenu.js'
+import { initAutoSync } from './autoSync.js'
 import { t, locale } from './i18n.js'
 
 const MIN_MATCH = 5
 const STATUS_ORDER = ['dechiffrage', 'perfectionnement', 'repertoire']
 const STATUS_RANK = Object.fromEntries(STATUS_ORDER.map((s, i) => [s, i]))
+// Two weeks of journal: eight days dropped a Tuesday/Wednesday pair out of
+// sight after a single weekend, which reads as a hole in the history rather
+// than as the edge of the window.
+const DAYS_TO_SHOW = 14
 const STALE_DAYS = 7
 const STALE_MS = STALE_DAYS * 24 * 60 * 60 * 1000
 
@@ -41,7 +46,7 @@ export function libraryApp() {
       // Mark this visitor as a returning user so the landing page (/) can
       // redirect them straight here instead of showing the pitch each time.
       try {
-        localStorage.setItem('pt-returning', '1')
+        localStorage.setItem('arabesque:returning', '1')
       } catch {
         // localStorage unavailable (private mode): no marker, no redirect — fine.
       }
@@ -68,6 +73,15 @@ export function libraryApp() {
       })
       midi.connectMIDI({ silent: true, autoSelectFirst: true })
 
+      // Reaching this page via history.back() (e.g. the MIDI "highest key"
+      // shortcut) can restore it from the browser's back/forward cache: a
+      // frozen snapshot from before the user practiced, with init() never
+      // re-running. Refresh just the practice-derived data so the journal
+      // and status pills reflect what was just played.
+      window.addEventListener('pageshow', (event) => {
+        if (event.persisted) this.refreshPracticeViews()
+      })
+
       const [scoresResponse, fingerprintsResponse] = await Promise.all([
         fetch('data/scores.json'),
         fetch('data/fingerprints.json'),
@@ -79,25 +93,7 @@ export function libraryApp() {
       const fpData = await fingerprintsResponse.json()
       fingerprints = fpData.fingerprints
 
-      // Build maps from sessions: most recent play time + count per score file
-      const sessions = await storage.getSessions()
-      for (const session of sessions) {
-        const existing = this.lastPlayedByScore[session.scoreId]
-        if (!existing || session.startedAt > existing) {
-          this.lastPlayedByScore[session.scoreId] = session.startedAt
-        }
-        if (session.scoreId.startsWith(this.baseUrl)) {
-          const file = session.scoreId.slice(this.baseUrl.length)
-          sessionCountByFile[file] = (sessionCountByFile[file] ?? 0) + 1
-        }
-      }
-
-      // Aggregates power the status filter, status pills, and practice-focus banner.
-      const aggregates = await storage.getAllAggregates()
-      for (const agg of aggregates) {
-        if (!agg || (agg.practiceDays || []).length === 0) continue
-        this.aggregatesByScore[agg.scoreId] = agg
-      }
+      await this.refreshPracticeData()
 
       this.scores = data.scores
 
@@ -117,6 +113,50 @@ export function libraryApp() {
       this.searchQuery = params.get('q') || ''
 
       await this.reloadDailyLogs()
+
+      // The library is where synced data shows up (journal, status pills), so
+      // it syncs on open and on tab focus, and redraws whatever came down.
+      initAutoSync({ storage, practiceTracker }, {
+        syncOnOpen: true,
+        onSynced: (summary) => {
+          if (summary.pulled) this.refreshPracticeViews()
+        },
+      })
+    },
+
+    // Everything on this page derived from practice data, redrawn together.
+    // The two reads are independent, and each walks the whole session store —
+    // no reason to pay for them one after the other.
+    refreshPracticeViews() {
+      return Promise.all([this.refreshPracticeData(), this.reloadDailyLogs()])
+    },
+
+    // Recomputes lastPlayedByScore/aggregatesByScore/sessionCountByFile from
+    // storage. Safe to call more than once (each map is rebuilt from
+    // scratch), unlike the rest of init() which registers listeners.
+    async refreshPracticeData() {
+      this.lastPlayedByScore = {}
+      this.aggregatesByScore = {}
+      sessionCountByFile = {}
+
+      const [sessions, aggregates] = await Promise.all([storage.getSessions(), storage.getAllAggregates()])
+
+      for (const session of sessions) {
+        const existing = this.lastPlayedByScore[session.scoreId]
+        if (!existing || session.startedAt > existing) {
+          this.lastPlayedByScore[session.scoreId] = session.startedAt
+        }
+        if (session.scoreId.startsWith(this.baseUrl)) {
+          const file = session.scoreId.slice(this.baseUrl.length)
+          sessionCountByFile[file] = (sessionCountByFile[file] ?? 0) + 1
+        }
+      }
+
+      // Aggregates power the status filter, status pills, and practice-focus banner.
+      for (const agg of aggregates) {
+        if (!agg || (agg.practiceDays || []).length === 0) continue
+        this.aggregatesByScore[agg.scoreId] = agg
+      }
     },
 
     handleSearchNote(midiNote) {
@@ -213,7 +253,6 @@ export function libraryApp() {
     // Clicking the same value clears the filter — natural toggle for pills.
     setStatusFilter(status)     { this.statusFilter   = (this.statusFilter   === status)   ? '' : status },
     setComposerFilter(composer) { this.composerFilter = (this.composerFilter === composer) ? '' : composer },
-    setPeriodFilter(period)     { this.periodFilter   = (this.periodFilter   === period)   ? '' : period },
     setFocusFilter(focus)       { this.focusFilter    = (this.focusFilter    === focus)    ? '' : focus },
 
     syncUrl() {
@@ -371,19 +410,13 @@ export function libraryApp() {
     },
 
     async reloadDailyLogs() {
-      const DAYS_TO_SHOW = 8
-      const logPromises = []
-      for (let i = 0; i < DAYS_TO_SHOW; i++) {
+      const dates = Array.from({ length: DAYS_TO_SHOW }, (_, i) => {
         const date = new Date()
         date.setDate(date.getDate() - i)
-        logPromises.push(
-          practiceTracker.getDailyLog(date).then((log) => ({
-            date: new Date(date),
-            log,
-          }))
-        )
-      }
-      this.dailyLogsByDate = await Promise.all(logPromises)
+        return date
+      })
+      const logs = await practiceTracker.getDailyLogs(dates)
+      this.dailyLogsByDate = dates.map((date, i) => ({ date, log: logs[i] }))
     },
   }
 }

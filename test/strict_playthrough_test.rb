@@ -22,17 +22,25 @@ class StrictPlaythroughTest < CapybaraTestBase
   def test_perfect_play_reports_100_percent
     load_score('chord.xml', 1)
 
-    # BPM=120 → 2s count-in, ±150ms strict window, ±450ms off-tempo.
-    click_on '⏱ Mode strict'
-    fill_in 'Tempo en BPM', with: '120'
-    click_on '▶ Démarrer'
+    start_strict_mode
 
-    # Sync on the engine opening the timing window (cursor arrival at T=2s).
-    assert_selector 'svg g.vf-notehead.expected-note', wait: 4
+    with_clock_control do
+      trigger_click_on('▶ Démarrer')
 
-    play_chord(%w[C4 E4 G4])
+      # Sync on the engine opening the timing window (cursor arrival at T=2s).
+      advance_clock(2000)
+      assert_selector 'svg g.vf-notehead.expected-note', wait: 4
 
-    assert_text 'Playthrough strict terminé', wait: 2
+      # The clock is parked exactly on the note's instant, so the chord lands
+      # dead centre of the tolerance window rather than wherever the runner
+      # happened to schedule it.
+      play_chord(%w[C4 E4 G4])
+
+      # Past the last event's off-tempo window (450ms) and the 300ms tail.
+      advance_clock(1000)
+      assert_text 'Playthrough strict terminé', wait: 2
+    end
+
     assert_text '100%'
     assert_text '3 sur 3'
     assert_no_text 'fausses notes'
@@ -42,12 +50,16 @@ class StrictPlaythroughTest < CapybaraTestBase
 
   def test_no_input_marks_all_notes_missed
     load_score('chord.xml', 1)
-    click_on '⏱ Mode strict'
-    fill_in 'Tempo en BPM', with: '120'
-    click_on '▶ Démarrer'
+    start_strict_mode
 
-    # Count-in 2s + off-tempo window 450ms + 300ms tail. Headroom = 4s.
-    assert_text 'Playthrough strict terminé', wait: 4
+    with_clock_control do
+      trigger_click_on('▶ Démarrer')
+
+      # Count-in 2s + off-tempo window 450ms + 300ms tail.
+      advance_clock(3000)
+      assert_text 'Playthrough strict terminé', wait: 4
+    end
+
     assert_text '0%'
     assert_text '3 manquées'
   end
@@ -58,25 +70,41 @@ class StrictPlaythroughTest < CapybaraTestBase
   # results until the cursor walks into them.
   def test_repeat_clears_whole_section_at_boundary_not_per_measure
     load_score('repeat-endings.xml', 4)
+    start_strict_mode
+
+    with_clock_control do
+      trigger_click_on('▶ Démarrer')
+
+      # First pass: play m1 (C4), m2 (D4), m3 (E4) correctly. Each is a whole
+      # note → 2s/measure at BPM=120. Land exactly on T=2,4,6.
+      advance_clock(2000)
+      assert_selector 'svg g.vf-notehead.expected-note', wait: 4
+      play_chord(%w[C4])
+      advance_clock(2000)
+      play_chord(%w[D4])
+      advance_clock(2000)
+      play_chord(%w[E4])
+
+      # After E4, the cursor jumps back to m1 at T=8s and the boundary reset
+      # fires. Only E4 (volta-1, never replayed) should still show played-note.
+      advance_clock(2000)
+      assert_selector 'svg g.vf-notehead.played-note', count: 1, wait: 4
+
+      # Second pass replays m1 and m2 then takes volta 2 (F4) at T=12s; the run
+      # ends after that event's window and the 300ms tail. Let it finish so
+      # teardown is clean.
+      advance_clock(5000)
+      assert_text 'Playthrough strict terminé', wait: 12
+    end
+  end
+
+  private
+
+  # BPM=120 → 2s count-in, ±150ms strict window, ±450ms off-tempo. The window
+  # is an absolute constant, so the tempo is what every timing comment below
+  # is expressed against.
+  def start_strict_mode(bpm: 120)
     click_on '⏱ Mode strict'
-    fill_in 'Tempo en BPM', with: '120'
-    click_on '▶ Démarrer'
-
-    # First pass: play m1 (C4), m2 (D4), m3 (E4) correctly. Each is a whole
-    # note → 2s/measure at BPM=120. Land ~T=2,4,6.
-    assert_selector 'svg g.vf-notehead.expected-note', wait: 4
-    play_chord(%w[C4])
-    sleep 2
-    play_chord(%w[D4])
-    sleep 2
-    play_chord(%w[E4])
-
-    # After E4, the cursor jumps back to m1 at T~8s and the boundary reset
-    # fires. Only E4 (volta-1, never replayed) should still show played-note.
-    # Polling assertion gives the engine a few seconds to reach the boundary.
-    assert_selector 'svg g.vf-notehead.played-note', count: 1, wait: 4
-
-    # Let the run finish so teardown is clean.
-    assert_text 'Playthrough strict terminé', wait: 12
+    fill_in 'Tempo en BPM', with: bpm.to_s
   end
 end

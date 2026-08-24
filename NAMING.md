@@ -1,0 +1,167 @@
+# Nom de l'application — décision
+
+**Décision : l'app s'appellera _Arabesque_.** (2026-08-04)
+
+« Piano Trainer » est un nom de travail : générique, déjà porté par plusieurs
+apps sur l'App Store, donc probablement non réservable. Le nom devait être
+tranché **avant** la première soumission TestFlight, parce que deux choses
+deviennent alors quasi définitives : le **bundle ID** (non modifiable une fois
+l'app créée sur App Store Connect) et le **nom App Store**, unique sur toute la
+boutique.
+
+## Pourquoi Arabesque
+
+- Debussy en a écrit deux, parmi les pièces pour piano les plus jouées : le mot
+  est immédiatement chaleureux pour le public visé, sans explication.
+- Graphie **identique en français et en anglais** — l'app est bilingue FR/EN.
+  Une seule orthographe possible, donc pas de bouche-à-oreille qui se perd.
+- Désigne étymologiquement un motif ornemental qui court et s'enroule : la ligne
+  mélodique, et accessoirement ce que l'app affiche note à note.
+- Libre sur l'App Store, et `arabesque.app` comme `arabesque.io` étaient libres
+  au moment de la décision.
+
+Faiblesse assumée : le mot appartient aussi à la danse et à l'ornement
+architectural, il ne sera jamais exclusivement musical. Mais aucune app ne le
+porte, l'espace applicatif est vide.
+
+## Les critères qui ont servi à filtrer
+
+Dégagés en éliminant les candidats un par un, dans l'ordre où ils se sont
+révélés discriminants :
+
+1. **Une seule graphie en FR et EN.** C'est ce qui tue le vocabulaire traduit :
+   *mordent* (EN) s'écrit *mordant* en français, *fioritura* (IT) devient
+   *fioriture*, *barcarolle* perd un L en anglais. Le mot se cherche mal et se
+   dicte mal.
+2. **Pas de voisin réel à une lettre près.** Un mot — inventé ou non — trop
+   proche d'un mot existant se fait « corriger » par le lecteur : *toccato* est
+   lu *toccata*, *crotchet* est entendu *crochet*.
+3. **Pas de concurrent sur le créneau.** Le nom exact peut être libre alors que
+   le voisinage est occupé par une app du même domaine, ce qui suffit à brûler
+   la piste.
+4. **Pas de connotation qui dessert.** *Solfetto* colle l'étiquette du solfège
+   de conservatoire à une app qui fait justement jouer de vraies pièces tout de
+   suite ; *caprice* évoque le caprice d'enfant en français.
+5. **Test de la dictée.** Prononcé à voix haute, le nom doit s'écrire sans
+   hésitation — d'où la méfiance envers les consonnes doubles.
+
+## Candidats écartés
+
+| Candidat | Raison |
+|---|---|
+| Gruppetto | Pris sur l'App Store par trois apps de **cyclisme** (le *gruppetto* est le groupe des attardés du peloton). Trois graphies concurrentes en circulation. |
+| Ostinato | Pris, dont **Ostinato Institute**, plateforme d'éducation musicale — créneau identique. |
+| Rubato | Pris, dont **Rubato: Piano & Instruments**. |
+| Sostenuto | Pris par **Sostenuto: Music Practice**, app de travail instrumental avec répétition espacée. Collision frontale. |
+| Ivory | Pris par **Ivory - Piano Sheet Music, MIDI**. |
+| Toccata, Lento, Vivace, Cantabile, Tenuto, Clavis, Tactus, Encore, Reprise, Rote | Nom exact déjà pris. |
+| Andante | Nom exact libre, mais **Andante Music Practice Journal** occupe le créneau. |
+| Mordent, Fioritura | Graphie différente en français (*mordant*, *fioriture*). *Mordent* est en plus une forme du verbe *mordre*. |
+| Barcarolle | Deux graphies (*barcarole* en anglais). |
+| Woodshed, Escapement, Quaver | Libres sur l'App Store mais `.app` déposé. *Woodshed* (argot jazz : travailler son instrument enfermé) est conceptuellement le plus juste, mais opaque pour un public français et classique. *Quaver* est par ailleurs à vérifier côté marque (QuaverEd, éditeur en éducation musicale). |
+| Moderato, Maestoso, Portato, Nocturne, Caprice, Bagatelle, Impromptu | Nom libre, `.app` déposé. |
+| Ad Libitum | **Libre partout** (`adlibitum.app` compris), et graphie unique FR/EN puisque c'est du latin. Écarté sur le message : *ad libitum* autorise l'interprète à faire à sa guise, quand l'app tient le tempo, valide les notes et suit une discipline de travail. En anglais, *to ad-lib* signifie improviser faute d'avoir préparé. Serait le bon nom pour un positionnement « joue ce que tu veux, à ton rythme », pas pour celui-ci. |
+
+Une piste de **mots inventés** a été explorée (libres par construction) :
+*Tasteggio* et *Diteggio*, bâtis sur les racines *tasto* (la touche) et
+*diteggiatura* (le doigté) avec le suffixe d'*arpeggio* et *solfeggio*. Écartée
+au profit d'un mot que le public reconnaît déjà. Elle reste le repli si
+Arabesque devait tomber — sous réserve d'une relecture par un italophone : la
+famille des diminutifs italiens est piégeuse (*pedalino* est une chaussette
+basse, *tastello* frôle *tassello*, la cheville à visser).
+
+## Reste à faire
+
+- [ ] **Recherche de marque déposée** (INPI / EUIPO) — non faite à ce jour.
+- [ ] **Réserver le nom sur App Store Connect** en créant la fiche d'app.
+      Seule vérification qui fasse foi ; les contrôles ci-dessus reposent sur
+      l'API de recherche de l'App Store, qui est un moteur classé par
+      pertinence, pas un registre de noms. À faire **à la main** : l'API
+      App Store Connect n'autorise pas la création d'app (`The resource 'apps'
+      does not allow 'CREATE'`).
+- [x] **Compte Apple Developer** — adhésion individuelle active depuis le
+      2026-08-11, Team ID `HGPUW9Q6BQ` (l'inscription a converti l'équipe
+      personnelle existante plutôt que d'en créer une).
+- [x] **Bundle ID** — `app.arabesque.Arabesque`, enregistré. DNS inversé du
+      domaine, et ce que XcodeGen compose depuis `bundleIdPrefix`.
+      `com.arabesque.Arabesque`, prévu initialement, s'est révélé **pris par un
+      tiers** : les App IDs sont uniques à l'échelle de tout Apple. Sans
+      conséquence sur la disponibilité du nom, qui relève d'un autre espace.
+- [x] **Déposer `arabesque.app`** et basculer le site dessus — fait, voir le
+      mode opératoire ci-dessous.
+
+## Bascule vers `arabesque.app` puis renommage du dépôt
+
+L'ordre compte. **GitHub ne redirige pas les URLs de GitHub Pages après un
+renommage de dépôt** : les URLs du dépôt et les opérations git redirigent, mais
+les sites de projet sont [explicitement exclus](https://docs.github.com/en/repositories/creating-and-managing-repositories/renaming-a-repository)
+et l'ancienne adresse renvoie un 404. Renommer le dépôt avant d'avoir un domaine
+propre obligerait donc à migrer deux fois l'URL — dans le wrapper iOS et dans
+les réglages d'authentification Supabase.
+
+Passer d'abord par le domaine rend le renommage sans effet sur l'URL publique.
+
+**Terminé le 2026-08-05.** Le site répond sur <https://arabesque.app> en HTTPS
+forcé, le dépôt s'appelle `isc/arabesque`, et l'ancienne URL Pages redirige vers
+le domaine. Les étapes sont conservées ci-dessous pour la trace.
+
+1. ✅ **Déposer `arabesque.app`.** Fait (OVH, 2026-08-05).
+2. ✅ **Créer les enregistrements DNS** pour l'apex, vers
+   [les adresses de GitHub Pages](https://docs.github.com/en/pages/configuring-a-custom-domain-for-your-github-pages-site/managing-a-custom-domain-for-your-github-pages-site) :
+   `A` → `185.199.108.153`, `185.199.109.153`, `185.199.110.153`,
+   `185.199.111.153`, et `AAAA` → `2606:50c0:8000::153` à `2606:50c0:8003::153`.
+   Ces enregistrements sont inertes tant que le domaine n'est pas revendiqué :
+   les poser avant la bascule évite une coupure. (La doc GitHub suggère
+   l'inverse — déclarer le domaine puis configurer le DNS ; les deux
+   aboutissent, mais cet ordre-ci réduit la fenêtre d'indisponibilité.)
+3. ✅ **Déclarer le domaine dans *Settings → Pages → Custom domain*.** C'est la
+   seule action qui bascule le site, et elle se fait à la main. Un fichier
+   `public/CNAME` serait sans effet : ce dépôt publie Pages **via Actions**, et
+   dans ce mode [GitHub ignore le CNAME](https://docs.github.com/en/pages/configuring-a-custom-domain-for-your-github-pages-site/managing-a-custom-domain-for-your-github-pages-site)
+   (il n'en crée aucun et n'en lit aucun — ce n'est vrai que des déploiements
+   depuis une branche). À faire une fois le DNS propagé ; à partir de là,
+   `isc.github.io/piano-trainer/` redirige vers le domaine.
+4. ✅ **Attendre le certificat.** `.app` est un TLD à HSTS préchargé : le HTTPS y
+   est obligatoire, donc le site reste injoignable tant que GitHub n'a pas émis
+   le certificat (jusqu'à 24 h). Activer ensuite *Enforce HTTPS*.
+5. ✅ **Renommer le dépôt** en `arabesque` (le nom est libre). L'URL publique ne
+   bouge plus, elle ne dépend que du domaine.
+6. ✅ **Mettre à jour Supabase** : `site_url` et la liste blanche de redirection de
+   l'auth contiennent l'ancienne URL. Oubliés, les magic links cassent. Y
+   ré-appliquer aussi `supabase/feedback.sql`, dont l'expéditeur portait
+   l'ancien nom — le fichier est la référence, mais il s'applique à la main
+   (pas de système de migration), donc l'éditer ne change rien en production.
+
+## Messagerie du domaine
+
+`arabesque.app` ne reçoit ni n'envoie de courrier : la zone déclare un **null MX**
+(RFC 7505), un SPF `v=spf1 -all` et un DMARC `p=reject`, ce qui empêche
+d'usurper le domaine pour envoyer en son nom. Les deux fonctionnalités qui
+envoient des mails — les magic links et la notification de feedback — expédient
+depuis `onboarding@resend.dev`, pas depuis le domaine, donc rien n'en dépend.
+
+⚠️ Le jour où l'on vérifiera `arabesque.app` dans Resend pour que les magic
+links partent du domaine (nécessaire pour d'autres utilisateurs que le
+propriétaire du compte Resend), ces trois enregistrements devront être revus :
+le SPF devra inclure Resend, il faudra ajouter la clé DKIM fournie, et le null
+MX empêchera d'utiliser l'apex comme domaine d'envoi (Resend passe de toute
+façon par un sous-domaine). L'alignement DMARC a volontairement été laissé
+souple pour que ce jour-là rien ne casse.
+
+⚠️ Ne jamais recréer ensuite un dépôt nommé `piano-trainer` : les redirections
+git du dépôt renommé s'effondreraient.
+- [x] **Renommer.** Fait dans cette PR. Une vingtaine de fichiers portent la chaîne, hors artefacts
+      de build : `public/*.html`, `public/js/{locales/fr,locales/en,changelog,data,feedback}.js`,
+      `public/favicon.svg`, `public/styles.css`, `ios/project.yml`
+      (`CFBundleDisplayName` + `bundleIdPrefix`), `ios/PianoTrainer/ViewController.swift`,
+      les deux `README.md`, et quatre fichiers de `test/`.
+
+- [x] **Renommer la couche de données.** La consigne initiale était de *ne pas*
+      toucher au `DB_NAME` de `public/js/storage.js` ni aux clés `localStorage`,
+      pour ne pas orpheliner les doigtés, sessions et agrégats des utilisateurs.
+      Finalement fait, mais avec une migration plutôt qu'un renommage sec : au
+      premier chargement, le contenu de l'ancienne base est recopié dans la
+      nouvelle, puis l'ancienne est supprimée ; les clés `localStorage` passent
+      des préfixes `pt-` / `pt:` à un `arabesque:` unique. Personne n'a de
+      backup à réimporter. Détails dans `public/js/storage.js` et
+      `public/js/legacyKeys.js`.

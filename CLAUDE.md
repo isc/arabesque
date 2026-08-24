@@ -4,9 +4,35 @@
 
 **IMPORTANT:** When merging PRs, always use squash merge: `gh pr merge --squash`
 
+**IMPORTANT:** Before committing and pushing a code change, run `/simplify`
+(a review on four angles: reuse, simplification, efficiency, altitude). Apply
+the findings that hold, skip the false positives, then commit. Skip the whole
+step for purely trivial changes — docs, this file, a version bump, an isolated
+typo fix. For a very short diff that only reflects code already reviewed, a
+self-review on the four angles is enough; no need to spawn the subagents again.
+
 **IMPORTANT:** When running tests, ALWAYS save output to temp file (never pipe to tail):
 ```bash
-bundle exec rake test > tmp/test-output.txt 2>&1; cat tmp/test-output.txt
+bundle exec rake test:parallel > tmp/test-output.txt 2>&1; cat tmp/test-output.txt
+```
+`test:parallel` splits the suite across processes and prints a combined
+summary; `rake test` still runs everything serially in one process, which is
+what you want when debugging a single test.
+
+It defaults to `min(cores, 8)` (`TEST_WORKERS=n` to override). Eight is where
+the wall clock stops improving on both machines measured — 16-core Linux and
+8-core Mac — because with ~66 tests, eight workers already leave a handful
+each and the slowest single test sets the floor. Going wider buys nothing and
+still loses a test to timing now and then. For the same reason CI does not run
+workers inside a runner; it uses `rake test:shard` (`SHARD_INDEX`/`SHARD_COUNT`)
+to give each slice a runner of its own.
+
+No Ruby or Chrome on the machine? `scripts/test-in-docker.sh` runs any of the
+above in a container built from `test/Dockerfile`, on the same Ruby as CI:
+```bash
+scripts/test-in-docker.sh                              # the whole suite
+scripts/test-in-docker.sh ruby -Itest test/data_test.rb  # one file
+CPUS=4 scripts/test-in-docker.sh rake test             # mimic a CI runner
 ```
 
 PR titles and descriptions must be in English.
@@ -66,7 +92,26 @@ playwright-cli -s=pt close
 full command list. Interactive exploration works the same way — `snapshot` to get element
 refs, then `click`/`fill`/`eval` against them.
 
+## App Store screenshots and review video
+
+`scripts/demo/capture.sh` regenerates the whole screenshot set from real
+simulators — run it after any UI change the listing shows. `scripts/demo/record.sh`
+records the walkthrough App Review needs, since a reviewer has no MIDI keyboard.
+Both seed a practice history and play a piece through the mock MIDI input, and
+both work on a throwaway copy of `public/` — no demo hook ever ships. See
+`scripts/demo/README.md`, which also has the wording for the review notes.
+
+`scripts/appstore/push_listing.py` writes the listing itself — description,
+keywords, URLs, categories, age rating, screenshots — through the App Store
+Connect API, from the copy in `scripts/appstore/listing_fr.py`. It never
+submits for review, and App Privacy has no API and stays manual. Credentials
+live outside the repo; see `scripts/appstore/README.md`.
+
 ## Code Style
 
 - Focus on writing DRY code
-- Use PicoCSS as much as possible, avoid custom CSS
+- `public/styles.css` is the whole stylesheet, in three layers: design tokens,
+  a base layer (reset, typography, container, buttons, form controls — what
+  Pico CSS used to supply), then the application's own `.pt-*` components.
+  Reach for an existing token or component before adding CSS, and put anything
+  generic enough to be reused in the base layer rather than in a page rule.

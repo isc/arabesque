@@ -1,6 +1,6 @@
 /* =============================================================================
-   Piano Trainer — Design System
-   Tokens + utility components. Layered on top of Pico CSS reset/typography.
+   Arabesque — Design System
+   Tokens, base layer (reset/typography/controls) and utility components.
    ========================================================================== */
 
 :root {
@@ -32,8 +32,6 @@
   --pt-status-repertoire-bg: #ecfdf5;
 
   /* Practice mode colors */
-  --pt-mode-free: #475569;
-  --pt-mode-free-bg: #f1f5f9;
   --pt-mode-training: #7c3aed;
   --pt-mode-training-bg: #f3efff;
   --pt-mode-strict: #dc2626;
@@ -48,16 +46,24 @@
   --pt-note-offtempo: #eab308;
   --pt-note-missed: #ef4444;
 
+  /* Practice calendar (practice.html) — one ramp from "nothing" to "a real
+     session", derived from the accent so the grid reads as part of the app
+     rather than as a borrowed GitHub green, and follows it if it ever moves. */
+  --pt-cal-0: var(--pt-surface-2);
+  --pt-cal-1: color-mix(in srgb, var(--pt-accent) 22%, var(--pt-surface-2));
+  --pt-cal-2: color-mix(in srgb, var(--pt-accent) 48%, var(--pt-surface-2));
+  --pt-cal-3: color-mix(in srgb, var(--pt-accent) 72%, var(--pt-surface-2));
+  --pt-cal-4: var(--pt-accent);
+  --pt-cal-cell: 12px;
+  --pt-cal-gap: 3px;
+
   /* Feedback */
   --pt-error: #dc2626;
   --pt-error-bg: #fef2f2;
   --pt-success: #16a34a;
   --pt-success-bg: #ecfdf5;
-  --pt-info: #2563eb;
-  --pt-info-bg: #eff6ff;
 
   /* Spacing scale */
-  --pt-space-0: 0;
   --pt-space-1: 4px;
   --pt-space-2: 8px;
   --pt-space-3: 12px;
@@ -93,13 +99,303 @@
   --pt-font-ui: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --pt-font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 
-  /* Override Pico's primary to match our accent */
-  --pico-primary: var(--pt-accent);
-  --pico-primary-hover: var(--pt-accent-strong);
+  /* Form-control surfaces (own values, previously Pico's form-element-*) */
+  --pt-field-bg: #fbfcfc;
+  --pt-field-bg-active: #ffffff;
+  --pt-field-border: #cfd5e2;
+  --pt-field-text: #23262c;
+
+  /* Icons drawn as background images. A data: URI cannot read a custom
+     property, so the stroke colors are literals — keep them in step with
+     --pt-text-subtle / --pt-text-inverse above. */
+  --pt-icon-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%238a90a0' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+  --pt-icon-close: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%238a90a0' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cline x1='18' y1='6' x2='6' y2='18'/%3E%3Cline x1='6' y1='6' x2='18' y2='18'/%3E%3C/svg%3E");
+  --pt-icon-check: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23ffffff' stroke-width='4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='20 6 9 17 4 12'/%3E%3C/svg%3E");
+  /* Self-animating: the keyframes live inside the SVG, so no CSS animation
+     is needed on the element wearing it. */
+  --pt-icon-loading: url("data:image/svg+xml,%3Csvg fill='none' height='24' width='24' viewBox='0 0 24 24' xmlns='http://www.w3.org/2000/svg' %3E%3Cstyle%3E g %7B animation: rotate 2s linear infinite; transform-origin: center center; %7D circle %7B stroke-dasharray: 75,100; stroke-dashoffset: -5; animation: dash 1.5s ease-in-out infinite; stroke-linecap: round; %7D @keyframes rotate %7B 0%25 %7B transform: rotate(0deg); %7D 100%25 %7B transform: rotate(360deg); %7D %7D @keyframes dash %7B 0%25 %7B stroke-dasharray: 1,100; stroke-dashoffset: 0; %7D 50%25 %7B stroke-dasharray: 44.5,100; stroke-dashoffset: -17.5; %7D 100%25 %7B stroke-dasharray: 44.5,100; stroke-dashoffset: -62; %7D %7D %3C/style%3E%3Cg%3E%3Ccircle cx='12' cy='12' r='10' fill='none' stroke='%238a90a0' stroke-width='4' /%3E%3C/g%3E%3C/svg%3E");
 }
 
+/* =============================================================================
+   Base — reset, typography, form controls
+   Everything below this banner used to come from Pico CSS. Only the ~7% of it
+   this app actually exercised is kept, which is why it fits here: the reset,
+   the typographic rhythm, the container, buttons, form controls and the four
+   icons Pico drew as background images (chevron, close, check, spinner).
+   Application rules follow and override freely — nothing here fights back.
+   ========================================================================== */
+
+*, ::before, ::after { box-sizing: border-box; background-repeat: no-repeat; }
+
+:root {
+  -webkit-tap-highlight-color: transparent;
+  text-size-adjust: 100%;
+  text-rendering: optimizeLegibility;
+  overflow-wrap: break-word;
+  tab-size: 4;
+}
+
+body { width: 100%; margin: 0; }
+main { display: block; }
+section { margin-bottom: 1rem; }
+::selection { background: color-mix(in srgb, var(--pt-accent) 25%, transparent); }
+
+/* Typographic rhythm: one bottom margin, no top margin, so stacked blocks
+   never collapse into each other unpredictably. */
+p, ul, ol, dl, table, blockquote, pre, figure, details { margin: 0 0 1rem; }
+ul li { list-style: square; }
+li { margin-bottom: var(--pt-space-1); }
+strong, b { font-weight: bolder; }
+code, kbd, samp, pre {
+  font-family: var(--pt-font-mono);
+  font-size: 0.875em;
+  line-height: initial;
+  border-radius: var(--pt-radius-sm);
+  background: var(--pt-surface-2);
+  color: var(--pt-text-muted);
+}
+code, kbd, samp { display: inline-block; padding: 0.375rem; }
+kbd { font-weight: bolder; }
+pre { overflow: auto; }
+table { width: 100%; }
+th { text-align: left; }
+label { display: block; margin-bottom: 6px; }
+a[role="button"] { display: inline-block; }
+
+/* Centred page column. The gutters exist only below 576px, where the column
+   is full-width; wider than that the auto margins are the gutters. Pages that
+   set their own max-width therefore restore padding-inline themselves. */
+.container { width: 100%; margin-inline: auto; padding-inline: var(--pt-space-4); }
+@media (min-width: 576px) { .container { padding-inline: 0; } }
+
+/* --- Buttons ---------------------------------------------------------------
+   `.outline.secondary` is the only variant the app uses; a plain button is
+   the accent-filled primary. */
+:is(button, [role="button"]) {
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--pt-accent);
+  border-radius: var(--pt-radius-sm);
+  background: var(--pt-accent);
+  color: var(--pt-text-inverse);
+  font-family: inherit;
+  font-size: 1rem;
+  font-weight: 400;
+  line-height: 1.5;
+  letter-spacing: inherit;
+  text-align: center;
+  text-decoration: none;
+  cursor: pointer;
+  user-select: none;
+  transition: background-color var(--pt-transition-fast), border-color var(--pt-transition-fast),
+    color var(--pt-transition-fast), box-shadow var(--pt-transition-fast);
+}
+/* Hover states set `background-color`, never the `background` shorthand: the
+   shorthand would reset `background-image` and wipe the icon off buttons that
+   wear one (the modal close cross). */
+:is(button, [role="button"]):hover {
+  background-color: var(--pt-accent-strong);
+  border-color: var(--pt-accent-strong);
+}
+/* A submit button is a form block: full width, with the same bottom margin as
+   the fields above it. Toolbars override both. */
+button[type="submit"] { width: 100%; margin-bottom: 1rem; }
+:is(button, [role="button"]).outline {
+  background: transparent;
+  color: var(--pt-accent);
+}
+:is(button, [role="button"]).outline:hover {
+  background-color: transparent;
+  border-color: var(--pt-accent-strong);
+  color: var(--pt-accent-strong);
+}
+:is(button, [role="button"]).secondary {
+  border-color: var(--pt-text-muted);
+  background: var(--pt-text-muted);
+  color: var(--pt-text-inverse);
+}
+:is(button, [role="button"]).outline.secondary {
+  background: transparent;
+  color: var(--pt-text-muted);
+}
+:is(button, [role="button"]).outline.secondary:hover {
+  background-color: transparent;
+  border-color: var(--pt-text);
+  color: var(--pt-text);
+}
+/* Destructive actions, filled or outlined like the variants above. */
+:is(button, [role="button"]).danger {
+  border-color: var(--pt-error);
+  background: var(--pt-error);
+  color: var(--pt-text-inverse);
+}
+:is(button, [role="button"]).danger:hover {
+  border-color: color-mix(in srgb, var(--pt-error) 80%, black);
+  background-color: color-mix(in srgb, var(--pt-error) 80%, black);
+}
+:is(button, [role="button"]).outline.danger {
+  background: transparent;
+  color: var(--pt-error);
+}
+:is(button, [role="button"]).outline.danger:hover {
+  background-color: var(--pt-error-bg);
+  border-color: var(--pt-error);
+  color: var(--pt-error);
+}
+:is(button, [role="button"]):disabled,
+:is(button, [role="button"])[aria-disabled="true"] {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+/* Keyboard focus stays visible on buttons; the base removes it from fields in
+   favour of the ring below. */
+:is(button, [role="button"]):focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--pt-accent) 45%, transparent);
+  outline-offset: 2px;
+}
+
+/* --- Form controls --------------------------------------------------------- */
+input, optgroup, select, textarea {
+  margin: 0;
+  font-family: inherit;
+  font-size: 1rem;
+  line-height: 1.5;
+  letter-spacing: inherit;
+}
+input:not([type="checkbox"], [type="radio"]), select, textarea {
+  display: block;
+  width: 100%;
+  margin-bottom: 1rem;
+}
+/* A field wrapped in its own <label> sits just under the label's text. */
+label > input, label > select, label > textarea { margin-top: var(--pt-space-1); }
+/* Helper text under a field, pulled up against it. */
+:where(input, select, textarea, fieldset) + small {
+  display: block;
+  width: 100%;
+  margin-top: -12px;
+  margin-bottom: 1rem;
+  color: var(--pt-text-muted);
+}
+input:not([type="checkbox"], [type="radio"], [type="range"], [type="file"]), select, textarea {
+  appearance: none;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--pt-field-border);
+  border-radius: var(--pt-radius-sm);
+  background-color: var(--pt-field-bg);
+  color: var(--pt-field-text);
+  transition: background-color var(--pt-transition-fast), border-color var(--pt-transition-fast),
+    color var(--pt-transition-fast), box-shadow var(--pt-transition-fast);
+}
+input:not([type="checkbox"], [type="radio"], [type="range"], [type="file"]):focus, select:focus, textarea:focus {
+  outline: none;
+  border-color: var(--pt-accent);
+  background-color: var(--pt-field-bg-active);
+  box-shadow: 0 0 0 1px var(--pt-accent);
+}
+::placeholder { color: var(--pt-text-muted); opacity: 1; }
+input:disabled, select:disabled, textarea:disabled { opacity: 0.5; cursor: not-allowed; }
+select { cursor: pointer; text-transform: none; }
+/* The chevron is a background image, so the right padding has to leave room
+   for it. */
+select:not([multiple], [size]) {
+  padding-inline-end: calc(1rem + 1.5rem);
+  background-image: var(--pt-icon-chevron);
+  background-position: center right 0.75rem;
+  background-size: 1rem auto;
+}
+[type="checkbox"], [type="radio"] {
+  appearance: none;
+  width: 1.25em;
+  height: 1.25em;
+  margin-top: -0.125em;
+  margin-inline-end: 0.5em;
+  border: 2px solid var(--pt-field-border);
+  border-radius: var(--pt-radius-sm);
+  background-color: transparent;
+  vertical-align: middle;
+  cursor: pointer;
+}
+[type="radio"] { border-radius: 50%; }
+[type="checkbox"]:checked, [type="radio"]:checked {
+  border-color: var(--pt-accent);
+  background-color: var(--pt-accent);
+  background-image: var(--pt-icon-check);
+  background-position: center;
+  background-size: 0.75em auto;
+}
+[type="radio"]:checked {
+  background-image: none;
+  box-shadow: inset 0 0 0 0.25em var(--pt-bg-elevated);
+}
+
+/* --- Busy state ------------------------------------------------------------
+   The spinner animates itself inside the SVG. `filter` flips it to white on
+   filled buttons, where the muted stroke would disappear. */
+[aria-busy="true"]:not(input, select, textarea, html, form)::before {
+  content: "";
+  display: inline-block;
+  width: 1em;
+  height: 1em;
+  background-image: var(--pt-icon-loading);
+  background-size: 1em auto;
+  vertical-align: -0.125em;
+}
+[aria-busy="true"]:not(input, select, textarea, html, form):not(:empty)::before {
+  margin-inline-end: var(--pt-space-2);
+}
+[aria-busy="true"]:is(button, [role="button"]):not(.outline)::before {
+  filter: brightness(0) invert(1);
+}
+
+/* --- Disclosure ----------------------------------------------------------- */
+summary {
+  line-height: 1rem;
+  list-style-type: none;
+  cursor: pointer;
+  transition: color var(--pt-transition-fast);
+}
+summary::-webkit-details-marker { display: none; }
+details summary::after {
+  content: "";
+  display: block;
+  float: right;
+  width: 1rem;
+  height: 1rem;
+  margin-inline-start: var(--pt-space-2);
+  transform: rotate(-90deg);
+  background-image: var(--pt-icon-chevron);
+  background-position: right center;
+  background-size: 1rem auto;
+  transition: transform var(--pt-transition-fast);
+}
+details[open] > summary { margin-bottom: 1rem; }
+details[open] > summary::after { transform: rotate(0); }
+
+/* Modal close affordance: a bare button wearing the close icon. */
+dialog > article :is(a, button)[rel="prev"] {
+  display: block;
+  width: 1rem;
+  height: 1rem;
+  margin-inline-start: auto;
+  padding: 0;
+  border: none;
+  background-color: transparent;
+  background-image: var(--pt-icon-close);
+  background-position: center;
+  background-size: auto 1rem;
+  opacity: 0.5;
+  transition: opacity var(--pt-transition-fast);
+}
+dialog > article :is(a, button)[rel="prev"]:hover { opacity: 1; background-color: transparent; }
+
 /* Tighter base */
-html { font-size: 100%; }
+/* The background goes on html as well as body: body only grows to fit its
+   content, so any page shorter than the viewport — the score page while it is
+   still loading, most of all — showed Pico's white html background as a band
+   underneath. */
+html { font-size: 100%; background: var(--pt-bg); }
 body {
   background: var(--pt-bg);
   color: var(--pt-text);
@@ -108,17 +404,24 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-main.container { padding-block: var(--pt-space-4); max-width: 1200px; }
+/* Pages declare their own reading width through --pt-page-max; this rule only
+   applies it. A max-width set directly here silently outranks any single-class
+   page rule (element+class beats class), which is how three pages ended up
+   ignoring the width they asked for: the data page ran edge to edge, the
+   landing page stayed at 1200px instead of 960, and the library shell never
+   got the full viewport it declares. */
+main.container { padding-block: var(--pt-space-4); max-width: var(--pt-page-max, 1200px); }
 
 /* Vertical rhythm for index / composer / status pages (consistent gaps
    between page-level sections so margins on individual blocks don't fight). */
 .pt-page { display: flex; flex-direction: column; gap: var(--pt-space-4); }
 
-/* Headings tighter than Pico defaults */
-h1 { font-size: 1.6rem; font-weight: 600; margin: 0 0 var(--pt-space-3); letter-spacing: -0.01em; }
-h2 { font-size: 1.2rem; font-weight: 600; margin: 0 0 var(--pt-space-3); }
-h3 { font-size: 1rem; font-weight: 600; margin: 0 0 var(--pt-space-2); }
-h4 { font-size: 0.95rem; font-weight: 600; margin: 0 0 var(--pt-space-2); }
+/* Headings tighter than the base scale */
+h1 { font-size: 1.6rem; font-weight: 600; line-height: 1.125; margin: 0 0 var(--pt-space-3); letter-spacing: -0.01em; }
+h2 { font-size: 1.2rem; font-weight: 600; line-height: 1.15; margin: 0 0 var(--pt-space-3); }
+h3 { font-size: 1rem; font-weight: 600; line-height: 1.175; margin: 0 0 var(--pt-space-2); }
+h4 { font-size: 0.95rem; font-weight: 600; line-height: 1.2; margin: 0 0 var(--pt-space-2); }
+h5, h6 { font-size: 0.9rem; font-weight: 600; line-height: 1.225; margin: 0 0 var(--pt-space-2); }
 
 a { color: var(--pt-accent); text-decoration: none; }
 a:hover { text-decoration: underline; }
@@ -232,7 +535,7 @@ button.pt-topbar__pill:disabled { opacity: 0.4; cursor: default; }
   cursor: pointer;
   font-size: 1.05rem;
   line-height: 1;
-  margin: 0; /* reset Pico's default button margin-bottom (else it offsets the icon) */
+  margin: 0;
   padding: 0;
 }
 .pt-icon-button:hover { background: var(--pt-surface-2); border-color: var(--pt-border-strong); color: var(--pt-text); }
@@ -255,8 +558,8 @@ button.pt-topbar__pill:disabled { opacity: 0.4; cursor: default; }
   padding: var(--pt-space-2) var(--pt-space-4);
   flex-wrap: wrap;
 }
-/* Neutralize Pico's button/input/label defaults inside our toolbars.
-   Pico's form-group margin-bottoms (16px on <div role="group">, 6px on
+/* Neutralize the base button/input/label defaults inside our toolbars.
+   The base form-group margin-bottoms (16px on <div role="group">, 6px on
    <label>) otherwise interact with flex-wrap to push items to different
    vertical positions even when they share the same height. */
 .pt-modebar button, .pt-topbar button { margin: 0; width: auto; }
@@ -266,7 +569,7 @@ button.pt-topbar__pill:disabled { opacity: 0.4; cursor: default; }
 
 /* Normalize control heights so segmented / BPM / hands / action button
    share a baseline. Keeps the toolbar visually a single horizontal band.
-   Inner items are explicitly sized so Pico's button paddings don't make
+   Inner items are explicitly sized so the base button paddings don't make
    them overflow the outer container. */
 .pt-modebar > .pt-segmented,
 .pt-modebar > .pt-hands,
@@ -507,7 +810,6 @@ button.pt-topbar__pill:disabled { opacity: 0.4; cursor: default; }
 .pt-popover label input[type="checkbox"] { margin: 0; }
 .pt-popover hr { border: none; border-top: 1px solid var(--pt-border); margin: 0; }
 .pt-popover__section { display: flex; flex-direction: column; gap: var(--pt-space-2); }
-.pt-popover__row { display: flex; gap: var(--pt-space-2); align-items: center; flex-wrap: wrap; }
 .pt-popover select {
   margin: 0;
   padding: 6px 8px;
@@ -564,17 +866,73 @@ button.pt-topbar__pill:disabled { opacity: 0.4; cursor: default; }
 /* =============================================================================
    Data page (backup + account)
    ========================================================================== */
-.pt-data-page { padding-block: var(--pt-space-6); max-width: 720px; }
-.pt-data-page .pt-page-header { margin-bottom: var(--pt-space-4); }
+/* The container drops its inline padding above 576px (it assumes a box
+   narrower than the viewport, centred by its auto margins), so a narrow page
+   has to restore the gutters itself — as .pt-landing does. */
+.pt-data-page,
+.pt-practice-page,
+.pt-prose {
+  padding-inline: var(--pt-space-4);
+  padding-block: var(--pt-space-5) var(--pt-space-8);
+}
+/* Card pages stack their cards; .pt-prose is left out — its rhythm comes from
+   the headings, not from a flex gap. */
+.pt-data-page,
+.pt-practice-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pt-space-4);
+}
+.pt-data-page { --pt-page-max: 720px; }
+/* Wide enough that a full 53-column year fits without scrolling on a laptop. */
+.pt-practice-page { --pt-page-max: 1080px; }
+/* Long-form text pages (privacy, support): the data page's reading measure. */
+.pt-prose { --pt-page-max: 720px; }
+.pt-prose h2 { margin-block: var(--pt-space-8) var(--pt-space-3); font-size: 1.25rem; }
+.pt-prose p { margin-block: 0 var(--pt-space-3); max-width: 68ch; }
 .pt-data-actions { display: flex; flex-wrap: wrap; gap: var(--pt-space-2); align-items: center; }
 .pt-data-actions button, .pt-data-actions [role="button"] { margin: 0; width: auto; }
 .pt-account-form { display: flex; flex-wrap: wrap; gap: var(--pt-space-2); align-items: center; }
-.pt-account-form input[type="email"] { margin: 0; flex: 1 1 240px; }
+/* Any input, not just the email one: the sign-in code field is type="text" and
+   would otherwise keep the base full width and bottom margin, wrapping the
+   button onto its own line. */
+.pt-account-form input { margin: 0; flex: 1 1 240px; }
+/* The code is 8 digits: a field as wide as the email one reads as a mistake. */
+.pt-account-form input[inputmode="numeric"] { flex: 0 1 200px; }
 .pt-account-form button { margin: 0; width: auto; flex: 0 0 auto; }
+
+/* The signed-in address, inset so the account section leads with who you are. */
+.pt-data-identity {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--pt-space-2);
+  padding: var(--pt-space-3) var(--pt-space-4);
+  background: var(--pt-surface-2);
+  border-radius: var(--pt-radius-md);
+}
+.pt-data-identity strong { overflow-wrap: anywhere; }
+
 .pt-sync-ok { color: var(--pt-status-repertoire); font-weight: 500; }
-.pt-text-muted { color: var(--pt-text-muted); }
-.pt-sync-toggle { display: flex; align-items: center; gap: var(--pt-space-2); margin: var(--pt-space-4) 0 var(--pt-space-3); cursor: pointer; }
-.pt-sync-toggle input { margin: 0; }
+.pt-hint { color: var(--pt-text-muted); font-size: 0.9rem; }
+
+/* A title on the left, its controls pushed to the right. */
+.pt-row-between {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--pt-space-3);
+  flex-wrap: wrap;
+}
+
+/* The small uppercase label above a section or a figure. */
+.pt-eyebrow {
+  margin: 0;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--pt-text-subtle);
+}
 
 /* =============================================================================
    Pills (status, generic)
@@ -604,36 +962,10 @@ button.pt-topbar__pill:disabled { opacity: 0.4; cursor: default; }
 .pt-pill--dechiffrage { background: var(--pt-status-dechiffrage-bg); color: var(--pt-status-dechiffrage); border-color: color-mix(in srgb, var(--pt-status-dechiffrage) 25%, transparent); }
 .pt-pill--perfectionnement { background: var(--pt-status-perfectionnement-bg); color: var(--pt-status-perfectionnement); border-color: color-mix(in srgb, var(--pt-status-perfectionnement) 25%, transparent); }
 .pt-pill--repertoire { background: var(--pt-status-repertoire-bg); color: var(--pt-status-repertoire); border-color: color-mix(in srgb, var(--pt-status-repertoire) 25%, transparent); }
-.pt-pill--muted { background: var(--pt-surface-2); color: var(--pt-text-subtle); border-color: var(--pt-border); }
-.pt-pill--muted::before { display: none; }
 .pt-pill.is-link:hover { filter: brightness(0.97); text-decoration: none; }
 
 /* =============================================================================
-   Banner (CTA / info / error inline strip)
-   ========================================================================== */
-
-.pt-banner {
-  display: flex;
-  align-items: center;
-  gap: var(--pt-space-3);
-  padding: var(--pt-space-3) var(--pt-space-4);
-  border-radius: var(--pt-radius-md);
-  background: var(--pt-info-bg);
-  border: 1px solid color-mix(in srgb, var(--pt-info) 20%, transparent);
-  color: var(--pt-info);
-  font-size: 0.9rem;
-}
-.pt-banner--error { background: var(--pt-error-bg); border-color: color-mix(in srgb, var(--pt-error) 25%, transparent); color: var(--pt-error); }
-.pt-banner--success { background: var(--pt-success-bg); border-color: color-mix(in srgb, var(--pt-success) 25%, transparent); color: var(--pt-success); }
-.pt-banner--mute { background: var(--pt-surface-2); border-color: var(--pt-border); color: var(--pt-text-muted); }
-.pt-banner__icon { font-size: 1.1rem; line-height: 1; flex-shrink: 0; }
-.pt-banner__body { flex: 1; }
-.pt-banner__body strong { color: inherit; }
-.pt-banner__actions { display: flex; gap: var(--pt-space-2); }
-.pt-banner a { color: inherit; text-decoration: underline; font-weight: 500; }
-
-/* =============================================================================
-   Cards (composer/status pages, library card-rows)
+   Cards (landing feature grid)
    ========================================================================== */
 
 .pt-card-grid {
@@ -650,33 +982,21 @@ button.pt-topbar__pill:disabled { opacity: 0.4; cursor: default; }
   display: flex;
   flex-direction: column;
   gap: var(--pt-space-2);
+  box-shadow: var(--pt-shadow-sm);
   transition: border-color var(--pt-transition-fast), box-shadow var(--pt-transition-fast);
 }
-.pt-card:hover { border-color: var(--pt-border-strong); box-shadow: var(--pt-shadow-md); }
-.pt-card--muted { background: var(--pt-surface-2); }
-.pt-card--muted:hover { box-shadow: none; }
+/* Lift only in the browsable grid: elsewhere a card is a static section, and
+   highlighting it on hover reads as "clickable". */
+.pt-card-grid .pt-card:hover { border-color: var(--pt-border-strong); box-shadow: var(--pt-shadow-md); }
 
-.pt-card__title {
-  font-weight: 600;
-  font-size: 1rem;
-  color: var(--pt-text);
-  line-height: 1.3;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-.pt-card__title a { color: inherit; }
-.pt-card__title a:hover { color: var(--pt-accent); text-decoration: none; }
-.pt-card__sub { font-size: 0.85rem; color: var(--pt-text-muted); }
-.pt-card__sub a { color: inherit; text-decoration: underline dotted; text-underline-offset: 3px; }
-.pt-card__sub a:hover { color: var(--pt-accent); text-decoration: underline; }
-.pt-card__meta { display: flex; gap: var(--pt-space-3); flex-wrap: wrap; font-size: 0.85rem; color: var(--pt-text-muted); margin-top: var(--pt-space-1); }
-.pt-card__meta strong { color: var(--pt-text); font-weight: 500; }
-.pt-card__row { display: flex; align-items: center; justify-content: space-between; gap: var(--pt-space-2); flex-wrap: wrap; }
-.pt-card__progress-label { display: flex; justify-content: space-between; font-size: 0.78rem; color: var(--pt-text-muted); }
+/* Vertical rhythm for a card's contents: one gap owns the spacing, so nested
+   Alpine wrappers (template > div) don't each need margins of their own.
+   Defined after .pt-card so its roomier gap wins over the card's own. */
+.pt-stack { display: flex; flex-direction: column; gap: var(--pt-space-3); }
+.pt-stack > * { margin: 0; }
 
-/* Table layout (restyled from Pico defaults). `overflow: hidden` on the
+
+/* Table layout. `overflow: hidden` on the
    table would clip rounded corners cleanly but it also breaks sticky
    thead, so the corner radii are applied directly to the four corner
    cells instead. */
@@ -687,7 +1007,6 @@ table {
   border-collapse: separate;
   border-spacing: 0;
   font-size: 0.92rem;
-  --pico-spacing: 0;
 }
 table thead th:first-child { border-top-left-radius: var(--pt-radius-lg); }
 table thead th:last-child  { border-top-right-radius: var(--pt-radius-lg); }
@@ -722,39 +1041,10 @@ table tbody td a:not(.pt-pill):hover { color: var(--pt-accent); text-decoration:
 table tbody td:nth-child(2) a { color: var(--pt-text-muted); font-weight: 400; text-decoration: underline dotted; text-underline-offset: 3px; }
 table tbody td:nth-child(2) a:hover { color: var(--pt-accent); }
 
-/* Library card-row (denser horizontal layout for the main library list) */
-.pt-row-list { display: flex; flex-direction: column; gap: 6px; }
-.pt-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr auto auto;
-  gap: var(--pt-space-3);
-  align-items: center;
-  padding: var(--pt-space-3) var(--pt-space-4);
-  background: var(--pt-surface);
-  border: 1px solid var(--pt-border);
-  border-radius: var(--pt-radius-md);
-  font-size: 0.9rem;
-  transition: border-color var(--pt-transition-fast), background var(--pt-transition-fast);
-}
-.pt-row:hover { border-color: var(--pt-border-strong); background: var(--pt-surface-2); }
-.pt-row__title { font-weight: 500; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.pt-row__title a { color: var(--pt-text); }
-.pt-row__title a:hover { color: var(--pt-accent); text-decoration: none; }
-.pt-row__composer { color: var(--pt-text-muted); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.pt-row__composer a { color: inherit; text-decoration: underline dotted; text-underline-offset: 3px; }
+/* Library table: the "last played" cell. */
 .pt-row__time { font-size: 0.85rem; color: var(--pt-text-muted); font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
 .pt-row__time small { display: block; color: var(--pt-text-subtle); font-size: 0.75rem; margin-top: 2px; }
 
-/* Progress bar */
-.pt-progress {
-  width: 100%; height: 4px;
-  background: var(--pt-surface-2);
-  border-radius: var(--pt-radius-pill);
-  overflow: hidden;
-}
-.pt-progress__bar { height: 100%; background: var(--pt-status-perfectionnement); transition: width var(--pt-transition-med); }
-.pt-progress--repertoire .pt-progress__bar { background: var(--pt-status-repertoire); }
-.pt-progress--dechiffrage .pt-progress__bar { background: var(--pt-status-dechiffrage); }
 
 /* =============================================================================
    Library page layout
@@ -764,7 +1054,7 @@ table tbody td:nth-child(2) a:hover { color: var(--pt-accent); }
    scrolls itself; only the sidebar and the table list scroll, each within
    their own column. The chrome (header + filters + focus) is laid out
    above the grid as a flex item, so it doesn't need sticky positioning. */
-.pt-library-page { height: 100dvh; max-width: none; padding-inline: var(--pt-space-4); display: flex; flex-direction: column; overflow: hidden; }
+.pt-library-page { height: 100dvh; --pt-page-max: none; padding-inline: var(--pt-space-4); display: flex; flex-direction: column; overflow: hidden; }
 
 .pt-library-chrome {
   flex: 0 0 auto;
@@ -921,6 +1211,10 @@ table tbody td:nth-child(2) a:hover { color: var(--pt-accent); }
 }
 
 /* Journal sidebar */
+/* Layout from .pt-row-between, label from .pt-eyebrow; baseline alignment is
+   what this one adds, so the link sits on the heading's baseline. */
+.pt-journal__header { align-items: baseline; gap: var(--pt-space-2); }
+.pt-journal__header a { font-size: 0.78rem; white-space: nowrap; }
 .pt-journal__day {
   background: var(--pt-bg-elevated);
   border: 1px solid var(--pt-border);
@@ -943,6 +1237,110 @@ table tbody td:nth-child(2) a:hover { color: var(--pt-accent); }
 .pt-journal__entry small { color: var(--pt-text-muted); display: block; font-size: 0.75rem; margin-top: 2px; }
 .pt-journal__entry--empty { color: var(--pt-text-subtle); font-style: italic; font-size: 0.82rem; }
 
+
+/* =============================================================================
+   Practice calendar (practice.html) — a year of days as coloured squares.
+   ========================================================================== */
+/* .pt-practice-page shares its shell with .pt-data-page (see there); the width
+   it needs is the only thing of its own. .pt-row-between carries the toolbar
+   layout, .pt-eyebrow the stat labels. */
+.pt-practice-toolbar h2 { font-size: 1.1rem; }
+
+.pt-yearnav { display: inline-flex; align-items: center; gap: var(--pt-space-2); }
+.pt-yearnav__year { font-variant-numeric: tabular-nums; min-width: 4ch; text-align: center; }
+
+/* Year totals: a row of figures that wraps rather than scrolls. */
+.pt-statrow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--pt-space-3) var(--pt-space-6);
+  margin: 0;
+}
+.pt-stat dd { margin: 2px 0 0; font-size: 1.25rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+
+/* 53 columns don't fit a phone, so the grid scrolls inside its own box and the
+   page never scrolls sideways. */
+.pt-calendar-scroll { overflow-x: auto; padding-bottom: var(--pt-space-1); }
+
+.pt-calendar { display: flex; gap: var(--pt-space-2); width: max-content; }
+/* Row labels, on the same 7-row rhythm as the cells so "mer." sits on the
+   Wednesday row rather than between two of them. */
+.pt-calendar__weekdays {
+  display: grid;
+  grid-template-rows: repeat(7, var(--pt-cal-cell));
+  gap: var(--pt-cal-gap);
+  align-content: start;
+  padding-top: calc(1rem + var(--pt-space-1)); /* clears the month row */
+  /* Pinned so the labels stay readable once a narrow screen scrolls the grid
+     sideways; the background is what keeps the cells from sliding under them. */
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: var(--pt-surface);
+  padding-inline-end: var(--pt-space-2);
+}
+.pt-calendar__weekdays span {
+  font-size: 0.68rem;
+  line-height: var(--pt-cal-cell);
+  color: var(--pt-text-subtle);
+  text-align: right;
+}
+.pt-calendar__body { display: flex; flex-direction: column; gap: var(--pt-space-1); }
+/* One slot per week column; only the first column of each month carries text,
+   which is allowed to overflow to the right over the empty slots. */
+/* The trailing room is for December's label, which overflows past the last
+   column and would otherwise be clipped by the scroll box. */
+.pt-calendar__months { display: flex; gap: var(--pt-cal-gap); height: 1rem; padding-inline-end: var(--pt-space-6); }
+.pt-calendar__month {
+  flex: 0 0 var(--pt-cal-cell);
+  font-size: 0.68rem;
+  line-height: 1rem;
+  color: var(--pt-text-subtle);
+  white-space: nowrap;
+}
+.pt-calendar__cells { display: flex; gap: var(--pt-cal-gap); }
+.pt-calendar__week {
+  display: grid;
+  grid-template-rows: repeat(7, var(--pt-cal-cell));
+  gap: var(--pt-cal-gap);
+}
+.pt-calendar__day {
+  /* Also used as a <span> swatch in the legend, where inline would drop the
+     box dimensions. */
+  display: inline-block;
+  width: var(--pt-cal-cell);
+  height: var(--pt-cal-cell);
+  margin: 0;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  background: var(--pt-cal-0);
+  cursor: pointer;
+  transition: outline-color var(--pt-transition-fast);
+}
+.pt-calendar__day[data-level="1"] { background: var(--pt-cal-1); }
+.pt-calendar__day[data-level="2"] { background: var(--pt-cal-2); }
+.pt-calendar__day[data-level="3"] { background: var(--pt-cal-3); }
+.pt-calendar__day[data-level="4"] { background: var(--pt-cal-4); }
+/* Padding days (the neighbouring years, and the rest of the current one) keep
+   the columns aligned without pretending to be days you could have played. */
+.pt-calendar__day[data-outside="true"] { background: transparent; cursor: default; }
+.pt-calendar__day[data-today="true"] { border-color: var(--pt-text-muted); }
+.pt-calendar__day:hover { outline: 2px solid var(--pt-border-strong); outline-offset: 1px; }
+.pt-calendar__day[aria-pressed="true"] { outline: 2px solid var(--pt-accent); outline-offset: 1px; }
+
+.pt-calendar-legend {
+  --pt-cal-cell: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--pt-cal-gap);
+  font-size: 0.72rem;
+  color: var(--pt-text-subtle);
+}
+.pt-calendar-legend > span:first-child { margin-right: var(--pt-space-1); }
+.pt-calendar-legend > span:last-child { margin-left: var(--pt-space-1); }
+
 @media (max-width: 800px) {
   /* At narrow widths the chrome wraps to 3+ rows and the app-shell layout
      would leave the table with very little vertical room. Fall back to a
@@ -954,8 +1352,28 @@ table tbody td:nth-child(2) a:hover { color: var(--pt-accent); }
 }
 
 /* =============================================================================
-   Onboarding card (when no score loaded on score.html)
+   Score loading skeleton + onboarding card (score.html)
    ========================================================================== */
+
+/* The page opens in one of two states, decided during HTML parsing by the head
+   script that sets data-loading-score: either a score is on its way (spinner,
+   no onboarding) or none was asked for (onboarding, no spinner). It has to be
+   CSS off a documentElement flag rather than Alpine state, because Alpine boots
+   hundreds of milliseconds into the load and this is what the page looks like
+   until it does. From boot on, the same flag is mirrored into the component as
+   scoreLoading and x-show takes the card over — hence no !important here.
+
+   The spinner box is sized to roughly where the score will be rather than to
+   the spinner itself, so the page holds its shape while it loads. The base draws
+   the aria-busy spinner at 1em, hence the font-size. */
+.pt-score-loading {
+  display: none;
+  place-content: center;
+  min-height: 70vh;
+  font-size: 2rem;
+}
+html[data-loading-score] .pt-score-loading { display: grid; }
+html[data-loading-score] .pt-onboarding { display: none; }
 
 .pt-onboarding {
   max-width: 520px;
@@ -999,23 +1417,30 @@ table tbody td:nth-child(2) a:hover { color: var(--pt-accent); }
 .pt-onboarding__cta input[type="file"] { position: absolute; left: -9999px; }
 
 /* =============================================================================
-   Modals (override Pico's <dialog>)
+   Modals (<dialog>)
    ========================================================================== */
 
-/* Pico opens dialogs by setting the [open] attribute (no showModal()), so
+/* Dialogs are opened by setting the [open] attribute (no showModal()), so
    ::backdrop never fires. We render the backdrop ourselves via a fixed
    overlay anchored to <html> using the [open] presence. */
 dialog:not([open]) { display: none; }
+/* The UA stylesheet gives <dialog> its own color, background and border, so
+   the element has to be told to inherit the page's text color — otherwise
+   every modal renders black on its own canvas. */
+dialog { color: inherit; }
+/* The dialog itself fills the viewport and only centres its card; the card's
+   own max-width is what decides how wide a modal looks, and the padding is
+   what keeps it off the screen edges on a phone. */
 dialog[open] {
   position: fixed;
   inset: 0;
   z-index: var(--pt-z-modal);
-  margin: auto;
+  margin: 0;
   border: none;
   background: transparent;
-  padding: 0;
-  width: min(560px, calc(100vw - 32px));
-  max-height: calc(100vh - 64px);
+  padding: var(--pt-space-4);
+  width: 100%;
+  height: 100%;
   overflow: visible;
   display: flex;
   align-items: center;
@@ -1029,11 +1454,14 @@ html:has(dialog[open])::before {
   position: fixed;
   inset: 0;
   background: rgba(15, 18, 30, 0.45);
+  /* The blur is what keeps a modal legible over a full page of notation. */
+  backdrop-filter: blur(3px);
   z-index: calc(var(--pt-z-modal) - 1);
 }
 html:has(dialog[open]) { overflow: hidden; }
 dialog > article {
   margin: 0;
+  max-width: 700px;
   padding: var(--pt-space-5) var(--pt-space-6);
   border: none;
   border-radius: var(--pt-radius-lg);
@@ -1043,6 +1471,12 @@ dialog > article {
   max-height: calc(100vh - 64px);
   overflow-y: auto;
 }
+/* A card that wraps its content in .pt-modal-body scrolls that body rather
+   than the whole card, so its header and footer buttons stay in view however
+   long the content gets. Opt-in: cards without the wrapper keep scrolling
+   whole, which is fine as long as their footer holds nothing to click. */
+dialog > article:has(> .pt-modal-body) { display: flex; flex-direction: column; overflow: hidden; }
+dialog > article > .pt-modal-body { overflow-y: auto; }
 dialog > article > header {
   padding: 0 0 var(--pt-space-3);
   margin: 0 0 var(--pt-space-3);
@@ -1067,7 +1501,7 @@ dialog > article > footer {
 }
 dialog > article > footer button { margin: 0; }
 
-/* Feedback modal helper text + error banner (form itself is plain Pico). */
+/* Feedback modal helper text + error banner (the form itself is unstyled). */
 .pt-feedback-intro { margin: 0 0 var(--pt-space-4); color: var(--pt-text-muted); }
 .pt-feedback-privacy { display: block; margin-top: var(--pt-space-3); color: var(--pt-text-subtle); }
 .pt-feedback-error {
@@ -1104,29 +1538,19 @@ dialog > article > footer button { margin: 0; }
 .pt-playthrough-table tbody td small { color: var(--pt-text-muted); }
 
 /* Side-by-side layout for the playthrough list + evolution chart inside
-   the result modal. Falls back to a stack at narrow widths. */
+   the result modal. Falls back to a stack at narrow widths. The list gets
+   its own scroller so a long history scrolls past the chart instead of
+   pushing it out of the card. */
 .pt-result-dialog article { max-width: 960px; }
 .pt-result-cols { display: flex; gap: var(--pt-space-6); align-items: flex-start; }
-.pt-result-cols > .pt-playthrough-table { flex: 0 0 auto; width: auto; }
+.pt-result-cols > .pt-playthrough-scroll { flex: 0 0 auto; max-height: 50vh; overflow-y: auto; }
 .pt-result-cols > .pt-modal-section { flex: 1 1 0; min-width: 0; margin-top: 0; }
 .pt-result-cols > .pt-modal-section svg { width: 100%; height: auto; }
 @media (max-width: 700px) {
   .pt-result-cols { flex-direction: column; }
+  .pt-result-cols > .pt-playthrough-scroll { max-height: 35vh; }
   .pt-result-cols > .pt-modal-section { margin-top: var(--pt-space-4); }
 }
-
-.pt-playthrough-list { list-style: none; padding: 0; margin: 0; }
-.pt-playthrough-list li {
-  display: flex;
-  justify-content: space-between;
-  gap: var(--pt-space-3);
-  padding: 6px 0;
-  border-bottom: 1px solid var(--pt-border);
-  font-size: 0.9rem;
-}
-.pt-playthrough-list li:last-child { border-bottom: none; }
-.pt-playthrough-list li.is-current { background: var(--pt-accent-soft); margin: 0 -8px; padding: 6px 8px; border-radius: var(--pt-radius-sm); border-bottom: none; font-weight: 600; }
-.pt-playthrough-list small { color: var(--pt-text-muted); }
 
 .pt-modal-section { margin-top: var(--pt-space-4); }
 .pt-modal-section h4 { color: var(--pt-text-muted); font-size: 0.85rem; letter-spacing: 0.01em; margin-bottom: var(--pt-space-2); font-weight: 600; }
@@ -1164,8 +1588,6 @@ dialog > article > footer button { margin: 0; }
 .pt-hot-measures li { display: flex; justify-content: space-between; padding: 4px 0; font-size: 0.88rem; border-bottom: 1px solid var(--pt-border); }
 .pt-hot-measures li small { color: var(--pt-text-muted); }
 
-.pt-context__end { margin-left: auto; }
-
 .pt-history-day {
   padding: var(--pt-space-2) 0;
   border-bottom: 1px solid var(--pt-border);
@@ -1196,25 +1618,6 @@ dialog > article > footer button { margin: 0; }
   font-weight: 600;
   border-radius: var(--pt-radius-md);
 }
-
-/* =============================================================================
-   Status / Composer page header
-   ========================================================================== */
-
-.pt-section-header {
-  display: flex;
-  flex-direction: column;
-  gap: var(--pt-space-2);
-  padding: var(--pt-space-4);
-  background: var(--pt-bg-elevated);
-  border: 1px solid var(--pt-border);
-  border-radius: var(--pt-radius-lg);
-}
-.pt-section-header__back { font-size: 0.85rem; color: var(--pt-text-muted); }
-.pt-section-header__back:hover { color: var(--pt-text); }
-.pt-section-header h1 { margin: 0; font-size: 1.6rem; }
-.pt-section-header__stats { display: flex; gap: var(--pt-space-4); flex-wrap: wrap; color: var(--pt-text-muted); font-size: 0.9rem; }
-.pt-section-header__stats strong { color: var(--pt-text); font-weight: 600; margin-right: 4px; }
 
 /* =============================================================================
    Score area (preserved from before, restyled)
@@ -1332,7 +1735,12 @@ img[id^="cursorImg"] { scroll-margin-top: var(--pt-sticky-offset, 100px); }
 /* =============================================================================
    Landing page (/) — pitch + onboarding shown to first-time visitors.
    ========================================================================== */
-.pt-landing { max-width: 960px; }
+/* The container's inline padding is zeroed from the 576px breakpoint up,
+   assuming the box is narrower than the viewport and centered (margin auto
+   supplies the gutters). Below 960px that assumption breaks — the container
+   is still full-width — so restore the padding explicitly, same as
+   .pt-library-page does. */
+.pt-landing { --pt-page-max: 960px; padding-inline: var(--pt-space-4); }
 
 .pt-landing__nav {
   display: flex;
@@ -1352,12 +1760,12 @@ img[id^="cursorImg"] { scroll-margin-top: var(--pt-sticky-offset, 100px); }
 .pt-landing__nav a[role="button"] { margin: 0; }
 
 /* FR/EN language switch (shared across pages). width:auto + flex:none override
-   Pico's full-width [role="group"] button-group styling. */
+   the base full-width [role="group"] button-group styling. */
 .pt-langswitch {
   display: inline-flex;
   width: auto;
   flex: 0 0 auto;
-  /* Zero Pico's [role="group"] margin-bottom — in the centred header row it
+  /* Zero the [role="group"] margin-bottom — in the centred header row it
      would shift the pill upward, breaking vertical alignment with the buttons. */
   margin: 0;
   border: 1px solid var(--pt-border);
@@ -1468,6 +1876,9 @@ a.pt-hero__visual:hover {
   border-top: 1px solid var(--pt-border);
   margin-top: var(--pt-space-8);
 }
+/* Footer links sit on their own line under the tagline, wrapping to one line
+   each on a narrow screen rather than crowding it. */
+.pt-footer-links { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--pt-space-4); margin-top: var(--pt-space-2); }
 
 @media (max-width: 720px) {
   .pt-hero { gap: var(--pt-space-6); padding-block: var(--pt-space-6) var(--pt-space-8); }

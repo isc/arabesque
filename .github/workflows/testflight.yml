@@ -1,0 +1,126 @@
+name: TestFlight
+
+# Manual on purpose: an upload consumes a build number and triggers a
+# processing cycle on Apple's side, so it should be a decision, not a
+# side effect of pushing.
+on:
+  workflow_dispatch:
+    inputs:
+      marketing_version:
+        description: 'Version shown to testers (e.g. 1.0). Leave empty to keep the one in project.yml.'
+        required: false
+        type: string
+
+jobs:
+  upload:
+    # macos-26, not macos-15: Apple rejects uploads built with anything older
+    # than the iOS 26 SDK ("This app was built with the iOS 18.5 SDK"), which
+    # ships with Xcode 26.
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v4
+
+      # The image carries several Xcode versions; pin the newest rather than
+      # trust the default symlink, which has lagged behind before.
+      - name: Select the newest Xcode
+        run: |
+          latest=$(ls -d /Applications/Xcode_*.app | sort -V | tail -1)
+          echo "Using $latest"
+          sudo xcode-select -s "$latest"
+          xcodebuild -version
+
+      # Fail here rather than 20 minutes in, with a message that says which
+      # secret is missing. See ios/README.md for how to create them.
+      - name: Check the secrets are set
+        env:
+          KEY_ID: ${{ secrets.APPSTORE_KEY_ID }}
+          ISSUER_ID: ${{ secrets.APPSTORE_ISSUER_ID }}
+          PRIVATE_KEY: ${{ secrets.APPSTORE_PRIVATE_KEY }}
+        run: |
+          missing=""
+          [ -z "$KEY_ID" ]     && missing="$missing APPSTORE_KEY_ID"
+          [ -z "$ISSUER_ID" ]  && missing="$missing APPSTORE_ISSUER_ID"
+          [ -z "$PRIVATE_KEY" ] && missing="$missing APPSTORE_PRIVATE_KEY"
+          if [ -n "$missing" ]; then
+            echo "::error::Missing repository secrets:$missing — see ios/README.md"
+            exit 1
+          fi
+
+      # altool looks the key up by ID in this directory; xcodebuild is given
+      # the same file by path. One copy, two consumers.
+      - name: Install the App Store Connect API key
+        env:
+          KEY_ID: ${{ secrets.APPSTORE_KEY_ID }}
+          PRIVATE_KEY: ${{ secrets.APPSTORE_PRIVATE_KEY }}
+        run: |
+          mkdir -p ~/.appstoreconnect/private_keys
+          printf '%s' "$PRIVATE_KEY" > ~/.appstoreconnect/private_keys/AuthKey_${KEY_ID}.p8
+          chmod 600 ~/.appstoreconnect/private_keys/AuthKey_${KEY_ID}.p8
+
+      - run: brew install xcodegen
+      - run: xcodegen generate
+        working-directory: ios
+
+      # The build number must be unique for every upload; run_number is
+      # monotonic and needs no state of its own.
+      - name: Archive
+        env:
+          KEY_ID: ${{ secrets.APPSTORE_KEY_ID }}
+          ISSUER_ID: ${{ secrets.APPSTORE_ISSUER_ID }}
+          MARKETING_VERSION_INPUT: ${{ inputs.marketing_version }}
+        working-directory: ios
+        run: |
+          version_flag=""
+          [ -n "$MARKETING_VERSION_INPUT" ] && version_flag="MARKETING_VERSION=$MARKETING_VERSION_INPUT"
+          # -allowProvisioningUpdates lets xcodebuild create the distribution
+          # certificate and profile through the API key, so no .p12 has to be
+          # imported into the runner's keychain.
+          xcodebuild archive \
+            -project Arabesque.xcodeproj \
+            -scheme Arabesque \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath "$PWD/build/Arabesque.xcarchive" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath ~/.appstoreconnect/private_keys/AuthKey_${KEY_ID}.p8 \
+            -authenticationKeyID "$KEY_ID" \
+            -authenticationKeyIssuerID "$ISSUER_ID" \
+            CURRENT_PROJECT_VERSION=${{ github.run_number }} \
+            $version_flag
+
+      - name: Export the .ipa
+        env:
+          KEY_ID: ${{ secrets.APPSTORE_KEY_ID }}
+          ISSUER_ID: ${{ secrets.APPSTORE_ISSUER_ID }}
+        working-directory: ios
+        run: |
+          xcodebuild -exportArchive \
+            -archivePath "$PWD/build/Arabesque.xcarchive" \
+            -exportOptionsPlist ExportOptions.plist \
+            -exportPath "$PWD/build/export" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath ~/.appstoreconnect/private_keys/AuthKey_${KEY_ID}.p8 \
+            -authenticationKeyID "$KEY_ID" \
+            -authenticationKeyIssuerID "$ISSUER_ID"
+
+      - name: Upload to TestFlight
+        env:
+          KEY_ID: ${{ secrets.APPSTORE_KEY_ID }}
+          ISSUER_ID: ${{ secrets.APPSTORE_ISSUER_ID }}
+        working-directory: ios
+        run: |
+          ipa=$(ls build/export/*.ipa | head -1)
+          echo "Uploading $ipa (build ${{ github.run_number }})"
+          xcrun altool --upload-app -f "$ipa" -t ios \
+            --apiKey "$KEY_ID" --apiIssuer "$ISSUER_ID"
+
+      # Kept whatever happens: on a signing or upload failure the logs inside
+      # the archive are where the reason is.
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: arabesque-build-${{ github.run_number }}
+          path: |
+            ios/build/export/*.ipa
+            ios/build/Arabesque.xcarchive/Info.plist
+          if-no-files-found: ignore

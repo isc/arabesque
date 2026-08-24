@@ -4,13 +4,15 @@ import { initMusicXML } from './musicxml.js'
 import { initFingeringEditor } from './fingeringEditor.js'
 import { initCassettes } from './cassettes.js'
 import { initPracticeTracker } from './practiceTracker.js'
-import { formatDuration, formatDate, applyStickyOffset, scorePageUrl } from './utils.js'
+import { formatDuration, formatDate, applyStickyOffset, scorePageUrl, onIdle } from './utils.js'
 import { initStorage } from './storage.js'
 import { loadMxlAsXml } from './mxlLoader.js'
 import { injectFingerings } from './fingeringInjector.js'
 import { initPlayback, getBPM } from './playback.js'
 import { initStrictPlaythrough } from './strictPlaythrough.js'
 import { headerMenu } from './headerMenu.js'
+import { initAutoSync, triggerSync } from './autoSync.js'
+import { traced, mark } from './perfTrace.js' // TEMP diagnostic
 import { t, locale } from './i18n.js'
 
 // Built once: the active locale is fixed for the page lifetime (switching
@@ -18,6 +20,15 @@ import { t, locale } from './i18n.js'
 const PLAYTHROUGH_LIST_FORMATTER = new Intl.ListFormat(locale(), { style: 'long', type: 'conjunction' })
 const CHART_DATE_FULL = new Intl.DateTimeFormat(locale())
 const CHART_DATE_AXIS = new Intl.DateTimeFormat(locale(), { day: 'numeric', month: 'short' })
+
+// Redrawing a full score costs ~200ms, and dragging a window edge fires resize
+// continuously — wait for the drag to settle before paying for it once.
+const RESIZE_RELAYOUT_DEBOUNCE_MS = 250
+
+// Resolves once the browser has had a frame to itself. Two rAFs, not one: the
+// first only gets us into the frame that is already being prepared, so work
+// resumed there still lands before that frame is painted.
+const nextPaint = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))
 
 export function midiApp() {
   const midi = initMidi()
@@ -35,6 +46,21 @@ export function midiApp() {
   const practiceTracker = initPracticeTracker(storage)
   const playback = initPlayback(midi.state)
   const strictPlaythrough = initStrictPlaythrough()
+  // The browser drops this on its own whenever the page is hidden; kept so the
+  // page can tell whether it still holds one (see requestWakeLock).
+  let wakeLock = null
+  // Settles when the MIDI handshake is done; awaited by markScoreReady().
+  let midiReady = Promise.resolve()
+  // Orders the reinforcement refreshes fired at every measure boundary (see
+  // refreshReinforcementSuggestions).
+  let reinforcementRefreshSeq = 0
+  // The end of a session is the moment its data becomes worth pushing: runSync
+  // only takes sessions that have ended, so a playthrough finished here would
+  // otherwise sit on this device until the data page is opened.
+  async function endSessionAndSync() {
+    await practiceTracker.endSession()
+    triggerSync('session ended')
+  }
 
   return {
     ...headerMenu(),
@@ -57,6 +83,13 @@ export function midiApp() {
     selectedCassette: '',
     cassetteApiAvailable: false,
     trainingMode: false,
+
+    // Read off the flag score.html's head script raised during parsing, so
+    // Alpine agrees with the CSS about whether a score is on its way. Without
+    // it x-show would put the onboarding card back on screen the moment Alpine
+    // booted — osmdInstance is still null for the rest of the load — in front of
+    // a score that was already coming.
+    scoreLoading: document.documentElement.hasAttribute('data-loading-score'),
 
     // scoreUrl is set only for scores loaded from the library, not for
     // local file uploads — the practice tracker keys on it.
@@ -86,6 +119,10 @@ export function midiApp() {
     resultMode: null,
     previousPlaythroughs: [],
 
+    // Container width the score is currently laid out for, so a height-only
+    // resize doesn't pay for a redraw (see handleViewportResize).
+    lastRelayoutWidth: null,
+
     fingeringEnabled: false,
     showFingeringModal: false,
     selectedNoteKey: null,
@@ -99,7 +136,12 @@ export function midiApp() {
       // scroll-margin-top (CSS, via --pt-sticky-offset). Recompute on
       // resize and when the mode-context band toggles visibility.
       applyStickyOffset()
-      window.addEventListener('resize', applyStickyOffset)
+      let relayoutTimer = null
+      window.addEventListener('resize', () => {
+        applyStickyOffset()
+        clearTimeout(relayoutTimer)
+        relayoutTimer = setTimeout(() => this.handleViewportResize(), RESIZE_RELAYOUT_DEBOUNCE_MS)
+      })
       // $nextTick (not queueMicrotask) — Alpine flips x-show display on
       // the next tick, so we'd otherwise measure 0 for the band that's
       // about to appear. osmdInstance is updated via afterScoreLoad()
@@ -109,18 +151,23 @@ export function midiApp() {
       this.$watch('reinforcementMode', () => this.$nextTick(applyStickyOffset))
       this.$watch('strictBpm', (v) => {
         if (this.scoreUrl && Number.isFinite(v) && v > 0) {
-          localStorage.setItem(`pt:strictBpm:${this.scoreUrl}`, String(v))
+          localStorage.setItem(`arabesque:strictBpm:${this.scoreUrl}`, String(v))
         }
       })
 
-      // loadCassettesList hits a backend endpoint, storage.init opens
-      // IndexedDB — independent and OK to run in parallel. practiceTracker
-      // shares the storage instance so its init just hits the same cache.
-      await Promise.all([this.loadCassettesList(), storage.init()])
-      await practiceTracker.init()
-
-      await midi.connectMIDI({ silent: true, autoSelectFirst: true })
-      this.syncMidiState()
+      // Startup errands, none of which has to finish before a score can be
+      // drawn — they used to run one after another in front of the load. What
+      // the render actually needs is the database open, to read the fingerings;
+      // practiceTracker.init() goes on to flush a stashed session and scan for
+      // stranded ones, which is housekeeping that grows with the user's history
+      // and is only depended on when a new session starts (see loadScoreFromURL).
+      // The MIDI handshake and the cassette endpoint — a round trip that 404s
+      // outright on static hosting — are nobody's prerequisite at all.
+      const dbReady = storage.init()
+      const trackerReady = dbReady.then(() => practiceTracker.init())
+      midiReady = midi.connectMIDI({ silent: true, autoSelectFirst: true })
+        .then(() => this.syncMidiState())
+      onIdle(() => this.loadCassettesList())
 
       const NAVIGATE_BACK_KEY = 108 // C8 - highest piano key (less jarring sound)
 
@@ -154,7 +201,7 @@ export function midiApp() {
       musicxml.setCallbacks({
         onScoreCompleted: async () => {
           practiceTracker.markScoreCompleted()
-          await practiceTracker.endSession()
+          await endSessionAndSync()
 
           const allPlaythroughs = this.scoreUrl ? await practiceTracker.getAllPlaythroughs(this.scoreUrl) : []
           window.scrollTo({ top: 0, behavior: 'smooth' })
@@ -164,12 +211,11 @@ export function midiApp() {
           const metadata = musicxml.getScoreMetadata()
           practiceTracker.startSession(this.scoreUrl, metadata.title, metadata.composer, 'free', metadata.totalMeasures)
 
-          // Refresh reinforcement suggestions from the just-completed session
           await this.refreshReinforcementSuggestions()
         },
         onTrainingComplete: async () => {
           this.openResultModal('training')
-          await practiceTracker.endSession()
+          await endSessionAndSync()
           // Start new session for next playthrough
           const metadata = musicxml.getScoreMetadata()
           practiceTracker.startSession(this.scoreUrl, metadata.title, metadata.composer, 'training', metadata.totalMeasures)
@@ -178,7 +224,10 @@ export function midiApp() {
           practiceTracker.startMeasureAttempt(sourceMeasureIndex)
         },
         onMeasureCompleted: (data) => {
-          practiceTracker.endMeasureAttempt(data.clean)
+          // TEMP: fire-and-forget, so its IndexedDB work never showed up in the
+          // traced() around activateNote.
+          traced('endMeasureAttempt', () => practiceTracker.endMeasureAttempt(data.clean))
+          this.refreshReinforcementSuggestions()
         },
         onWrongNote: () => {
           practiceTracker.recordWrongNote()
@@ -190,7 +239,7 @@ export function midiApp() {
           this.reinforcementMode = false
           this.trainingMode = false
           musicxml.setTrainingMode(false)
-          await practiceTracker.endSession()
+          await endSessionAndSync()
           this.openResultModal('reinforcement')
 
           // Start new free session so subsequent play is tracked
@@ -223,10 +272,37 @@ export function midiApp() {
         },
       })
 
+      await dbReady
       const scoreUrl = new URLSearchParams(window.location.search).get('url')
-      if (scoreUrl) await this.loadScoreFromURL(scoreUrl)
+      if (scoreUrl) await this.loadScoreFromURL(scoreUrl, trackerReady)
 
+      // endSession() is the clean close, but its IndexedDB writes need the page
+      // to stay alive long enough to commit — leaving mid-piece regularly
+      // stranded a session. pagehide additionally drops a synchronous snapshot
+      // that the next page load turns into a proper close.
       window.addEventListener('beforeunload', () => practiceTracker.endSession())
+      window.addEventListener('pagehide', () => practiceTracker.stashPendingSession())
+      // Restored from the back/forward cache: the page was never destroyed and
+      // the session is still live, so the snapshot must not be replayed.
+      window.addEventListener('pageshow', (event) => {
+        if (event.persisted) practiceTracker.clearPendingSession()
+      })
+      // Coming back to the page: take the wake lock again, since being hidden
+      // released it. Only with a score up — that's when the screen is watched
+      // rather than touched.
+      document.addEventListener('visibilitychange', () => {
+        const held = wakeLock && !wakeLock.released
+        if (document.visibilityState === 'visible' && this.osmdInstance && !held) {
+          this.requestWakeLock()
+        }
+      })
+      // This page never pulls — not on open, not on tab-back. A pull can
+      // trigger rebuildAggregates(), which clears every aggregate and replays
+      // every stored session one by one; doing that with a score on screen and
+      // MIDI coming in is how you freeze mid-piece. It has nothing to gain
+      // either: it displays no synced data, and what it has to contribute goes
+      // up through its own end-of-session trigger.
+      initAutoSync({ storage, practiceTracker }, { syncOnReturn: false })
     },
 
     syncMidiState() {
@@ -295,22 +371,38 @@ export function midiApp() {
       this.scoreUrl = null
       await musicxml.loadMusicXML(file)
       await this.afterScoreLoad()
-      this.captureScoreMetadata()
+      await this.markScoreReady()
     },
 
-    async loadScoreFromURL(url) {
+    // `trackerReady` is the practice tracker's own init, which the render does
+    // not wait on (see init) — only the session started below does.
+    async loadScoreFromURL(url, trackerReady = Promise.resolve()) {
       this.scoreUrl = url
       this.fingeringEnabled = true
       this.loadCollectionInfo(url) // fire-and-forget: the navigator appears when ready
 
       await this.renderScoreWithFingerings()
-      this.captureScoreMetadata()
 
       const metadata = musicxml.getScoreMetadata()
+      await trackerReady
       practiceTracker.startSession(url, metadata.title, metadata.composer, 'free', metadata.totalMeasures)
 
-      // Load reinforcement suggestions from last completed playthrough
+      // Suggestions from the score's recent history, before a note is played
       await this.refreshReinforcementSuggestions()
+      await this.markScoreReady()
+    },
+
+    // Marks the score page as ready to be driven: OSMD has painted, metadata
+    // is captured, the practice session is started and the handlers are wired.
+    // Set at the end of the load path rather than as soon as OSMD paints,
+    // because "pixels are on screen" and "the page will answer input" are not
+    // the same instant — tests that treated them as one had to bridge the gap
+    // with a sleep.
+    async markScoreReady() {
+      // The keyboard is half of "will answer input", and it is connected in
+      // parallel with the load rather than in front of it.
+      await midiReady
+      document.getElementById('score').dataset.renderComplete = Date.now()
     },
 
     // If the loaded file is one part of a collection in the catalog, expose
@@ -352,8 +444,12 @@ export function midiApp() {
     },
 
     async renderScoreWithFingerings() {
-      const { fingerings } = await storage.getFingerings(this.scoreUrl)
-      const xml = await loadMxlAsXml(this.scoreUrl)
+      // Independent: one is IndexedDB, the other the score bytes (already in
+      // flight since the head script, so this is where its await belongs).
+      const [{ fingerings }, xml] = await Promise.all([
+        storage.getFingerings(this.scoreUrl),
+        loadMxlAsXml(this.scoreUrl),
+      ])
       const modified = injectFingerings(xml, fingerings)
       await musicxml.renderMusicXML(modified)
       await this.afterScoreLoad()
@@ -362,13 +458,27 @@ export function midiApp() {
 
     async afterScoreLoad() {
       this.osmdInstance = musicxml.getOsmdInstance()
+      // As soon as OSMD has parsed the sheet — the title and composer are read
+      // straight off it, and waiting for the render meant the topbar sat on its
+      // "Partition" placeholder for the whole of it.
+      this.captureScoreMetadata()
       // Wait for Alpine to update DOM (show #score container), then render
       await this.$nextTick()
-      await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))
-      musicxml.renderScore()
+      await nextPaint()
+      await musicxml.renderScore({
+        // Between OSMD's draw and its indexing pass: drop the spinner in the
+        // same frame the score lands in (leave it up and its 70vh would push the
+        // score below the fold), then hand the frame back so the score is
+        // actually painted before indexing blocks the thread again.
+        afterDraw: async () => {
+          this.scoreLoading = false
+          delete document.documentElement.dataset.loadingScore
+          await nextPaint()
+        },
+      })
       fingeringEditor.alignFingeringLabelsToNoteheads()
-      document.getElementById('score').dataset.renderComplete = Date.now()
-      const savedBpm = this.scoreUrl ? Number(localStorage.getItem(`pt:strictBpm:${this.scoreUrl}`)) : NaN
+      this.lastRelayoutWidth = document.getElementById('score').clientWidth
+      const savedBpm = this.scoreUrl ? Number(localStorage.getItem(`arabesque:strictBpm:${this.scoreUrl}`)) : NaN
       this.strictBpm = Number.isFinite(savedBpm) && savedBpm > 0 ? savedBpm : Math.round(getBPM(this.osmdInstance))
       // Modebar / context band become visible only after the score loads, so
       // recompute the sticky offset now (cf. note in init()).
@@ -376,13 +486,18 @@ export function midiApp() {
       await this.requestWakeLock()
     },
 
+    // A screen wake lock is released as soon as the document is hidden — tab
+    // switch, app backgrounded, screen off — and is never restored on the way
+    // back, so it has to be taken again. Asking once when the score loaded left
+    // the screen free to sleep for the rest of the session.
     async requestWakeLock() {
-      if ('wakeLock' in navigator) {
-        try {
-          await navigator.wakeLock.request('screen')
-        } catch (err) {
-          console.warn('Wake lock non disponible:', err)
-        }
+      if (!('wakeLock' in navigator) || document.visibilityState !== 'visible') return
+      try {
+        wakeLock = await navigator.wakeLock.request('screen')
+      } catch (err) {
+        // Refused rather than absent: WebKit grants this in Safari proper only,
+        // so the iOS wrapper keeps the screen awake natively instead.
+        console.warn('Wake lock non disponible:', err)
       }
     },
 
@@ -485,8 +600,14 @@ export function midiApp() {
     },
 
     openResultModal(mode) {
+      mark(`modale résultat (${mode})`) // TEMP: to date the 🔁 resize against
       this.resultMode = mode
       this.showResultModal = true
+      // The ranking is fastest-first and scrolls in its own column, so the run
+      // that just ended can sit well below the fold. Bring it into view.
+      this.$nextTick(() => {
+        document.querySelector('.pt-playthrough-table tr.is-current')?.scrollIntoView({ block: 'center' })
+      })
     },
 
     closeResultModal() {
@@ -517,24 +638,31 @@ export function midiApp() {
       }
     },
 
+    // Refreshed at every measure boundary, so the badge shows up as soon as a
+    // passage has been fumbled rather than at the end of a playthrough. Reads
+    // are ordered by sequence number: at that rate a slow one could otherwise
+    // land on top of a fresher result.
     async refreshReinforcementSuggestions() {
-      if (!this.scoreUrl) {
-        this.measuresToReinforce = []
-        return
-      }
-      const lastSession = await practiceTracker.getLastCompletedSession(this.scoreUrl)
-      this.measuresToReinforce = practiceTracker.analyzeMeasuresFromSession(lastSession)
+      const seq = ++reinforcementRefreshSeq
+      const measures = await practiceTracker.getMeasuresToReinforce(this.scoreUrl)
+      if (seq === reinforcementRefreshSeq) this.measuresToReinforce = measures
     },
 
-    startReinforcementMode() {
+    async startReinforcementMode() {
+      // Pinned before the await below, which leaves room for a measure
+      // boundary to refresh the suggestions under us.
+      const measures = this.measuresToReinforce
       this.reinforcementMode = true
       this.trainingMode = true
 
-      // Start new training session before activating reinforcement mode
+      // Close the session under way first: reinforcement can now be started
+      // mid-piece, and simply starting the training session on top of a free
+      // one would strand it with no endedAt (see endSession).
+      await endSessionAndSync()
       const metadata = musicxml.getScoreMetadata()
       practiceTracker.startSession(this.scoreUrl, metadata.title, metadata.composer, 'training', metadata.totalMeasures)
 
-      musicxml.setReinforcementMode(this.measuresToReinforce)
+      musicxml.setReinforcementMode(measures)
     },
 
     updateActiveHands() {
@@ -708,6 +836,21 @@ export function midiApp() {
       this.rerenderScore()
     },
 
+    // Every redraw replaces the SVG, taking with it everything painted on it:
+    // note colours, fingering handlers, the training cursor, the strict marker.
+    // `savedStates` is only needed when the redraw rebuilt the note model.
+    repaintScore(savedStates = null) {
+      const { currentMeasureIndex } = musicxml.getTrainingState()
+      fingeringEditor.alignFingeringLabelsToNoteheads()
+      this.setupFingeringHandlers()
+      fingeringEditor.restoreNoteStates(savedStates, currentMeasureIndex)
+      musicxml.updateMeasureCursor()
+      // The click rectangles are rebuilt by the redraw, so the marker went with them.
+      if (this.strictSelected) musicxml.markStrictStartMeasure(this.strictStartMeasure)
+    },
+
+    // renderScore() rebuilds the note model, which clears the played/active flags
+    // and the playback position — hence the snapshot around it.
     rerenderScore() {
       const scrollY = window.scrollY
       const { currentMeasureIndex } = musicxml.getTrainingState()
@@ -722,11 +865,36 @@ export function midiApp() {
         notes.map(({ played, active }) => ({ played, active })))
 
       musicxml.renderScore()
-      fingeringEditor.alignFingeringLabelsToNoteheads()
-      this.setupFingeringHandlers()
-      fingeringEditor.restoreNoteStates(noteStates, currentMeasureIndex)
+
+      // Before repaintScore, which reads the cursor position back out.
       musicxml.setCurrentMeasureIndex(currentMeasureIndex)
       musicxml.setPlayedSourceMeasures(playedSourceMeasures)
+      this.repaintScore(noteStates)
+      window.scrollTo(0, scrollY)
+    },
+
+    // OSMD's own autoResize is off (see renderMusicXML): it re-rendered behind our
+    // back and every played note went black.
+    handleViewportResize() {
+      if (!this.osmdInstance) return
+      // strictPlaythrough caches a notehead element per event, and playback caches
+      // the score SVG plus the cursor's iterator position; a redraw would strand
+      // both on detached nodes. Leave the layout as it is until the run is over
+      // rather than break it mid-performance.
+      if (this.isStrictPlaying || this.isPlaying) return
+      // OSMD lays out against the container width alone, so a height-only change
+      // would redraw to a pixel-identical score. Worth skipping: on mobile the URL
+      // bar collapsing fires resize, and free mode scrolls the score as you play.
+      const width = document.getElementById('score')?.clientWidth
+      if (width === this.lastRelayoutWidth) return
+      this.lastRelayoutWidth = width
+
+      const scrollY = window.scrollY
+      // relayoutScore, not renderScore: re-extracting the note model would reset the
+      // training and reinforcement state, and clear the very flags we'd then have to
+      // snapshot to put back.
+      musicxml.relayoutScore()
+      this.repaintScore()
       window.scrollTo(0, scrollY)
     },
   }

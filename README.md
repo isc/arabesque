@@ -1,4 +1,4 @@
-# Piano Trainer
+# Arabesque
 
 A web-based piano training application that helps musicians practice by connecting MIDI devices, displaying sheet music, and providing real-time feedback on note accuracy.
 
@@ -11,6 +11,7 @@ A web-based piano training application that helps musicians practice by connecti
 - **MusicXML Support**: Load and display sheet music in MusicXML format
 - **Interactive Practice**: Highlights notes as you play and validates accuracy
 - **Recording & Playback**: Record MIDI performances and replay them
+- **Practice Calendar**: A year of practice as one square per day, with streaks and totals
 
 ### Key Components
 
@@ -68,17 +69,19 @@ MIDI Device → Web MIDI API → MIDI Message Parser → Note Validator → Visu
 - `app.rb`: Main Sinatra application with API endpoints
 - `public/index.html`: Score library page with search and filtering
 - `public/score.html`: Score practice page
+- `public/practice.html`: Year-at-a-glance practice calendar
 - `public/data/scores.json`: Index of 70 available scores
 - `public/scores/`: Directory with 70 MusicXML files (1.6MB)
 - `public/js/app.js`: Alpine.js coordination layer
 - `public/js/library.js`: Library page state and filtering
+- `public/js/practice.js`: Practice calendar page (grid, streaks, per-day detail)
 - `public/js/midi.js`: Web MIDI API & recording
 - `public/js/musicxml.js`: MusicXML parsing & validation
 - `public/js/cassettes.js`: Cassette management
 - `public/js/midi_mock.js`: Mock implementation for testing
 - `public/js/utils.js`: Utility functions
 - `public/styles.css`: Custom styling
-- `test/piano_trainer_test.rb`: Piano trainer tests
+- `test/arabesque_test.rb`: core app tests
 - `test/library_test.rb`: Library page tests
 - `Rakefile`: Test runner configuration
 
@@ -92,8 +95,8 @@ MIDI Device → Web MIDI API → MIDI Message Parser → Note Validator → Visu
 
 ```bash
 # Clone the repository
-git clone git@github.com:isc/piano-trainer.git
-cd piano-trainer
+git clone git@github.com:isc/arabesque.git
+cd arabesque
 
 # Install Ruby dependencies
 bundle install
@@ -271,7 +274,7 @@ Standard MIDI format (3 bytes):
 bundle exec rake test
 
 # Or run individual test files
-bundle exec ruby test/piano_trainer_test.rb
+bundle exec ruby test/arabesque_test.rb
 bundle exec ruby test/library_test.rb
 
 # Run with UI (non-headless)
@@ -280,7 +283,7 @@ DISABLE_HEADLESS=1 bundle exec rake test
 
 ### Test Files
 
-- `test/piano_trainer_test.rb`: 10 tests for core piano training features
+- `test/arabesque_test.rb`: 10 tests for core piano training features
 - `test/library_test.rb`: 6 tests for score library functionality
 - `test/fixtures/simple-score.xml`: Basic 4-note test score
 - `test/fixtures/schumann-melodie.xml`: Complex multi-part score (256 notes)
@@ -291,6 +294,14 @@ DISABLE_HEADLESS=1 bundle exec rake test
 - Browser console logs show MIDI message parsing
 - Test logs capture browser output
 - Error messages display in the UI for user feedback
+
+## iOS App (Native Wrapper)
+
+Safari/iOS does not support the Web MIDI API, so the `ios/` directory contains
+a minimal native wrapper for iPad/iPhone: a WKWebView loads the deployed web
+app unchanged, MIDI is collected natively with CoreMIDI (USB or Bluetooth),
+and an injected shim emulates `navigator.requestMIDIAccess`. See
+[ios/README.md](ios/README.md) for build instructions.
 
 ## Browser Compatibility
 

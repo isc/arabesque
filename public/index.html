@@ -1,13 +1,13 @@
 <!doctype html>
-<html lang="fr">
+<html lang="fr" data-theme="light">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title data-i18n="landing.pageTitle">Piano Trainer · Apprenez le piano avec un retour en temps réel</title>
+    <title data-i18n="landing.pageTitle">Arabesque · Apprenez le piano avec un retour en temps réel</title>
     <meta
       name="description"
       data-i18n-content="landing.metaDescription"
-      content="Branchez votre clavier MIDI, ouvrez une partition et jouez : Piano Trainer colore les notes en temps réel, suit votre pratique et vous aide à progresser sur un répertoire classique."
+      content="Connectez votre clavier MIDI, ouvrez une partition et jouez : Arabesque colore les notes en temps réel, suit votre pratique et vous aide à progresser sur un répertoire classique."
     />
     <link rel="icon" href="favicon.svg" type="image/svg+xml" />
     <!-- Returning visitors (anyone who has already opened the library) skip the
@@ -17,7 +17,11 @@
     <script>
       try {
         if (
-          localStorage.getItem('pt-returning') &&
+          // The legacy key is read too: this inline script runs before any
+          // module, so on a returning visitor's first post-rename landing it
+          // beats legacyKeys.js to the rename. Without it they would get the
+          // pitch once more instead of going straight to their library.
+          (localStorage.getItem('arabesque:returning') || localStorage.getItem('pt-returning')) &&
           !new URLSearchParams(location.search).has('accueil')
         ) {
           location.replace('library.html')
@@ -26,7 +30,6 @@
         /* localStorage unavailable: just show the landing. */
       }
     </script>
-    <link rel="stylesheet" href="vendor/pico.2.1.1min.css" />
     <link rel="stylesheet" href="styles.css" />
     <script type="module">
       import { initI18n, getLang } from './js/i18n.js'
@@ -53,7 +56,7 @@
       <nav class="pt-landing__nav">
         <span class="pt-landing__brand">
           <img src="favicon.svg" alt="" aria-hidden="true" />
-          Piano Trainer
+          Arabesque
         </span>
         <div class="pt-langswitch" role="group" aria-label="Language">
           <button type="button" data-set-lang="fr">FR</button>
@@ -65,7 +68,7 @@
         <div class="pt-hero__intro">
           <h1 data-i18n="landing.heroTitle">Travaillez votre piano avec un retour en temps réel.</h1>
           <p class="pt-hero__lead" data-i18n="landing.heroLead">
-            Branchez votre clavier MIDI, ouvrez une partition et jouez. Chaque note
+            Connectez votre clavier MIDI, ouvrez une partition et jouez. Chaque note
             se colore selon que vous l'avez réussie, manquée ou anticipée — et votre
             progression se note toute seule, mesure après mesure.
           </p>
@@ -76,7 +79,7 @@
           href="library.html"
           class="pt-hero__visual"
           data-i18n-aria-label="landing.heroAria"
-          aria-label="Ouvrir Piano Trainer"
+          aria-label="Ouvrir Arabesque"
         >
           <video
             id="hero-video"
@@ -143,7 +146,7 @@
         <div class="pt-steps">
           <div class="pt-step">
             <span class="pt-step__num"></span>
-            <h3 data-i18n="landing.step1Title">Branchez votre clavier</h3>
+            <h3 data-i18n="landing.step1Title">Connectez votre clavier</h3>
             <p data-i18n="landing.step1Body">Reliez un clavier MIDI en USB ou en Bluetooth et autorisez l'accès quand le navigateur le demande. Pas de clavier ? Vous pouvez aussi suivre la partition à l'écran.</p>
           </div>
           <div class="pt-step">
@@ -162,8 +165,14 @@
         </div>
       </section>
 
-      <footer class="pt-landing__footer" data-i18n="landing.footer">
-        Piano Trainer · partitions du domaine public · vos données restent dans votre navigateur.
+      <footer class="pt-landing__footer">
+        <span data-i18n="landing.footer">
+          Arabesque · partitions du domaine public · vos données restent dans votre navigateur.
+        </span>
+        <span class="pt-footer-links">
+          <a href="privacy.html" data-i18n="common.privacy">Confidentialité</a>
+          <a href="support.html" data-i18n="common.support">Assistance</a>
+        </span>
       </footer>
     </main>
   </body>

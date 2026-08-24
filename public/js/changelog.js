@@ -16,13 +16,91 @@
 
 export const CHANGELOG = [
   {
-    date: '2026-07-06',
+    date: '2026-08-24',
     items: {
       fr: [
         "Mode micro (bêta) : pas de clavier MIDI ? Sur la page partition, le bouton 🎤 fait écouter votre piano par le microphone et valide les notes jouées. Une note à la fois pour l'instant — idéal pour les mélodies et le travail mains séparées ; les accords ne sont pas encore reconnus.",
+        'Une page « Assiduité » montre l’année entière, une case par jour : plus vous avez joué longtemps ce jour-là, plus la case est foncée. On y lit d’un coup d’œil les semaines tenues et les trous, avec les jours joués, le temps total, les lectures complètes, la série en cours et la meilleure série. Cliquer une case rappelle ce qui a été travaillé ce jour-là.',
+        'La page Données permet de supprimer son compte : le compte et toutes les données synchronisées sont effacés de nos serveurs, en deux temps pour éviter le clic malheureux. Les données de cet appareil, elles, restent en place — la sauvegarde dans un fichier, juste au-dessus, sert à les emporter.',
       ],
       en: [
         "Mic mode (beta): no MIDI keyboard? On the score page, the 🎤 button lets the app listen to your piano through the microphone and validate the notes you play. One note at a time for now — great for melodies and hands-separate practice; chords aren't recognised yet.",
+        'A "Consistency" page shows the whole year, one square per day: the longer you played that day, the darker the square. The weeks you kept up and the gaps you left read at a glance, along with days played, total time, full playthroughs, current streak and longest streak. Clicking a square recalls what you worked on that day.',
+        'The Data page can now delete your account: the account and everything synced under it are erased from our servers, in two steps so no stray tap can do it. This device keeps its own data — the file backup just above is there to take it with you.',
+      ],
+    },
+  },
+  {
+    date: '2026-08-23',
+    items: {
+      fr: [
+        "Le renforcement n'attend plus une lecture complète du morceau : dès qu'une mesure vous a fait trébucher, le bouton « Renforcer » apparaît. Sur les longues pièces, on travaille le début bien avant d'avoir déchiffré la fin.",
+        "Les mesures à renforcer sont choisies sur vos dernières séances et non plus sur la seule dernière lecture : celles qui stagnent — un taux d'erreur qui ne baisse plus d'une séance à l'autre — passent en tête, et une mesure quitte la liste après trois passages propres d'affilée.",
+        "Sur la fenêtre de fin de partition, les boutons « Renforcer », « Historique » et « Fermer » restent visibles même avec un long palmarès : c'est désormais la liste des temps qui défile, dans sa colonne, positionnée d'emblée sur le passage que vous venez de jouer.",
+      ],
+      en: [
+        'Reinforcement no longer waits for a full playthrough: the "Reinforce" button shows up as soon as a measure has tripped you up. On long pieces, you work on the opening long before you have sight-read the end.',
+        'The measures it suggests come from your recent sessions rather than from the last playthrough alone: the ones that stagnate — an error rate that stops falling from one session to the next — come first, and a measure leaves the list after three clean passes in a row.',
+        'On the score-finished window, the "Reinforce", "History" and "Close" buttons stay in view however long your ranking gets: the list of times now scrolls inside its own column, and opens on the run you just played.',
+      ],
+    },
+  },
+  {
+    date: '2026-08-22',
+    items: {
+      fr: [
+        "L'ouverture d'une partition ne clignote plus. La page affichait tour à tour la carte « Charger un fichier », la barre de modes et le titre « Partition » avant de les remplacer par la vraie partition ; elle montre maintenant un indicateur de chargement, puis le morceau.",
+        "Elle s'affiche aussi plus vite : le téléchargement de la partition démarre dès la première ligne de la page au lieu d'attendre que tout le reste soit chargé, les sons du piano ne sont plus téléchargés que si vous cliquez sur « Écouter », et le clavier MIDI se connecte pendant le rendu au lieu de le précéder.",
+      ],
+      en: [
+        'Opening a score no longer flickers. The page used to flash the "Load a file" card, the mode bar and a "Score" placeholder title before swapping in the real score; it now shows a loading indicator, then the piece.',
+        'It also appears sooner: the score starts downloading on the page\'s very first line instead of waiting for everything else to load, the piano sounds are only fetched if you press "Listen", and the MIDI keyboard connects while the score renders rather than before it.',
+      ],
+    },
+  },
+  {
+    date: '2026-08-14',
+    items: {
+      fr: [
+        "Plus de case « Synchronisation automatique » : être connecté suffit. Vos données se synchronisent, et se déconnecter est ce qui arrête tout. La case datait d'une époque où la synchro ne partait qu'à l'ouverture de la page Données ; elle ne servait plus qu'à laisser croire qu'un compte était actif alors qu'il ne faisait rien.",
+        "Les grandes partitions s'affichent nettement plus vite — la Ballade op. 23 se redessine en trois fois moins de temps. C'est aussi sensible à chaque redimensionnement de la fenêtre, qui relance le rendu.",
+      ],
+      en: [
+        'No more "Automatic sync" checkbox: being signed in is enough. Your data syncs, and signing out is what stops it. The checkbox dated from when sync only fired on opening the Data page; all it did was let an account look active while doing nothing.',
+        'Large scores display noticeably faster — the Ballade Op. 23 redraws in a third of the time. You feel it on every window resize too, which triggers a fresh render.',
+      ],
+    },
+  },
+  {
+    date: '2026-08-13',
+    items: {
+      fr: [
+        "Connexion par code : l'e-mail contient désormais un code à 8 chiffres en plus du lien. Le lien connecte le navigateur qui l'ouvre, ce qui ne marche pas dans l'app iPad ni quand vous lisez vos mails sur un autre appareil ; le code, lui, fonctionne partout. La demande reste ouverte si vous quittez l'app pour aller chercher le code.",
+      ],
+      en: [
+        'Sign in with a code: the email now carries an 8-digit code alongside the link. A link signs in whichever browser opens it, which fails in the iPad app and when you read your mail on another device; the code works everywhere. The request stays open if you leave the app to fetch the code.',
+      ],
+    },
+  },
+  {
+    date: '2026-08-12',
+    items: {
+      fr: [
+        "La synchronisation automatique mérite enfin son nom : une fois activée (Données → Compte), vos données partent et arrivent à la fin de chaque morceau joué, au retour sur l'app et à l'ouverture de la bibliothèque — plus besoin de passer par « Synchroniser maintenant ».",
+      ],
+      en: [
+        'Automatic sync finally deserves its name: once turned on (Data → Account), your data goes up and comes down at the end of each piece you play, when you come back to the app and when the library opens — no more going through "Sync now".',
+      ],
+    },
+  },
+  {
+    date: '2026-08-04',
+    items: {
+      fr: [
+        "Piano Trainer s'appelle désormais Arabesque. Seul le nom change : vos partitions, vos doigtés et tout votre historique de pratique sont intacts, et l'adresse du site reste la même.",
+      ],
+      en: [
+        'Piano Trainer is now called Arabesque. Only the name changes: your scores, your fingerings and your whole practice history are untouched, and the site address stays the same.',
       ],
     },
   },
