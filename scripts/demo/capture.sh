@@ -69,7 +69,10 @@ if source.count(old) != 1:
 path.write_text(source.replace(old, "state.midiInput = { name: 'Roland FP-30' }"))
 PY
 
-( cd "$SITE" && python3 -m http.server "$PORT" > /dev/null 2>&1 ) &
+# exec, so $! is the server's own pid: without it the subshell is what
+# gets killed at exit and python keeps the port, which the next run then
+# mistakes for its own server.
+( cd "$SITE" && exec python3 -m http.server "$PORT" > /dev/null 2>&1 ) &
 SERVER_PID=$!
 # Off the job table, so killing it at exit doesn't print "Terminated" over the
 # last thing the script has to say.

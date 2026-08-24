@@ -14,6 +14,8 @@
 //   demoscroll=<px>  scroll the score by that much once played, to frame the
 //                    music rather than the title block
 //   democlick=<text> click the button whose label contains that text
+//   demotour=1       the App Review walkthrough (see runTour) — record.sh
+//                    bounds its recording with TOUR_TIMEOUT_SECONDS below
 import { extractNotesFromScore } from './js/noteExtraction.js'
 
 const params = new URLSearchParams(location.search)
@@ -21,6 +23,13 @@ const BEATS = Number(params.get('demoplay') || 0)
 const WRONG_AT = Number(params.get('demowrong') || 0)
 const SCROLL = Number(params.get('demoscroll') || 0)
 const CLICK = params.get('democlick')
+const TOUR = params.get('demotour') === '1'
+
+// An upper bound, not a measurement: record.sh stops on a timer because simctl
+// has no way to know the page is done, and a simulator on a loaded machine is
+// slower than the ~32s this takes here. Overrunning costs nothing — simctl
+// drops duplicate frames, so a static tail adds no video.
+export const TOUR_TIMEOUT_SECONDS = 50
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
@@ -85,13 +94,13 @@ async function playOpening() {
 
 // Scroll past the sheet's title block so the frame opens on the music, which is
 // where a player's eyes are once a piece is under way.
-async function scrollToMusic() {
+async function scrollToMusic(px) {
   await waitFor(() => document.querySelector('#score[data-render-complete]'))
   await sleep(400)
   const scroller = [document.querySelector('#score'), document.scrollingElement, document.body].find(
-    (el) => el && el.scrollHeight > el.clientHeight + SCROLL
+    (el) => el && el.scrollHeight > el.clientHeight + px
   )
-  if (scroller) scroller.scrollTop = SCROLL
+  if (scroller) scroller.scrollTop = px
 }
 
 // Open a panel the simulator has no way to tap.
@@ -102,7 +111,69 @@ async function clickByText(text) {
   button?.click()
 }
 
-if (BEATS > 0 || SCROLL > 0 || CLICK) {
+// The walkthrough App Review is pointed at, since the app cannot be exercised
+// without a MIDI keyboard and the reviewer has none.
+//
+// It is deliberately not a highlight reel: it shows the app accepting correct
+// notes, then *refusing* a wrong one — the sequence visibly stalls, because in
+// free mode a wrong note colours nothing and does not advance — then resuming.
+// That stall is the proof that something is being checked.
+async function runTour() {
+  const osmd = await waitFor(() => window.osmdInstance)
+  await waitFor(() => document.querySelector('#score[data-render-complete]'))
+  await sleep(1200)
+  await scrollToMusic(185)
+  await sleep(1200)
+
+  const beats = beatsOf(osmd)
+  const strikeBeat = async (beat, holdMs = 140) => {
+    const midi = [...new Set(beat.notes.map((n) => n.midiNumber).filter(Boolean))]
+    if (midi.length) await strike(midi, holdMs)
+  }
+
+  // Played at a human pace rather than as fast as the loop allows: a reviewer
+  // has to be able to see each note land.
+  for (const beat of beats.slice(0, 12)) {
+    await strikeBeat(beat)
+    await sleep(560)
+  }
+
+  // The wrong note, and the stall it causes.
+  const next = beats[12]
+  const wrong = [...new Set(next.notes.map((n) => n.midiNumber).filter(Boolean))][0]
+  if (wrong) {
+    await strike([wrong + 1], 200)
+    await sleep(2200)
+    await strike([wrong - 2], 200)
+    await sleep(2200)
+  }
+
+  // The right one; the piece moves on again.
+  for (const beat of beats.slice(12, 18)) {
+    await strikeBeat(beat)
+    await sleep(560)
+  }
+  await sleep(1200)
+
+  // What all that playing was recorded as.
+  await clickByText('Historique')
+  await sleep(6500)
+  document.querySelector('dialog[open] [rel="prev"]')?.click()
+  await sleep(1200)
+
+  // And the mode that drills a measure until it is clean.
+  await clickByText('Mode Entraînement')
+  await sleep(4000)
+}
+
+if (TOUR) {
+  if (!document.cookie.includes('test-env')) {
+    document.cookie = 'test-env=true; path=/'
+    location.reload()
+  } else {
+    await runTour()
+  }
+} else if (BEATS > 0 || SCROLL > 0 || CLICK) {
   // The mock backend only takes over when the app thinks it is under test, and
   // midi.js decides which one to connect at load — so the cookie has to be set
   // before that, which costs one reload.
@@ -111,7 +182,7 @@ if (BEATS > 0 || SCROLL > 0 || CLICK) {
     location.reload()
   } else {
     if (BEATS > 0) await playOpening()
-    if (SCROLL > 0) await scrollToMusic()
+    if (SCROLL > 0) await scrollToMusic(SCROLL)
     if (CLICK) {
       await sleep(500)
       await clickByText(CLICK)
