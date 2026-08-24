@@ -25,7 +25,7 @@
 
       <!-- Local backup -->
       <article class="pt-card pt-stack">
-        <h2 x-text="$t('data.localHeading')">Sauvegarde locale</h2>
+        <h2 x-text="$t('data.localHeading')">Sauvegarde dans un fichier</h2>
         <p class="pt-hint" x-text="$t('data.localIntro')"></p>
         <div class="pt-data-actions">
           <button type="button" class="outline secondary" @click="exportBackup()" x-text="$t('library.exportBackup')">📤 Exporter sauvegarde</button>
@@ -36,7 +36,7 @@
 
       <!-- Account / cloud -->
       <article class="pt-card pt-stack">
-        <h2 x-text="$t('data.accountHeading')">Compte</h2>
+        <h2 x-text="$t('data.accountHeading')">Synchronisation entre appareils</h2>
 
         <template x-if="!cloudConfigured">
           <p class="pt-hint" x-text="$t('data.cloudUnavailable')">La synchronisation cloud n'est pas configurée.</p>
@@ -104,7 +104,7 @@
               </p>
 
               <div class="pt-data-actions">
-                <button type="button" @click="syncNow()" :aria-busy="syncStatus === 'syncing'" :disabled="syncStatus === 'syncing'" x-text="$t('data.syncNow')">Synchroniser maintenant</button>
+                <button type="button" class="outline secondary" @click="syncNow()" :aria-busy="syncStatus === 'syncing'" :disabled="syncStatus === 'syncing'" x-text="$t('data.syncNow')">Synchroniser maintenant</button>
                 <button type="button" class="outline secondary" @click="signOut()" x-text="$t('data.signOut')">Se déconnecter</button>
               </div>
 
