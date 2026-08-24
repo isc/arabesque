@@ -42,8 +42,6 @@ export default {
     searchAria: 'Rechercher une partition',
     loadScore: '📄 Charger une partition',
     changelog: '✨ Nouveautés',
-    changelogAria: 'Nouveautés',
-    changelogAriaNew: 'Nouveautés (nouvelles entrées)',
     feedback: '💬 Avis',
     filterAll: 'Tous',
     allComposers: 'Tous compositeurs',

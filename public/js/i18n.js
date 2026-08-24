@@ -41,7 +41,7 @@ export function locale() {
   return lang === 'fr' ? 'fr-FR' : 'en-US'
 }
 
-export function setLang(next) {
+function setLang(next) {
   if (!SUPPORTED.includes(next) || next === lang) return
   try {
     localStorage.setItem(STORAGE_KEY, next)
@@ -80,7 +80,7 @@ const ATTR_KEYS = ['placeholder', 'aria-label', 'title', 'alt', 'content']
 // Fill static DOM. [data-i18n] sets textContent, [data-i18n-html] sets innerHTML
 // (for strings with inline markup like <code>), [data-i18n-<attr>] sets that
 // attribute. Safe to call repeatedly and on any subtree.
-export function applyTranslations(root = document) {
+function applyTranslations(root = document) {
   root.querySelectorAll('[data-i18n]').forEach((el) => {
     el.textContent = t(el.getAttribute('data-i18n'))
   })

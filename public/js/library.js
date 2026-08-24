@@ -253,7 +253,6 @@ export function libraryApp() {
     // Clicking the same value clears the filter — natural toggle for pills.
     setStatusFilter(status)     { this.statusFilter   = (this.statusFilter   === status)   ? '' : status },
     setComposerFilter(composer) { this.composerFilter = (this.composerFilter === composer) ? '' : composer },
-    setPeriodFilter(period)     { this.periodFilter   = (this.periodFilter   === period)   ? '' : period },
     setFocusFilter(focus)       { this.focusFilter    = (this.focusFilter    === focus)    ? '' : focus },
 
     syncUrl() {

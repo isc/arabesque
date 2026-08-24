@@ -201,7 +201,7 @@ export function scheduleCursorAdvances(cursor, cursorTimes, { centerOnCursor = f
   }, t))
 }
 
-export function syncCursorStyle(cursor) {
+function syncCursorStyle(cursor) {
   const el = cursor.cursorElement
   if (!el) return
   el.style.height = el.getAttribute('height') + 'px'
