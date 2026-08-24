@@ -283,16 +283,6 @@ export function initStorage() {
       }
     },
 
-    async clearAll() {
-      await ensureDb()
-      const stores = [SESSIONS_STORE, AGGREGATES_STORE, FINGERINGS_STORE]
-      const transaction = db.transaction(stores, 'readwrite')
-      for (const storeName of stores) {
-        transaction.objectStore(storeName).clear()
-      }
-      await promisifyTransaction(transaction)
-    },
-
     // Wipe only the aggregates store. Aggregates are derived from sessions, so
     // cloud sync rebuilds them from scratch after pulling new sessions.
     async clearAggregates() {

@@ -26,7 +26,7 @@ export function onIdle(fn) {
 // breathing — otherwise the modebar clips them right where the eyes look.
 const STICKY_BREATHING_PX = 28
 
-export function getStickyOffset() {
+function getStickyOffset() {
   let offset = STICKY_BREATHING_PX
   for (const el of document.querySelectorAll('.pt-topbar, .pt-modebar, .pt-context')) {
     if (getComputedStyle(el).display === 'none') continue

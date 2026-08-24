@@ -42,8 +42,6 @@ export default {
     searchAria: 'Search for a score',
     loadScore: '📄 Load a score',
     changelog: '✨ What’s new',
-    changelogAria: 'What’s new',
-    changelogAriaNew: 'What’s new (new entries)',
     feedback: '💬 Feedback',
     filterAll: 'All',
     allComposers: 'All composers',
