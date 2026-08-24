@@ -25,7 +25,7 @@ class StrictPlaythroughTest < CapybaraTestBase
     start_strict_mode
 
     with_clock_control do
-      click_on '▶ Démarrer'
+      trigger_click_on('▶ Démarrer')
 
       # Sync on the engine opening the timing window (cursor arrival at T=2s).
       advance_clock(2000)
@@ -53,7 +53,7 @@ class StrictPlaythroughTest < CapybaraTestBase
     start_strict_mode
 
     with_clock_control do
-      click_on '▶ Démarrer'
+      trigger_click_on('▶ Démarrer')
 
       # Count-in 2s + off-tempo window 450ms + 300ms tail.
       advance_clock(3000)
@@ -73,7 +73,7 @@ class StrictPlaythroughTest < CapybaraTestBase
     start_strict_mode
 
     with_clock_control do
-      click_on '▶ Démarrer'
+      trigger_click_on('▶ Démarrer')
 
       # First pass: play m1 (C4), m2 (D4), m3 (E4) correctly. Each is a whole
       # note → 2s/measure at BPM=120. Land exactly on T=2,4,6.
