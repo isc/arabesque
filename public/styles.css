@@ -867,9 +867,15 @@ button.pt-topbar__pill:disabled { opacity: 0.4; cursor: default; }
    narrower than the viewport, centred by its auto margins), so a narrow page
    has to restore the gutters itself — as .pt-landing does. */
 .pt-data-page,
-.pt-practice-page {
+.pt-practice-page,
+.pt-prose {
   padding-inline: var(--pt-space-4);
   padding-block: var(--pt-space-5) var(--pt-space-8);
+}
+/* Card pages stack their cards; .pt-prose is left out — its rhythm comes from
+   the headings, not from a flex gap. */
+.pt-data-page,
+.pt-practice-page {
   display: flex;
   flex-direction: column;
   gap: var(--pt-space-4);
@@ -877,6 +883,10 @@ button.pt-topbar__pill:disabled { opacity: 0.4; cursor: default; }
 .pt-data-page { --pt-page-max: 720px; }
 /* Wide enough that a full 53-column year fits without scrolling on a laptop. */
 .pt-practice-page { --pt-page-max: 1080px; }
+/* Long-form text pages (privacy, support): the data page's reading measure. */
+.pt-prose { --pt-page-max: 720px; }
+.pt-prose h2 { margin-block: var(--pt-space-8) var(--pt-space-3); font-size: 1.25rem; }
+.pt-prose p { margin-block: 0 var(--pt-space-3); max-width: 68ch; }
 .pt-data-actions { display: flex; flex-wrap: wrap; gap: var(--pt-space-2); align-items: center; }
 .pt-data-actions button, .pt-data-actions [role="button"] { margin: 0; width: auto; }
 .pt-account-form { display: flex; flex-wrap: wrap; gap: var(--pt-space-2); align-items: center; }
@@ -1863,6 +1873,9 @@ a.pt-hero__visual:hover {
   border-top: 1px solid var(--pt-border);
   margin-top: var(--pt-space-8);
 }
+/* Footer links sit on their own line under the tagline, wrapping to one line
+   each on a narrow screen rather than crowding it. */
+.pt-footer-links { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--pt-space-4); margin-top: var(--pt-space-2); }
 
 @media (max-width: 720px) {
   .pt-hero { gap: var(--pt-space-6); padding-block: var(--pt-space-6) var(--pt-space-8); }
