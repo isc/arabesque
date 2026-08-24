@@ -4,6 +4,13 @@
 
 **IMPORTANT:** When merging PRs, always use squash merge: `gh pr merge --squash`
 
+**IMPORTANT:** Before committing and pushing a code change, run `/simplify`
+(a review on four angles: reuse, simplification, efficiency, altitude). Apply
+the findings that hold, skip the false positives, then commit. Skip the whole
+step for purely trivial changes — docs, this file, a version bump, an isolated
+typo fix. For a very short diff that only reflects code already reviewed, a
+self-review on the four angles is enough; no need to spawn the subagents again.
+
 **IMPORTANT:** When running tests, ALWAYS save output to temp file (never pipe to tail):
 ```bash
 bundle exec rake test:parallel > tmp/test-output.txt 2>&1; cat tmp/test-output.txt
