@@ -28,14 +28,28 @@ Capybara.register_driver(:cuprite) do |app|
     # shows up locally when eight workers start their browsers at once. This is
     # a ceiling on how long we wait for a process to exist, so raising it costs
     # nothing when the machine is healthy and buys a green run when it isn't.
-    process_timeout: 60
+    process_timeout: 60,
+    # How long one CDP command may take — a different clock from both
+    # process_timeout (waiting for Chrome to exist) and default_max_wait_time
+    # (Capybara re-querying until a selector matches). Ferrum defaults it to
+    # **5 seconds**, and `visit` is one such command: it waits for the page to
+    # load. score.html pulls 1.8 MB of vendored JS, OSMD alone being 1.3 MB, and
+    # a shared CI runner does not always parse and render that inside 5s — which
+    # surfaces as `Ferrum::TimeoutError: Timed out waiting for response`, a
+    # failure with no test assertion anywhere near it. Locally the same render
+    # settles in ~0.6s, so 30 is out of reach of a healthy machine and never
+    # paid: like the ceilings above, it only bounds how long we are willing to
+    # wait, not how long we do.
+    timeout: 30
   )
 end
 Capybara.default_driver = :cuprite
 # Cold-start OSMD renders are borderline on slower CI runners (the default 2s
-# was already raised to 5s); the heavier OSMD 1.9.9 bundle pushed some renders
-# past 5s, so give selector waits more headroom.
-Capybara.default_max_wait_time = 10
+# was already raised to 5s, then to 10s); a cold render still overran 10s on a
+# shared runner — "expected to find css svg g.vf-stavenote 4 times but there
+# were no matches" — so give selector waits more headroom again. A passing
+# assertion returns as soon as it matches, so this costs nothing when green.
+Capybara.default_max_wait_time = 20
 Capybara.enable_aria_label = true
 
 # Clean up download directory at exit
@@ -104,12 +118,33 @@ class CapybaraTestBase < Minitest::Test
     cdp = page.driver.browser.page
     # `pause` parks virtual time; every later advance is explicit. Timers keep
     # firing in order, they just wait for a budget to be granted.
+    #
+    # Interactions inside the block must use trigger_click_on, never click_on.
     cdp.command('Emulation.setVirtualTimePolicy', policy: 'pause')
     yield
   ensure
     # Hand the page back to the wall clock so teardown and any later
     # interaction behave normally.
     cdp&.command('Emulation.setVirtualTimePolicy', policy: 'advance')
+  end
+
+  # Click a button by its label without going through the browser's real input
+  # pipeline.
+  #
+  # Required inside with_clock_control, and the reason is worth stating: Chrome
+  # only answers Input.dispatchMouseEvent once the renderer has produced a
+  # frame, and parked virtual time produces none. A real click there therefore
+  # waits on a frame that cannot arrive until the clock moves — which is the
+  # very thing the click was going to start. It resolves only if a frame
+  # happened to already be in flight, so it passes on an idle machine and hangs
+  # on a loaded one, surfacing as `Ferrum::TimeoutError` with no assertion
+  # anywhere near it.
+  #
+  # Dispatching the DOM event directly sidesteps the pipeline and spends no
+  # virtual time, so the timing the block exists to control is untouched.
+  # click_measure below already clicks this way.
+  def trigger_click_on(label)
+    find_button(label).trigger('click')
   end
 
   # Advance the parked clock by `ms` of virtual time and block until the page
@@ -256,8 +291,20 @@ class CapybaraTestBase < Minitest::Test
   # Helper to load a score from test fixtures
   def load_score(filename, expected_notes)
     attach_file('musicxml-upload', File.expand_path("fixtures/#{filename}", __dir__))
+    wait_for_score_render(expected_notes)
+  end
+
+  # Block until the score is on screen. Order matters: the app's own
+  # "I am done" flag is waited on FIRST, and the note count only after.
+  #
+  # Each assertion gets its own fresh default_max_wait_time, so gating on the
+  # flag gives a cold render two budgets instead of one — and it fails naming
+  # the thing that was actually late. Counting notes first spends the whole
+  # budget inside an assertion that can only be satisfied once the render is
+  # over anyway, then reports "no matches", which reads like a broken score.
+  def wait_for_score_render(expected_notes = nil)
     assert_selector '#score[data-render-complete]'
-    assert_selector 'svg g.vf-stavenote', count: expected_notes
+    assert_selector 'svg g.vf-stavenote', count: expected_notes if expected_notes
   end
 
   # Helper to click on a measure in the score
@@ -305,3 +352,32 @@ class CapybaraTestBase < Minitest::Test
     [status, midi_note, velocity]
   end
 end
+
+# Pay the browser's cold start before the first assertion instead of inside it.
+#
+# Only ever the FIRST score test of a shard failed — "F................." twice
+# on CI, seventeen passes behind one failure — because that one test alone pays
+# a fresh Chrome, an empty HTTP cache for score.html's 1.8 MB of vendored JS, a
+# cold V8 compile of OSMD's 1.3 MB, and the first layout, all inside its own
+# wait budget. Every later test in the process inherits that work, which is why
+# raising the ceiling only moved the failure from one message to the next.
+#
+# Rendering one small fixture here spends that cost where no assertion is
+# watching: a slow warm-up makes the run longer, never red. Failures are
+# swallowed for the same reason — a warm-up that cannot run leaves the suite
+# exactly where it was, rather than taking every test file down with it.
+#
+# Runs once per process, which is once per worker (rake test:parallel) and once
+# per runner (rake test:shard); both spawn real processes, so each pays its own
+# cold start and each gets its own warm-up.
+def warm_up_browser
+  session = Capybara.current_session
+  session.visit('/score.html?url=/test-fixtures/two-measures.xml')
+  session.assert_selector('#score[data-render-complete]', wait: 120)
+rescue StandardError
+  nil
+ensure
+  Capybara.reset_sessions!
+end
+
+warm_up_browser

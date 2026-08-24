@@ -7,8 +7,7 @@ class PracticeTrackingTest < CapybaraTestBase
 
   def test_score_complete_modal_shows_time_and_ranking
     visit "/score.html?url=/test-fixtures/two-measures.xml"
-    assert_selector 'svg g.vf-stavenote', count: 2
-    assert_selector '#score[data-render-complete]'
+    wait_for_score_render(2)
 
     # First playthrough
     play_notes(%w[C4 D4])
@@ -55,8 +54,7 @@ class PracticeTrackingTest < CapybaraTestBase
   def test_daily_log_shows_practiced_score
     # Play a score to generate practice data
     visit "/score.html?url=/test-fixtures/simple-score.xml"
-    assert_selector 'svg g.vf-stavenote', count: 4
-    assert_selector '#score[data-render-complete]'
+    wait_for_score_render(4)
 
     # Play the complete score (C4, E4, F4, G4)
     play_notes(%w[C4 E4 F4 G4])

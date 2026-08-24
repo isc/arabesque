@@ -427,8 +427,7 @@ class ArabesqueTest < CapybaraTestBase
 
   def test_reinforcement_is_offered_before_the_score_has_been_played_through
     visit '/score.html?url=/test-fixtures/repeat-endings.xml'
-    assert_selector 'svg g.vf-stavenote', count: 4
-    assert_selector '#score[data-render-complete]'
+    wait_for_score_render(4)
 
     # Measure 1 only: a wrong note, then the right one. Three measures still
     # lie ahead — nothing here is a playthrough.
@@ -449,8 +448,7 @@ class ArabesqueTest < CapybaraTestBase
 
   def test_reinforcement_mode_after_playthrough_with_mistakes
     visit '/score.html?url=/test-fixtures/repeat-endings.xml'
-    assert_selector 'svg g.vf-stavenote', count: 4
-    assert_selector '#score[data-render-complete]'
+    wait_for_score_render(4)
 
     # Play with mistakes on measure 1
     # Sequence: C4 -> D4 -> E4 -> C4 -> D4 -> F4
