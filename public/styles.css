@@ -1,6 +1,6 @@
 /* =============================================================================
    Arabesque — Design System
-   Tokens + utility components. Layered on top of Pico CSS reset/typography.
+   Tokens, base layer (reset/typography/controls) and utility components.
    ========================================================================== */
 
 :root {
@@ -88,22 +88,274 @@
   --pt-font-ui: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --pt-font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 
+  /* Form-control surfaces (own values, previously Pico's form-element-*) */
+  --pt-field-bg: #fbfcfc;
+  --pt-field-bg-active: #ffffff;
+  --pt-field-border: #cfd5e2;
+  --pt-field-text: #23262c;
+
+  /* Icons drawn as background images. A data: URI cannot read a custom
+     property, so the stroke colors are literals — keep them in step with
+     --pt-text-subtle / --pt-text-inverse above. */
+  --pt-icon-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%238a90a0' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+  --pt-icon-close: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%238a90a0' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cline x1='18' y1='6' x2='6' y2='18'/%3E%3Cline x1='6' y1='6' x2='18' y2='18'/%3E%3C/svg%3E");
+  --pt-icon-check: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23ffffff' stroke-width='4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='20 6 9 17 4 12'/%3E%3C/svg%3E");
+  /* Self-animating: the keyframes live inside the SVG, so no CSS animation
+     is needed on the element wearing it. */
+  --pt-icon-loading: url("data:image/svg+xml,%3Csvg fill='none' height='24' width='24' viewBox='0 0 24 24' xmlns='http://www.w3.org/2000/svg' %3E%3Cstyle%3E g %7B animation: rotate 2s linear infinite; transform-origin: center center; %7D circle %7B stroke-dasharray: 75,100; stroke-dashoffset: -5; animation: dash 1.5s ease-in-out infinite; stroke-linecap: round; %7D @keyframes rotate %7B 0%25 %7B transform: rotate(0deg); %7D 100%25 %7B transform: rotate(360deg); %7D %7D @keyframes dash %7B 0%25 %7B stroke-dasharray: 1,100; stroke-dashoffset: 0; %7D 50%25 %7B stroke-dasharray: 44.5,100; stroke-dashoffset: -17.5; %7D 100%25 %7B stroke-dasharray: 44.5,100; stroke-dashoffset: -62; %7D %7D %3C/style%3E%3Cg%3E%3Ccircle cx='12' cy='12' r='10' fill='none' stroke='%238a90a0' stroke-width='4' /%3E%3C/g%3E%3C/svg%3E");
 }
 
-/* Override Pico's primary to match our accent. Two traps here, which is why
-   primary buttons were still Pico's teal next to our navy accents:
-   --pico-primary only colors text and links (buttons read the
-   -background/-border pair), and Pico declares its palette on
-   `:root:not([data-theme=dark])`, which outranks a plain `:root` — hence the
-   same selector below. */
-:root:not([data-theme="dark"]), [data-theme="light"] {
-  --pico-primary: var(--pt-accent);
-  --pico-primary-hover: var(--pt-accent-strong);
-  --pico-primary-background: var(--pt-accent);
-  --pico-primary-border: var(--pt-accent);
-  --pico-primary-hover-background: var(--pt-accent-strong);
-  --pico-primary-hover-border: var(--pt-accent-strong);
+/* =============================================================================
+   Base — reset, typography, form controls
+   Everything below this banner used to come from Pico CSS. Only the ~7% of it
+   this app actually exercised is kept, which is why it fits here: the reset,
+   the typographic rhythm, the container, buttons, form controls and the four
+   icons Pico drew as background images (chevron, close, check, spinner).
+   Application rules follow and override freely — nothing here fights back.
+   ========================================================================== */
+
+*, ::before, ::after { box-sizing: border-box; background-repeat: no-repeat; }
+
+:root {
+  -webkit-tap-highlight-color: transparent;
+  text-size-adjust: 100%;
+  text-rendering: optimizeLegibility;
+  overflow-wrap: break-word;
+  tab-size: 4;
 }
+
+body { width: 100%; margin: 0; }
+main { display: block; }
+section { margin-bottom: 1rem; }
+::selection { background: color-mix(in srgb, var(--pt-accent) 25%, transparent); }
+
+/* Typographic rhythm: one bottom margin, no top margin, so stacked blocks
+   never collapse into each other unpredictably. */
+p, ul, ol, dl, table, blockquote, pre, figure, details { margin: 0 0 1rem; }
+ul li { list-style: square; }
+li { margin-bottom: var(--pt-space-1); }
+strong, b { font-weight: bolder; }
+code, kbd, samp, pre {
+  font-family: var(--pt-font-mono);
+  font-size: 0.875em;
+  line-height: initial;
+  border-radius: var(--pt-radius-sm);
+  background: var(--pt-surface-2);
+  color: var(--pt-text-muted);
+}
+code, kbd, samp { display: inline-block; padding: 0.375rem; }
+kbd { font-weight: bolder; }
+pre { overflow: auto; }
+table { width: 100%; }
+th { text-align: left; }
+label { display: block; margin-bottom: 6px; }
+a[role="button"] { display: inline-block; }
+
+/* Centred page column. The gutters exist only below 576px, where the column
+   is full-width; wider than that the auto margins are the gutters. Pages that
+   set their own max-width therefore restore padding-inline themselves. */
+.container { width: 100%; margin-inline: auto; padding-inline: var(--pt-space-4); }
+@media (min-width: 576px) { .container { padding-inline: 0; } }
+
+/* --- Buttons ---------------------------------------------------------------
+   `.outline.secondary` is the only variant the app uses; a plain button is
+   the accent-filled primary. */
+:is(button, [role="button"]) {
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--pt-accent);
+  border-radius: var(--pt-radius-sm);
+  background: var(--pt-accent);
+  color: var(--pt-text-inverse);
+  font-family: inherit;
+  font-size: 1rem;
+  font-weight: 400;
+  line-height: 1.5;
+  letter-spacing: inherit;
+  text-align: center;
+  text-decoration: none;
+  cursor: pointer;
+  user-select: none;
+  transition: background-color var(--pt-transition-fast), border-color var(--pt-transition-fast),
+    color var(--pt-transition-fast), box-shadow var(--pt-transition-fast);
+}
+:is(button, [role="button"]):hover {
+  background: var(--pt-accent-strong);
+  border-color: var(--pt-accent-strong);
+}
+/* A submit button is a form block: full width, with the same bottom margin as
+   the fields above it. Toolbars override both. */
+button[type="submit"] { width: 100%; margin-bottom: 1rem; }
+:is(button, [role="button"]).outline {
+  background: transparent;
+  color: var(--pt-accent);
+}
+:is(button, [role="button"]).outline:hover {
+  background: transparent;
+  border-color: var(--pt-accent-strong);
+  color: var(--pt-accent-strong);
+}
+:is(button, [role="button"]).secondary {
+  border-color: var(--pt-text-muted);
+  background: var(--pt-text-muted);
+  color: var(--pt-text-inverse);
+}
+:is(button, [role="button"]).outline.secondary {
+  background: transparent;
+  color: var(--pt-text-muted);
+}
+:is(button, [role="button"]).outline.secondary:hover {
+  background: transparent;
+  border-color: var(--pt-text);
+  color: var(--pt-text);
+}
+:is(button, [role="button"]):disabled,
+:is(button, [role="button"])[aria-disabled="true"] {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+/* Keyboard focus stays visible on buttons; the base removes it from fields in
+   favour of the ring below. */
+:is(button, [role="button"]):focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--pt-accent) 45%, transparent);
+  outline-offset: 2px;
+}
+
+/* --- Form controls --------------------------------------------------------- */
+input, optgroup, select, textarea {
+  margin: 0;
+  font-family: inherit;
+  font-size: 1rem;
+  line-height: 1.5;
+  letter-spacing: inherit;
+}
+input:not([type="checkbox"], [type="radio"]), select, textarea {
+  display: block;
+  width: 100%;
+  margin-bottom: 1rem;
+}
+/* A field wrapped in its own <label> sits just under the label's text. */
+label > input, label > select, label > textarea { margin-top: var(--pt-space-1); }
+/* Helper text under a field, pulled up against it. */
+:where(input, select, textarea, fieldset) + small {
+  display: block;
+  width: 100%;
+  margin-top: -12px;
+  margin-bottom: 1rem;
+  color: var(--pt-text-muted);
+}
+input:not([type="checkbox"], [type="radio"], [type="range"], [type="file"]), select, textarea {
+  appearance: none;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--pt-field-border);
+  border-radius: var(--pt-radius-sm);
+  background-color: var(--pt-field-bg);
+  color: var(--pt-field-text);
+  transition: background-color var(--pt-transition-fast), border-color var(--pt-transition-fast),
+    color var(--pt-transition-fast), box-shadow var(--pt-transition-fast);
+}
+input:not([type="checkbox"], [type="radio"], [type="range"], [type="file"]):focus, select:focus, textarea:focus {
+  outline: none;
+  border-color: var(--pt-accent);
+  background-color: var(--pt-field-bg-active);
+  box-shadow: 0 0 0 1px var(--pt-accent);
+}
+::placeholder { color: var(--pt-text-muted); opacity: 1; }
+input:disabled, select:disabled, textarea:disabled { opacity: 0.5; cursor: not-allowed; }
+select { cursor: pointer; text-transform: none; }
+/* The chevron is a background image, so the right padding has to leave room
+   for it. */
+select:not([multiple], [size]) {
+  padding-inline-end: calc(1rem + 1.5rem);
+  background-image: var(--pt-icon-chevron);
+  background-position: center right 0.75rem;
+  background-size: 1rem auto;
+}
+[type="checkbox"], [type="radio"] {
+  appearance: none;
+  width: 1.25em;
+  height: 1.25em;
+  margin-top: -0.125em;
+  margin-inline-end: 0.5em;
+  border: 2px solid var(--pt-field-border);
+  border-radius: var(--pt-radius-sm);
+  background-color: transparent;
+  vertical-align: middle;
+  cursor: pointer;
+}
+[type="radio"] { border-radius: 50%; }
+[type="checkbox"]:checked, [type="radio"]:checked {
+  border-color: var(--pt-accent);
+  background-color: var(--pt-accent);
+  background-image: var(--pt-icon-check);
+  background-position: center;
+  background-size: 0.75em auto;
+}
+[type="radio"]:checked {
+  background-image: none;
+  box-shadow: inset 0 0 0 0.25em var(--pt-bg-elevated);
+}
+
+/* --- Busy state ------------------------------------------------------------
+   The spinner animates itself inside the SVG. `filter` flips it to white on
+   filled buttons, where the muted stroke would disappear. */
+[aria-busy="true"]:not(input, select, textarea, html, form)::before {
+  content: "";
+  display: inline-block;
+  width: 1em;
+  height: 1em;
+  background-image: var(--pt-icon-loading);
+  background-size: 1em auto;
+  vertical-align: -0.125em;
+}
+[aria-busy="true"]:not(input, select, textarea, html, form):not(:empty)::before {
+  margin-inline-end: var(--pt-space-2);
+}
+[aria-busy="true"]:is(button, [role="button"]):not(.outline)::before {
+  filter: brightness(0) invert(1);
+}
+
+/* --- Disclosure ----------------------------------------------------------- */
+summary {
+  line-height: 1rem;
+  list-style-type: none;
+  cursor: pointer;
+  transition: color var(--pt-transition-fast);
+}
+summary::-webkit-details-marker { display: none; }
+details summary::after {
+  content: "";
+  display: block;
+  float: right;
+  width: 1rem;
+  height: 1rem;
+  margin-inline-start: var(--pt-space-2);
+  transform: rotate(-90deg);
+  background-image: var(--pt-icon-chevron);
+  background-position: right center;
+  background-size: 1rem auto;
+  transition: transform var(--pt-transition-fast);
+}
+details[open] > summary { margin-bottom: 1rem; }
+details[open] > summary::after { transform: rotate(0); }
+
+/* Modal close affordance: a bare button wearing the close icon. */
+dialog > article :is(a, button)[rel="prev"] {
+  display: block;
+  width: 1rem;
+  height: 1rem;
+  margin-inline-start: auto;
+  padding: 0;
+  border: none;
+  background-color: transparent;
+  background-image: var(--pt-icon-close);
+  background-position: center;
+  background-size: auto 1rem;
+  opacity: 0.5;
+  transition: opacity var(--pt-transition-fast);
+}
+dialog > article :is(a, button)[rel="prev"]:hover { opacity: 1; background-color: transparent; }
 
 /* Tighter base */
 /* The background goes on html as well as body: body only grows to fit its
@@ -131,11 +383,12 @@ main.container { padding-block: var(--pt-space-4); max-width: var(--pt-page-max,
    between page-level sections so margins on individual blocks don't fight). */
 .pt-page { display: flex; flex-direction: column; gap: var(--pt-space-4); }
 
-/* Headings tighter than Pico defaults */
-h1 { font-size: 1.6rem; font-weight: 600; margin: 0 0 var(--pt-space-3); letter-spacing: -0.01em; }
-h2 { font-size: 1.2rem; font-weight: 600; margin: 0 0 var(--pt-space-3); }
-h3 { font-size: 1rem; font-weight: 600; margin: 0 0 var(--pt-space-2); }
-h4 { font-size: 0.95rem; font-weight: 600; margin: 0 0 var(--pt-space-2); }
+/* Headings tighter than the base scale */
+h1 { font-size: 1.6rem; font-weight: 600; line-height: 1.125; margin: 0 0 var(--pt-space-3); letter-spacing: -0.01em; }
+h2 { font-size: 1.2rem; font-weight: 600; line-height: 1.15; margin: 0 0 var(--pt-space-3); }
+h3 { font-size: 1rem; font-weight: 600; line-height: 1.175; margin: 0 0 var(--pt-space-2); }
+h4 { font-size: 0.95rem; font-weight: 600; line-height: 1.2; margin: 0 0 var(--pt-space-2); }
+h5, h6 { font-size: 0.9rem; font-weight: 600; line-height: 1.225; margin: 0 0 var(--pt-space-2); }
 
 a { color: var(--pt-accent); text-decoration: none; }
 a:hover { text-decoration: underline; }
@@ -249,7 +502,7 @@ button.pt-topbar__pill:disabled { opacity: 0.4; cursor: default; }
   cursor: pointer;
   font-size: 1.05rem;
   line-height: 1;
-  margin: 0; /* reset Pico's default button margin-bottom (else it offsets the icon) */
+  margin: 0;
   padding: 0;
 }
 .pt-icon-button:hover { background: var(--pt-surface-2); border-color: var(--pt-border-strong); color: var(--pt-text); }
@@ -272,8 +525,8 @@ button.pt-topbar__pill:disabled { opacity: 0.4; cursor: default; }
   padding: var(--pt-space-2) var(--pt-space-4);
   flex-wrap: wrap;
 }
-/* Neutralize Pico's button/input/label defaults inside our toolbars.
-   Pico's form-group margin-bottoms (16px on <div role="group">, 6px on
+/* Neutralize the base button/input/label defaults inside our toolbars.
+   The base form-group margin-bottoms (16px on <div role="group">, 6px on
    <label>) otherwise interact with flex-wrap to push items to different
    vertical positions even when they share the same height. */
 .pt-modebar button, .pt-topbar button { margin: 0; width: auto; }
@@ -283,7 +536,7 @@ button.pt-topbar__pill:disabled { opacity: 0.4; cursor: default; }
 
 /* Normalize control heights so segmented / BPM / hands / action button
    share a baseline. Keeps the toolbar visually a single horizontal band.
-   Inner items are explicitly sized so Pico's button paddings don't make
+   Inner items are explicitly sized so the base button paddings don't make
    them overflow the outer container. */
 .pt-modebar > .pt-segmented,
 .pt-modebar > .pt-hands,
@@ -580,7 +833,7 @@ button.pt-topbar__pill:disabled { opacity: 0.4; cursor: default; }
 /* =============================================================================
    Data page (backup + account)
    ========================================================================== */
-/* Pico drops the container's inline padding above 576px (it assumes a box
+/* The container drops its inline padding above 576px (it assumes a box
    narrower than the viewport, centred by its auto margins), so a narrow page
    has to restore the gutters itself — as .pt-landing does. */
 .pt-data-page {
@@ -595,7 +848,7 @@ button.pt-topbar__pill:disabled { opacity: 0.4; cursor: default; }
 .pt-data-actions button, .pt-data-actions [role="button"] { margin: 0; width: auto; }
 .pt-account-form { display: flex; flex-wrap: wrap; gap: var(--pt-space-2); align-items: center; }
 /* Any input, not just the email one: the sign-in code field is type="text" and
-   would otherwise keep Pico's full width and bottom margin, wrapping the
+   would otherwise keep the base full width and bottom margin, wrapping the
    button onto its own line. */
 .pt-account-form input { margin: 0; flex: 1 1 240px; }
 /* The code is 8 digits: a field as wide as the email one reads as a mistake. */
@@ -665,6 +918,7 @@ button.pt-topbar__pill:disabled { opacity: 0.4; cursor: default; }
   display: flex;
   flex-direction: column;
   gap: var(--pt-space-2);
+  box-shadow: var(--pt-shadow-sm);
   transition: border-color var(--pt-transition-fast), box-shadow var(--pt-transition-fast);
 }
 /* Lift only in the browsable grid: elsewhere a card is a static section, and
@@ -678,7 +932,7 @@ button.pt-topbar__pill:disabled { opacity: 0.4; cursor: default; }
 .pt-stack > * { margin: 0; }
 
 
-/* Table layout (restyled from Pico defaults). `overflow: hidden` on the
+/* Table layout. `overflow: hidden` on the
    table would clip rounded corners cleanly but it also breaks sticky
    thead, so the corner radii are applied directly to the four corner
    cells instead. */
@@ -689,7 +943,6 @@ table {
   border-collapse: separate;
   border-spacing: 0;
   font-size: 0.92rem;
-  --pico-spacing: 0;
 }
 table thead th:first-child { border-top-left-radius: var(--pt-radius-lg); }
 table thead th:last-child  { border-top-right-radius: var(--pt-radius-lg); }
@@ -939,7 +1192,7 @@ table tbody td:nth-child(2) a:hover { color: var(--pt-accent); }
    scoreLoading and x-show takes the card over — hence no !important here.
 
    The spinner box is sized to roughly where the score will be rather than to
-   the spinner itself, so the page holds its shape while it loads. Pico draws
+   the spinner itself, so the page holds its shape while it loads. The base draws
    the aria-busy spinner at 1em, hence the font-size. */
 .pt-score-loading {
   display: none;
@@ -992,23 +1245,30 @@ html[data-loading-score] .pt-onboarding { display: none; }
 .pt-onboarding__cta input[type="file"] { position: absolute; left: -9999px; }
 
 /* =============================================================================
-   Modals (override Pico's <dialog>)
+   Modals (<dialog>)
    ========================================================================== */
 
-/* Pico opens dialogs by setting the [open] attribute (no showModal()), so
+/* Dialogs are opened by setting the [open] attribute (no showModal()), so
    ::backdrop never fires. We render the backdrop ourselves via a fixed
    overlay anchored to <html> using the [open] presence. */
 dialog:not([open]) { display: none; }
+/* The UA stylesheet gives <dialog> its own color, background and border, so
+   the element has to be told to inherit the page's text color — otherwise
+   every modal renders black on its own canvas. */
+dialog { color: inherit; }
+/* The dialog itself fills the viewport and only centres its card; the card's
+   own max-width is what decides how wide a modal looks, and the padding is
+   what keeps it off the screen edges on a phone. */
 dialog[open] {
   position: fixed;
   inset: 0;
   z-index: var(--pt-z-modal);
-  margin: auto;
+  margin: 0;
   border: none;
   background: transparent;
-  padding: 0;
-  width: min(560px, calc(100vw - 32px));
-  max-height: calc(100vh - 64px);
+  padding: var(--pt-space-4);
+  width: 100%;
+  height: 100%;
   overflow: visible;
   display: flex;
   align-items: center;
@@ -1022,11 +1282,14 @@ html:has(dialog[open])::before {
   position: fixed;
   inset: 0;
   background: rgba(15, 18, 30, 0.45);
+  /* The blur is what keeps a modal legible over a full page of notation. */
+  backdrop-filter: blur(3px);
   z-index: calc(var(--pt-z-modal) - 1);
 }
 html:has(dialog[open]) { overflow: hidden; }
 dialog > article {
   margin: 0;
+  max-width: 700px;
   padding: var(--pt-space-5) var(--pt-space-6);
   border: none;
   border-radius: var(--pt-radius-lg);
@@ -1066,7 +1329,7 @@ dialog > article > footer {
 }
 dialog > article > footer button { margin: 0; }
 
-/* Feedback modal helper text + error banner (form itself is plain Pico). */
+/* Feedback modal helper text + error banner (the form itself is unstyled). */
 .pt-feedback-intro { margin: 0 0 var(--pt-space-4); color: var(--pt-text-muted); }
 .pt-feedback-privacy { display: block; margin-top: var(--pt-space-3); color: var(--pt-text-subtle); }
 .pt-feedback-error {
@@ -1300,7 +1563,7 @@ img[id^="cursorImg"] { scroll-margin-top: var(--pt-sticky-offset, 100px); }
 /* =============================================================================
    Landing page (/) — pitch + onboarding shown to first-time visitors.
    ========================================================================== */
-/* Pico zeroes the container's inline padding from the 576px breakpoint up,
+/* The container's inline padding is zeroed from the 576px breakpoint up,
    assuming the box is narrower than the viewport and centered (margin auto
    supplies the gutters). Below 960px that assumption breaks — the container
    is still full-width — so restore the padding explicitly, same as
@@ -1325,12 +1588,12 @@ img[id^="cursorImg"] { scroll-margin-top: var(--pt-sticky-offset, 100px); }
 .pt-landing__nav a[role="button"] { margin: 0; }
 
 /* FR/EN language switch (shared across pages). width:auto + flex:none override
-   Pico's full-width [role="group"] button-group styling. */
+   the base full-width [role="group"] button-group styling. */
 .pt-langswitch {
   display: inline-flex;
   width: auto;
   flex: 0 0 auto;
-  /* Zero Pico's [role="group"] margin-bottom — in the centred header row it
+  /* Zero the [role="group"] margin-bottom — in the centred header row it
      would shift the pill upward, breaking vertical alignment with the buttons. */
   margin: 0;
   border: 1px solid var(--pt-border);

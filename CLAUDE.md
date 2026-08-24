@@ -88,4 +88,8 @@ refs, then `click`/`fill`/`eval` against them.
 ## Code Style
 
 - Focus on writing DRY code
-- Use PicoCSS as much as possible, avoid custom CSS
+- `public/styles.css` is the whole stylesheet, in three layers: design tokens,
+  a base layer (reset, typography, container, buttons, form controls — what
+  Pico CSS used to supply), then the application's own `.pt-*` components.
+  Reach for an existing token or component before adding CSS, and put anything
+  generic enough to be reused in the base layer rather than in a page rule.
