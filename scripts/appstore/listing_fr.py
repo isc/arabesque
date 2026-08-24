@@ -7,7 +7,7 @@ this module on its own checks every field against Apple's length limits.
 SUBTITLE = "Le piano, note après note"  # 30 max
 
 DESCRIPTION = """\
-Branchez votre clavier MIDI, ouvrez une partition et jouez. Arabesque écoute ce \
+Connectez votre clavier MIDI, ouvrez une partition et jouez. Arabesque écoute ce \
 que vous jouez et colore chaque note en direct : réussie, attendue, manquée. \
 Vous voyez vos erreurs sans lever les yeux de la partition.
 
