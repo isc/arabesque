@@ -273,11 +273,11 @@ export default {
   landing: {
     pageTitle: 'Arabesque · Apprenez le piano avec un retour en temps réel',
     metaDescription:
-      'Branchez votre clavier MIDI, ouvrez une partition et jouez : Arabesque colore les notes en temps réel, suit votre pratique et vous aide à progresser sur un répertoire classique.',
+      'Connectez votre clavier MIDI, ouvrez une partition et jouez : Arabesque colore les notes en temps réel, suit votre pratique et vous aide à progresser sur un répertoire classique.',
     heroAria: 'Ouvrir Arabesque',
     heroTitle: 'Travaillez votre piano avec un retour en temps réel.',
     heroLead:
-      "Branchez votre clavier MIDI, ouvrez une partition et jouez. Chaque note se colore selon que vous l'avez réussie, manquée ou anticipée — et votre progression se note toute seule, mesure après mesure.",
+      "Connectez votre clavier MIDI, ouvrez une partition et jouez. Chaque note se colore selon que vous l'avez réussie, manquée ou anticipée — et votre progression se note toute seule, mesure après mesure.",
     featuresTitle: 'Tout ce qu’il faut pour pratiquer sérieusement',
     featuresSubtitle: 'Un atelier de travail dans le navigateur, sans installation ni compte.',
     f1Title: 'Clavier MIDI en un clic',
@@ -299,7 +299,7 @@ export default {
       '70+ partitions du domaine public, des inventions de Bach au Hanon, recherchables en jouant leurs premières notes.',
     howTitle: 'Comment démarrer',
     howSubtitle: 'Trois étapes, et vous jouez.',
-    step1Title: 'Branchez votre clavier',
+    step1Title: 'Connectez votre clavier',
     step1Body:
       'Reliez un clavier MIDI en USB ou en Bluetooth et autorisez l’accès quand le navigateur le demande. Pas de clavier ? Vous pouvez aussi suivre la partition à l’écran.',
     step2Title: 'Choisissez une partition',

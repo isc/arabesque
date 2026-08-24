@@ -273,11 +273,11 @@ export default {
   landing: {
     pageTitle: 'Arabesque · Learn the piano with real-time feedback',
     metaDescription:
-      'Plug in your MIDI keyboard, open a score and play: Arabesque colours the notes in real time, tracks your practice and helps you progress through a classical repertoire.',
+      'Connect your MIDI keyboard, open a score and play: Arabesque colours the notes in real time, tracks your practice and helps you progress through a classical repertoire.',
     heroAria: 'Open Arabesque',
     heroTitle: 'Practise the piano with real-time feedback.',
     heroLead:
-      'Plug in your MIDI keyboard, open a score and play. Every note lights up depending on whether you nailed it, missed it or jumped ahead — and your progress is logged on its own, bar after bar.',
+      'Connect your MIDI keyboard, open a score and play. Every note lights up depending on whether you nailed it, missed it or jumped ahead — and your progress is logged on its own, bar after bar.',
     featuresTitle: 'Everything you need to practise seriously',
     featuresSubtitle: 'A practice workshop in your browser — no install, no account.',
     f1Title: 'MIDI keyboard in one click',
@@ -299,7 +299,7 @@ export default {
       '70+ public-domain scores, from Bach inventions to Hanon, searchable by playing their opening notes.',
     howTitle: 'How to get started',
     howSubtitle: 'Three steps, and you’re playing.',
-    step1Title: 'Plug in your keyboard',
+    step1Title: 'Connect your keyboard',
     step1Body:
       'Connect a MIDI keyboard over USB or Bluetooth and allow access when the browser asks. No keyboard? You can still follow the score on screen.',
     step2Title: 'Pick a score',
