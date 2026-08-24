@@ -101,6 +101,12 @@ Both seed a practice history and play a piece through the mock MIDI input, and
 both work on a throwaway copy of `public/` — no demo hook ever ships. See
 `scripts/demo/README.md`, which also has the wording for the review notes.
 
+`scripts/appstore/push_listing.py` writes the listing itself — description,
+keywords, URLs, categories, age rating, screenshots — through the App Store
+Connect API, from the copy in `scripts/appstore/listing_fr.py`. It never
+submits for review, and App Privacy has no API and stays manual. Credentials
+live outside the repo; see `scripts/appstore/README.md`.
+
 ## Code Style
 
 - Focus on writing DRY code
