@@ -92,6 +92,15 @@ playwright-cli -s=pt close
 full command list. Interactive exploration works the same way — `snapshot` to get element
 refs, then `click`/`fill`/`eval` against them.
 
+## App Store screenshots and review video
+
+`scripts/demo/capture.sh` regenerates the whole screenshot set from real
+simulators — run it after any UI change the listing shows. `scripts/demo/record.sh`
+records the walkthrough App Review needs, since a reviewer has no MIDI keyboard.
+Both seed a practice history and play a piece through the mock MIDI input, and
+both work on a throwaway copy of `public/` — no demo hook ever ships. See
+`scripts/demo/README.md`, which also has the wording for the review notes.
+
 ## Code Style
 
 - Focus on writing DRY code
