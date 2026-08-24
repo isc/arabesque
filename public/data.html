@@ -25,33 +25,33 @@
       </div>
 
       <!-- Local backup -->
-      <article>
+      <article class="pt-card pt-stack">
         <h2 x-text="$t('data.localHeading')">Sauvegarde locale</h2>
-        <p x-text="$t('data.localIntro')"></p>
+        <p class="pt-hint" x-text="$t('data.localIntro')"></p>
         <div class="pt-data-actions">
-          <button type="button" class="secondary" @click="exportBackup()" x-text="$t('library.exportBackup')">📤 Exporter sauvegarde</button>
-          <label class="secondary" role="button" for="backup-import" x-text="$t('library.importBackup')">📥 Importer sauvegarde</label>
+          <button type="button" class="outline secondary" @click="exportBackup()" x-text="$t('library.exportBackup')">📤 Exporter sauvegarde</button>
+          <label class="outline secondary" role="button" for="backup-import" x-text="$t('library.importBackup')">📥 Importer sauvegarde</label>
           <input class="pt-sr-only" type="file" accept=".json" @change="importBackup($event)" id="backup-import" />
         </div>
       </article>
 
       <!-- Account / cloud -->
-      <article>
+      <article class="pt-card pt-stack">
         <h2 x-text="$t('data.accountHeading')">Compte</h2>
 
         <template x-if="!cloudConfigured">
-          <p x-text="$t('data.cloudUnavailable')">La synchronisation cloud n'est pas configurée.</p>
+          <p class="pt-hint" x-text="$t('data.cloudUnavailable')">La synchronisation cloud n'est pas configurée.</p>
         </template>
 
-        <div x-show="cloudConfigured && authReady" x-cloak>
+        <div class="pt-stack" x-show="cloudConfigured && authReady" x-cloak>
           <!-- Signed out: magic-link form -->
           <template x-if="!user">
-            <div>
-              <p x-text="$t('data.accountIntro')"></p>
+            <div class="pt-stack">
+              <p class="pt-hint" x-text="$t('data.accountIntro')"></p>
               <!-- Email sent: the code is the path that works everywhere, the
                    link only in the browser that opens it. -->
               <template x-if="codeSent">
-                <div>
+                <div class="pt-stack">
                   <p class="pt-sync-ok" x-text="$t('data.linkSent')">Lien envoyé !</p>
                   <form @submit.prevent="verifyOtp()" class="pt-account-form">
                     <input
@@ -66,7 +66,7 @@
                     />
                     <button type="submit" :aria-busy="authStatus === 'verifying'" :disabled="!otp.trim() || authStatus === 'verifying'" x-text="$t('data.verifyOtp')">Valider le code</button>
                   </form>
-                  <p class="pt-text-muted" x-text="$t('data.otpHint')"></p>
+                  <p class="pt-hint" x-text="$t('data.otpHint')"></p>
                 </div>
               </template>
               <template x-if="!codeSent">
@@ -94,19 +94,22 @@
 
           <!-- Signed in -->
           <template x-if="user">
-            <div>
-              <p><span x-text="$t('data.signedInAs')">Connecté :</span> <strong x-text="user.email"></strong></p>
+            <div class="pt-stack">
+              <div class="pt-data-identity">
+                <span class="pt-hint" x-text="$t('data.signedInAs')">Connecté :</span>
+                <strong x-text="user.email"></strong>
+              </div>
 
-              <p class="pt-text-muted" x-text="$t('data.syncHint')">
+              <p class="pt-hint" x-text="$t('data.syncHint')">
                 Vos données se synchronisent à la fin de chaque morceau joué et au retour sur l’app.
               </p>
 
               <div class="pt-data-actions">
                 <button type="button" @click="syncNow()" :aria-busy="syncStatus === 'syncing'" :disabled="syncStatus === 'syncing'" x-text="$t('data.syncNow')">Synchroniser maintenant</button>
-                <button type="button" class="secondary" @click="signOut()" x-text="$t('data.signOut')">Se déconnecter</button>
+                <button type="button" class="outline secondary" @click="signOut()" x-text="$t('data.signOut')">Se déconnecter</button>
               </div>
 
-              <p class="pt-text-muted">
+              <p class="pt-hint">
                 <span x-text="$t('data.lastSync')">Dernière synchro :</span>
                 <span x-text="lastSyncLabel()"></span>
               </p>

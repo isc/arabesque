@@ -88,9 +88,21 @@
   --pt-font-ui: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --pt-font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 
-  /* Override Pico's primary to match our accent */
+}
+
+/* Override Pico's primary to match our accent. Two traps here, which is why
+   primary buttons were still Pico's teal next to our navy accents:
+   --pico-primary only colors text and links (buttons read the
+   -background/-border pair), and Pico declares its palette on
+   `:root:not([data-theme=dark])`, which outranks a plain `:root` — hence the
+   same selector below. */
+:root:not([data-theme="dark"]), [data-theme="light"] {
   --pico-primary: var(--pt-accent);
   --pico-primary-hover: var(--pt-accent-strong);
+  --pico-primary-background: var(--pt-accent);
+  --pico-primary-border: var(--pt-accent);
+  --pico-primary-hover-background: var(--pt-accent-strong);
+  --pico-primary-hover-border: var(--pt-accent-strong);
 }
 
 /* Tighter base */
@@ -107,7 +119,13 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-main.container { padding-block: var(--pt-space-4); max-width: 1200px; }
+/* Pages declare their own reading width through --pt-page-max; this rule only
+   applies it. A max-width set directly here silently outranks any single-class
+   page rule (element+class beats class), which is how three pages ended up
+   ignoring the width they asked for: the data page ran edge to edge, the
+   landing page stayed at 1200px instead of 960, and the library shell never
+   got the full viewport it declares. */
+main.container { padding-block: var(--pt-space-4); max-width: var(--pt-page-max, 1200px); }
 
 /* Vertical rhythm for index / composer / status pages (consistent gaps
    between page-level sections so margins on individual blocks don't fight). */
@@ -562,8 +580,17 @@ button.pt-topbar__pill:disabled { opacity: 0.4; cursor: default; }
 /* =============================================================================
    Data page (backup + account)
    ========================================================================== */
-.pt-data-page { padding-block: var(--pt-space-6); max-width: 720px; }
-.pt-data-page .pt-page-header { margin-bottom: var(--pt-space-4); }
+/* Pico drops the container's inline padding above 576px (it assumes a box
+   narrower than the viewport, centred by its auto margins), so a narrow page
+   has to restore the gutters itself — as .pt-landing does. */
+.pt-data-page {
+  --pt-page-max: 720px;
+  padding-inline: var(--pt-space-4);
+  padding-block: var(--pt-space-5) var(--pt-space-8);
+  display: flex;
+  flex-direction: column;
+  gap: var(--pt-space-4);
+}
 .pt-data-actions { display: flex; flex-wrap: wrap; gap: var(--pt-space-2); align-items: center; }
 .pt-data-actions button, .pt-data-actions [role="button"] { margin: 0; width: auto; }
 .pt-account-form { display: flex; flex-wrap: wrap; gap: var(--pt-space-2); align-items: center; }
@@ -571,9 +598,24 @@ button.pt-topbar__pill:disabled { opacity: 0.4; cursor: default; }
    would otherwise keep Pico's full width and bottom margin, wrapping the
    button onto its own line. */
 .pt-account-form input { margin: 0; flex: 1 1 240px; }
+/* The code is 8 digits: a field as wide as the email one reads as a mistake. */
+.pt-account-form input[inputmode="numeric"] { flex: 0 1 200px; }
 .pt-account-form button { margin: 0; width: auto; flex: 0 0 auto; }
+
+/* The signed-in address, inset so the account section leads with who you are. */
+.pt-data-identity {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--pt-space-2);
+  padding: var(--pt-space-3) var(--pt-space-4);
+  background: var(--pt-surface-2);
+  border-radius: var(--pt-radius-md);
+}
+.pt-data-identity strong { overflow-wrap: anywhere; }
+
 .pt-sync-ok { color: var(--pt-status-repertoire); font-weight: 500; }
-.pt-text-muted { color: var(--pt-text-muted); }
+.pt-hint { color: var(--pt-text-muted); font-size: 0.9rem; }
 
 /* =============================================================================
    Pills (status, generic)
@@ -625,7 +667,15 @@ button.pt-topbar__pill:disabled { opacity: 0.4; cursor: default; }
   gap: var(--pt-space-2);
   transition: border-color var(--pt-transition-fast), box-shadow var(--pt-transition-fast);
 }
-.pt-card:hover { border-color: var(--pt-border-strong); box-shadow: var(--pt-shadow-md); }
+/* Lift only in the browsable grid: elsewhere a card is a static section, and
+   highlighting it on hover reads as "clickable". */
+.pt-card-grid .pt-card:hover { border-color: var(--pt-border-strong); box-shadow: var(--pt-shadow-md); }
+
+/* Vertical rhythm for a card's contents: one gap owns the spacing, so nested
+   Alpine wrappers (template > div) don't each need margins of their own.
+   Defined after .pt-card so its roomier gap wins over the card's own. */
+.pt-stack { display: flex; flex-direction: column; gap: var(--pt-space-3); }
+.pt-stack > * { margin: 0; }
 
 
 /* Table layout (restyled from Pico defaults). `overflow: hidden` on the
@@ -687,7 +737,7 @@ table tbody td:nth-child(2) a:hover { color: var(--pt-accent); }
    scrolls itself; only the sidebar and the table list scroll, each within
    their own column. The chrome (header + filters + focus) is laid out
    above the grid as a flex item, so it doesn't need sticky positioning. */
-.pt-library-page { height: 100dvh; max-width: none; padding-inline: var(--pt-space-4); display: flex; flex-direction: column; overflow: hidden; }
+.pt-library-page { height: 100dvh; --pt-page-max: none; padding-inline: var(--pt-space-4); display: flex; flex-direction: column; overflow: hidden; }
 
 .pt-library-chrome {
   flex: 0 0 auto;
@@ -1255,7 +1305,7 @@ img[id^="cursorImg"] { scroll-margin-top: var(--pt-sticky-offset, 100px); }
    supplies the gutters). Below 960px that assumption breaks — the container
    is still full-width — so restore the padding explicitly, same as
    .pt-library-page does. */
-.pt-landing { max-width: 960px; padding-inline: var(--pt-space-4); }
+.pt-landing { --pt-page-max: 960px; padding-inline: var(--pt-space-4); }
 
 .pt-landing__nav {
   display: flex;
