@@ -3,6 +3,7 @@ export default {
   common: {
     openLibrary: 'Open the library',
     close: 'Close',
+    cancel: 'Cancel',
   },
   menu: {
     open: 'Menu',
@@ -142,6 +143,15 @@ export default {
     syncNever: 'never',
     syncError: 'Sync failed:',
     syncSummary: '{up} sent · {down} received',
+    deleteHeading: 'Delete the account',
+    deleteIntro:
+      'Permanently deletes your account and the training data synced under it. This device keeps its own data — export it above if you want to hold on to it.',
+    deleteAccount: 'Delete my account',
+    deleteWarning:
+      'This cannot be undone: your account and everything synced under it will be erased from our servers.',
+    deleteConfirm: 'Yes, delete permanently',
+    deleteError: 'Deletion failed:',
+    deleteDone: 'Your account and its synced data have been deleted.',
   },
   score: {
     pageTitle: 'Arabesque',

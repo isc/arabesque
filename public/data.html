@@ -46,6 +46,9 @@
           <!-- Signed out: magic-link form -->
           <template x-if="!user">
             <div class="pt-stack">
+              <!-- Just deleted: the form below is the whole signed-out page, so
+                   without this the button would look like it did nothing. -->
+              <p x-show="deleteStatus === 'done'" class="pt-sync-ok" x-text="$t('data.deleteDone')"></p>
               <p class="pt-hint" x-text="$t('data.accountIntro')"></p>
               <!-- Email sent: the code is the path that works everywhere, the
                    link only in the browser that opens it. -->
@@ -116,6 +119,29 @@
               <p x-show="syncStatus === 'error'" role="alert" class="pt-feedback-error">
                 <span x-text="$t('data.syncError')">Échec de la synchro :</span>
                 <span x-text="syncError"></span>
+              </p>
+
+              <hr />
+
+              <h3 x-text="$t('data.deleteHeading')">Supprimer le compte</h3>
+              <p class="pt-hint" x-text="$t('data.deleteIntro')"></p>
+              <template x-if="!confirmingDelete">
+                <div class="pt-data-actions">
+                  <button type="button" class="outline danger" @click="confirmingDelete = true" x-text="$t('data.deleteAccount')">Supprimer mon compte</button>
+                </div>
+              </template>
+              <template x-if="confirmingDelete">
+                <div class="pt-stack">
+                  <p role="alert" class="pt-feedback-error" x-text="$t('data.deleteWarning')"></p>
+                  <div class="pt-data-actions">
+                    <button type="button" class="danger" @click="deleteAccount()" :aria-busy="deleteStatus === 'deleting'" :disabled="deleteStatus === 'deleting'" x-text="$t('data.deleteConfirm')">Oui, supprimer définitivement</button>
+                    <button type="button" class="outline secondary" @click="confirmingDelete = false" :disabled="deleteStatus === 'deleting'" x-text="$t('common.cancel')">Annuler</button>
+                  </div>
+                </div>
+              </template>
+              <p x-show="deleteStatus === 'error'" role="alert" class="pt-feedback-error">
+                <span x-text="$t('data.deleteError')">Échec de la suppression :</span>
+                <span x-text="deleteError"></span>
               </p>
             </div>
           </template>

@@ -219,6 +219,25 @@ button[type="submit"] { width: 100%; margin-bottom: 1rem; }
   border-color: var(--pt-text);
   color: var(--pt-text);
 }
+/* Destructive actions, filled or outlined like the variants above. */
+:is(button, [role="button"]).danger {
+  border-color: var(--pt-error);
+  background: var(--pt-error);
+  color: var(--pt-text-inverse);
+}
+:is(button, [role="button"]).danger:hover {
+  border-color: color-mix(in srgb, var(--pt-error) 80%, black);
+  background: color-mix(in srgb, var(--pt-error) 80%, black);
+}
+:is(button, [role="button"]).outline.danger {
+  background: transparent;
+  color: var(--pt-error);
+}
+:is(button, [role="button"]).outline.danger:hover {
+  background: var(--pt-error-bg);
+  border-color: var(--pt-error);
+  color: var(--pt-error);
+}
 :is(button, [role="button"]):disabled,
 :is(button, [role="button"])[aria-disabled="true"] {
   opacity: 0.5;
