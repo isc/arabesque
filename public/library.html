@@ -95,7 +95,10 @@
       <div class="pt-library">
         <!-- Sidebar: practice journal + data management -->
         <aside class="pt-library__sidebar">
-          <h2 style="font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--pt-text-subtle); margin: 0;" x-text="$t('library.journalHeading')">Journal de pratique</h2>
+          <div class="pt-journal__header">
+            <h2 x-text="$t('library.journalHeading')">Journal de pratique</h2>
+            <a href="practice.html" x-text="$t('library.seeYear')">Voir l'année →</a>
+          </div>
           <div id="daily-log" style="display: flex; flex-direction: column; gap: var(--pt-space-2);">
             <template x-for="dateEntry in dailyLogsByDate" :key="dateEntry.date.toISOString()">
               <div class="pt-journal__day">

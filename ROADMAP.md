@@ -77,9 +77,10 @@ dans le `CHANGELOG`.
 
 - **Objectifs de pratique hebdomadaires** — se fixer des objectifs par semaine
   (nombre de sessions et/ou temps de pratique) et voir en cours de semaine où
-  on en est de leur atteinte. Voire un calendrier complet qui visualise
-  l'atteinte des objectifs dans le temps (semaines réussies / manquées, façon
-  heatmap).
+  on en est de leur atteinte. Le calendrier annuel de la page « Assiduité »
+  existe déjà ; il montre ce qui a été joué, pas si l'objectif a été tenu.
+  Reste donc à définir l'objectif et à en colorer les semaines réussies /
+  manquées.
 
 - **Statut répertoire plus exigeant** — le passage en statut répertoire pourrait
   demander plus que les seuils actuels (passes propres par mesure, jours de

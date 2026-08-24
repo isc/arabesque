@@ -11,6 +11,7 @@ A web-based piano training application that helps musicians practice by connecti
 - **MusicXML Support**: Load and display sheet music in MusicXML format
 - **Interactive Practice**: Highlights notes as you play and validates accuracy
 - **Recording & Playback**: Record MIDI performances and replay them
+- **Practice Calendar**: A year of practice as one square per day, with streaks and totals
 
 ### Key Components
 
@@ -68,10 +69,12 @@ MIDI Device → Web MIDI API → MIDI Message Parser → Note Validator → Visu
 - `app.rb`: Main Sinatra application with API endpoints
 - `public/index.html`: Score library page with search and filtering
 - `public/score.html`: Score practice page
+- `public/practice.html`: Year-at-a-glance practice calendar
 - `public/data/scores.json`: Index of 70 available scores
 - `public/scores/`: Directory with 70 MusicXML files (1.6MB)
 - `public/js/app.js`: Alpine.js coordination layer
 - `public/js/library.js`: Library page state and filtering
+- `public/js/practice.js`: Practice calendar page (grid, streaks, per-day detail)
 - `public/js/midi.js`: Web MIDI API & recording
 - `public/js/musicxml.js`: MusicXML parsing & validation
 - `public/js/cassettes.js`: Cassette management

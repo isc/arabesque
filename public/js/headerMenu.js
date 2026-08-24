@@ -126,6 +126,7 @@ const TRIGGER_HTML = `
         <span class="pt-menu-dot" x-show="hasUnseenChangelog" aria-hidden="true"></span>
       </button>
       <button type="button" class="pt-menu-item" x-show="feedbackEnabled" @click="openFeedback()" x-text="$t('library.feedback')">💬 Avis</button>
+      <a href="practice.html" class="pt-menu-item" @click="closeMenu()" x-text="$t('menu.practice')">📅 Assiduité</a>
       <a href="data.html" class="pt-menu-item" @click="closeMenu()" x-text="$t('menu.data')">🗂 Données</a>
     </div>
     <hr />
