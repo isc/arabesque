@@ -189,8 +189,11 @@ a[role="button"] { display: inline-block; }
   transition: background-color var(--pt-transition-fast), border-color var(--pt-transition-fast),
     color var(--pt-transition-fast), box-shadow var(--pt-transition-fast);
 }
+/* Hover states set `background-color`, never the `background` shorthand: the
+   shorthand would reset `background-image` and wipe the icon off buttons that
+   wear one (the modal close cross). */
 :is(button, [role="button"]):hover {
-  background: var(--pt-accent-strong);
+  background-color: var(--pt-accent-strong);
   border-color: var(--pt-accent-strong);
 }
 /* A submit button is a form block: full width, with the same bottom margin as
@@ -201,7 +204,7 @@ button[type="submit"] { width: 100%; margin-bottom: 1rem; }
   color: var(--pt-accent);
 }
 :is(button, [role="button"]).outline:hover {
-  background: transparent;
+  background-color: transparent;
   border-color: var(--pt-accent-strong);
   color: var(--pt-accent-strong);
 }
@@ -215,7 +218,7 @@ button[type="submit"] { width: 100%; margin-bottom: 1rem; }
   color: var(--pt-text-muted);
 }
 :is(button, [role="button"]).outline.secondary:hover {
-  background: transparent;
+  background-color: transparent;
   border-color: var(--pt-text);
   color: var(--pt-text);
 }
@@ -227,14 +230,14 @@ button[type="submit"] { width: 100%; margin-bottom: 1rem; }
 }
 :is(button, [role="button"]).danger:hover {
   border-color: color-mix(in srgb, var(--pt-error) 80%, black);
-  background: color-mix(in srgb, var(--pt-error) 80%, black);
+  background-color: color-mix(in srgb, var(--pt-error) 80%, black);
 }
 :is(button, [role="button"]).outline.danger {
   background: transparent;
   color: var(--pt-error);
 }
 :is(button, [role="button"]).outline.danger:hover {
-  background: var(--pt-error-bg);
+  background-color: var(--pt-error-bg);
   border-color: var(--pt-error);
   color: var(--pt-error);
 }
