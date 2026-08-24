@@ -1,4 +1,5 @@
-// Data page: local backup (export/import) + account (passwordless sign-in).
+// Data page: local backup (export/import) + account (passwordless sign-in,
+// and deleting the account again).
 //
 // This page is the home for everything data-related: the export/import that
 // used to live in the ⚙️ menu, and signing in by email — with the link or the
@@ -8,6 +9,7 @@ import { initStorage } from './storage.js'
 import { initPracticeTracker } from './practiceTracker.js'
 import { lastSyncAt } from './sync.js'
 import { initAutoSync, requestSync } from './autoSync.js'
+import { deleteCurrentUser } from './account.js'
 import { t, locale } from './i18n.js'
 
 export function dataApp() {
@@ -41,6 +43,12 @@ export function dataApp() {
     syncStatus: 'idle', // 'idle' | 'syncing' | 'done' | 'error'
     syncError: '',
     syncSummary: '',
+
+    // Deleting the account. Two-step on purpose: the second button is the one
+    // that destroys, and it only exists once the warning is on screen.
+    confirmingDelete: false,
+    deleteStatus: 'idle', // 'idle' | 'deleting' | 'done' | 'error'
+    deleteError: '',
 
     async init() {
       await storage.init()
@@ -179,6 +187,29 @@ export function dataApp() {
       this.email = ''
       this.otp = ''
       this.authError = ''
+    },
+
+    // Deletes the account and everything synced under it (account.js), then
+    // leaves the page in its signed-out state with a word about what happened —
+    // the sign-in form comes back on its own, and would otherwise be the only
+    // answer to a button labelled "delete my account".
+    async deleteAccount() {
+      if (this.deleteStatus === 'deleting') return
+      this.deleteStatus = 'deleting'
+      this.deleteError = ''
+      try {
+        await deleteCurrentUser(supabase)
+        // signOut() inside deleteCurrentUser fires onAuthStateChange, but say
+        // it here too: the account being gone is this page's own state, not
+        // something to wait on a callback for.
+        this.setSession(null)
+        this.confirmingDelete = false
+        this.deleteStatus = 'done'
+      } catch (err) {
+        console.error('Account deletion error:', err)
+        this.deleteStatus = 'error'
+        this.deleteError = err.message || String(err)
+      }
     },
 
     async exportBackup() {

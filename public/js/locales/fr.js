@@ -3,6 +3,7 @@ export default {
   common: {
     openLibrary: 'Ouvrir la bibliothèque',
     close: 'Fermer',
+    cancel: 'Annuler',
   },
   menu: {
     open: 'Menu',
@@ -142,6 +143,15 @@ export default {
     syncNever: 'jamais',
     syncError: 'Échec de la synchro :',
     syncSummary: '{up} envoyé(s) · {down} reçu(s)',
+    deleteHeading: 'Supprimer le compte',
+    deleteIntro:
+      'Supprime définitivement votre compte et les données de pratique synchronisées. Les données de cet appareil sont conservées — exportez-les ci-dessus si vous voulez les garder ailleurs.',
+    deleteAccount: 'Supprimer mon compte',
+    deleteWarning:
+      'Cette action est irréversible : votre compte et toutes les données synchronisées seront effacés de nos serveurs.',
+    deleteConfirm: 'Oui, supprimer définitivement',
+    deleteError: 'Échec de la suppression :',
+    deleteDone: 'Votre compte et les données synchronisées ont été supprimés.',
   },
   score: {
     pageTitle: 'Arabesque',
