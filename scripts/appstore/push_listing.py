@@ -154,7 +154,7 @@ def push_metadata(ids):
         print("  --    review notes: skipped, no ~/.appstoreconnect/review_contact.json")
         print("        Apple requires a name, email and phone alongside the notes;")
         print('        write {"firstName","lastName","email","phone"} there.')
-        return
+        return False
 
     review_body = {
         "notes": copy.REVIEW_NOTES,
@@ -171,11 +171,13 @@ def push_metadata(ids):
         asc.expect("review notes", *asc.call(
             "PATCH", f"/v1/appStoreReviewDetails/{detail_id}",
             {"data": {"type": "appStoreReviewDetails", "id": detail_id, "attributes": review_body}}))
+        return True
     else:
         asc.expect("review notes", *asc.call("POST", "/v1/appStoreReviewDetails", {
             "data": {"type": "appStoreReviewDetails", "attributes": review_body,
                      "relationships": {"appStoreVersion": {
                          "data": {"type": "appStoreVersions", "id": ids["version"]}}}}}))
+        return True
 
 
 def review_contact():
@@ -293,8 +295,9 @@ def main():
         raise SystemExit(f"error: {e}")
 
     print(f"App {ids['app']}, version {ids['version']}, locale {LOCALE}\n")
+    contact_written = False
     if not args.skip_metadata:
-        push_metadata(ids)
+        contact_written = push_metadata(ids)
     if args.price_free:
         push_price_free(ids)
     if args.screenshots:
@@ -304,7 +307,8 @@ def main():
 
     print("\nStill by hand in App Store Connect:")
     print("  • App Privacy (the nutrition labels) — no API endpoint exists")
-    print("  • Review contact: first name, last name, phone, email")
+    if not contact_written and not args.skip_metadata:
+        print("  • Review contact: first name, last name, phone, email")
     print("  • Submitting for review")
 
 
