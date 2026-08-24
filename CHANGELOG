@@ -1,3 +1,12 @@
+2026-08-24
+
+- **Page « Assiduité »** : l'année entière en cases, une par jour, façon
+  graphique de contributions — plus la journée a été longue, plus la case est
+  foncée. Jours joués, temps total, lectures complètes, série en cours et
+  meilleure série ; les flèches remontent aux années précédentes, et cliquer
+  une case rouvre le détail de ce jour-là. Accessible depuis le menu ⚙️ et
+  depuis l'en-tête du journal de pratique.
+
 2026-08-23
 
 - **Le renforcement n'attend plus une lecture complète.** Dès qu'une mesure vous

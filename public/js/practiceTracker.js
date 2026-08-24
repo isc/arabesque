@@ -139,6 +139,69 @@ export function computeSessionDuration(session) {
   return normalizedPlayingTime(intervals, intervals[0].start, lastAttemptEnd(intervals))
 }
 
+// Day the session belongs to in the viewer's timezone — the journal and the
+// calendar are calendars, so a session played at 00:30 belongs to that morning,
+// not to the previous UTC day.
+export function localDayKey(date) {
+  const d = new Date(date)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+// The day `delta` days away from `key`. Built at midday so a DST transition —
+// which in a few timezones happens at midnight — can't land the result on the
+// neighbouring day.
+export function shiftDayKey(key, delta) {
+  const [year, month, day] = key.split('-').map(Number)
+  return localDayKey(new Date(year, month - 1, day + delta, 12))
+}
+
+// What a year of the calendar adds up to. The streaks are deliberately not in
+// here: a run that started in December is one run, and cutting it at 1 January
+// would be an artefact of the view — practiceStreaks() reads the whole history.
+export function practiceYearStats(calendar, year) {
+  const prefix = `${year}-`
+  let days = 0
+  let practiceTimeMs = 0
+  let playthroughs = 0
+  for (const [key, day] of calendar) {
+    if (!key.startsWith(prefix)) continue
+    days += 1
+    practiceTimeMs += day.practiceTimeMs
+    playthroughs += day.timesPlayedInFull
+  }
+  return { days, practiceTimeMs, playthroughs }
+}
+
+// Runs of consecutive practised days, from a collection of day keys: the one
+// ending now, and the longest anywhere in the history.
+//
+// The current run tolerates a silent today. Until midnight the day is still
+// playable, so a streak that stands at yesterday is alive, not broken — the
+// opposite reading would show "0" every morning to someone who practises
+// every evening.
+export function practiceStreaks(dayKeys, today = new Date()) {
+  const days = new Set(dayKeys)
+
+  let longest = 0
+  let run = 0
+  let previous = null
+  for (const key of [...days].sort()) {
+    run = previous && shiftDayKey(previous, 1) === key ? run + 1 : 1
+    previous = key
+    if (run > longest) longest = run
+  }
+
+  const todayKey = localDayKey(today)
+  let cursor = days.has(todayKey) ? todayKey : shiftDayKey(todayKey, -1)
+  let current = 0
+  while (days.has(cursor)) {
+    current += 1
+    cursor = shiftDayKey(cursor, -1)
+  }
+
+  return { current, longest }
+}
+
 export function initPracticeTracker(storageInstance = null) {
   const storage = storageInstance || initStorage()
 
@@ -175,6 +238,7 @@ export function initPracticeTracker(storageInstance = null) {
     rankMeasuresToReinforce,
     getDailyLog,
     getDailyLogs,
+    getPracticeCalendar,
     getScoreHistory,
     getAllPlaythroughs,
     getAllScores,
@@ -756,6 +820,26 @@ export function initPracticeTracker(storageInstance = null) {
     return intervals.length > 0 ? new Date(lastAttemptEnd(intervals)) : new Date(session.startedAt)
   }
 
+  // One row per practised day, keyed by local day ('YYYY-MM-DD'), for the
+  // year-at-a-glance calendar. Days with no practice are simply absent.
+  //
+  // getDailyLogs() already groups sessions by day, but it answers a much richer
+  // question — which scores, which measures, how many full playthroughs, with
+  // an aggregate lookup per score — and its cost grows with the number of days
+  // asked for. A year of coloured squares needs one duration per day, so this
+  // walks the sessions once and keeps only what a square and its tooltip show.
+  async function getPracticeCalendar() {
+    const byDay = new Map()
+    for (const session of await storage.getSessions()) {
+      const key = localDayKey(session.startedAt)
+      if (!byDay.has(key)) byDay.set(key, { practiceTimeMs: 0, timesPlayedInFull: 0 })
+      const day = byDay.get(key)
+      day.practiceTimeMs += computeSessionDuration(session)
+      if (session.completedAt) day.timesPlayedInFull += 1
+    }
+    return byDay
+  }
+
   async function getDailyLog(date) {
     return (await getDailyLogs([date]))[0]
   }
@@ -787,14 +871,6 @@ export function initPracticeTracker(storageInstance = null) {
       logs.push(await buildDailyLog(byDay.get(localDayKey(date)) ?? [], aggregates))
     }
     return logs
-  }
-
-  // Day the session belongs to in the viewer's timezone — the journal is a
-  // calendar, so a session played at 00:30 belongs to that morning, not to the
-  // previous UTC day.
-  function localDayKey(date) {
-    const d = new Date(date)
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
   }
 
   // `aggregateCache` is shared across the days of one journal read: the same
