@@ -1,5 +1,13 @@
 2026-08-26
 
+- **« Aujourd'hui » suit le jour.** Le journal de pratique et le calendrier
+  d'assiduité étaient construits une fois pour toutes à l'ouverture de la page :
+  sur l'iPad, où l'app est mise en veille et réveillée pendant des semaines sans
+  jamais être rechargée, la case « aujourd'hui » gardait le lendemain matin le
+  travail de la veille. Les deux pages se redessinent maintenant quand le jour
+  change — au retour dans l'app, à minuit, ou quand l'horloge saute d'un fuseau
+  à l'autre.
+
 - **Fin des versions mélangées.** Le HTML d'une page et ses modules JS sont mis
   en cache séparément, et une navigation arrière ressert le document sans le
   revalider : sur l'iPad, le raccourci « touche la plus aigüe » ramenait une

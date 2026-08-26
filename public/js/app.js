@@ -3,7 +3,7 @@ import { initMusicXML } from './musicxml.js'
 import { initFingeringEditor } from './fingeringEditor.js'
 import { initCassettes } from './cassettes.js'
 import { initPracticeTracker } from './practiceTracker.js'
-import { formatDuration, formatDate, applyStickyOffset, scorePageUrl, onIdle } from './utils.js'
+import { formatDuration, formatDate, applyStickyOffset, scorePageUrl, onIdle, onForeground } from './utils.js'
 import { initStorage } from './storage.js'
 import { loadMxlAsXml } from './mxlLoader.js'
 import { injectFingerings } from './fingeringInjector.js'
@@ -287,11 +287,9 @@ export function midiApp() {
       // Coming back to the page: take the wake lock again, since being hidden
       // released it. Only with a score up — that's when the screen is watched
       // rather than touched.
-      document.addEventListener('visibilitychange', () => {
+      onForeground(() => {
         const held = wakeLock && !wakeLock.released
-        if (document.visibilityState === 'visible' && this.osmdInstance && !held) {
-          this.requestWakeLock()
-        }
+        if (this.osmdInstance && !held) this.requestWakeLock()
       })
       // This page never pulls — not on open, not on tab-back. A pull can
       // trigger rebuildAggregates(), which clears every aggregate and replays
