@@ -1,3 +1,14 @@
+2026-08-26
+
+- **Fin des versions mélangées.** Le HTML d'une page et ses modules JS sont mis
+  en cache séparément, et une navigation arrière ressert le document sans le
+  revalider : sur l'iPad, le raccourci « touche la plus aigüe » ramenait une
+  bibliothèque d'avant le déploiement, dont le journal de pratique affichait des
+  clés de traduction brutes (`library.playedFull`) parce que les traductions,
+  elles, étaient à jour. Les deux côtés portent désormais le même tampon de
+  version, posé au déploiement ; quand ils divergent, la page se recharge une
+  fois d'elle-même.
+
 2026-08-24
 
 - **Page « Assiduité »** : l'année entière en cases, une par jour, façon

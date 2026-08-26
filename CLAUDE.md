@@ -85,6 +85,16 @@ playwright-cli -s=pt close
 full command list. Interactive exploration works the same way — `snapshot` to get element
 refs, then `click`/`fill`/`eval` against them.
 
+## New HTML pages
+
+Every page carries `<meta name="app-version" content="dev" />` and calls
+`checkAppVersion()` first thing in its module script. HTML and JS are cached
+independently by the browser, so this is how a page notices it was paired with
+another deploy's scripts and reloads itself once (`public/js/version.js`). The
+deploy rewrites both sides with the commit via `scripts/stamp-version.mjs`,
+which fails if a page is missing the marker; `test/js/version.test.js` catches
+it earlier.
+
 ## Code Style
 
 - Focus on writing DRY code
