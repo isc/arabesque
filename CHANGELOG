@@ -1,5 +1,12 @@
 2026-08-26
 
+- **Une main seule traverse les mesures de l'autre.** Le curseur n'avançait
+  qu'en validant une note : une mesure sans rien pour la main active était sans
+  issue — mesure 25 du prélude n° 2 de Bach, un silence à la main droite, où il
+  fallait recocher la main gauche pour continuer. Ces mesures sont maintenant
+  franchies et comptées comme faites, donc une lecture d'une seule main se
+  termine normalement.
+
 - **« Aujourd'hui » suit le jour.** Le journal de pratique et le calendrier
   d'assiduité étaient construits une fois pour toutes à l'ouverture de la page :
   sur l'iPad, où l'app est mise en veille et réveillée pendant des semaines sans

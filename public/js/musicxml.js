@@ -4,6 +4,7 @@ import {
   extractNotesFromScore as extractNotes,
   isNoteActiveForHands as isNoteActiveForHandsShared,
   sourceMeasuresToResetOnEntry,
+  nextPlayableMeasure,
   svgNoteheadFor,
 } from './noteExtraction.js'
 import { scrollSystemIntoView } from './utils.js'
@@ -77,6 +78,11 @@ export function initMusicXML() {
     setCallbacks,
     setActiveHands: (hands) => {
       activeHands = { ...activeHands, ...hands }
+      // Dropping a hand can leave the cursor on a measure only that hand plays.
+      const landing = cursorMeasureFor(currentMeasureIndex)
+      if (landing === currentMeasureIndex) return
+      currentMeasureIndex = landing
+      updateMeasureCursor()
     },
     getOsmdInstance: () => osmdInstance,
     getAllNotes: () => allNotes,
@@ -98,7 +104,6 @@ export function initMusicXML() {
     setTrainingMode: (enabled) => {
       trainingMode = enabled
       repeatCount = 0
-      currentMeasureIndex = 0
       currentRepetitionIsClean = true
       resetProgress()
 
@@ -170,13 +175,32 @@ function isNoteActiveForHands(noteData) {
   return isNoteActiveForHandsShared(noteData, activeHands)
 }
 
+function nextPlayable(from) {
+  return nextPlayableMeasure(allNotes, from, activeHands)
+}
+
+// Where the cursor goes when it has to be somewhere: the last measure when the
+// rest of the score has nothing for the active hands.
+function cursorMeasureFor(from) {
+  return Math.min(nextPlayable(from), Math.max(allNotes.length - 1, 0))
+}
+
+// True when the cursor sits where a run through the whole score begins. Not
+// always its first measure: with one hand unticked, a score can open on a bar
+// that hand rests through, and the run starts after it.
+function atScoreStart() {
+  return currentMeasureIndex === cursorMeasureFor(0)
+}
+
+// Callers must have `allNotes` for the current score in place: the cursor is
+// placed on the first measure the active hands play, which reads them.
 function resetPlaybackState() {
-  currentMeasureIndex = 0
   repeatCount = 0
   currentRepetitionIsClean = true
   currentSystemIndex = null
   heldMidiNotes.clear()
   playedSourceMeasures.clear()
+  currentMeasureIndex = cursorMeasureFor(0)
   measureStartTime = null
   measureWrongNotes = 0
   resetReinforcementState()
@@ -274,10 +298,10 @@ async function renderMusicXML(xmlContent) {
 
 function extractNotesFromScore() {
   trainingMode = false
-  resetPlaybackState()
 
   const result = extractNotes(osmdInstance)
   allNotes = result.allNotes
+  resetPlaybackState()
   playbackSequence = result.playbackSequence
   // Build fingeringKey -> noteData map for O(1) lookups.
   // Ornament expansions create multiple notes with the same fingeringKey but noteheadIndex=-1.
@@ -311,7 +335,7 @@ function resetMeasureProgress(resetRepeatCount = true) {
   // Reset practice tracking for new attempt
   measureStartTime = Date.now()
   measureWrongNotes = 0
-  callbacks.onMeasureStarted?.(measureData.sourceMeasureIndex)
+  callbacks.onMeasureStarted?.(measureData.sourceMeasureIndex, atScoreStart())
 }
 
 // Reset the visual state (played-note class) for notes of a specific source measure
@@ -541,7 +565,7 @@ function removeMeasureClickHandlers() {
 
 function jumpToMeasure(measureIndex) {
   if (measureIndex < 0 || measureIndex >= allNotes.length) return
-  currentMeasureIndex = measureIndex
+  currentMeasureIndex = cursorMeasureFor(measureIndex)
   // Don't clear playedSourceMeasures - we want to track all measures played across jumps
   resetNotesFromIndex(measureIndex)
   resetMeasureProgress()
@@ -660,7 +684,7 @@ function activateNote(midiNote) {
     if (measureStartTime === null) {
       measureStartTime = Date.now()
       measureWrongNotes = 0
-      callbacks.onMeasureStarted?.(measureData.sourceMeasureIndex)
+      callbacks.onMeasureStarted?.(measureData.sourceMeasureIndex, atScoreStart())
     }
 
     measureWrongNotes++
@@ -791,7 +815,7 @@ function handleNoteValidated(measureData, noteData, validatedCount) {
     if (measureStartTime === null) {
       measureStartTime = Date.now()
       measureWrongNotes = 0
-      callbacks.onMeasureStarted?.(measureData.sourceMeasureIndex)
+      callbacks.onMeasureStarted?.(measureData.sourceMeasureIndex, atScoreStart())
     }
   }
 
@@ -832,17 +856,16 @@ function handleNoteValidated(measureData, noteData, validatedCount) {
               scrollToMeasure(nextPlaybackIndex)
             }, TRAINING_RESET_DELAY_MS)
           }
-        } else if (currentMeasureIndex + 1 >= allNotes.length) {
-          callbacks.onTrainingComplete?.()
-          setTimeout(() => {
-            resetProgress()
-          }, TRAINING_RESET_DELAY_MS)
         } else {
+          const next = nextPlayable(currentMeasureIndex + 1)
+          const finished = next >= allNotes.length
+          if (finished) callbacks.onTrainingComplete?.()
           setTimeout(() => {
+            if (finished) return resetProgress()
             resetMeasureProgress()
-            // Scroll to next measure before incrementing
-            scrollToNextMeasureIfNeeded(currentMeasureIndex + 1)
-            currentMeasureIndex++
+            // Scroll to the next measure before moving onto it
+            scrollToNextMeasureIfNeeded(next)
+            currentMeasureIndex = next
             updateMeasureCursor()
             updateRepeatIndicators()
           }, TRAINING_RESET_DELAY_MS)
@@ -858,25 +881,25 @@ function handleNoteValidated(measureData, noteData, validatedCount) {
       const currentSourceMeasure = measureData.sourceMeasureIndex
       playedSourceMeasures.add(currentSourceMeasure)
 
-      if (currentMeasureIndex + 1 < allNotes.length) {
-        const toReset = sourceMeasuresToResetOnEntry(
-          allNotes,
-          currentMeasureIndex,
-          playedSourceMeasures,
-        )
+      const next = nextPlayable(currentMeasureIndex + 1)
+      const toReset = sourceMeasuresToResetOnEntry(allNotes, currentMeasureIndex, next, playedSourceMeasures)
+
+      if (next < allNotes.length) {
         for (const sourceMeasureIndex of toReset) {
           resetSourceMeasureVisualState(sourceMeasureIndex)
         }
-        // Scroll to next measure before incrementing
-        scrollToNextMeasureIfNeeded(currentMeasureIndex + 1)
-        currentMeasureIndex++
+        // Scroll to the next measure before moving onto it
+        scrollToNextMeasureIfNeeded(next)
+        currentMeasureIndex = next
         // Reset practice tracking for next measure in free mode
         measureStartTime = null
         measureWrongNotes = 0
       } else {
-        // Only trigger completion if all unique source measures were played
-        const allSourceMeasures = new Set(allNotes.map((m) => m.sourceMeasureIndex))
-        const allMeasuresPlayed = [...allSourceMeasures].every((sm) => playedSourceMeasures.has(sm))
+        // Complete when every source measure the active hands play has been
+        // played. Derived from the hands rather than counted as we go, so a run
+        // still adds up after the hand toggles moved mid-way through it.
+        const owed = allNotes.filter((m) => m.notes.some(isNoteActiveForHands))
+        const allMeasuresPlayed = owed.every((m) => playedSourceMeasures.has(m.sourceMeasureIndex))
         if (allMeasuresPlayed) {
           callbacks.onScoreCompleted?.(currentMeasureIndex)
         }

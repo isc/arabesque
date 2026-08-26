@@ -500,6 +500,23 @@ export function isNoteActiveForHands(noteData, activeHands) {
   return noteData.staffIndex === 0 ? activeHands.right : activeHands.left
 }
 
+// The first measure at or after `from` that the active hands actually play,
+// or allNotes.length when the rest of the score is the other hand's alone.
+//
+// The measure cursor only ever moves when a note is validated, so a bar one
+// hand rests through — bar 25 of Bach's BWV 847 prelude is a whole rest in the
+// right hand — is a dead end for anyone working that hand by itself.
+export function nextPlayableMeasure(allNotes, from, activeHands) {
+  let index = from
+  while (
+    index < allNotes.length &&
+    !allNotes[index].notes.some((noteData) => isNoteActiveForHands(noteData, activeHands))
+  ) {
+    index++
+  }
+  return index
+}
+
 export function svgNoteheadFor(osmdInstance, noteData) {
   if (!osmdInstance) return null
   const svgGroup = osmdInstance.rules.GNote(noteData.note)?.getSVGGElement()
@@ -509,15 +526,14 @@ export function svgNoteheadFor(osmdInstance, noteData) {
 }
 
 // Returns the set of source measures whose visual state should be reset when
-// the cursor moves from `allNotes[fromIdx]` to `allNotes[fromIdx + 1]`.
+// the cursor moves from `allNotes[fromIdx]` to `allNotes[toIdx]`.
 //
 // A reset is needed when the next measure's source has already been played
 // (i.e., we're entering a repeat). The section to clear is every previously
 // played source whose index is >= the repeat target AND that lies before the
 // current measure — plus the current measure itself when it will be replayed
 // later in the playback sequence (simple repeat, not a volta-1 ending).
-export function sourceMeasuresToResetOnEntry(allNotes, fromIdx, playedSources) {
-  const toIdx = fromIdx + 1
+export function sourceMeasuresToResetOnEntry(allNotes, fromIdx, toIdx, playedSources) {
   if (toIdx >= allNotes.length) return new Set()
 
   const nextSource = allNotes[toIdx].sourceMeasureIndex

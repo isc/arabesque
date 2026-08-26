@@ -217,8 +217,8 @@ export function midiApp() {
           const metadata = musicxml.getScoreMetadata()
           practiceTracker.startSession(this.scoreUrl, metadata.title, metadata.composer, 'training', metadata.totalMeasures)
         },
-        onMeasureStarted: (sourceMeasureIndex) => {
-          practiceTracker.startMeasureAttempt(sourceMeasureIndex)
+        onMeasureStarted: (sourceMeasureIndex, startsPlaythrough) => {
+          practiceTracker.startMeasureAttempt(sourceMeasureIndex, startsPlaythrough)
         },
         onMeasureCompleted: (data) => {
           // TEMP: fire-and-forget, so its IndexedDB work never showed up in the

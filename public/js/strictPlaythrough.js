@@ -96,7 +96,7 @@ function planRepeatResets(allNotes, measureStartTimes, bpm, countInMs) {
   const playedSources = new Set([allNotes[0].sourceMeasureIndex])
   const plans = []
   for (let i = 0; i < allNotes.length - 1; i++) {
-    const sources = sourceMeasuresToResetOnEntry(allNotes, i, playedSources)
+    const sources = sourceMeasuresToResetOnEntry(allNotes, i, i + 1, playedSources)
     if (sources.size > 0) {
       const atMs = countInMs + tsToSeconds(measureStartTimes[i + 1], bpm) * 1000
       plans.push({ atMs, sources })

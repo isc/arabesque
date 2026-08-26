@@ -270,6 +270,20 @@ class ArabesqueTest < CapybaraTestBase
     assert_selector 'svg g.vf-notehead.played-note', count: 1
   end
 
+  def test_hand_selection_crosses_a_measure_the_other_hand_holds_alone
+    # Measure 2 is a whole rest in the right hand, so working the right hand
+    # alone has to cross it. See nextPlayableMeasure in noteExtraction.js.
+    load_score('one-hand-rest-measure.xml', 6)
+
+    uncheck 'Main gauche'
+
+    # Measure 1's right hand, then measure 3's: the middle measure has to be
+    # crossed on its own for the last note to be the one that validates.
+    play_notes(%w[E5 G5])
+
+    assert_selector 'svg g.vf-notehead.played-note', count: 2
+  end
+
   def test_repeat_endings_playback_sequence
     # Score has:
     # - Measure 1: C4 (repeat start)
