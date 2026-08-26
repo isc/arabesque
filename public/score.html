@@ -3,6 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="app-version" content="dev" />
     <title data-i18n="score.pageTitle">Arabesque</title>
     <link rel="icon" href="favicon.svg" type="image/svg+xml" />
     <link rel="stylesheet" href="styles.css" />
@@ -40,6 +41,7 @@
       }
     }
     </script>
+    <script type="module" src="js/version.js"></script>
     <!-- defer, not blocking: these two are only needed once a score is being
          rendered, and evaluating 1.4MB of vendor code up front held back both
          the first paint and the fetch of the module graph below. Deferred

@@ -27,6 +27,11 @@ jobs:
       - name: Setup Pages
         uses: actions/configure-pages@v5
 
+      # Keeps each page's HTML and its JS recognisably one build: see
+      # public/js/version.js.
+      - name: Stamp the build version
+        run: node scripts/stamp-version.mjs "${GITHUB_SHA::12}"
+
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:

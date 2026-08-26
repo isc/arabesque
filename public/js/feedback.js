@@ -12,12 +12,14 @@
 import { SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY } from './supabaseConfig.js'
 import { CHANGELOG } from './changelog.js'
 import { getLang } from './i18n.js'
+import { APP_VERSION as BUILD } from './version.js'
 
 export const feedbackEnabled = Boolean(SUPABASE_URL && SUPABASE_PUBLISHABLE_KEY)
 
-// The latest changelog date doubles as an app "version": it tells us which
-// build the feedback was written against without a separate version constant.
-const APP_VERSION = CHANGELOG[0]?.date ?? 'unknown'
+// Which build the feedback was written against: the commit the deploy stamped
+// (version.js). Unstamped outside a deploy, and there the latest changelog date
+// still says roughly what the reporter was looking at.
+const APP_VERSION = BUILD === 'dev' ? (CHANGELOG[0]?.date ?? 'unknown') : BUILD
 
 // Non-identifying environment captured with every submission, so a bug report
 // carries the context to reproduce it. No personal data, no stored identifiers.

@@ -107,6 +107,15 @@ Connect API, from the copy in `scripts/appstore/listing_fr.py`. It never
 submits for review, and App Privacy has no API and stays manual. Credentials
 live outside the repo; see `scripts/appstore/README.md`.
 
+## New HTML pages
+
+Every page carries `<meta name="app-version" content="dev" />` and loads
+`<script type="module" src="js/version.js"></script>` ahead of its entry
+script — that is how a page notices it was served with another deploy's
+JavaScript and reloads itself once (`public/js/version.js` explains why).
+`scripts/stamp-version.mjs` fails at deploy time if a page is missing either
+marker, and `test/js/version.test.js` catches it earlier.
+
 ## Code Style
 
 - Focus on writing DRY code
