@@ -3,11 +3,16 @@ export default {
   common: {
     openLibrary: 'Open the library',
     close: 'Close',
+    cancel: 'Cancel',
+    privacy: 'Privacy',
+    support: 'Support',
   },
   menu: {
     open: 'Menu',
     practice: '📅 Consistency',
     data: '🗂 Data',
+    support: '🛟 Support',
+    privacy: '🔒 Privacy',
     language: 'Language',
   },
   status: {
@@ -89,7 +94,7 @@ export default {
     emailLabel: 'Email (optional)',
     emailPlaceholder: 'you@example.com',
     emailHint: 'Only if you’d like a reply.',
-    privacy: 'Your message is sent with anonymous context (app version, browser, screen size and overall practice totals) to help me reproduce issues. No score names or personal data.',
+    privacy: 'Your message is sent with technical context (app version, browser, screen size, and — depending on the page — the open score or your practice totals) to help me reproduce issues. Nothing else, and never tied to an account.',
     send: 'Send',
     thanks: 'Thanks, got it! 🙏',
     error: 'Sending failed.',
@@ -142,6 +147,15 @@ export default {
     syncNever: 'never',
     syncError: 'Sync failed:',
     syncSummary: '{up} sent · {down} received',
+    deleteHeading: 'Delete the account',
+    deleteIntro:
+      'Permanently deletes your account and the training data synced under it. This device keeps its own data — export it above if you want to hold on to it.',
+    deleteAccount: 'Delete my account',
+    deleteWarning:
+      'This cannot be undone: your account and everything synced under it will be erased from our servers.',
+    deleteConfirm: 'Yes, delete permanently',
+    deleteError: 'Deletion failed:',
+    deleteDone: 'Your account and its synced data have been deleted.',
   },
   score: {
     pageTitle: 'Arabesque',
@@ -259,11 +273,11 @@ export default {
   landing: {
     pageTitle: 'Arabesque · Learn the piano with real-time feedback',
     metaDescription:
-      'Plug in your MIDI keyboard, open a score and play: Arabesque colours the notes in real time, tracks your practice and helps you progress through a classical repertoire.',
+      'Connect your MIDI keyboard, open a score and play: Arabesque colours the notes in real time, tracks your practice and helps you progress through a classical repertoire.',
     heroAria: 'Open Arabesque',
     heroTitle: 'Practise the piano with real-time feedback.',
     heroLead:
-      'Plug in your MIDI keyboard, open a score and play. Every note lights up depending on whether you nailed it, missed it or jumped ahead — and your progress is logged on its own, bar after bar.',
+      'Connect your MIDI keyboard, open a score and play. Every note lights up depending on whether you nailed it, missed it or jumped ahead — and your progress is logged on its own, bar after bar.',
     featuresTitle: 'Everything you need to practise seriously',
     featuresSubtitle: 'A practice workshop in your browser — no install, no account.',
     f1Title: 'MIDI keyboard in one click',
@@ -285,7 +299,7 @@ export default {
       '70+ public-domain scores, from Bach inventions to Hanon, searchable by playing their opening notes.',
     howTitle: 'How to get started',
     howSubtitle: 'Three steps, and you’re playing.',
-    step1Title: 'Plug in your keyboard',
+    step1Title: 'Connect your keyboard',
     step1Body:
       'Connect a MIDI keyboard over USB or Bluetooth and allow access when the browser asks. No keyboard? You can still follow the score on screen.',
     step2Title: 'Pick a score',
@@ -295,5 +309,65 @@ export default {
     step3Body:
       'Follow the scrolling notes, let the real-time feedback guide you, and find your progress in the practice journal.',
     footer: 'Arabesque · public-domain scores · your data stays in your browser.',
+  },
+  privacy: {
+    pageTitle: 'Arabesque · Privacy',
+    heading: 'Privacy',
+    back: '← Library',
+    updated: 'Last updated: 24 August 2026.',
+    summaryTitle: 'In short',
+    summaryBody:
+      'Arabesque runs in your browser and keeps your practice data on your device. Nothing goes anywhere else unless you ask for it — by creating an account to sync your devices, or by sending feedback. There are no ads, no trackers, and nothing is ever sold.',
+    localTitle: 'What stays on your device',
+    localBody:
+      'Your practice sessions, your fingerings and your preferences (language, scores seen) are written to the browser’s local storage. They never leave the device on their own, and clearing the site’s data erases them for good. The Data page can export them to a file.',
+    accountTitle: 'The account, if you create one',
+    accountBody:
+      'Signing in is what lets your practice follow you from one device to the next. It asks for an email address, which receives a sign-in link — or a code: there is no password. Once signed in, your sessions and fingerings are copied to the server so they can come back down on your other devices. Nothing else is attached to the account.',
+    accountDelete:
+      'You can delete your account from the Data page. The account and everything synced under it are erased from the servers there and then, without having to ask anyone.',
+    feedbackTitle: 'The feedback you send',
+    feedbackBody:
+      'The feedback form sends your message, the category you picked, and technical context meant to reproduce problems: app version, browser, screen size, language, and — depending on the page — the title of the open score or your practice totals. The email address is optional and is only used to reply. Feedback is never tied to an account.',
+    neverTitle: 'What Arabesque does not do',
+    neverBody:
+      'No advertising, no analytics, no third-party trackers, no advertising cookies, no profiling. Your data is not sold, rented or shared for commercial purposes. The microphone and camera are never used; the MIDI keyboard only tells the app which notes you play, and that stream never leaves your device.',
+    hostingTitle: 'Hosting and processors',
+    hostingBody:
+      'The site is hosted on GitHub Pages, which logs requests as any web server does. Accounts and synced data live on Supabase, on servers located in Ireland (European Union). Feedback is stored there too, and notified by email through Resend. The Data page loads the sign-in library from the esm.sh CDN, which therefore sees your IP address for that request.',
+    retentionTitle: 'How long things are kept',
+    retentionBody:
+      'Synced data is kept for as long as the account exists, and goes with it. Feedback is kept long enough to handle the request and to keep track of what was fixed.',
+    rightsTitle: 'Your rights',
+    rightsBody:
+      'You can read and export your data from the Data page at any time, and delete your account with everything in it. To have a piece of feedback deleted, or for any question about your data, use the feedback form (⚙️ menu) — it lands in the same inbox.',
+    childrenTitle: 'Children',
+    childrenBody:
+      'Arabesque is not aimed at children under 13 and does not knowingly ask them for any data. The app is fully usable without an account.',
+    changesTitle: 'Changes',
+    changesBody:
+      'This page changes along with the app. The date at the top says which version you are reading; anything that affects you will be announced in "What’s new".',
+  },
+  support: {
+    pageTitle: 'Arabesque · Support',
+    heading: 'Support',
+    back: '← Library',
+    contactTitle: 'Ask a question, report a bug',
+    contactBody:
+      'The feedback form is the shortest path: open the ⚙️ menu from the library or a score, then "Feedback". A bug, an idea, a missing score — it all arrives in the same place. Leave your email if you want an answer; without it the message is anonymous and cannot be replied to.',
+    keyboardTitle: 'Connecting a keyboard',
+    keyboardBody:
+      'Arabesque listens to the keyboard through Web MIDI, over USB or Bluetooth. On a computer that needs a browser which supports it: Chrome, Edge or Opera. Safari and Firefox do not implement it, and the app says so rather than staying silent.',
+    keyboardIos:
+      'On iPhone and iPad no browser has Web MIDI: the Arabesque app is what bridges to the keyboard. Over USB, plug it in and that is all; over Bluetooth, tap the antenna button in the bottom-right corner to open the system pairing sheet, since pairing on iOS is per-app.',
+    noteTitle: 'The keyboard is not detected',
+    noteBody:
+      'Check that no other software is holding it: a MIDI keyboard cannot always be shared between two applications. A keyboard plugged in after the page opened is picked up on its own, but reloading the page settles most of the remaining cases. On a computer, the MIDI permission can be asked of the browser again if it was once refused.',
+    dataTitle: 'Your data',
+    dataBody:
+      'It all happens on the Data page: export your history to a file, import it on another device, sign in to let syncing take care of it, and delete your account. What the app keeps and what it sends is set out in the privacy policy.',
+    scoresTitle: 'The scores',
+    scoresBody:
+      'The library holds public-domain works only. You can also open your own MusicXML files (.xml, .mxl) by dropping them on the score page — they stay on your device. Something wrong in a score, or a work missing? The feedback form, category "Score".',
   },
 }

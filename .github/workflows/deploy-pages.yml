@@ -27,10 +27,8 @@ jobs:
       - name: Setup Pages
         uses: actions/configure-pages@v5
 
-      # Pages serves every file with the same short max-age and no fingerprint
-      # in its URL, so a browser can end up pairing a cached page with scripts
-      # from another deploy. Stamping both sides with the commit lets the page
-      # notice and reload itself (public/js/version.js).
+      # Keeps each page's HTML and its JS recognisably one build: see
+      # public/js/version.js.
       - name: Stamp the build version
         run: node scripts/stamp-version.mjs "${GITHUB_SHA::12}"
 

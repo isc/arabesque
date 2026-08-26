@@ -7,13 +7,8 @@
     <title data-i18n="library.pageTitle">Arabesque · Bibliothèque</title>
     <link rel="icon" href="favicon.svg" type="image/svg+xml" />
     <link rel="stylesheet" href="styles.css" />
+    <script type="module" src="js/version.js"></script>
     <script type="module">
-      import { checkAppVersion } from './js/version.js'
-      // Reload when this document and its scripts come from different deploys:
-      // they are cached separately, and a stale pairing renders one side's markup
-      // against the other side's contract. See js/version.js.
-      checkAppVersion()
-
       // Register the Alpine root component before Alpine boots, then load Alpine.
       // Loading Alpine from inside this module (rather than a sibling `defer`
       // script) guarantees `libraryApp` exists before Alpine evaluates `x-data`,

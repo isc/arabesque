@@ -3,11 +3,16 @@ export default {
   common: {
     openLibrary: 'Ouvrir la bibliothèque',
     close: 'Fermer',
+    cancel: 'Annuler',
+    privacy: 'Confidentialité',
+    support: 'Assistance',
   },
   menu: {
     open: 'Menu',
     practice: '📅 Assiduité',
     data: '🗂 Données',
+    support: '🛟 Assistance',
+    privacy: '🔒 Confidentialité',
     language: 'Langue',
   },
   status: {
@@ -89,7 +94,7 @@ export default {
     emailLabel: 'E-mail (facultatif)',
     emailPlaceholder: 'vous@exemple.com',
     emailHint: 'Seulement si vous souhaitez une réponse.',
-    privacy: 'Votre message est envoyé avec un contexte anonyme (version de l’app, navigateur, taille d’écran et temps de pratique global) pour m’aider à reproduire les problèmes. Aucun nom de partition ni donnée personnelle.',
+    privacy: 'Votre message est envoyé avec un contexte technique (version de l’app, navigateur, taille d’écran, et selon la page le morceau ouvert ou vos totaux de pratique) pour m’aider à reproduire les problèmes. Rien d’autre, et aucun lien avec un compte.',
     send: 'Envoyer',
     thanks: 'Merci, c’est bien reçu ! 🙏',
     error: 'L’envoi a échoué.',
@@ -142,6 +147,15 @@ export default {
     syncNever: 'jamais',
     syncError: 'Échec de la synchro :',
     syncSummary: '{up} envoyé(s) · {down} reçu(s)',
+    deleteHeading: 'Supprimer le compte',
+    deleteIntro:
+      'Supprime définitivement votre compte et les données de pratique synchronisées. Les données de cet appareil sont conservées — exportez-les ci-dessus si vous voulez les garder ailleurs.',
+    deleteAccount: 'Supprimer mon compte',
+    deleteWarning:
+      'Cette action est irréversible : votre compte et toutes les données synchronisées seront effacés de nos serveurs.',
+    deleteConfirm: 'Oui, supprimer définitivement',
+    deleteError: 'Échec de la suppression :',
+    deleteDone: 'Votre compte et les données synchronisées ont été supprimés.',
   },
   score: {
     pageTitle: 'Arabesque',
@@ -259,11 +273,11 @@ export default {
   landing: {
     pageTitle: 'Arabesque · Apprenez le piano avec un retour en temps réel',
     metaDescription:
-      'Branchez votre clavier MIDI, ouvrez une partition et jouez : Arabesque colore les notes en temps réel, suit votre pratique et vous aide à progresser sur un répertoire classique.',
+      'Connectez votre clavier MIDI, ouvrez une partition et jouez : Arabesque colore les notes en temps réel, suit votre pratique et vous aide à progresser sur un répertoire classique.',
     heroAria: 'Ouvrir Arabesque',
     heroTitle: 'Travaillez votre piano avec un retour en temps réel.',
     heroLead:
-      "Branchez votre clavier MIDI, ouvrez une partition et jouez. Chaque note se colore selon que vous l'avez réussie, manquée ou anticipée — et votre progression se note toute seule, mesure après mesure.",
+      "Connectez votre clavier MIDI, ouvrez une partition et jouez. Chaque note se colore selon que vous l'avez réussie, manquée ou anticipée — et votre progression se note toute seule, mesure après mesure.",
     featuresTitle: 'Tout ce qu’il faut pour pratiquer sérieusement',
     featuresSubtitle: 'Un atelier de travail dans le navigateur, sans installation ni compte.',
     f1Title: 'Clavier MIDI en un clic',
@@ -285,7 +299,7 @@ export default {
       '70+ partitions du domaine public, des inventions de Bach au Hanon, recherchables en jouant leurs premières notes.',
     howTitle: 'Comment démarrer',
     howSubtitle: 'Trois étapes, et vous jouez.',
-    step1Title: 'Branchez votre clavier',
+    step1Title: 'Connectez votre clavier',
     step1Body:
       'Reliez un clavier MIDI en USB ou en Bluetooth et autorisez l’accès quand le navigateur le demande. Pas de clavier ? Vous pouvez aussi suivre la partition à l’écran.',
     step2Title: 'Choisissez une partition',
@@ -295,5 +309,65 @@ export default {
     step3Body:
       'Suivez les notes qui défilent, laissez le retour en temps réel vous guider, et retrouvez vos progrès dans le journal de pratique.',
     footer: 'Arabesque · partitions du domaine public · vos données restent dans votre navigateur.',
+  },
+  privacy: {
+    pageTitle: 'Arabesque · Confidentialité',
+    heading: 'Confidentialité',
+    back: '← Bibliothèque',
+    updated: 'Dernière mise à jour : 24 août 2026.',
+    summaryTitle: 'En bref',
+    summaryBody:
+      "Arabesque fonctionne dans votre navigateur et garde vos données de pratique sur votre appareil. Rien n'est envoyé ailleurs tant que vous ne le demandez pas — en créant un compte pour synchroniser vos appareils, ou en envoyant un avis. Il n'y a ni publicité, ni traceur, ni revente de quoi que ce soit.",
+    localTitle: 'Ce qui reste sur votre appareil',
+    localBody:
+      "Vos séances de travail, vos doigtés et vos préférences (langue, morceaux vus) sont écrits dans le stockage local du navigateur. Ils ne quittent pas l'appareil de leur propre initiative, et vider les données du site les efface définitivement. La page Données permet de les exporter dans un fichier.",
+    accountTitle: 'Le compte, si vous en créez un',
+    accountBody:
+      "Se connecter sert à retrouver sa pratique d'un appareil à l'autre. Cela demande une adresse e-mail, à laquelle est envoyé un lien — ou un code — de connexion : il n'y a pas de mot de passe. Une fois connecté, vos séances et vos doigtés sont copiés sur le serveur pour être redescendus sur vos autres appareils. Aucune autre donnée n'est associée au compte.",
+    accountDelete:
+      "Vous pouvez supprimer votre compte depuis la page Données. Le compte et toutes les données synchronisées sont alors effacés des serveurs, sans délai et sans avoir à le demander à qui que ce soit.",
+    feedbackTitle: 'Les avis que vous envoyez',
+    feedbackBody:
+      "Le formulaire d'avis transmet votre message, la catégorie choisie, et un contexte technique destiné à reproduire les problèmes : version de l'app, navigateur, taille d'écran, langue, et selon la page, le titre du morceau ouvert ou vos totaux de pratique. L'adresse e-mail est facultative et ne sert qu'à vous répondre. Un avis n'est jamais rattaché à un compte.",
+    neverTitle: "Ce qu'Arabesque ne fait pas",
+    neverBody:
+      "Pas de publicité, pas de mesure d'audience, pas de traceur tiers, pas de cookie publicitaire, pas de profilage. Vos données ne sont ni vendues, ni louées, ni partagées à des fins commerciales. Le microphone et la caméra ne sont jamais utilisés ; le clavier MIDI ne sert qu'à savoir quelles notes vous jouez, et ce flux ne quitte pas votre appareil.",
+    hostingTitle: 'Hébergement et prestataires',
+    hostingBody:
+      "Le site est hébergé par GitHub Pages, qui journalise les requêtes comme tout serveur web. Les comptes et les données synchronisées sont chez Supabase, sur des serveurs situés en Irlande (Union européenne). Les avis y sont également stockés, et notifiés par e-mail via Resend. La page Données charge la bibliothèque de connexion depuis le CDN esm.sh, qui voit donc votre adresse IP lors de cette requête.",
+    retentionTitle: 'Durées de conservation',
+    retentionBody:
+      'Les données synchronisées sont conservées tant que le compte existe, et disparaissent avec lui. Les avis sont conservés le temps de traiter la demande et de garder la trace des corrections apportées.',
+    rightsTitle: 'Vos droits',
+    rightsBody:
+      "Vous pouvez à tout moment consulter et exporter vos données depuis la page Données, et supprimer votre compte avec tout ce qu'il contient. Pour la suppression d'un avis, ou pour toute question sur vos données, passez par le formulaire d'avis (menu ⚙️) — il arrive dans la même boîte.",
+    childrenTitle: 'Enfants',
+    childrenBody:
+      "Arabesque n'est pas destiné aux enfants de moins de 13 ans et ne leur demande sciemment aucune donnée. L'app s'utilise entièrement sans compte.",
+    changesTitle: 'Modifications',
+    changesBody:
+      "Cette page évolue avec l'application. La date de mise à jour en haut indique la dernière version ; un changement qui vous concerne sera annoncé dans les « Nouveautés ».",
+  },
+  support: {
+    pageTitle: 'Arabesque · Assistance',
+    heading: 'Assistance',
+    back: '← Bibliothèque',
+    contactTitle: 'Poser une question, signaler un bug',
+    contactBody:
+      "Le formulaire d'avis est le chemin le plus court : ouvrez le menu ⚙️ depuis la bibliothèque ou une partition, puis « Avis ». Un bug, une idée, une partition qui manque — tout arrive au même endroit. Laissez votre e-mail si vous attendez une réponse ; sans lui, le message est anonyme et sans retour possible.",
+    keyboardTitle: 'Brancher un clavier',
+    keyboardBody:
+      "Arabesque écoute le clavier via le Web MIDI, en USB comme en Bluetooth. Sur ordinateur, il faut un navigateur qui le prenne en charge : Chrome, Edge ou Opera. Safari et Firefox ne l'implémentent pas, et l'app le signale plutôt que de rester muette.",
+    keyboardIos:
+      "Sur iPhone et iPad, aucun navigateur n'a le Web MIDI : c'est l'app Arabesque qui fait le pont avec le clavier. En USB, branchez-le et c'est tout ; en Bluetooth, touchez le bouton antenne en bas à droite pour ouvrir l'appairage du système, l'appairage étant propre à chaque app sur iOS.",
+    noteTitle: "Le clavier n'est pas détecté",
+    noteBody:
+      "Vérifiez qu'aucun autre logiciel ne l'occupe : un clavier MIDI ne se partage pas toujours entre deux applications. Un clavier branché après l'ouverture de la page est reconnu tout seul, mais recharger la page règle la plupart des cas restants. Sur ordinateur, l'autorisation MIDI se redemande au navigateur si elle a été refusée une fois.",
+    dataTitle: 'Vos données',
+    dataBody:
+      "Tout se passe sur la page Données : exporter votre historique dans un fichier, le réimporter sur un autre appareil, vous connecter pour que la synchronisation s'en charge, et supprimer votre compte. Ce que l'app conserve et ce qu'elle envoie est détaillé dans la politique de confidentialité.",
+    scoresTitle: 'Les partitions',
+    scoresBody:
+      "La bibliothèque ne contient que des œuvres du domaine public. Vous pouvez aussi ouvrir vos propres fichiers MusicXML (.xml, .mxl) en les déposant sur la page partition — ils restent sur votre appareil. Une erreur dans une partition, ou une œuvre qui manque ? Le formulaire d'avis, catégorie « Partition ».",
   },
 }

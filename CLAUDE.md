@@ -4,6 +4,13 @@
 
 **IMPORTANT:** When merging PRs, always use squash merge: `gh pr merge --squash`
 
+**IMPORTANT:** Before committing and pushing a code change, run `/simplify`
+(a review on four angles: reuse, simplification, efficiency, altitude). Apply
+the findings that hold, skip the false positives, then commit. Skip the whole
+step for purely trivial changes — docs, this file, a version bump, an isolated
+typo fix. For a very short diff that only reflects code already reviewed, a
+self-review on the four angles is enough; no need to spawn the subagents again.
+
 **IMPORTANT:** When running tests, ALWAYS save output to temp file (never pipe to tail):
 ```bash
 bundle exec rake test:parallel > tmp/test-output.txt 2>&1; cat tmp/test-output.txt
@@ -85,15 +92,29 @@ playwright-cli -s=pt close
 full command list. Interactive exploration works the same way — `snapshot` to get element
 refs, then `click`/`fill`/`eval` against them.
 
+## App Store screenshots and review video
+
+`scripts/demo/capture.sh` regenerates the whole screenshot set from real
+simulators — run it after any UI change the listing shows. `scripts/demo/record.sh`
+records the walkthrough App Review needs, since a reviewer has no MIDI keyboard.
+Both seed a practice history and play a piece through the mock MIDI input, and
+both work on a throwaway copy of `public/` — no demo hook ever ships. See
+`scripts/demo/README.md`, which also has the wording for the review notes.
+
+`scripts/appstore/push_listing.py` writes the listing itself — description,
+keywords, URLs, categories, age rating, screenshots — through the App Store
+Connect API, from the copy in `scripts/appstore/listing_fr.py`. It never
+submits for review, and App Privacy has no API and stays manual. Credentials
+live outside the repo; see `scripts/appstore/README.md`.
+
 ## New HTML pages
 
-Every page carries `<meta name="app-version" content="dev" />` and calls
-`checkAppVersion()` first thing in its module script. HTML and JS are cached
-independently by the browser, so this is how a page notices it was paired with
-another deploy's scripts and reloads itself once (`public/js/version.js`). The
-deploy rewrites both sides with the commit via `scripts/stamp-version.mjs`,
-which fails if a page is missing the marker; `test/js/version.test.js` catches
-it earlier.
+Every page carries `<meta name="app-version" content="dev" />` and loads
+`<script type="module" src="js/version.js"></script>` ahead of its entry
+script — that is how a page notices it was served with another deploy's
+JavaScript and reloads itself once (`public/js/version.js` explains why).
+`scripts/stamp-version.mjs` fails at deploy time if a page is missing either
+marker, and `test/js/version.test.js` catches it earlier.
 
 ## Code Style
 

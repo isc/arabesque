@@ -8,7 +8,7 @@
     <meta
       name="description"
       data-i18n-content="landing.metaDescription"
-      content="Branchez votre clavier MIDI, ouvrez une partition et jouez : Arabesque colore les notes en temps réel, suit votre pratique et vous aide à progresser sur un répertoire classique."
+      content="Connectez votre clavier MIDI, ouvrez une partition et jouez : Arabesque colore les notes en temps réel, suit votre pratique et vous aide à progresser sur un répertoire classique."
     />
     <link rel="icon" href="favicon.svg" type="image/svg+xml" />
     <!-- Returning visitors (anyone who has already opened the library) skip the
@@ -32,13 +32,8 @@
       }
     </script>
     <link rel="stylesheet" href="styles.css" />
+    <script type="module" src="js/version.js"></script>
     <script type="module">
-      import { checkAppVersion } from './js/version.js'
-      // Reload when this document and its scripts come from different deploys:
-      // they are cached separately, and a stale pairing renders one side's markup
-      // against the other side's contract. See js/version.js.
-      checkAppVersion()
-
       import { initI18n, getLang } from './js/i18n.js'
       initI18n()
       // Serve the hero video for the active language, then autoplay it unless the
@@ -75,7 +70,7 @@
         <div class="pt-hero__intro">
           <h1 data-i18n="landing.heroTitle">Travaillez votre piano avec un retour en temps réel.</h1>
           <p class="pt-hero__lead" data-i18n="landing.heroLead">
-            Branchez votre clavier MIDI, ouvrez une partition et jouez. Chaque note
+            Connectez votre clavier MIDI, ouvrez une partition et jouez. Chaque note
             se colore selon que vous l'avez réussie, manquée ou anticipée — et votre
             progression se note toute seule, mesure après mesure.
           </p>
@@ -153,7 +148,7 @@
         <div class="pt-steps">
           <div class="pt-step">
             <span class="pt-step__num"></span>
-            <h3 data-i18n="landing.step1Title">Branchez votre clavier</h3>
+            <h3 data-i18n="landing.step1Title">Connectez votre clavier</h3>
             <p data-i18n="landing.step1Body">Reliez un clavier MIDI en USB ou en Bluetooth et autorisez l'accès quand le navigateur le demande. Pas de clavier ? Vous pouvez aussi suivre la partition à l'écran.</p>
           </div>
           <div class="pt-step">
@@ -172,8 +167,14 @@
         </div>
       </section>
 
-      <footer class="pt-landing__footer" data-i18n="landing.footer">
-        Arabesque · partitions du domaine public · vos données restent dans votre navigateur.
+      <footer class="pt-landing__footer">
+        <span data-i18n="landing.footer">
+          Arabesque · partitions du domaine public · vos données restent dans votre navigateur.
+        </span>
+        <span class="pt-footer-links">
+          <a href="privacy.html" data-i18n="common.privacy">Confidentialité</a>
+          <a href="support.html" data-i18n="common.support">Assistance</a>
+        </span>
       </footer>
     </main>
   </body>

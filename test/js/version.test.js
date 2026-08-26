@@ -6,8 +6,9 @@ import { APP_VERSION, checkAppVersion } from '../../public/js/version.js'
 const PUBLIC_DIR = join(import.meta.dirname, '..', '..', 'public')
 const pages = readdirSync(PUBLIC_DIR).filter((name) => name.endsWith('.html'))
 
-// A <meta name="app-version"> holding `content`, and nothing else the check reads.
-const docWith = (content) => ({
+// A document whose <meta name="app-version"> holds `content`, and nothing else
+// the check reads.
+const stampedPage = (content) => ({
   querySelector: () => (content === null ? null : { getAttribute: () => content }),
 })
 
@@ -26,7 +27,7 @@ describe('checkAppVersion', () => {
 
   beforeEach(() => {
     reload = vi.fn()
-    vi.stubGlobal('location', { reload })
+    vi.stubGlobal('location', { reload, pathname: '/library.html' })
     vi.stubGlobal('sessionStorage', fakeSessionStorage())
   })
 
@@ -34,30 +35,43 @@ describe('checkAppVersion', () => {
     vi.unstubAllGlobals()
   })
 
+  const check = (pageVersion) => {
+    vi.stubGlobal('document', stampedPage(pageVersion))
+    checkAppVersion()
+  }
+
   it('does nothing when the page and the scripts come from the same deploy', () => {
-    expect(checkAppVersion(docWith(APP_VERSION))).toBe(false)
+    check(APP_VERSION)
     expect(reload).not.toHaveBeenCalled()
   })
 
-  it('reloads when the page was cached from another deploy', () => {
-    expect(checkAppVersion(docWith('older-deploy'))).toBe(true)
+  it('reloads once for a mismatch, and not again for the same one', () => {
+    check('older-deploy')
+    check('older-deploy')
     expect(reload).toHaveBeenCalledOnce()
   })
 
-  it('reloads only once for the same mismatch, so it cannot loop', () => {
-    checkAppVersion(docWith('older-deploy'))
-    expect(checkAppVersion(docWith('older-deploy'))).toBe(false)
-    expect(reload).toHaveBeenCalledOnce()
+  it('reloads again when a later deploy moves the scripts side', () => {
+    check('older-deploy')
+    check('another-deploy')
+    expect(reload).toHaveBeenCalledTimes(2)
   })
 
-  it('reloads again when the mismatch is a different one', () => {
-    checkAppVersion(docWith('older-deploy'))
-    expect(checkAppVersion(docWith('another-deploy'))).toBe(true)
+  it("gives each page its own attempt: one document cannot spend another's", () => {
+    check('older-deploy')
+    vi.stubGlobal('location', { reload, pathname: '/practice.html' })
+    check('older-deploy')
     expect(reload).toHaveBeenCalledTimes(2)
   })
 
   it('stays quiet on a page that carries no stamp at all', () => {
-    expect(checkAppVersion(docWith(null))).toBe(false)
+    check(null)
+    expect(reload).not.toHaveBeenCalled()
+  })
+
+  it('stays quiet, rather than looping, when Web Storage is unavailable', () => {
+    vi.stubGlobal('sessionStorage', undefined)
+    check('older-deploy')
     expect(reload).not.toHaveBeenCalled()
   })
 })
@@ -70,9 +84,9 @@ describe('the version stamp', () => {
   // The stamp is only useful if it covers every page: an unstamped one keeps
   // serving a stale pairing silently. scripts/stamp-version.mjs rewrites these
   // exact markers at deploy time and fails if one is missing.
-  it.each(pages)('is carried by %s, which runs the check', (page) => {
+  it.each(pages)('is carried by %s, which loads the check', (page) => {
     const html = readFileSync(join(PUBLIC_DIR, page), 'utf8')
     expect(html).toContain(`<meta name="app-version" content="${APP_VERSION}" />`)
-    expect(html).toContain('checkAppVersion()')
+    expect(html).toContain('<script type="module" src="js/version.js"></script>')
   })
 })

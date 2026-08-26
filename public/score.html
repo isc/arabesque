@@ -41,6 +41,7 @@
       }
     }
     </script>
+    <script type="module" src="js/version.js"></script>
     <!-- defer, not blocking: these two are only needed once a score is being
          rendered, and evaluating 1.4MB of vendor code up front held back both
          the first paint and the fetch of the module graph below. Deferred
@@ -48,12 +49,6 @@
     <script defer src="vendor/jszip.3.10.1.min.js"></script>
     <script defer src="vendor/opensheetmusicdisplay.2.1.2.min.js"></script>
     <script type="module">
-      import { checkAppVersion } from './js/version.js'
-      // Reload when this document and its scripts come from different deploys:
-      // they are cached separately, and a stale pairing renders one side's markup
-      // against the other side's contract. See js/version.js.
-      checkAppVersion()
-
       // Register the Alpine root component before Alpine boots, then load Alpine.
       // Loading Alpine from inside this module (rather than a sibling `defer`
       // script) guarantees `midiApp` exists before Alpine evaluates `x-data`,

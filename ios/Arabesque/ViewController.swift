@@ -2,12 +2,36 @@ import CoreAudioKit
 import UIKit
 import WebKit
 
+/// The handful of strings the native shell shows on its own. The web app picks
+/// its language from the browser locale; this does the same from the device's
+/// preferred languages, rather than carrying a .strings file and a localization
+/// build phase for five lines. Anything longer belongs in the web app.
+private enum Strings {
+  private static let french = Locale.preferredLanguages.first?.hasPrefix("fr") ?? false
+
+  private static func pick(_ fr: String, _ en: String) -> String { french ? fr : en }
+
+  static let ok = "OK"
+  static var cancel: String { pick("Annuler", "Cancel") }
+  static var loadFailureTitle: String { pick("Arabesque n’a pas pu se charger", "Arabesque could not load") }
+  static var loadFailureBody: String {
+    pick(
+      "Vérifiez votre connexion à Internet, puis réessayez.",
+      "Check your internet connection, then try again.")
+  }
+  static var retry: String { pick("Réessayer", "Try again") }
+}
+
 /// Full-screen WKWebView hosting the existing web app, plus the glue between
 /// the native MIDIBridge and the injected Web MIDI shim. A small overlay
 /// button opens the system Bluetooth MIDI pairing sheet.
 final class ViewController: UIViewController {
   private var webView: WKWebView!
   private let midiBridge = MIDIBridge()
+  /// Covers the webview when a load fails. Everything this app shows comes from
+  /// the network, so without it a failed load is a blank white screen with no
+  /// way out — the state an offline launch lands in.
+  private lazy var loadFailureView: UIView = makeLoadFailureView()
 
   private var appURL: URL {
     let configured = Bundle.main.object(forInfoDictionaryKey: "PTWebAppURL") as? String
@@ -68,6 +92,16 @@ final class ViewController: UIViewController {
       webView.trailingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.trailingAnchor),
     ])
 
+    view.addSubview(loadFailureView)
+    NSLayoutConstraint.activate([
+      loadFailureView.topAnchor.constraint(equalTo: webView.topAnchor),
+      loadFailureView.bottomAnchor.constraint(equalTo: webView.bottomAnchor),
+      loadFailureView.leadingAnchor.constraint(equalTo: webView.leadingAnchor),
+      loadFailureView.trailingAnchor.constraint(equalTo: webView.trailingAnchor),
+    ])
+
+    // Added last so pairing stays reachable over both the webview and the
+    // failure screen: a keyboard can be paired while the app is still offline.
     let bluetoothButton = makeBluetoothButton()
     view.addSubview(bluetoothButton)
     NSLayoutConstraint.activate([
@@ -75,10 +109,73 @@ final class ViewController: UIViewController {
       bluetoothButton.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -12),
     ])
 
+    // Coming back to a failure screen is the moment the connection has often
+    // just been fixed — in Settings, or by plugging in — so spend the reload
+    // rather than making the button the only way forward.
+    NotificationCenter.default.addObserver(
+      self, selector: #selector(reloadIfLoadFailed),
+      name: UIApplication.didBecomeActiveNotification, object: nil)
+
     midiBridge.delegate = self
     midiBridge.start()
 
+    loadWebApp()
+  }
+
+  // MARK: - Loading the web app
+
+  private func loadWebApp() {
     webView.load(URLRequest(url: appURL))
+  }
+
+  @objc private func reloadIfLoadFailed() {
+    guard !loadFailureView.isHidden else { return }
+    loadWebApp()
+  }
+
+  private func makeLoadFailureView() -> UIView {
+    let title = UILabel()
+    title.text = Strings.loadFailureTitle
+    title.font = .preferredFont(forTextStyle: .headline)
+    title.adjustsFontForContentSizeCategory = true
+
+    let body = UILabel()
+    body.text = Strings.loadFailureBody
+    body.font = .preferredFont(forTextStyle: .body)
+    body.adjustsFontForContentSizeCategory = true
+    body.textColor = .secondaryLabel
+
+    for label in [title, body] {
+      label.textAlignment = .center
+      label.numberOfLines = 0
+    }
+
+    var config = UIButton.Configuration.filled()
+    config.title = Strings.retry
+    config.cornerStyle = .medium
+    let retry = UIButton(
+      configuration: config,
+      primaryAction: UIAction { [weak self] _ in self?.loadWebApp() })
+
+    let stack = UIStackView(arrangedSubviews: [title, body, retry])
+    stack.axis = .vertical
+    stack.alignment = .center
+    stack.spacing = 12
+    stack.setCustomSpacing(24, after: body)
+    stack.translatesAutoresizingMaskIntoConstraints = false
+
+    let container = UIView()
+    container.backgroundColor = .systemBackground
+    container.isHidden = true
+    container.translatesAutoresizingMaskIntoConstraints = false
+    container.addSubview(stack)
+    NSLayoutConstraint.activate([
+      stack.centerXAnchor.constraint(equalTo: container.centerXAnchor),
+      stack.centerYAnchor.constraint(equalTo: container.centerYAnchor),
+      stack.leadingAnchor.constraint(greaterThanOrEqualTo: container.leadingAnchor, constant: 32),
+      stack.trailingAnchor.constraint(lessThanOrEqualTo: container.trailingAnchor, constant: -32),
+    ])
+    return container
   }
 
   // MARK: - Bluetooth MIDI pairing
@@ -158,7 +255,8 @@ extension ViewController: WKScriptMessageHandler {
   }
 }
 
-// MARK: - Navigation: keep the app's host in the webview, open the rest in Safari
+// MARK: - Navigation: keep the app's host in the webview, open the rest in
+// Safari, and say so when nothing loads at all
 
 extension ViewController: WKNavigationDelegate {
   func webView(
@@ -174,6 +272,30 @@ extension ViewController: WKNavigationDelegate {
     }
     decisionHandler(.allow)
   }
+
+  /// Hidden on commit rather than on didStartProvisionalNavigation: a retry that
+  /// fails again would otherwise flash the blank webview in between.
+  func webView(_ webView: WKWebView, didCommit navigation: WKNavigation!) {
+    loadFailureView.isHidden = true
+  }
+
+  func webView(
+    _ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error
+  ) {
+    showLoadFailure(error)
+  }
+
+  func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
+    showLoadFailure(error)
+  }
+
+  private func showLoadFailure(_ error: Error) {
+    // A cancelled load is routine — a new navigation superseding the one in
+    // flight reports it, and so does tapping Retry twice. Nothing failed.
+    guard (error as NSError).code != NSURLErrorCancelled else { return }
+    print("Arabesque: loading \(appURL) failed — \(error.localizedDescription)")
+    loadFailureView.isHidden = false
+  }
 }
 
 // MARK: - JS dialogs (alert / confirm / prompt), silently dropped by WKWebView otherwise
@@ -184,7 +306,7 @@ extension ViewController: WKUIDelegate {
     initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping () -> Void
   ) {
     let alert = UIAlertController(title: nil, message: message, preferredStyle: .alert)
-    alert.addAction(UIAlertAction(title: "OK", style: .default) { _ in completionHandler() })
+    alert.addAction(UIAlertAction(title: Strings.ok, style: .default) { _ in completionHandler() })
     present(alert, animated: true)
   }
 
@@ -193,8 +315,8 @@ extension ViewController: WKUIDelegate {
     initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping (Bool) -> Void
   ) {
     let alert = UIAlertController(title: nil, message: message, preferredStyle: .alert)
-    alert.addAction(UIAlertAction(title: "OK", style: .default) { _ in completionHandler(true) })
-    alert.addAction(UIAlertAction(title: "Annuler", style: .cancel) { _ in completionHandler(false) })
+    alert.addAction(UIAlertAction(title: Strings.ok, style: .default) { _ in completionHandler(true) })
+    alert.addAction(UIAlertAction(title: Strings.cancel, style: .cancel) { _ in completionHandler(false) })
     present(alert, animated: true)
   }
 
@@ -204,8 +326,8 @@ extension ViewController: WKUIDelegate {
   ) {
     let alert = UIAlertController(title: nil, message: prompt, preferredStyle: .alert)
     alert.addTextField { $0.text = defaultText }
-    alert.addAction(UIAlertAction(title: "OK", style: .default) { _ in completionHandler(alert.textFields?.first?.text) })
-    alert.addAction(UIAlertAction(title: "Annuler", style: .cancel) { _ in completionHandler(nil) })
+    alert.addAction(UIAlertAction(title: Strings.ok, style: .default) { _ in completionHandler(alert.textFields?.first?.text) })
+    alert.addAction(UIAlertAction(title: Strings.cancel, style: .cancel) { _ in completionHandler(nil) })
     present(alert, animated: true)
   }
 }

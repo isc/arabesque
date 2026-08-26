@@ -20,9 +20,11 @@ export const CHANGELOG = [
     items: {
       fr: [
         'Une page « Assiduité » montre l’année entière, une case par jour : plus vous avez joué longtemps ce jour-là, plus la case est foncée. On y lit d’un coup d’œil les semaines tenues et les trous, avec les jours joués, le temps total, les lectures complètes, la série en cours et la meilleure série. Cliquer une case rappelle ce qui a été travaillé ce jour-là.',
+        'La page Données permet de supprimer son compte : le compte et toutes les données synchronisées sont effacés de nos serveurs, en deux temps pour éviter le clic malheureux. Les données de cet appareil, elles, restent en place — la sauvegarde dans un fichier, juste au-dessus, sert à les emporter.',
       ],
       en: [
         'A "Consistency" page shows the whole year, one square per day: the longer you played that day, the darker the square. The weeks you kept up and the gaps you left read at a glance, along with days played, total time, full playthroughs, current streak and longest streak. Clicking a square recalls what you worked on that day.',
+        'The Data page can now delete your account: the account and everything synced under it are erased from our servers, in two steps so no stray tap can do it. This device keeps its own data — the file backup just above is there to take it with you.',
       ],
     },
   },

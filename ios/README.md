@@ -12,6 +12,14 @@ This directory contains a minimal native wrapper that bridges the gap:
   (`CABTMIDICentralViewController`), needed because BLE MIDI devices are paired
   per-app, not in iOS Settings.
 
+Everything on screen comes from the network, so a failed load has nowhere to
+fall back to: `ViewController` covers the webview with a **retry screen**
+instead of leaving the blank white page an offline launch used to land on. It
+also reloads by itself when the app returns to the foreground while that screen
+is up — coming back is usually the moment the connection has just been fixed.
+The five native strings pick French or English from `Locale.preferredLanguages`
+(the `Strings` enum), the way the web app reads `navigator.language`.
+
 ## How the bridge works
 
 ```
