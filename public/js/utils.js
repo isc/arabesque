@@ -18,6 +18,16 @@ export function onIdle(fn) {
   return setTimeout(fn, 0)
 }
 
+// The page coming back to the foreground: a tab switched back to, or — the case
+// that matters on an iPad — an app resumed, since the wrapper's webview is
+// suspended and woken rather than reloaded. Everything that waits for this
+// wants the same visibility guard, so it is written once here.
+export function onForeground(fn) {
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') fn()
+  })
+}
+
 // Pixel offset for the currently-visible sticky bars (topbar + modebar +
 // optional mode-context band), used both by scrollToMeasure() and by the
 // CSS scroll-margin-top via the --pt-sticky-offset variable.

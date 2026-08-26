@@ -5,6 +5,7 @@ import { formatDuration, formatDate, formatRelativeDate, statusLabel, scorePageU
 import { PERIODS, periodLabel, getPeriodForComposer } from './musicalPeriods.js'
 import { headerMenu } from './headerMenu.js'
 import { initAutoSync } from './autoSync.js'
+import { onDayChange } from './dayRollover.js'
 import { t, locale } from './i18n.js'
 
 const MIN_MATCH = 5
@@ -39,6 +40,8 @@ export function libraryApp() {
     sortDir: 'desc',      // 'asc' | 'desc'
     baseUrl: '',
     dailyLogsByDate: [],
+    // In-flight refreshPracticeViews(), shared by concurrent callers.
+    refreshingPractice: null,
     lastPlayedByScore: {},
     aggregatesByScore: {},
 
@@ -81,6 +84,10 @@ export function libraryApp() {
       window.addEventListener('pageshow', (event) => {
         if (event.persisted) this.refreshPracticeViews()
       })
+
+      // The journal's rows are laid out from today's date, and the "Pratiqué"
+      // column is relative to it.
+      onDayChange(() => this.refreshPracticeViews())
 
       const [scoresResponse, fingerprintsResponse] = await Promise.all([
         fetch('data/scores.json'),
@@ -126,9 +133,18 @@ export function libraryApp() {
 
     // Everything on this page derived from practice data, redrawn together.
     // The two reads are independent, and each walks the whole session store —
-    // no reason to pay for them one after the other.
+    // no reason to pay for them one after the other. Three triggers can ask for
+    // this (a bfcache restore, a sync that pulled, the day turning over) and a
+    // resume the next morning fires more than one of them, so callers arriving
+    // while a refresh is in flight share it rather than walking the store again.
     refreshPracticeViews() {
-      return Promise.all([this.refreshPracticeData(), this.reloadDailyLogs()])
+      this.refreshingPractice ??= Promise.all([
+        this.refreshPracticeData(),
+        this.reloadDailyLogs(),
+      ]).finally(() => {
+        this.refreshingPractice = null
+      })
+      return this.refreshingPractice
     },
 
     // Recomputes lastPlayedByScore/aggregatesByScore/sessionCountByFile from

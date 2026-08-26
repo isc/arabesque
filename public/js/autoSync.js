@@ -10,7 +10,7 @@
 // outcome.
 import { lastSyncAt, runSync } from './sync.js'
 import { signedInOnThisDevice } from './supabaseConfig.js'
-import { onIdle } from './utils.js'
+import { onIdle, onForeground } from './utils.js'
 
 // How long each trigger waits behind the previous sync. A tab coming back or a
 // page opening brings nothing new of our own, so one round-trip a minute is
@@ -40,11 +40,7 @@ export function initAutoSync(
   //
   // A page that can't afford a pull declines this the same way it declines
   // syncOnOpen: what arrives is the same, and so is the cost of receiving it.
-  if (syncOnReturn) {
-    document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'visible') triggerSync('tab back')
-    })
-  }
+  if (syncOnReturn) onForeground(() => triggerSync('tab back'))
 
   if (syncOnOpen) triggerSync('page opened')
 

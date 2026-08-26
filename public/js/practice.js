@@ -9,6 +9,7 @@
 import { initStorage } from './storage.js'
 import { initPracticeTracker, localDayKey, practiceStreaks, practiceYearStats } from './practiceTracker.js'
 import { initAutoSync } from './autoSync.js'
+import { onDayChange } from './dayRollover.js'
 import { formatDuration, formatVerboseDate, scorePageUrl } from './utils.js'
 import { t, locale } from './i18n.js'
 
@@ -65,8 +66,12 @@ export function practiceApp() {
     ready: false,
     year: new Date().getFullYear(),
     // The bounds of the year arrows: this year, back to the first with data.
+    // The upper bound is derived, not stored: a page left open across New
+    // Year's Eve would otherwise cap the arrows at the year that just ended.
     firstYear: new Date().getFullYear(),
-    latestYear: new Date().getFullYear(),
+    get latestYear() {
+      return new Date().getFullYear()
+    },
     levels: LEVELS,
     weeks: [],
     monthLabels: [],
@@ -90,18 +95,29 @@ export function practiceApp() {
           if (summary.pulled) this.reload()
         },
       })
+
+      // One square is marked today and the streaks end there. Nothing was
+      // stored in the meantime — practice happens on the score page, and what
+      // syncs down arrives on the branch above — so the grid is redrawn from
+      // the history already in memory rather than read again.
+      onDayChange(() => this.redraw())
     },
 
     async reload() {
       calendar = await practiceTracker.getPracticeCalendar()
-      streaks = practiceStreaks(calendar.keys())
       dayEntries = new Map()
+      this.redraw()
+      // The panel's day is unchanged, but a sync may have added practice to it.
+      if (this.selected) await this.openDay(this.selected)
+    },
 
+    // Everything derived from `calendar` and from today, with no read behind
+    // it: what a day rollover needs, and the tail of every reload().
+    redraw() {
+      streaks = practiceStreaks(calendar.keys())
       this.firstYear = Math.min(this.latestYear, ...[...calendar.keys()].map((key) => Number(key.slice(0, 4))))
       if (this.year < this.firstYear) this.year = this.latestYear
       this.buildGrid()
-      // The panel's day is unchanged, but a sync may have added practice to it.
-      if (this.selected) await this.openDay(this.selected)
     },
 
     // Rebuilds the grid, its month labels and the year's stats. Everything the
