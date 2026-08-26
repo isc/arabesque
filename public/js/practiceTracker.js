@@ -432,11 +432,14 @@ export function initPracticeTracker(storageInstance = null) {
     return startSession(scoreId, scoreTitle, composer, newMode, totalMeasures)
   }
 
-  function startMeasureAttempt(sourceMeasureIndex) {
+  // `startsPlaythrough` says this measure is where a run through the whole score
+  // begins. Usually the first one, but not always: with one hand unticked the
+  // score can open on a bar that hand rests through, and the cursor starts after
+  // it — the score page knows which measure that is, the tracker doesn't.
+  function startMeasureAttempt(sourceMeasureIndex, startsPlaythrough = sourceMeasureIndex === 0) {
     if (!currentSession) return null
 
-    // Set playthroughStartedAt when user starts playing from measure 0
-    if (sourceMeasureIndex === 0 && !currentSession.playthroughStartedAt) {
+    if (startsPlaythrough && !currentSession.playthroughStartedAt) {
       currentSession.playthroughStartedAt = new Date().toISOString()
     }
 

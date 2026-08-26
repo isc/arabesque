@@ -16,6 +16,17 @@
 
 export const CHANGELOG = [
   {
+    date: '2026-08-26',
+    items: {
+      fr: [
+        "Travailler une main seule ne bute plus sur les mesures que l'autre main tient toute seule : le curseur les traverse. Dans le prélude n° 2 de Bach, la mesure 25 est un silence à la main droite — il fallait jusqu'ici recocher la main gauche pour continuer. Ces mesures comptent aussi comme faites, donc une lecture d'une seule main va bien jusqu'au bout.",
+      ],
+      en: [
+        'Working one hand alone no longer stops at the bars the other hand holds by itself: the cursor crosses them. In Bach\'s Prelude No. 2, bar 25 rests in the right hand — until now you had to tick the left hand back on to get past it. Those bars count as done too, so a one-hand playthrough runs all the way to the end.',
+      ],
+    },
+  },
+  {
     date: '2026-08-24',
     items: {
       fr: [
