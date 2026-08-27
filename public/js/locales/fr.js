@@ -260,6 +260,11 @@ export default {
     cassetteError: 'Erreur: {error}',
     chartAria: 'Évolution du temps de jeu par playthrough',
     playthroughsSummary: '{n}× en entier ({list})',
+    offlineTitle: 'Partition indisponible hors ligne',
+    offlineBody: 'Elle n\'a jamais été ouverte sur cet appareil, donc elle n\'est pas en mémoire. Ouvrez-la une fois avec du réseau : elle restera disponible ensuite, même en avion.',
+    failedTitle: 'Impossible de charger la partition',
+    failedBody: 'Le fichier n\'a pas pu être récupéré. Réessayez dans un instant.',
+    loadRetry: 'Réessayer',
   },
   errors: {
     webMidiUnsupported: 'Web MIDI API non supportée par ce navigateur',

@@ -230,13 +230,25 @@
            before Alpine boots, which is most of the wait. -->
       <div class="pt-score-loading" aria-busy="true"></div>
 
+      <!-- A score that never arrived; the wording differs offline (see
+           reportScoreLoadFailure). Reuses the onboarding card that sits in the
+           same slot: same shape, same place on the page. -->
+      <div class="pt-onboarding" x-show="scoreLoadError" x-cloak>
+        <h2 x-text="scoreLoadMessage.title"></h2>
+        <p x-text="scoreLoadMessage.body"></p>
+        <div class="pt-onboarding__cta">
+          <button type="button" x-show="scoreLoadMessage.retry" @click="retryScoreLoad()" x-text="$t('score.loadRetry')">Réessayer</button>
+          <a x-show="!scoreLoadMessage.retry" href="library.html" x-text="$t('common.openLibrary')">Ouvrir la bibliothèque</a>
+        </div>
+      </div>
+
       <!-- Onboarding: shown when no score is loaded. The "Bibliothèque"
            link in the topbar handles catalog access, so this card focuses
            only on the case the topbar doesn't cover: importing a local
            MusicXML file. -->
       <div
         class="pt-onboarding"
-        x-show="!osmdInstance && !scoreLoading"
+        x-show="!osmdInstance && !scoreLoading && !scoreLoadError"
         x-data="{ dragOver: false }"
         :class="{ 'is-dragover': dragOver }"
         @dragover.prevent="dragOver = true"

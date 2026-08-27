@@ -260,6 +260,11 @@ export default {
     cassetteError: 'Error: {error}',
     chartAria: 'Play-time trend per playthrough',
     playthroughsSummary: '{n}× in full ({list})',
+    offlineTitle: 'This score is not available offline',
+    offlineBody: 'It has never been opened on this device, so there is no copy of it here. Open it once with a network and it stays available afterwards, plane mode included.',
+    failedTitle: 'The score could not be loaded',
+    failedBody: 'The file could not be fetched. Try again in a moment.',
+    loadRetry: 'Try again',
   },
   errors: {
     webMidiUnsupported: 'Web MIDI API not supported by this browser',

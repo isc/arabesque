@@ -270,6 +270,15 @@ class ArabesqueTest < CapybaraTestBase
     assert_selector 'svg g.vf-notehead.played-note', count: 1
   end
 
+  def test_score_that_cannot_be_fetched_says_so_instead_of_spinning
+    # A score that never arrives used to leave the page loading for good.
+    visit '/score.html?url=scores/does-not-exist.mxl'
+
+    assert_selector '.pt-onboarding', text: 'Impossible de charger la partition'
+    assert_selector 'button', text: 'Réessayer'
+    assert_no_selector '[aria-busy="true"]'
+  end
+
   def test_hand_selection_crosses_a_measure_the_other_hand_holds_alone
     # Measure 2 is a whole rest in the right hand, so working the right hand
     # alone has to cross it. See nextPlayableMeasure in noteExtraction.js.

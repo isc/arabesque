@@ -1,5 +1,12 @@
 2026-08-27
 
+- **Une partition absente du cache le dit.** Hors ligne, ouvrir une partition
+  jamais consultée laissait la page sur son indicateur de chargement
+  indéfiniment. Elle affiche maintenant ce qui se passe et propose de revenir à
+  la bibliothèque — et l'indicateur lui-même tourne à nouveau : son animation
+  vivait dans une image SVG, donc sur le thread principal, saturé précisément
+  pendant l'affichage d'une partition.
+
 - **L'app fonctionne sans réseau.** Un service worker met en cache tout ce qu'il
   faut pour ouvrir la bibliothèque et jouer — le HTML, les scripts, les
   bibliothèques d'affichage, le catalogue — et garde les partitions au fur et à
