@@ -5,6 +5,33 @@ dans le `CHANGELOG`.
 
 ## Idées
 
+- **Fonctionner hors ligne (service worker)** — un iPad sur un pupitre sans
+  wifi. Les données sont déjà locales (IndexedDB, sync best-effort) : il ne
+  manque que les assets. Le shell fait ~1,8 Mo de vendor (OSMD, Tone, jszip,
+  Alpine) plus ~450 Ko de JS, précachable ; les 86 partitions (~26 Ko pièce)
+  se mettent en cache à l'ouverture ; la vidéo d'accueil (3,2 Mo) reste hors
+  cache. En bonus, le démarrage à froid n'attend plus le vendor. Tablito a le
+  précédent : `scripts/sw.js` (174 lignes) + `scripts/pwa-register.js` (134),
+  dont les commentaires listent les pièges — `cache.addAll()` atomique qui
+  échoue en entier sur un wifi faible, `controllerchange` que Safari ne
+  déclenche pas toujours après `skipWaiting()`, caches lazy jetés par un bump
+  de version du shell. Ici pas de build, mais `scripts/stamp-version.mjs`
+  tourne déjà au déploiement et peut écrire version et manifeste dans `sw.js`.
+
+  Trois choses à savoir avant de s'y mettre :
+
+  1. **Côté iOS, ça se paie en amont.** Les service workers dans WKWebView
+     demandent l'opt-in app-bound domains, qui bascule toute l'app en mode
+     restreint — injection de script et message handlers refusés, donc le pont
+     MIDI. Voir `ios/README.md`. La config est en place ; ce qui reste à
+     vérifier sur une build TestFlight, avant d'écrire une ligne de SW, c'est
+     que le clavier répond toujours.
+  2. **Prévoir l'interrupteur d'arrêt dès le début.** Un SW fautif épingle les
+     utilisateurs sur une version cassée : c'est le seul bug de cette famille
+     qu'un déploiement ne corrige pas.
+  3. **Garder le tampon de version** (`public/js/version.js`) comme filet
+     quand le SW n'est pas installé ou a été évincé.
+
 - **Validation des pédales** — valider l'usage de la pédale de sustain (CC 64),
   pas seulement les notes. Très pertinent sur des pièces comme la *Sonate au clair
   de lune*. Nécessite les marques `<pedal>` dans le MusicXML et l'écoute des
