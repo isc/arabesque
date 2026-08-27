@@ -116,6 +116,20 @@ JavaScript and reloads itself once (`public/js/version.js` explains why).
 `scripts/stamp-version.mjs` fails at deploy time if a page is missing either
 marker, and `test/js/version.test.js` catches it earlier.
 
+A page of the app itself — not the landing, privacy or support pages — also
+loads `<script type="module" src="js/swRegister.js"></script>`, which installs
+the offline cache (`public/sw.js`). The precache list is generated from
+`public/` by the same deploy step, so a new file is covered without being
+listed anywhere; add a new top-level directory to `SHELL_SKIP` in
+`scripts/stamp-version.mjs` if it must stay out.
+
+Neither mechanism runs from a checkout: both sides say `dev` there, so the
+version check never fires and the worker is never registered. To exercise the
+worker, stamp a version in (`node scripts/stamp-version.mjs testsha`), serve
+`public/` over HTTPS or localhost, and put it back with
+`node scripts/stamp-version.mjs dev` — the manifest is deliberately not
+committed.
+
 ## Code Style
 
 - Focus on writing DRY code

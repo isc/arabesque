@@ -1,3 +1,14 @@
+2026-08-27
+
+- **L'app fonctionne sans réseau.** Un service worker met en cache tout ce qu'il
+  faut pour ouvrir la bibliothèque et jouer — le HTML, les scripts, les
+  bibliothèques d'affichage, le catalogue — et garde les partitions au fur et à
+  mesure que vous les ouvrez, dans un cache qui survit aux mises à jour. Un iPad
+  sur un pupitre sans wifi ouvre l'app et sa partition du moment. Au passage, le
+  démarrage à froid n'attend plus le téléchargement de 1,8 Mo de bibliothèques.
+  Côté iOS, ça demandait d'inscrire la webview aux app-bound domains (voir
+  `ios/README.md`).
+
 2026-08-26
 
 - **Une main seule traverse les mesures de l'autre.** Le curseur n'avançait
