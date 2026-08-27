@@ -1,4 +1,5 @@
 import { initStorage } from './storage.js'
+import { TWO_HANDS, handsKey, playthroughHands } from './hands.js'
 
 // Where a session interrupted by a page teardown waits to be closed properly
 // (see stashPendingSession).
@@ -52,7 +53,10 @@ function median(values) {
 
 // Measure attempts overlapping [start, end], in chronological order, flattened
 // to what their readers need: when it started, how long it took, which hands
-// played it. Defaults to every attempt in the session.
+// played it. Bounds are inclusive — a measure played faster than the clock
+// ticks would otherwise fall out of the very run it belongs to, and an attempt
+// touching a bound with no overlap adds nothing to the time either way.
+// Defaults to every attempt in the session.
 function sessionAttempts(session, start = -Infinity, end = Infinity) {
   const attempts = []
   for (const measure of session.measures || []) {
@@ -60,47 +64,12 @@ function sessionAttempts(session, start = -Infinity, end = Infinity) {
       if (!attempt.startedAt) continue
       const s = new Date(attempt.startedAt).getTime()
       const durationMs = attempt.durationMs || 0
-      if (s + durationMs > start && s < end) {
+      if (s + durationMs >= start && s <= end) {
         attempts.push({ start: s, durationMs, hands: attempt.hands })
       }
     }
   }
   return attempts.sort((a, b) => a.start - b.start)
-}
-
-// The one hand selection that makes a run "the piece played in full". The
-// others are recorded and shown, but counted apart.
-export const TWO_HANDS = 'both'
-
-// How a hand selection is stored on a measure attempt.
-export function handsKey({ right, left }) {
-  if (right && left) return TWO_HANDS
-  if (right) return 'right'
-  if (left) return 'left'
-  return 'none'
-}
-
-// The hands a run through the score was played with. Two hands only when both
-// were on for every one of its measures: unticking one halfway leaves a run
-// that covered the whole score without ever playing all of it two-handed.
-export function playthroughHands(attempts) {
-  // An attempt recorded before the app tracked hands carries no value at all,
-  // which reads as two hands: that is all a run could have been back then.
-  const used = new Set(attempts.map((a) => a.hands || TWO_HANDS))
-  // A measure with neither hand ticked has nothing to validate, so it can't be
-  // part of what was played and says nothing about the hands that played it.
-  used.delete('none')
-  if (used.size === 0) return TWO_HANDS
-  return used.size === 1 ? [...used][0] : 'mixed'
-}
-
-// Runs of the score split by the hands that played them, in that order. A
-// right-hand run and a two-hand run of the same piece are not the same feat
-// and their times don't compare, so nothing ever lists or plots them together.
-export function playthroughGroups(playthroughs) {
-  return [TWO_HANDS, 'right', 'left', 'mixed']
-    .map((hands) => ({ hands, playthroughs: playthroughs.filter((pt) => pt.hands === hands) }))
-    .filter((group) => group.playthroughs.length > 0)
 }
 
 // When the last of these attempts finished.
@@ -154,27 +123,39 @@ function normalizedPlayingTime(intervals, start, end) {
   return Math.round(total)
 }
 
+// When the run a completed session holds started and finished. A session
+// carries at most one: the score page ends it and opens the next one as soon
+// as the piece is finished.
+function playthroughWindow(session) {
+  return {
+    start: new Date(session.playthroughStartedAt).getTime(),
+    end: new Date(session.completedAt).getTime(),
+  }
+}
+
 // A completed playthrough, timed from when the player started it to when they
 // finished. Falls back to raw wall-clock when per-measure timing is unavailable.
 export function computePlaythroughDuration(session) {
-  const start = new Date(session.playthroughStartedAt).getTime()
-  const end = new Date(session.completedAt).getTime()
-  const attempts = sessionAttempts(session, start, end)
+  const { start, end } = playthroughWindow(session)
+  return playthroughDuration(sessionAttempts(session, start, end), start, end)
+}
+
+function playthroughDuration(attempts, start, end) {
   if (attempts.length === 0) return end - start
   return normalizedPlayingTime(attempts, start, end)
 }
 
-// The hands the run held by a completed session was played with. A session
-// carries at most one run: the score page ends it and opens the next one as
-// soon as the piece is finished.
-export function completedSessionHands(session) {
-  const start = new Date(session.playthroughStartedAt).getTime()
-  const end = new Date(session.completedAt).getTime()
-  // Bounds included, unlike the duration maths: the run's first attempt starts
-  // exactly at playthroughStartedAt, and a measure played faster than the
-  // clock ticks would otherwise fall out of the very run it belongs to.
-  const attempts = sessionAttempts(session).filter((a) => a.start + a.durationMs >= start && a.start <= end)
-  return playthroughHands(attempts)
+// The hands the run held by a completed session was played with.
+function completedSessionHands(session) {
+  if (!session.playthroughStartedAt) return TWO_HANDS
+  const { start, end } = playthroughWindow(session)
+  return playthroughHands(sessionAttempts(session, start, end))
+}
+
+// The rule the whole app counts by: the piece played in full is a run that
+// went from end to end with both hands on the whole way.
+export function playedInFull(session) {
+  return Boolean(session.completedAt) && completedSessionHands(session) === TWO_HANDS
 }
 
 // Practice time credited to a session: first measure attempt to last, minus
@@ -485,7 +466,7 @@ export function initPracticeTracker(storageInstance = null) {
   // begins. Usually the first one, but not always: with one hand unticked the
   // score can open on a bar that hand rests through, and the cursor starts after
   // it — the score page knows which measure that is, the tracker doesn't.
-  function startMeasureAttempt(sourceMeasureIndex, startsPlaythrough = sourceMeasureIndex === 0, hands = TWO_HANDS) {
+  function startMeasureAttempt(sourceMeasureIndex, startsPlaythrough = sourceMeasureIndex === 0, activeHands = { right: true, left: true }) {
     if (!currentSession) return null
 
     if (startsPlaythrough && !currentSession.playthroughStartedAt) {
@@ -498,7 +479,7 @@ export function initPracticeTracker(storageInstance = null) {
       durationMs: 0,
       wrongNotes: 0,
       clean: true,
-      hands,
+      hands: handsKey(activeHands),
     }
     return currentMeasureAttempt
   }
@@ -663,7 +644,7 @@ export function initPracticeTracker(storageInstance = null) {
       // Playing the piece through with one hand is real work, but it is not
       // the piece played in full — it gets its own counter, and leaves the
       // "last played in full" date and the status thresholds alone.
-      if (completedSessionHands(session) === TWO_HANDS) {
+      if (playedInFull(session)) {
         aggregate.timesCompleted++
         aggregate.lastCompletedAt = session.completedAt
       } else {
@@ -861,10 +842,12 @@ export function initPracticeTracker(storageInstance = null) {
     for (const session of sessions) {
       if (!session.completedAt || !session.playthroughStartedAt) continue
 
+      const { start, end } = playthroughWindow(session)
+      const attempts = sessionAttempts(session, start, end)
       playthroughs.push({
         startedAt: session.playthroughStartedAt,
-        durationMs: computePlaythroughDuration(session),
-        hands: completedSessionHands(session),
+        durationMs: playthroughDuration(attempts, start, end),
+        hands: playthroughHands(attempts),
       })
     }
 
@@ -895,7 +878,7 @@ export function initPracticeTracker(storageInstance = null) {
       if (!byDay.has(key)) byDay.set(key, { practiceTimeMs: 0, timesPlayedInFull: 0 })
       const day = byDay.get(key)
       day.practiceTimeMs += computeSessionDuration(session)
-      if (session.completedAt && completedSessionHands(session) === TWO_HANDS) day.timesPlayedInFull += 1
+      if (playedInFull(session)) day.timesPlayedInFull += 1
     }
     return byDay
   }

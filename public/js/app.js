@@ -2,7 +2,8 @@ import { initMidi } from './midi.js'
 import { initMusicXML } from './musicxml.js'
 import { initFingeringEditor } from './fingeringEditor.js'
 import { initCassettes } from './cassettes.js'
-import { initPracticeTracker, handsKey, playthroughGroups, TWO_HANDS } from './practiceTracker.js'
+import { initPracticeTracker } from './practiceTracker.js'
+import { playthroughGroups, TWO_HANDS } from './hands.js'
 import { formatDuration, formatDate, applyStickyOffset, scorePageUrl, onIdle, onForeground, withHands } from './utils.js'
 import { initStorage } from './storage.js'
 import { loadMxlAsXml } from './mxlLoader.js'
@@ -138,9 +139,6 @@ export function midiApp() {
     showResultModal: false,
     resultMode: null,
     previousPlaythroughs: [],
-    // The hands of the run the modal is about: the ranking only ever holds
-    // runs played with those, and the title says which when it isn't both.
-    resultHands: TWO_HANDS,
 
     // Container width the score is currently laid out for, so a height-only
     // resize doesn't pay for a redraw (see handleViewportResize).
@@ -244,7 +242,7 @@ export function midiApp() {
           practiceTracker.startSession(this.scoreUrl, metadata.title, metadata.composer, 'training', metadata.totalMeasures)
         },
         onMeasureStarted: (sourceMeasureIndex, startsPlaythrough) => {
-          practiceTracker.startMeasureAttempt(sourceMeasureIndex, startsPlaythrough, handsKey(this.activeHands))
+          practiceTracker.startMeasureAttempt(sourceMeasureIndex, startsPlaythrough, this.activeHands)
         },
         onMeasureCompleted: (data) => {
           // TEMP: fire-and-forget, so its IndexedDB work never showed up in the
@@ -624,16 +622,21 @@ export function midiApp() {
 
     showScoreComplete(allPlaythroughs) {
       const mostRecent = [...allPlaythroughs].sort((a, b) => new Date(b.startedAt) - new Date(a.startedAt))[0]
-      this.resultHands = mostRecent?.hands ?? TWO_HANDS
       // Ranked fastest-first, current playthrough flagged so the modal can
       // highlight it. Only runs played with the same hands are in the running:
       // a right-hand run beats every two-hand time on the clock without being
       // the better performance.
       this.previousPlaythroughs = allPlaythroughs
-        .filter((pt) => pt.hands === this.resultHands)
+        .filter((pt) => pt.hands === (mostRecent?.hands ?? TWO_HANDS))
         .map((pt) => ({ ...pt, isCurrent: pt === mostRecent }))
         .sort((a, b) => a.durationMs - b.durationMs)
       this.openResultModal('free')
+    },
+
+    // The hands every run in the ranking was played with, named in the title
+    // when they aren't both.
+    get resultHands() {
+      return this.previousPlaythroughs[0]?.hands ?? TWO_HANDS
     },
 
     get currentPlaythroughDuration() {

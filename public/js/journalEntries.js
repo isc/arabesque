@@ -14,7 +14,7 @@
 //
 // The component behind it must expose scorePageUrl(), formatDuration() and the
 // journalEntryHelpers below.
-import { playthroughGroups } from './practiceTracker.js'
+import { playthroughGroups } from './hands.js'
 import { withHands } from './utils.js'
 import { tn } from './i18n.js'
 
