@@ -99,6 +99,13 @@ export function formatDuration(ms) {
   return `${hours}h ${minutes}m`
 }
 
+// Captions a run of the score with the hands that played it. Two hands is the
+// plain case (practiceTracker's TWO_HANDS) and captions nothing: an unlabelled
+// run is the piece played whole.
+export function withHands(text, hands) {
+  return !hands || hands === 'both' ? text : `${text} · ${t(`hands.${hands}`)}`
+}
+
 export function statusLabel(status) {
   return status ? t(`status.${status}`) : status
 }

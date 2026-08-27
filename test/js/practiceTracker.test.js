@@ -4,6 +4,9 @@ import {
   initPracticeTracker,
   computePlaythroughDuration,
   computeSessionDuration,
+  handsKey,
+  playthroughHands,
+  playthroughGroups,
 } from '../../public/js/practiceTracker.js'
 import { initStorage } from '../../public/js/storage.js'
 
@@ -237,6 +240,63 @@ describe('practiceTracker', () => {
 
       const stats = await tracker.getScoreStats('/scores/test.xml')
       expect(stats.status).toBe('perfectionnement')
+    })
+  })
+
+  describe('the hands a run was played with', () => {
+    // A run through a two-bar score, one hand selection per bar.
+    async function playThrough(...handsPerMeasure) {
+      tracker.startSession('/scores/test.xml', 'Test', 'Composer', 'free', 2)
+      handsPerMeasure.forEach((hands, index) => {
+        tracker.startMeasureAttempt(index, index === 0, hands)
+        tracker.endMeasureAttempt(true)
+      })
+      tracker.markScoreCompleted()
+      return tracker.endSession()
+    }
+
+    it('encodes the ticked hands', () => {
+      expect(handsKey({ right: true, left: true })).toBe('both')
+      expect(handsKey({ right: true, left: false })).toBe('right')
+      expect(handsKey({ right: false, left: true })).toBe('left')
+    })
+
+    it('reads an attempt recorded before hands were tracked as two-handed', () => {
+      expect(playthroughHands([{ clean: true }, { clean: false }])).toBe('both')
+    })
+
+    it('does not count a one-hand run as the piece played in full', async () => {
+      await playThrough('right', 'right')
+
+      const stats = await tracker.getScoreStats('/scores/test.xml')
+      expect(stats.timesCompleted).toBe(0)
+      expect(stats.timesCompletedOneHand).toBe(1)
+      expect(stats.lastCompletedAt).toBeUndefined()
+      expect(stats.status).toBe('dechiffrage')
+    })
+
+    it("keeps a one-hand run out of the calendar's playthroughs", async () => {
+      await playThrough('right', 'right')
+
+      const calendar = await tracker.getPracticeCalendar()
+      expect([...calendar.values()][0].timesPlayedInFull).toBe(0)
+    })
+
+    it('lists a one-hand run apart from a two-hand one', async () => {
+      await playThrough('right', 'right')
+      await playThrough('both', 'both')
+
+      const [day] = await tracker.getScoreHistory('/scores/test.xml')
+      expect(day.timesPlayedInFull).toBe(1)
+      expect(playthroughGroups(day.fullPlaythroughs).map((g) => g.hands)).toEqual(['both', 'right'])
+    })
+
+    it('only calls a run two-handed when both hands were on throughout', async () => {
+      await playThrough('both', 'right')
+
+      const [day] = await tracker.getScoreHistory('/scores/test.xml')
+      expect(day.fullPlaythroughs[0].hands).toBe('mixed')
+      expect(day.timesPlayedInFull).toBe(0)
     })
   })
 

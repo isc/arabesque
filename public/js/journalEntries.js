@@ -12,7 +12,25 @@
 //
 //   <div data-journal-entries="dateEntry.log"></div>
 //
-// The component behind it must expose scorePageUrl() and formatDuration().
+// The component behind it must expose scorePageUrl(), formatDuration() and the
+// journalEntryHelpers below.
+import { playthroughGroups } from './practiceTracker.js'
+import { withHands } from './utils.js'
+import { tn } from './i18n.js'
+
+// Alpine expressions read the component's scope, not this module's, so the
+// helpers the markup calls are spread into both pages' data.
+export const journalEntryHelpers = {
+  playthroughGroups,
+
+  // "Joué 3× en entier · main droite" — one line per hand selection, so a day
+  // spent on the right hand alone doesn't read as the piece played whole.
+  playedFullLabel(group) {
+    const n = group.playthroughs.length
+    return withHands(tn('journal.playedFull', n), group.hands)
+  },
+}
+
 const ENTRIES_HTML = (rows) => `
 <div class="pt-journal__entries">
   <template x-for="entry in ${rows}" :key="entry.scoreId">
@@ -20,9 +38,10 @@ const ENTRIES_HTML = (rows) => `
       <a :href="scorePageUrl(entry.scoreId)" x-text="(entry.scoreTitle || $t('journal.untitled')) + ' · ' + entry.composer"></a>
       <small>
         <span x-text="formatDuration(entry.totalPracticeTimeMs)"></span>
-        <span x-show="entry.timesPlayedInFull === 1"> · <span x-text="$t('journal.playedFull')"></span></span>
-        <span x-show="entry.timesPlayedInFull > 1"> · <span x-text="$t('journal.playedFullTimes', { n: entry.timesPlayedInFull })"></span></span>
-        <span x-show="entry.timesPlayedInFull === 0"> · <span x-text="$tn('journal.measuresCount', entry.measuresWorked.length)"></span></span>
+        <template x-for="group in playthroughGroups(entry.fullPlaythroughs)" :key="group.hands">
+          <span> · <span x-text="playedFullLabel(group)"></span></span>
+        </template>
+        <span x-show="entry.fullPlaythroughs.length === 0"> · <span x-text="$tn('journal.measuresCount', entry.measuresWorked.length)"></span></span>
         <span x-show="entry.measuresReinforced.length > 0"> · <span x-text="$tn('journal.reinforcedCount', entry.measuresReinforced.length)"></span></span>
       </small>
     </div>

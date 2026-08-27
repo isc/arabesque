@@ -2,8 +2,8 @@ import { initMidi } from './midi.js'
 import { initMusicXML } from './musicxml.js'
 import { initFingeringEditor } from './fingeringEditor.js'
 import { initCassettes } from './cassettes.js'
-import { initPracticeTracker } from './practiceTracker.js'
-import { formatDuration, formatDate, applyStickyOffset, scorePageUrl, onIdle, onForeground } from './utils.js'
+import { initPracticeTracker, handsKey, playthroughGroups, TWO_HANDS } from './practiceTracker.js'
+import { formatDuration, formatDate, applyStickyOffset, scorePageUrl, onIdle, onForeground, withHands } from './utils.js'
 import { initStorage } from './storage.js'
 import { loadMxlAsXml } from './mxlLoader.js'
 import { injectFingerings } from './fingeringInjector.js'
@@ -121,6 +121,9 @@ export function midiApp() {
 
     rightHandActive: true,
     leftHandActive: true,
+    get activeHands() {
+      return { right: this.rightHandActive, left: this.leftHandActive }
+    },
 
     showHistoryModal: false,
     scoreHistory: [],
@@ -135,6 +138,9 @@ export function midiApp() {
     showResultModal: false,
     resultMode: null,
     previousPlaythroughs: [],
+    // The hands of the run the modal is about: the ranking only ever holds
+    // runs played with those, and the title says which when it isn't both.
+    resultHands: TWO_HANDS,
 
     // Container width the score is currently laid out for, so a height-only
     // resize doesn't pay for a redraw (see handleViewportResize).
@@ -238,7 +244,7 @@ export function midiApp() {
           practiceTracker.startSession(this.scoreUrl, metadata.title, metadata.composer, 'training', metadata.totalMeasures)
         },
         onMeasureStarted: (sourceMeasureIndex, startsPlaythrough) => {
-          practiceTracker.startMeasureAttempt(sourceMeasureIndex, startsPlaythrough)
+          practiceTracker.startMeasureAttempt(sourceMeasureIndex, startsPlaythrough, handsKey(this.activeHands))
         },
         onMeasureCompleted: (data) => {
           // TEMP: fire-and-forget, so its IndexedDB work never showed up in the
@@ -553,7 +559,7 @@ export function midiApp() {
       if (this.isPlaying) playback.stop()
       this.isPlaying = false
 
-      strictPlaythrough.setActiveHands({ right: this.rightHandActive, left: this.leftHandActive })
+      strictPlaythrough.setActiveHands(this.activeHands)
       this.isStrictPlaying = true
 
       strictPlaythrough.start({
@@ -618,9 +624,13 @@ export function midiApp() {
 
     showScoreComplete(allPlaythroughs) {
       const mostRecent = [...allPlaythroughs].sort((a, b) => new Date(b.startedAt) - new Date(a.startedAt))[0]
-      // Ranked fastest-first, current playthrough flagged so the modal
-      // can highlight it.
+      this.resultHands = mostRecent?.hands ?? TWO_HANDS
+      // Ranked fastest-first, current playthrough flagged so the modal can
+      // highlight it. Only runs played with the same hands are in the running:
+      // a right-hand run beats every two-hand time on the clock without being
+      // the better performance.
       this.previousPlaythroughs = allPlaythroughs
+        .filter((pt) => pt.hands === this.resultHands)
         .map((pt) => ({ ...pt, isCurrent: pt === mostRecent }))
         .sort((a, b) => a.durationMs - b.durationMs)
       this.openResultModal('free')
@@ -630,10 +640,14 @@ export function midiApp() {
       return this.previousPlaythroughs.find((p) => p.isCurrent)?.durationMs ?? null
     },
 
-    // Flat list of every completed playthrough across days. Used by the
-    // history modal as the chart's data source.
-    get historyPlaythroughs() {
-      return this.scoreHistory.flatMap((d) => d.fullPlaythroughs)
+    // One evolution chart per hand selection, oldest measure of progress
+    // first. Built here rather than in the template so each SVG is generated
+    // once, and so a selection with too few runs to plot simply drops out.
+    get playthroughCharts() {
+      const playthroughs = this.scoreHistory.flatMap((d) => d.fullPlaythroughs)
+      return playthroughGroups(playthroughs)
+        .map((group) => ({ ...group, svg: this.playthroughChartSvg(group.playthroughs) }))
+        .filter((group) => group.svg)
     },
 
     openResultModal(mode) {
@@ -671,7 +685,7 @@ export function midiApp() {
         case 'strict':         return t('score.resultTitleStrict')
         case 'training':       return t('score.resultTitleTraining')
         case 'reinforcement':  return t('score.resultTitleReinforcement')
-        default:               return t('score.resultTitleScore')
+        default:               return withHands(t('score.resultTitleScore'), this.resultHands)
       }
     },
 
@@ -703,9 +717,8 @@ export function midiApp() {
     },
 
     updateActiveHands() {
-      const hands = { right: this.rightHandActive, left: this.leftHandActive }
-      musicxml.setActiveHands(hands)
-      strictPlaythrough.setActiveHands(hands)
+      musicxml.setActiveHands(this.activeHands)
+      strictPlaythrough.setActiveHands(this.activeHands)
     },
 
     async openScoreHistory() {
@@ -742,10 +755,17 @@ export function midiApp() {
     formatDate,
     formatDuration,
 
-    formatPlaythroughs(playthroughs) {
+    playthroughGroups,
+
+    formatPlaythroughs(group) {
       // Reverse to show chronological order (oldest first)
-      const durations = [...playthroughs].reverse().map((pt) => formatDuration(pt.durationMs))
-      return t('score.playthroughsSummary', { n: playthroughs.length, list: PLAYTHROUGH_LIST_FORMATTER.format(durations) })
+      const durations = [...group.playthroughs].reverse().map((pt) => formatDuration(pt.durationMs))
+      const summary = t('score.playthroughsSummary', { n: group.playthroughs.length, list: PLAYTHROUGH_LIST_FORMATTER.format(durations) })
+      return withHands(summary, group.hands)
+    },
+
+    chartTitle(hands) {
+      return withHands(t('score.playtimeEvolution'), hands)
     },
 
     // Built as a string (not <template x-for>) because Alpine's templates

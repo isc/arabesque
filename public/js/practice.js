@@ -11,6 +11,7 @@ import { initPracticeTracker, localDayKey, practiceStreaks, practiceYearStats } 
 import { initAutoSync } from './autoSync.js'
 import { onDayChange } from './dayRollover.js'
 import { formatDuration, formatVerboseDate, scorePageUrl } from './utils.js'
+import { journalEntryHelpers } from './journalEntries.js'
 import { t, locale } from './i18n.js'
 
 // Colour bands for a day's square, in minutes of practice. Fixed rather than
@@ -215,6 +216,7 @@ export function practiceApp() {
 
     formatDuration,
     scorePageUrl,
+    ...journalEntryHelpers,
   }
 }
 
