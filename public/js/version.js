@@ -33,6 +33,14 @@ export const APP_VERSION = 'dev'
 const RELOAD_KEY = 'arabesque:version-reload'
 
 export function checkAppVersion() {
+  // A service worker controlling this page owns freshness: it answers the
+  // document and its scripts out of one generation's cache, and js/swRegister.js
+  // decides when to move to the next. Two reload authorities with two policies
+  // would spend each other's single attempt. This one covers every page no
+  // worker answers for — before the first install, where registration was
+  // refused or evicted, and the pages that deliberately never register.
+  if (typeof navigator !== 'undefined' && navigator.serviceWorker?.controller) return
+
   const pageVersion = document.querySelector('meta[name="app-version"]')?.getAttribute('content')
   if (!pageVersion || pageVersion === APP_VERSION) return
 
