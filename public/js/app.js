@@ -29,6 +29,12 @@ const RESIZE_RELAYOUT_DEBOUNCE_MS = 250
 // resumed there still lands before that frame is painted.
 const nextPaint = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))
 
+// What the failure card says, per kind of failure.
+const SCORE_LOAD_ERRORS = {
+  offline: { title: 'score.offlineTitle', body: 'score.offlineBody', retry: false },
+  failed: { title: 'score.failedTitle', body: 'score.failedBody', retry: true },
+}
+
 export function midiApp() {
   const midi = initMidi()
   const musicxml = initMusicXML()
@@ -87,6 +93,20 @@ export function midiApp() {
     // booted — osmdInstance is still null for the rest of the load — in front of
     // a score that was already coming.
     scoreLoading: document.documentElement.hasAttribute('data-loading-score'),
+    // null | 'offline' (no copy here, and no network to get one) | 'failed'.
+    scoreLoadError: null,
+    get scoreLoadMessage() {
+      const message = SCORE_LOAD_ERRORS[this.scoreLoadError]
+      // Resolved here rather than in the template: the keys stay greppable, and
+      // switching language reloads the page, so nothing can go stale.
+      return {
+        title: message ? t(message.title) : '',
+        body: message ? t(message.body) : '',
+        // Retrying an absent score with no network lands on this same card; the
+        // library is the only move that can go anywhere.
+        retry: Boolean(message?.retry),
+      }
+    },
 
     // scoreUrl is set only for scores loaded from the library, not for
     // local file uploads — the practice tracker keys on it.
@@ -368,7 +388,12 @@ export function midiApp() {
       this.fingeringEnabled = true
       this.loadCollectionInfo(url) // fire-and-forget: the navigator appears when ready
 
-      await this.renderScoreWithFingerings()
+      try {
+        await this.renderScoreWithFingerings()
+      } catch (error) {
+        this.reportScoreLoadFailure(error)
+        return
+      }
 
       const metadata = musicxml.getScoreMetadata()
       await trackerReady
@@ -443,6 +468,32 @@ export function midiApp() {
       this.setupFingeringHandlers()
     },
 
+    // The score never arrived. A request that never reached a server (mxlLoader
+    // tags it) means there is no copy here: sw.js caches a score as it is
+    // opened, not the whole catalog, so one never opened on this device is
+    // simply absent — an ordinary outcome offline rather than a fault, and the
+    // only one a network fixes. Anything else is a real error.
+    reportScoreLoadFailure(error) {
+      console.error('Erreur lors du chargement de la partition:', error)
+      this.hideScoreSpinner()
+      this.scoreLoadError = error?.unreachable ? 'offline' : 'failed'
+    },
+
+    async retryScoreLoad() {
+      this.scoreLoadError = null
+      this.scoreLoading = true
+      document.documentElement.dataset.loadingScore = '1'
+      await this.loadScoreFromURL(this.scoreUrl)
+    },
+
+    // The spinner is raised while the document is parsed, so only the page can
+    // lower it — on the render that replaces it, or on a failure that never
+    // will. Missing the second case left the page loading for good.
+    hideScoreSpinner() {
+      this.scoreLoading = false
+      delete document.documentElement.dataset.loadingScore
+    },
+
     async afterScoreLoad() {
       this.osmdInstance = musicxml.getOsmdInstance()
       // As soon as OSMD has parsed the sheet — the title and composer are read
@@ -458,8 +509,7 @@ export function midiApp() {
         // score below the fold), then hand the frame back so the score is
         // actually painted before indexing blocks the thread again.
         afterDraw: async () => {
-          this.scoreLoading = false
-          delete document.documentElement.dataset.loadingScore
+          this.hideScoreSpinner()
           await nextPaint()
         },
       })

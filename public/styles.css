@@ -111,9 +111,15 @@
   --pt-icon-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%238a90a0' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
   --pt-icon-close: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%238a90a0' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cline x1='18' y1='6' x2='6' y2='18'/%3E%3Cline x1='6' y1='6' x2='18' y2='18'/%3E%3C/svg%3E");
   --pt-icon-check: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23ffffff' stroke-width='4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='20 6 9 17 4 12'/%3E%3C/svg%3E");
-  /* Self-animating: the keyframes live inside the SVG, so no CSS animation
-     is needed on the element wearing it. */
-  --pt-icon-loading: url("data:image/svg+xml,%3Csvg fill='none' height='24' width='24' viewBox='0 0 24 24' xmlns='http://www.w3.org/2000/svg' %3E%3Cstyle%3E g %7B animation: rotate 2s linear infinite; transform-origin: center center; %7D circle %7B stroke-dasharray: 75,100; stroke-dashoffset: -5; animation: dash 1.5s ease-in-out infinite; stroke-linecap: round; %7D @keyframes rotate %7B 0%25 %7B transform: rotate(0deg); %7D 100%25 %7B transform: rotate(360deg); %7D %7D @keyframes dash %7B 0%25 %7B stroke-dasharray: 1,100; stroke-dashoffset: 0; %7D 50%25 %7B stroke-dasharray: 44.5,100; stroke-dashoffset: -17.5; %7D 100%25 %7B stroke-dasharray: 44.5,100; stroke-dashoffset: -62; %7D %7D %3C/style%3E%3Cg%3E%3Ccircle cx='12' cy='12' r='10' fill='none' stroke='%238a90a0' stroke-width='4' /%3E%3C/g%3E%3C/svg%3E");
+  /* Static on purpose: the arc is turned by the page's own animation below.
+     Animating it from inside the SVG works, but as an image it re-rasterises on
+     the main thread — and the score page keeps that thread busy for the whole
+     time the spinner is up (1.4MB of vendor evaluated, then OSMD parsing and
+     laying out), so the thing that says "working" was the thing that froze.
+     Turned from here it is a transform, which the compositor owns. It also puts
+     the animation somewhere prefers-reduced-motion can reach: a media query
+     inside a background-image SVG matches against the image, not the page. */
+  --pt-icon-loading: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none'%3E%3Ccircle cx='12' cy='12' r='10' stroke='%238a90a0' stroke-width='4' stroke-linecap='round' stroke-dasharray='47 16'/%3E%3C/svg%3E");
 }
 
 /* =============================================================================
@@ -331,8 +337,9 @@ select:not([multiple], [size]) {
 }
 
 /* --- Busy state ------------------------------------------------------------
-   The spinner animates itself inside the SVG. `filter` flips it to white on
-   filled buttons, where the muted stroke would disappear. */
+   The arc is drawn static and turned here, off the main thread (see
+   --pt-icon-loading). `filter` flips it to white on filled buttons, where the
+   muted stroke would disappear. */
 [aria-busy="true"]:not(input, select, textarea, html, form)::before {
   content: "";
   display: inline-block;
@@ -341,12 +348,19 @@ select:not([multiple], [size]) {
   background-image: var(--pt-icon-loading);
   background-size: 1em auto;
   vertical-align: -0.125em;
+  animation: pt-spin 0.8s linear infinite;
 }
 [aria-busy="true"]:not(input, select, textarea, html, form):not(:empty)::before {
   margin-inline-end: var(--pt-space-2);
 }
 [aria-busy="true"]:is(button, [role="button"]):not(.outline)::before {
   filter: brightness(0) invert(1);
+}
+@keyframes pt-spin {
+  to { transform: rotate(1turn); }
+}
+@media (prefers-reduced-motion: reduce) {
+  [aria-busy="true"]:not(input, select, textarea, html, form)::before { animation: none; }
 }
 
 /* --- Disclosure ----------------------------------------------------------- */
@@ -1392,7 +1406,7 @@ html[data-loading-score] .pt-onboarding { display: none; }
 .pt-onboarding h2 { margin-bottom: var(--pt-space-2); }
 .pt-onboarding p { color: var(--pt-text-muted); margin-bottom: var(--pt-space-4); }
 .pt-onboarding__cta { display: flex; flex-direction: column; gap: var(--pt-space-3); align-items: center; }
-.pt-onboarding__cta a, .pt-onboarding__cta label {
+.pt-onboarding__cta a, .pt-onboarding__cta label, .pt-onboarding__cta button {
   display: inline-flex; align-items: center; justify-content: center; gap: 6px;
   padding: 10px 20px;
   border-radius: var(--pt-radius-md);
