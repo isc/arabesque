@@ -15,6 +15,8 @@ targets:
           - Resources
       - path: Arabesque/Resources/webmidi-shim.js
         buildPhase: resources
+      - path: Arabesque/Resources/wakelock-shim.js
+        buildPhase: resources
     info:
       path: Arabesque/Info.plist
       properties:
@@ -30,7 +32,8 @@ targets:
         # injection, style sheets, cookie manipulation and message handlers on
         # every WKWebView in the app, and ViewController restores them by
         # setting limitsNavigationsToAppBoundDomains. Both halves are needed —
-        # the MIDI bridge is an injected script plus a message handler.
+        # the MIDI and wake lock bridges are injected scripts plus message
+        # handlers.
         WKAppBoundDomains:
           - arabesque.app
         UILaunchScreen: {}

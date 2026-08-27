@@ -8,6 +8,9 @@ This directory contains a minimal native wrapper that bridges the gap:
 - **CoreMIDI** collects MIDI on the native side (USB and Bluetooth devices);
 - an injected script (`Arabesque/Resources/webmidi-shim.js`) emulates
   `navigator.requestMIDIAccess` so `public/js/midi.js` works as-is;
+- a second one (`wakelock-shim.js`) does the same for `navigator.wakeLock`,
+  which WebKit grants in Safari proper only, so the screen stays on with a
+  score up — and the library still falls asleep (see below);
 - a small overlay button opens the system **Bluetooth MIDI pairing** sheet
   (`CABTMIDICentralViewController`), needed because BLE MIDI devices are paired
   per-app, not in iOS Settings.
@@ -38,6 +41,22 @@ MIDI device ──CoreMIDI──▶ MIDIBridge.swift ──evaluateJavaScript─
 The shim keeps port object identity stable across updates because `midi.js`
 compares ports with `===` in its `onstatechange` auto-reconnect logic. Its
 logic is covered by `test/js/webmidiShim.test.js` at the repo root.
+
+## Keeping the screen on
+
+Playing a score means minutes without touching the glass, which is exactly what
+the idle timer is watching for; the web app already asks for a screen wake lock
+for that, but WebKit refuses it in a `WKWebView` (webkit.org/b/254545) and the
+refusal is silent, so the iPad fell asleep mid-piece.
+
+`wakelock-shim.js` therefore replaces `navigator.wakeLock` with one that posts
+`{held: true|false}` through `webkit.messageHandlers.wakeLock`, and
+`ViewController` follows it with `isIdleTimerDisabled`. Disabling the idle timer
+outright would be simpler, but then a library left open would never sleep
+either. A lock dies with the document that took it and the outgoing page gets no
+chance to say so, which is why `didCommit` resets the flag on every navigation;
+the new page asks again if it needs one. Covered by
+`test/js/wakeLockShim.test.js`.
 
 ## Building
 
@@ -74,9 +93,10 @@ It is a trade, not a switch. Declaring the key puts every `WKWebView` in the app
 into a restricted mode: injected scripts, style sheets, cookie manipulation and
 message handlers are all denied, and only the `limitsNavigationsToAppBoundDomains`
 flag gives them back — for the listed domains alone. Both halves matter here,
-because the MIDI bridge *is* an injected script (`webmidi-shim.js`) plus a
-message handler (`midiBridge`): with the key declared and the flag missing, the
-app would launch, show the web app, and quietly accept no MIDI at all.
+because both bridges *are* injected scripts (`webmidi-shim.js`,
+`wakelock-shim.js`) plus message handlers (`midiBridge`, `wakeLock`): with the
+key declared and the flag missing, the app would launch, show the web app, and
+quietly accept no MIDI at all.
 
 Consequences worth knowing:
 

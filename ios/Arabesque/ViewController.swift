@@ -46,27 +46,23 @@ final class ViewController: UIViewController {
     overrideUserInterfaceStyle = .light
     view.backgroundColor = .systemBackground
 
-    // Keep the screen on while practising. The web app asks for a screen wake
-    // lock, but WebKit only grants it in Safari proper — not in a WKWebView,
-    // nor in a home-screen web app (webkit.org/b/254545) — and the refusal is
-    // silent, so the iPad simply fell asleep mid-piece. Playing a score means
-    // minutes without touching the glass, which is exactly what the idle timer
-    // is watching for. iOS applies this only while the app is in the
-    // foreground, and restores normal behaviour by itself once it isn't.
-    UIApplication.shared.isIdleTimerDisabled = true
-
     let contentController = WKUserContentController()
-    if let shimURL = Bundle.main.url(forResource: "webmidi-shim", withExtension: "js"),
-      let shim = try? String(contentsOf: shimURL) {
+    // webmidi-shim emulates the Web MIDI API WebKit doesn't have; wakelock-shim
+    // replaces the screen wake lock it refuses to grant in a WKWebView. Both
+    // talk back through the message handlers registered just below.
+    for name in ["webmidi-shim", "wakelock-shim"] {
+      guard let shimURL = Bundle.main.url(forResource: name, withExtension: "js"),
+        let shim = try? String(contentsOf: shimURL) else { continue }
       contentController.addUserScript(
         WKUserScript(source: shim, injectionTime: .atDocumentStart, forMainFrameOnly: true))
     }
     contentController.add(WeakScriptMessageHandler(self), name: "midiBridge")
+    contentController.add(WeakScriptMessageHandler(self), name: "wakeLock")
 
     let configuration = WKWebViewConfiguration()
     // The other half of the WKAppBoundDomains opt-in in project.yml. Declaring
     // that key puts every WKWebView in the app into a restricted mode where the
-    // shim above — an injected script and a message handler — would be refused;
+    // shims above — injected scripts and message handlers — would be refused;
     // this restores it, for the listed domains only. A PTWebAppURL pointing
     // anywhere else stops loading at all, with "App-bound domain failure".
     configuration.limitsNavigationsToAppBoundDomains = true
@@ -221,6 +217,16 @@ final class ViewController: UIViewController {
     evaluate("window.__pianoTrainerMIDI && window.__pianoTrainerMIDI.setPorts(\(json))")
   }
 
+  // MARK: - Keeping the screen on
+
+  /// Follows the page's own screen wake lock, the only thing that knows when
+  /// the screen is watched rather than touched (see README, "Keeping the screen
+  /// on"). iOS applies this only while the app is in the foreground, and
+  /// restores normal behaviour by itself once it isn't.
+  private func setScreenAwake(_ awake: Bool) {
+    UIApplication.shared.isIdleTimerDisabled = awake
+  }
+
   private func evaluate(_ script: String) {
     webView.evaluateJavaScript(script) { _, error in
       if let error { print("midiBridge JS error: \(error)") }
@@ -244,17 +250,24 @@ extension ViewController: MIDIBridgeDelegate {
 
 extension ViewController: WKScriptMessageHandler {
   func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
-    guard message.name == "midiBridge",
-      let body = message.body as? [String: Any],
-      let type = body["type"] as? String else { return }
+    guard let body = message.body as? [String: Any] else { return }
 
-    switch type {
-    case "ready":
-      pushPorts()
-    case "send":
-      guard let idString = body["id"] as? String, let id = Int32(idString),
-        let data = body["data"] as? [Any] else { return }
-      midiBridge.send(data.compactMap { ($0 as? NSNumber)?.uint8Value }, toDestination: id)
+    switch message.name {
+    case "wakeLock":
+      setScreenAwake((body["held"] as? Bool) ?? false)
+
+    case "midiBridge":
+      switch body["type"] as? String {
+      case "ready":
+        pushPorts()
+      case "send":
+        guard let idString = body["id"] as? String, let id = Int32(idString),
+          let data = body["data"] as? [Any] else { return }
+        midiBridge.send(data.compactMap { ($0 as? NSNumber)?.uint8Value }, toDestination: id)
+      default:
+        break
+      }
+
     default:
       break
     }
@@ -283,6 +296,10 @@ extension ViewController: WKNavigationDelegate {
   /// fails again would otherwise flash the blank webview in between.
   func webView(_ webView: WKWebView, didCommit navigation: WKNavigation!) {
     loadFailureView.isHidden = true
+    // A wake lock dies with the document that took it, and the page being
+    // replaced gets no chance to say so — leaving the library awake after
+    // coming back from a score. The new page asks again if it needs one.
+    setScreenAwake(false)
   }
 
   func webView(

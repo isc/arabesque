@@ -1,30 +1,12 @@
-import { readFileSync } from 'node:fs'
-import vm from 'node:vm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const shimSource = readFileSync(new URL('../../ios/Arabesque/Resources/webmidi-shim.js', import.meta.url), 'utf8')
-
-// Runs the shim the way the WKWebView does: as a plain script at document
-// start, with a webkit.messageHandlers.midiBridge handler available.
-function loadShim() {
-  const posted = []
-  const sandbox = {
-    navigator: {},
-    setTimeout: (fn, ms) => setTimeout(fn, ms),
-    performance: { now: () => 42 },
-    webkit: { messageHandlers: { midiBridge: { postMessage: (message) => posted.push(message) } } },
-  }
-  sandbox.window = sandbox
-  vm.createContext(sandbox)
-  vm.runInContext(shimSource, sandbox)
-  return { window: sandbox, posted }
-}
+import { loadShim } from './support/loadShim.js'
 
 describe('webmidi-shim', () => {
   let window, posted
 
   beforeEach(() => {
-    ;({ window, posted } = loadShim())
+    ;({ window, posted } = loadShim('webmidi-shim.js', 'midiBridge', { setTimeout, performance: { now: () => 42 } }))
   })
 
   it('announces itself to the native side on load', () => {
