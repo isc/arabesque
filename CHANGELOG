@@ -1,5 +1,17 @@
 2026-08-27
 
+- **Une main seule n'est pas le morceau joué en entier.** Depuis qu'un passage
+  peut se terminer en n'ayant coché qu'une main, il apparaissait comme une
+  lecture complète, indistinguable des deux mains. Chaque tentative de mesure
+  retient maintenant les mains actives, et un passage n'est « en entier » que
+  s'il a été joué à deux mains d'un bout à l'autre. Les autres sont comptés à
+  part : leur propre ligne dans l'historique de la partition et dans le journal,
+  leur propre courbe d'évolution, leur propre compteur en bibliothèque, et ils
+  ne comptent ni dans les lectures complètes de l'année ni dans le passage au
+  répertoire. Le classement de fin de passage ne met en concurrence que des
+  passages joués des mêmes mains — sinon une main droite battait au chrono tous
+  les temps à deux mains.
+
 - **Une partition absente du cache le dit.** Hors ligne, ouvrir une partition
   jamais consultée laissait la page sur son indicateur de chargement
   indéfiniment. Elle affiche maintenant ce qui se passe et propose de revenir à

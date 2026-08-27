@@ -2,6 +2,7 @@ import { initMidi } from './midi.js'
 import { initPracticeTracker } from './practiceTracker.js'
 import { initStorage } from './storage.js'
 import { formatDuration, formatDate, formatRelativeDate, statusLabel, scorePageUrl } from './utils.js'
+import { journalEntryHelpers } from './journalEntries.js'
 import { PERIODS, periodLabel, getPeriodForComposer } from './musicalPeriods.js'
 import { headerMenu } from './headerMenu.js'
 import { initAutoSync } from './autoSync.js'
@@ -375,9 +376,10 @@ export function libraryApp() {
       for (const part of score.parts) {
         const partAgg = this.aggregatesByScore[this.baseUrl + part.file]
         if (!partAgg) continue
-        agg ??= { totalPracticeTimeMs: 0, timesCompleted: 0, lastPlayedAt: null, lastCompletedAt: null, measures: {} }
+        agg ??= { totalPracticeTimeMs: 0, timesCompleted: 0, timesCompletedOneHand: 0, lastPlayedAt: null, lastCompletedAt: null, measures: {} }
         agg.totalPracticeTimeMs += partAgg.totalPracticeTimeMs || 0
         agg.timesCompleted += partAgg.timesCompleted || 0
+        agg.timesCompletedOneHand += partAgg.timesCompletedOneHand || 0
         for (const key of ['lastPlayedAt', 'lastCompletedAt']) {
           if (partAgg[key] && (!agg[key] || partAgg[key] > agg[key])) agg[key] = partAgg[key]
         }
@@ -391,13 +393,17 @@ export function libraryApp() {
     getPracticeTimeFor(score)  { return this.aggregateFor(score)?.totalPracticeTimeMs || 0 },
 
     // Returns '' (not "0×") for never-completed scores, so Alpine x-show
-    // can hide the sub-line entirely instead of leaving an empty row.
+    // can hide the sub-line entirely instead of leaving an empty row. Runs
+    // played with one hand are counted apart: they are not the piece played
+    // in full, and they don't move "last played in full".
     getPracticeSubline(score) {
       const agg = this.aggregateFor(score)
       const last = agg?.lastCompletedAt || agg?.lastPlayedAt
       const times = agg?.timesCompleted || 0
+      const oneHand = agg?.timesCompletedOneHand || 0
       const parts = []
       if (times > 0) parts.push(t('library.timesPlayed', { n: times }))
+      if (oneHand > 0) parts.push(t('library.timesPlayedOneHand', { n: oneHand }))
       if (last) parts.push(formatRelativeDate(last))
       return parts.join(' · ')
     },
@@ -406,6 +412,7 @@ export function libraryApp() {
     formatDate,
     statusLabel,
     scorePageUrl,
+    ...journalEntryHelpers,
 
     // Enriches the shared feedback submission (see headerMenu) with aggregate,
     // non-identifying usage stats — how much the reporter actually practises,

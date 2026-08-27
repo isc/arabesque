@@ -1,4 +1,5 @@
 import { t, locale } from './i18n.js'
+import { TWO_HANDS } from './hands.js'
 
 // Built once: the active locale is fixed for the page lifetime (switching
 // language reloads), so the verbose-date formatter needn't rebuild per call.
@@ -97,6 +98,12 @@ export function formatDuration(ms) {
   const hours = Math.floor(totalMinutes / 60)
   const minutes = totalMinutes % 60
   return `${hours}h ${minutes}m`
+}
+
+// Captions a run of the score with the hands that played it. Two hands is the
+// plain case and captions nothing: an unlabelled run is the piece played whole.
+export function withHands(text, hands) {
+  return hands === TWO_HANDS ? text : `${text} · ${t(`hands.${hands}`)}`
 }
 
 export function statusLabel(status) {

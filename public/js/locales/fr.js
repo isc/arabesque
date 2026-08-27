@@ -15,6 +15,12 @@ export default {
     privacy: '🔒 Confidentialité',
     language: 'Langue',
   },
+  // Which hands a run through the score was played with.
+  hands: {
+    right: 'main droite',
+    left: 'main gauche',
+    mixed: 'mains changées en cours',
+  },
   status: {
     dechiffrage: 'Déchiffrage',
     perfectionnement: 'Perfectionnement',
@@ -43,8 +49,8 @@ export default {
   },
   journal: {
     untitled: 'Sans titre',
-    playedFull: 'Joué en entier',
-    playedFullTimes: 'Joué {n}× en entier',
+    playedFullOne: 'Joué en entier',
+    playedFull: 'Joué {n}× en entier',
     measuresCount: '{n} mesures',
     measuresCountOne: '{n} mesure',
     reinforcedCount: '{n} renforcées',
@@ -75,6 +81,7 @@ export default {
     colPractice: 'Pratiqué',
     exercises: '{n} exercices',
     timesPlayed: '{n}× joué',
+    timesPlayedOneHand: '{n}× une main',
     importOk: '✅ Sauvegarde importée avec succès !\n\n{sessions} session(s) importée(s)\n{aggregates} agrégat(s) importé(s)\n{fingerings} doigté(s) importé(s)',
     importError: "❌ Erreur lors de l'import : {error}",
     exportOk: '✅ Sauvegarde exportée avec succès !',

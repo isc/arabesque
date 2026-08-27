@@ -19,9 +19,11 @@ export const CHANGELOG = [
     date: '2026-08-27',
     items: {
       fr: [
+        "Jouer d'une seule main ne compte plus comme le morceau joué en entier. Un passage main droite seule reste enregistré, chronométré et affiché, mais à part : sa propre ligne dans l'historique et dans le journal, sa propre courbe de progression, et le classement de fin de passage ne le compare qu'aux passages joués des mêmes mains.",
         "L'app fonctionne sans réseau. Tout ce qu'il faut pour ouvrir la bibliothèque et jouer est gardé sur l'appareil, et chaque partition que vous ouvrez y reste — un iPad sur un pupitre sans wifi ouvre l'app et travaille normalement. La synchronisation, elle, attend le retour du réseau. Au passage, l'app démarre nettement plus vite.",
       ],
       en: [
+        'Playing with one hand no longer counts as the piece played in full. A right-hand-only run is still recorded, timed and shown, but apart: its own line in the history and in the journal, its own progress chart, and the end-of-run ranking only compares it with runs played with the same hands.',
         'The app works without a network. Everything needed to open the library and play is kept on the device, and every score you open stays there — an iPad on a music stand with no wifi opens the app and works as usual. Syncing waits for the network to come back. It also makes the app start noticeably faster.',
       ],
     },

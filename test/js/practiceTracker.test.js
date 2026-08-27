@@ -5,6 +5,7 @@ import {
   computePlaythroughDuration,
   computeSessionDuration,
 } from '../../public/js/practiceTracker.js'
+import { playthroughHands, playthroughGroups } from '../../public/js/hands.js'
 import { initStorage } from '../../public/js/storage.js'
 
 describe('practiceTracker', () => {
@@ -237,6 +238,67 @@ describe('practiceTracker', () => {
 
       const stats = await tracker.getScoreStats('/scores/test.xml')
       expect(stats.status).toBe('perfectionnement')
+    })
+  })
+
+  describe('the hands a run was played with', () => {
+    const BOTH = { right: true, left: true }
+    const RIGHT = { right: true, left: false }
+    const LEFT = { right: false, left: true }
+
+    // A run through a two-bar score, one hand selection per bar.
+    async function playThrough(...handsPerMeasure) {
+      tracker.startSession('/scores/test.xml', 'Test', 'Composer', 'free', 2)
+      for (const [index, hands] of handsPerMeasure.entries()) {
+        await playMeasure(index, 0, hands)
+      }
+      tracker.markScoreCompleted()
+      return tracker.endSession()
+    }
+
+    it('stores the ticked hands on every attempt', async () => {
+      const session = await playThrough(RIGHT, { right: false, left: false })
+
+      expect(session.measures.map((m) => m.attempts[0].hands)).toEqual(['right', 'none'])
+    })
+
+    it('reads an attempt recorded before hands were tracked as two-handed', () => {
+      expect(playthroughHands([{ clean: true }, { clean: false }])).toBe('both')
+    })
+
+    it('does not count a one-hand run as the piece played in full', async () => {
+      await playThrough(RIGHT, RIGHT)
+
+      const stats = await tracker.getScoreStats('/scores/test.xml')
+      expect(stats.timesCompleted).toBe(0)
+      expect(stats.timesCompletedOneHand).toBe(1)
+      expect(stats.lastCompletedAt).toBeUndefined()
+      expect(stats.status).toBe('dechiffrage')
+    })
+
+    it("keeps a one-hand run out of the calendar's playthroughs", async () => {
+      await playThrough(RIGHT, RIGHT)
+
+      const calendar = await tracker.getPracticeCalendar()
+      expect([...calendar.values()][0].timesPlayedInFull).toBe(0)
+    })
+
+    it('lists a one-hand run apart from a two-hand one', async () => {
+      await playThrough(RIGHT, RIGHT)
+      await playThrough(BOTH, BOTH)
+      await playThrough(LEFT, LEFT)
+
+      const [day] = await tracker.getScoreHistory('/scores/test.xml')
+      expect(day.timesPlayedInFull).toBe(1)
+      expect(playthroughGroups(day.fullPlaythroughs).map((g) => g.hands)).toEqual(['both', 'right', 'left'])
+    })
+
+    it('only calls a run two-handed when both hands were on throughout', async () => {
+      await playThrough(BOTH, RIGHT)
+
+      const [day] = await tracker.getScoreHistory('/scores/test.xml')
+      expect(day.fullPlaythroughs[0].hands).toBe('mixed')
+      expect(day.timesPlayedInFull).toBe(0)
     })
   })
 
@@ -868,8 +930,8 @@ describe('practiceTracker', () => {
     return new Promise((resolve) => setTimeout(resolve, ms))
   }
 
-  async function playMeasure(measureIndex, delayMs = 0) {
-    tracker.startMeasureAttempt(measureIndex)
+  async function playMeasure(measureIndex, delayMs = 0, activeHands = undefined) {
+    tracker.startMeasureAttempt(measureIndex, measureIndex === 0, activeHands)
     if (delayMs > 0) await sleep(delayMs)
     tracker.endMeasureAttempt(true)
   }
