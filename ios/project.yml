@@ -24,6 +24,15 @@ targets:
         # Declares that the app uses no encryption beyond the exempt kind (it
         # only talks HTTPS). Without it App Store Connect asks on every upload.
         ITSAppUsesNonExemptEncryption: false
+        # Opting in is what lets the webview run service workers, which is the
+        # only way the web app can work offline (see README, "App-bound
+        # domains"). It is not free: declaring this key denies script
+        # injection, style sheets, cookie manipulation and message handlers on
+        # every WKWebView in the app, and ViewController restores them by
+        # setting limitsNavigationsToAppBoundDomains. Both halves are needed —
+        # the MIDI bridge is an injected script plus a message handler.
+        WKAppBoundDomains:
+          - arabesque.app
         UILaunchScreen: {}
         UIApplicationSceneManifest:
           UIApplicationSupportsMultipleScenes: false

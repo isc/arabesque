@@ -60,7 +60,40 @@ The web app URL lives in the `PTWebAppURL` Info.plist key (see `project.yml`),
 and defaults to the production deployment (https://arabesque.app/).
 For development against a local server, point it at your Mac
 (e.g. `http://<your-mac>.local:4567`) — `NSAllowsLocalNetworking` is already
-enabled — and regenerate the project.
+enabled — and add that host to `WKAppBoundDomains` (see below), otherwise the
+webview refuses to navigate to it.
+
+## App-bound domains
+
+`project.yml` declares `WKAppBoundDomains: [arabesque.app]` and
+`ViewController` sets `limitsNavigationsToAppBoundDomains = true`. This is the
+opt-in that lets the webview run **service workers**, which is the only way the
+web app can work without a network — an iPad on a music stand.
+
+It is a trade, not a switch. Declaring the key puts every `WKWebView` in the app
+into a restricted mode: injected scripts, style sheets, cookie manipulation and
+message handlers are all denied, and only the `limitsNavigationsToAppBoundDomains`
+flag gives them back — for the listed domains alone. Both halves matter here,
+because the MIDI bridge *is* an injected script (`webmidi-shim.js`) plus a
+message handler (`midiBridge`): with the key declared and the flag missing, the
+app would launch, show the web app, and quietly accept no MIDI at all.
+
+Consequences worth knowing:
+
+- Up to 10 domains. A `PTWebAppURL` pointing outside the list fails to load
+  with "App-bound domain failure" — visible, at least, since the load-failure
+  screen catches it.
+- Only top-level navigation is checked. The app's own `fetch` calls (Supabase
+  sync, feedback, scores) are subresource requests and are not affected.
+- Off-site links were already handed to Safari by `decidePolicyFor`
+  (`ViewController.swift`), so nothing there changes.
+
+Apple's own [App-Bound Domains post](https://webkit.org/blog/10882/app-bound-domains/)
+documents the restrictions but says nothing about service workers; that link
+comes from wrapper projects that hit it (e.g.
+[Capacitor #4122](https://github.com/ionic-team/capacitor/issues/4122)). Which
+is why the first thing to check on a build carrying this change is that a MIDI
+keyboard still plays — before a line of service worker is written.
 
 ## Connecting a keyboard
 

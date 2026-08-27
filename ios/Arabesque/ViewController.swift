@@ -64,6 +64,12 @@ final class ViewController: UIViewController {
     contentController.add(WeakScriptMessageHandler(self), name: "midiBridge")
 
     let configuration = WKWebViewConfiguration()
+    // The other half of the WKAppBoundDomains opt-in in project.yml. Declaring
+    // that key puts every WKWebView in the app into a restricted mode where the
+    // shim above — an injected script and a message handler — would be refused;
+    // this restores it, for the listed domains only. A PTWebAppURL pointing
+    // anywhere else stops loading at all, with "App-bound domain failure".
+    configuration.limitsNavigationsToAppBoundDomains = true
     configuration.userContentController = contentController
     configuration.allowsInlineMediaPlayback = true
     configuration.mediaTypesRequiringUserActionForPlayback = []
