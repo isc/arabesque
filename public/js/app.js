@@ -312,8 +312,7 @@ export function midiApp() {
       // released it. Only with a score up — that's when the screen is watched
       // rather than touched.
       onForeground(() => {
-        const held = wakeLock && !wakeLock.released
-        if (this.osmdInstance && !held) this.requestWakeLock()
+        if (this.osmdInstance) this.requestWakeLock()
       })
       // This page never pulls — not on open, not on tab-back. A pull can
       // trigger rebuildAggregates(), which clears every aggregate and replays
@@ -530,14 +529,18 @@ export function midiApp() {
     // A screen wake lock is released as soon as the document is hidden — tab
     // switch, app backgrounded, screen off — and is never restored on the way
     // back, so it has to be taken again. Asking once when the score loaded left
-    // the screen free to sleep for the rest of the session.
+    // the screen free to sleep for the rest of the session. Asking while one is
+    // still held, on the other hand, only piles up sentinels: a score reloaded
+    // in place (another file dropped, a retry) comes back through here.
     async requestWakeLock() {
+      if (wakeLock && !wakeLock.released) return
       if (!('wakeLock' in navigator) || document.visibilityState !== 'visible') return
       try {
         wakeLock = await navigator.wakeLock.request('screen')
       } catch (err) {
-        // Refused rather than absent: WebKit grants this in Safari proper only,
-        // so the iOS wrapper keeps the screen awake natively instead.
+        // Refused rather than absent: WebKit grants this in Safari proper
+        // only. The iOS wrapper shims the API and keeps the screen awake
+        // natively for as long as this page holds the lock.
         console.warn('Wake lock non disponible:', err)
       }
     },
