@@ -46,17 +46,29 @@ logic is covered by `test/js/webmidiShim.test.js` at the repo root.
 
 Playing a score means minutes without touching the glass, which is exactly what
 the idle timer is watching for; the web app already asks for a screen wake lock
-for that, but WebKit refuses it in a `WKWebView` (webkit.org/b/254545) and the
-refusal is silent, so the iPad fell asleep mid-piece.
+for that, but WebKit grants nothing in a `WKWebView` (webkit.org/b/254545) and
+the refusal is silent, so the iPad fell asleep mid-piece.
 
-`wakelock-shim.js` therefore replaces `navigator.wakeLock` with one that posts
-`{held: true|false}` through `webkit.messageHandlers.wakeLock`, and
-`ViewController` follows it with `isIdleTimerDisabled`. Disabling the idle timer
-outright would be simpler, but then a library left open would never sleep
-either. A lock dies with the document that took it and the outgoing page gets no
-chance to say so, which is why `didCommit` resets the flag on every navigation;
-the new page asks again if it needs one. Covered by
-`test/js/wakeLockShim.test.js`.
+`wakelock-shim.js` therefore replaces `navigator.wakeLock` with one that records
+what the page holds, and `ViewController` sets `isIdleTimerDisabled` from it.
+Disabling the idle timer outright would be simpler, but then a library left open
+would never sleep either.
+
+Two details are the whole reliability of it:
+
+- The shim **defines** `navigator.wakeLock` rather than assigning it. The
+  attribute is readonly, so `navigator.wakeLock = …` throws in strict mode; the
+  shim would not install and the page would keep talking to the implementation
+  that grants nothing.
+- Native **polls** `window.__arabesqueWakeLock.held` (every ten seconds, plus on
+  every return to the foreground) rather than being told. A lock dies with the
+  document that took it, and a document replaced by a navigation or dropped from
+  the back/forward cache never gets to give it back — a single missed message
+  would leave the iPad lit until the app was killed, which is what an hour of
+  glowing library looked like. Asking the page on screen cannot go stale by more
+  than one tick, against an Auto-Lock counted in minutes.
+
+Covered by `test/js/wakeLockShim.test.js`.
 
 ## Building
 
