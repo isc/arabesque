@@ -32,10 +32,16 @@ final class ViewController: UIViewController {
   /// the network, so without it a failed load is a blank white screen with no
   /// way out — the state an offline launch lands in.
   private lazy var loadFailureView: UIView = makeLoadFailureView()
+  /// Samples the page's wake lock (see refreshScreenAwake).
+  private var wakeLockPoll: Timer?
 
   private var appURL: URL {
     let configured = Bundle.main.object(forInfoDictionaryKey: "PTWebAppURL") as? String
     return URL(string: configured ?? "https://arabesque.app/")!
+  }
+
+  deinit {
+    wakeLockPoll?.invalidate()
   }
 
   override func viewDidLoad() {
@@ -47,9 +53,10 @@ final class ViewController: UIViewController {
     view.backgroundColor = .systemBackground
 
     let contentController = WKUserContentController()
-    // webmidi-shim emulates the Web MIDI API WebKit doesn't have; wakelock-shim
-    // replaces the screen wake lock it refuses to grant in a WKWebView. Both
-    // talk back through the message handlers registered just below.
+    // webmidi-shim emulates the Web MIDI API WebKit doesn't have, and talks
+    // back through the message handler registered just below; wakelock-shim
+    // replaces the screen wake lock WebKit refuses to grant in a WKWebView,
+    // and is read back by polling (see "Keeping the screen on").
     for name in ["webmidi-shim", "wakelock-shim"] {
       guard let shimURL = Bundle.main.url(forResource: name, withExtension: "js"),
         let shim = try? String(contentsOf: shimURL) else { continue }
@@ -57,7 +64,6 @@ final class ViewController: UIViewController {
         WKUserScript(source: shim, injectionTime: .atDocumentStart, forMainFrameOnly: true))
     }
     contentController.add(WeakScriptMessageHandler(self), name: "midiBridge")
-    contentController.add(WeakScriptMessageHandler(self), name: "wakeLock")
 
     let configuration = WKWebViewConfiguration()
     // The other half of the WKAppBoundDomains opt-in in project.yml. Declaring
@@ -111,12 +117,11 @@ final class ViewController: UIViewController {
       bluetoothButton.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -12),
     ])
 
-    // Coming back to a failure screen is the moment the connection has often
-    // just been fixed — in Settings, or by plugging in — so spend the reload
-    // rather than making the button the only way forward.
     NotificationCenter.default.addObserver(
-      self, selector: #selector(reloadIfLoadFailed),
+      self, selector: #selector(appDidBecomeActive),
       name: UIApplication.didBecomeActiveNotification, object: nil)
+
+    startPollingWakeLock()
 
     midiBridge.delegate = self
     midiBridge.start()
@@ -130,9 +135,15 @@ final class ViewController: UIViewController {
     webView.load(URLRequest(url: appURL))
   }
 
-  @objc private func reloadIfLoadFailed() {
-    guard !loadFailureView.isHidden else { return }
-    loadWebApp()
+  @objc private func appDidBecomeActive() {
+    // Coming back to a failure screen is the moment the connection has often
+    // just been fixed — in Settings, or by plugging in — so spend the reload
+    // rather than making the button the only way forward.
+    if !loadFailureView.isHidden { loadWebApp() }
+    // iOS restored the idle timer while the app was away and re-applies this
+    // flag as it stands on the way back; the page may have changed since it
+    // was last polled, and the next tick is up to ten seconds off.
+    refreshScreenAwake()
   }
 
   private func makeLoadFailureView() -> UIView {
@@ -219,12 +230,30 @@ final class ViewController: UIViewController {
 
   // MARK: - Keeping the screen on
 
-  /// Follows the page's own screen wake lock, the only thing that knows when
-  /// the screen is watched rather than touched (see README, "Keeping the screen
-  /// on"). iOS applies this only while the app is in the foreground, and
-  /// restores normal behaviour by itself once it isn't.
-  private func setScreenAwake(_ awake: Bool) {
-    UIApplication.shared.isIdleTimerDisabled = awake
+  /// Asks the page whether it is holding a screen wake lock — the only thing
+  /// that knows when the screen is watched rather than touched (see README,
+  /// "Keeping the screen on"). Asking rather than being told is the point: a
+  /// document replaced by a navigation, or dropped from the back/forward
+  /// cache, never gets to give its lock back, and a single message missed that
+  /// way would leave the iPad lit for the rest of the session.
+  ///
+  /// iOS applies the flag only while the app is in the foreground, and restores
+  /// normal behaviour by itself once it isn't.
+  private func refreshScreenAwake() {
+    webView.evaluateJavaScript("!!(window.__arabesqueWakeLock && window.__arabesqueWakeLock.held)") { result, _ in
+      UIApplication.shared.isIdleTimerDisabled = (result as? Bool) ?? false
+    }
+  }
+
+  /// Ten seconds is nothing against an Auto-Lock counted in minutes: it costs
+  /// at most that much screen after a score is left, and delays nothing —
+  /// opening one is polled long before the idle timer could have fired. The
+  /// timer is idle while the app is suspended and picks up on its own
+  /// afterwards, with `appDidBecomeActive` covering the gap.
+  private func startPollingWakeLock() {
+    wakeLockPoll = Timer.scheduledTimer(withTimeInterval: 10, repeats: true) { [weak self] _ in
+      self?.refreshScreenAwake()
+    }
   }
 
   private func evaluate(_ script: String) {
@@ -250,24 +279,16 @@ extension ViewController: MIDIBridgeDelegate {
 
 extension ViewController: WKScriptMessageHandler {
   func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
-    guard let body = message.body as? [String: Any] else { return }
+    guard message.name == "midiBridge",
+      let body = message.body as? [String: Any] else { return }
 
-    switch message.name {
-    case "wakeLock":
-      setScreenAwake((body["held"] as? Bool) ?? false)
-
-    case "midiBridge":
-      switch body["type"] as? String {
-      case "ready":
-        pushPorts()
-      case "send":
-        guard let idString = body["id"] as? String, let id = Int32(idString),
-          let data = body["data"] as? [Any] else { return }
-        midiBridge.send(data.compactMap { ($0 as? NSNumber)?.uint8Value }, toDestination: id)
-      default:
-        break
-      }
-
+    switch body["type"] as? String {
+    case "ready":
+      pushPorts()
+    case "send":
+      guard let idString = body["id"] as? String, let id = Int32(idString),
+        let data = body["data"] as? [Any] else { return }
+      midiBridge.send(data.compactMap { ($0 as? NSNumber)?.uint8Value }, toDestination: id)
     default:
       break
     }
@@ -296,10 +317,6 @@ extension ViewController: WKNavigationDelegate {
   /// fails again would otherwise flash the blank webview in between.
   func webView(_ webView: WKWebView, didCommit navigation: WKNavigation!) {
     loadFailureView.isHidden = true
-    // A wake lock dies with the document that took it, and the page being
-    // replaced gets no chance to say so — leaving the library awake after
-    // coming back from a score. The new page asks again if it needs one.
-    setScreenAwake(false)
   }
 
   func webView(
