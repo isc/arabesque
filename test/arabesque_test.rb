@@ -136,6 +136,30 @@ class ArabesqueTest < CapybaraTestBase
     assert_text 'Partition terminée'
   end
 
+  def test_restarting_from_the_top_starts_the_run_over
+    # The tracker restarts its clock when the run is picked up from its first
+    # measure, so the measures already played can't stay to its credit: the
+    # last measure alone would otherwise finish the score, and the run would be
+    # recorded with the time of that one measure.
+    load_score('repeat-endings.xml', 4)
+
+    # Everything but the second ending: C4 D4 E4 (volta 1), then the repeat.
+    play_note("C4")
+    play_note("D4")
+    play_note("E4")
+    play_note("C4")
+    play_note("D4")
+
+    click_measure(1)
+
+    # Straight to the second ending. Only that measure has been played since
+    # the restart, so the score is not finished.
+    click_measure(4)
+    play_note("F4")
+    assert_selector 'svg g.vf-notehead.played-note', count: 1
+    assert_no_text 'Partition terminée'
+  end
+
   def test_cassette_recording_saves_valid_midi_data
     cassette_name = 'test-recording'
     cassette_file = File.join(__dir__, '..', 'public', 'cassettes', "#{cassette_name}.json")

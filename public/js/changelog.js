@@ -20,9 +20,11 @@ export const CHANGELOG = [
     items: {
       fr: [
         "Reprendre à une mesure ne saute plus la reprise. Dans un morceau à reprise — les exercices de Hanon, par exemple —, cliquer sur une mesure repartait en réalité de la deuxième passe : arrivé au bout, l'app annonçait la partition terminée alors que la reprise n'avait pas été jouée. Le clic repart maintenant de la première passe, et tout ce qui suit se joue, reprise comprise.",
+        "Reprendre le morceau depuis sa première mesure repart vraiment de zéro. Les mesures déjà jouées restaient acquises alors que le chronomètre du passage repartait : deux mesures jouées ensuite pouvaient suffire à déclarer la partition terminée, avec le temps écoulé depuis la reprise — un record absurde en tête du classement. Un saut en arrière au milieu du morceau, lui, garde le crédit du reste.",
       ],
       en: [
         'Restarting at a bar no longer skips the repeat. In a piece with a repeat — a Hanon exercise, say — clicking a bar actually restarted on the second pass: at the end, the app announced the score finished though the repeat had never been played. A click now restarts on the first pass, and everything after it is played, repeat included.',
+        'Picking the piece up again from its first bar really does start over. The bars already played stayed to the run\'s credit while its clock restarted, so a couple of bars played after that could declare the score finished — timed from the restart, which put an absurd record at the top of the ranking. Jumping back mid-piece to work a passage still keeps the rest to your credit.',
       ],
     },
   },
