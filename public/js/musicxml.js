@@ -496,7 +496,7 @@ function measureRect(measureIndex) {
   return measureClickRectangles.get(sourceMeasureIndex)
 }
 
-function createMeasureRectangle(svg, bounds, measureIndex) {
+function createMeasureRectangle(bounds, measureIndex) {
   const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect')
   rect.classList.add('measure-click-area')
   const { x, y, width, height } = measureClickRectDimensions(bounds)
@@ -553,7 +553,7 @@ function setupMeasureClickHandlers() {
     const staffBoxes = getStaffLineBoxes(noteElements)
     const vBounds = calculateCombinedBounds([...noteBoxes, ...staffBoxes])
     const bounds = { minX: hBounds.minX, maxX: hBounds.maxX, minY: vBounds.minY, maxY: vBounds.maxY }
-    const rect = createMeasureRectangle(svg, bounds, measureIndex)
+    const rect = createMeasureRectangle(bounds, measureIndex)
 
     if (!rectsBySvg.has(svg)) rectsBySvg.set(svg, [])
     rectsBySvg.get(svg).push(rect)
