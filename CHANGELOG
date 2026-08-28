@@ -1,3 +1,12 @@
+2026-08-28
+
+- **Reprendre à une mesure ne saute plus la reprise.** Une mesure gravée une
+  fois mais jouée deux fois recevait une zone de clic par passe, empilées au
+  même endroit : le clic allait à celle du dessus, donc à la dernière passe.
+  Dans un Hanon, cliquer sur la première mesure repartait de la reprise, et la
+  partition était annoncée terminée une passe trop tôt. Il n'y a plus qu'une
+  zone par mesure gravée, celle de sa première passe.
+
 2026-08-27
 
 - **Une main seule n'est pas le morceau joué en entier.** Depuis qu'un passage
