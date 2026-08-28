@@ -517,6 +517,29 @@ export function nextPlayableMeasure(allNotes, from, activeHands) {
   return index
 }
 
+// The playback positions that get a click rectangle: the first pass through
+// each source measure. A repeated measure is engraved once, so later passes
+// would only stack identical rects on top of it — and the click would land on
+// the last pass, skipping the repeat.
+export function firstPassMeasureIndexes(allNotes) {
+  const seen = new Set()
+  const indexes = []
+  allNotes.forEach((measureData, measureIndex) => {
+    if (!measureData?.notes?.length) return
+    if (seen.has(measureData.sourceMeasureIndex)) return
+    seen.add(measureData.sourceMeasureIndex)
+    indexes.push(measureIndex)
+  })
+  return indexes
+}
+
+// Where a source measure is first played, or -1 when the active score never
+// plays it. Jumping to a measure always lands on that first pass, so what
+// follows is played whole, repeat included.
+export function firstPassIndexOf(allNotes, sourceMeasureIndex) {
+  return allNotes.findIndex((m) => m.sourceMeasureIndex === sourceMeasureIndex)
+}
+
 export function svgNoteheadFor(osmdInstance, noteData) {
   if (!osmdInstance) return null
   const svgGroup = osmdInstance.rules.GNote(noteData.note)?.getSVGGElement()

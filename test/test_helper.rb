@@ -307,7 +307,9 @@ class CapybaraTestBase < Minitest::Test
     assert_selector 'svg g.vf-stavenote', count: expected_notes if expected_notes
   end
 
-  # Helper to click on a measure in the score
+  # Helper to click on a measure in the score. One click area per engraved
+  # measure, in score order, so a repeated measure is clicked by its number
+  # whichever pass the playback sequence is on.
   def click_measure(measure_number)
     page.all('svg rect.measure-click-area')[measure_number - 1].trigger('click')
   end

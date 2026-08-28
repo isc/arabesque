@@ -5,6 +5,8 @@ import {
   isNoteActiveForHands as isNoteActiveForHandsShared,
   sourceMeasuresToResetOnEntry,
   nextPlayableMeasure,
+  firstPassMeasureIndexes,
+  firstPassIndexOf,
   svgNoteheadFor,
 } from './noteExtraction.js'
 import { scrollSystemIntoView } from './utils.js'
@@ -21,7 +23,9 @@ let targetRepeatCount = 3
 let repeatCount = 0
 let currentRepetitionIsClean = true
 let currentSystemIndex = null
-let measureClickRectangles = []
+// One click rectangle per source measure: a repeated measure is drawn once,
+// so the passes must share a rect instead of stacking identical ones.
+const measureClickRectangles = new Map()
 let playedSourceMeasures = new Set() // Track source measures that have been fully played
 
 // Reinforcement mode variables
@@ -118,7 +122,7 @@ export function initMusicXML() {
     markStrictStartMeasure: (measureIndex) => {
       measureClickRectangles.forEach((rect) => rect.classList.remove('strict-start'))
       if (measureIndex == null) return
-      measureClickRectangles[measureIndex]?.classList.add('strict-start')
+      measureRect(measureIndex)?.classList.add('strict-start')
     },
     setCurrentMeasureIndex: (index) => {
       currentMeasureIndex = index
@@ -151,8 +155,7 @@ export function initMusicXML() {
       currentRepetitionIsClean = true
 
       // Jump to the first measure to reinforce
-      const firstMeasure = reinforcementMeasures[0]
-      const playbackIndex = allNotes.findIndex((m) => m.sourceMeasureIndex === firstMeasure)
+      const playbackIndex = firstPassIndexOf(allNotes, reinforcementMeasures[0])
       if (playbackIndex >= 0) {
         jumpToMeasure(playbackIndex)
         scrollToMeasure(playbackIndex)
@@ -358,7 +361,7 @@ function updateMeasureCursor() {
 
   measureClickRectangles.forEach((rect) => rect.classList.remove('selected'))
 
-  const currentRect = measureClickRectangles[currentMeasureIndex]
+  const currentRect = measureRect(currentMeasureIndex)
   if (!currentRect) return
 
   currentRect.classList.add('selected')
@@ -485,6 +488,14 @@ export function measureClickRectDimensions(bounds) {
   }
 }
 
+// The rect drawn for a playback position, i.e. the one of the source measure
+// it plays — the same rect for every pass through a repeated measure.
+function measureRect(measureIndex) {
+  const sourceMeasureIndex = allNotes[measureIndex]?.sourceMeasureIndex
+  if (sourceMeasureIndex == null) return null
+  return measureClickRectangles.get(sourceMeasureIndex)
+}
+
 function createMeasureRectangle(svg, bounds, measureIndex) {
   const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect')
   rect.classList.add('measure-click-area')
@@ -524,15 +535,14 @@ function setupMeasureClickHandlers() {
 
   const rectsBySvg = new Map()
 
-  allNotes.forEach((measureData, measureIndex) => {
-    if (!measureData?.notes?.length) return
-
+  for (const measureIndex of firstPassMeasureIndexes(allNotes)) {
+    const measureData = allNotes[measureIndex]
     const noteElements = measureData.notes.map((n) => svgNote(n.note))
     const noteBoxes = getBoundingBoxesForNotes(noteElements)
-    if (noteBoxes.length === 0) return
+    if (noteBoxes.length === 0) continue
 
     const svg = noteElements[0].ownerSVGElement
-    if (!svg) return
+    if (!svg) continue
 
     // Horizontal bounds come from the noteheads (so the rect hugs the
     // notes). Vertical bounds are the union of the noteheads (catches
@@ -547,8 +557,8 @@ function setupMeasureClickHandlers() {
 
     if (!rectsBySvg.has(svg)) rectsBySvg.set(svg, [])
     rectsBySvg.get(svg).push(rect)
-    measureClickRectangles.push(rect)
-  })
+    measureClickRectangles.set(measureData.sourceMeasureIndex, rect)
+  }
 
   for (const [svg, rects] of rectsBySvg) {
     const group = document.createElementNS('http://www.w3.org/2000/svg', 'g')
@@ -560,7 +570,7 @@ function setupMeasureClickHandlers() {
 
 function removeMeasureClickHandlers() {
   document.querySelectorAll('g.measure-click-areas').forEach((g) => g.remove())
-  measureClickRectangles = []
+  measureClickRectangles.clear()
 }
 
 function jumpToMeasure(measureIndex) {
@@ -578,7 +588,7 @@ function jumpToMeasure(measureIndex) {
 }
 
 function scrollToMeasure(measureIndex) {
-  const rect = measureClickRectangles[measureIndex]
+  const rect = measureRect(measureIndex)
   if (!rect) return
 
   // Anchor on the system's top staff line (matching the playback cursor) rather
@@ -848,8 +858,7 @@ function handleNoteValidated(measureData, noteData, validatedCount) {
             callbacks.onReinforcementComplete?.()
           } else {
             // Go to the next measure to reinforce
-            const nextSourceMeasure = reinforcementMeasures[reinforcementIndex]
-            const nextPlaybackIndex = allNotes.findIndex((m) => m.sourceMeasureIndex === nextSourceMeasure)
+            const nextPlaybackIndex = firstPassIndexOf(allNotes, reinforcementMeasures[reinforcementIndex])
             setTimeout(() => {
               resetMeasureProgress()
               jumpToMeasure(nextPlaybackIndex)

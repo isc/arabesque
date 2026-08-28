@@ -101,8 +101,11 @@ class ArabesqueTest < CapybaraTestBase
   def test_free_play_allows_clicking_measure_to_reposition
     load_score('repeat-endings.xml', 4)
 
-    # Measure click areas should be present even without training mode
-    assert_selector 'svg rect.measure-click-area', minimum: 4
+    # One click area per engraved measure, even without training mode. A
+    # repeated measure is played twice but drawn once: a rect per pass would
+    # stack identical ones, and the click would land on the topmost — the last
+    # pass — restarting past the repeat.
+    assert_selector 'svg rect.measure-click-area', count: 4
 
     # Play first two measures: C4 (measure 1) and D4 (measure 2)
     play_note("C4")
@@ -115,9 +118,22 @@ class ArabesqueTest < CapybaraTestBase
     click_measure(1)
     assert_no_selector 'svg g.vf-notehead.played-note'
 
-    # Play C4 again - should validate measure 1
+    # Back on the first pass, so the whole sequence is owed again. Measure 3 is
+    # volta 1 (E4), which the second pass never plays: it stays green while the
+    # repeat resets measures 1 and 2.
     play_note("C4")
     assert_selector 'svg g.vf-notehead.played-note', count: 1
+
+    play_note("D4")
+    play_note("E4")
+    assert_selector 'svg g.vf-notehead.played-note', count: 1
+    assert_no_text 'Partition terminée'
+
+    # Second pass, ending on volta 2 (F4) - only now is the score finished
+    play_note("C4")
+    play_note("D4")
+    play_note("F4")
+    assert_text 'Partition terminée'
   end
 
   def test_cassette_recording_saves_valid_midi_data
@@ -167,9 +183,7 @@ class ArabesqueTest < CapybaraTestBase
     assert_text 'Mode Entraînement Actif'
 
     # Measure 8 contains polyphonic notes with duplicate stems
-    # Schumann has a repeat on measures 1-4, so playback sequence is:
-    # indices 0-3: measures 1-4, indices 4-7: repeat, indices 8-11: measures 5-8
-    click_measure(12)
+    click_measure(8)
 
     replay_cassette('polyphonic-duplicate-notes')
 
