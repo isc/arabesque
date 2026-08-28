@@ -576,13 +576,19 @@ function removeMeasureClickHandlers() {
 function jumpToMeasure(measureIndex) {
   if (measureIndex < 0 || measureIndex >= allNotes.length) return
   currentMeasureIndex = cursorMeasureFor(measureIndex)
-  // Don't clear playedSourceMeasures - we want to track all measures played across jumps
   resetNotesFromIndex(measureIndex)
   resetMeasureProgress()
   updateMeasureCursor()
   updateRepeatIndicators()
-  // Notify tracker that user is restarting from measure 0
-  if (measureIndex === 0) {
+  // A jump inside a run keeps the measures already played to its credit: going
+  // back over a passage shouldn't cost the rest of the score. Landing on the
+  // measure the run starts from is a new run instead, and the tracker restarts
+  // its clock there — so what has been played starts over with it, or a couple
+  // of measures could finish a score timed from the restart and top the
+  // ranking. Not always measure 1: with one hand unticked the run starts after
+  // the bars that hand rests through.
+  if (atScoreStart()) {
+    playedSourceMeasures.clear()
     callbacks.onPlaythroughRestart?.()
   }
 }

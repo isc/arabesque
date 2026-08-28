@@ -1,5 +1,15 @@
 2026-08-28
 
+- **Reprendre depuis la première mesure repart vraiment de zéro.** Les mesures
+  déjà jouées restaient acquises à travers le clic de reprise, alors que le
+  chronomètre du passage, lui, repartait : deux mesures jouées après la reprise
+  pouvaient suffire à déclarer la partition terminée, avec le temps de ces deux
+  mesures — donc en tête du classement. Reprendre au départ du passage remet
+  les deux à zéro. Un saut en arrière au milieu du morceau garde son crédit,
+  c'est tout l'intérêt d'y retourner. Le départ du passage n'est pas toujours
+  la mesure 1 : une main décochée, il commence après les mesures que cette main
+  laisse à l'autre.
+
 - **Reprendre à une mesure ne saute plus la reprise.** Une mesure gravée une
   fois mais jouée deux fois recevait une zone de clic par passe, empilées au
   même endroit : le clic allait à celle du dessus, donc à la dernière passe.
