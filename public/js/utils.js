@@ -22,11 +22,27 @@ export function onIdle(fn) {
 // The page coming back to the foreground: a tab switched back to, or — the case
 // that matters on an iPad — an app resumed, since the wrapper's webview is
 // suspended and woken rather than reloaded. Everything that waits for this
-// wants the same visibility guard, so it is written once here.
+// wants the same triggers, so they are written once here.
+//
+// visibilitychange carries the tab. It does not carry the app: a library page
+// woken with the wrapper kept the evening before's practice under
+// "aujourd'hui" until a navigation rebuilt it, so nothing on the page had
+// heard. What the wrapper does hear is didBecomeActive, and it now forwards it
+// as this event (ios/Arabesque/ViewController.swift). No visibility guard on
+// that one — the app becoming active is the signal, and what WKWebView reports
+// for document.visibilityState across a suspension is the very thing that
+// could not be relied on.
+//
+// Both can fire for a single return. Every caller is idempotent — a day key
+// that hasn't changed, a sync inside its throttle window, a wake lock already
+// held — so the duplicate costs a comparison.
+export const NATIVE_FOREGROUND_EVENT = 'arabesque:foreground'
+
 export function onForeground(fn) {
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') fn()
   })
+  document.addEventListener(NATIVE_FOREGROUND_EVENT, fn)
 }
 
 // Pixel offset for the currently-visible sticky bars (topbar + modebar +
