@@ -65,11 +65,16 @@ describe('onDayChange', () => {
     expect(handler).toHaveBeenCalledOnce()
   })
 
-  // A device landing in another timezone moves the wall clock without any
-  // elapsed time to wait for, and without leaving the foreground.
-  it('notices a clock jump into the next day', () => {
-    vi.setSystemTime(new Date(2026, 7, 26, 4, 0, 0))
-    vi.advanceTimersByTime(60 * 1000)
+  // The case the poll exists for: an app suspended overnight and woken the next
+  // morning, where the foreground event may never arrive — so the poll's period
+  // is how long the journal keeps showing yesterday under "aujourd'hui", and a
+  // second is the budget. A device landing in another timezone looks the same
+  // from here: the wall clock moves with no elapsed time to wait for.
+  it('catches up within a second of the clock reaching the next day', () => {
+    vi.setSystemTime(new Date(2026, 7, 26, 8, 30, 0))
+    vi.advanceTimersByTime(999)
+    expect(handler).not.toHaveBeenCalled()
+    vi.advanceTimersByTime(1)
     expect(handler).toHaveBeenCalledOnce()
   })
 })
