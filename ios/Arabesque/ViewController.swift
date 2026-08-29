@@ -144,6 +144,13 @@ final class ViewController: UIViewController {
     // flag as it stands on the way back; the page may have changed since it
     // was last polled, and the next tick is up to ten seconds off.
     refreshScreenAwake()
+    // Nothing on the page hears the app wake up. A webview suspended with it
+    // and woken hours later is not reloaded, and across that gap
+    // visibilitychange is not something the pages that print "today" can be
+    // built on — the library's journal was still filing the evening before's
+    // practice under "aujourd'hui". This notification is what they wanted, and
+    // the app is the only one holding it. utils.js onForeground() listens.
+    evaluate("document.dispatchEvent(new Event('arabesque:foreground'))")
   }
 
   private func makeLoadFailureView() -> UIView {
@@ -258,7 +265,7 @@ final class ViewController: UIViewController {
 
   private func evaluate(_ script: String) {
     webView.evaluateJavaScript(script) { _, error in
-      if let error { print("midiBridge JS error: \(error)") }
+      if let error { print("Arabesque: JS error — \(error)") }
     }
   }
 }

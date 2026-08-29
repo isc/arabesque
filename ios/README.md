@@ -70,6 +70,28 @@ Two details are the whole reliability of it:
 
 Covered by `test/js/wakeLockShim.test.js`.
 
+## Telling the page the app is awake
+
+The webview is suspended with the app and woken hours later, never reloaded —
+which is exactly the situation `visibilitychange` was supposed to cover and
+does not. A library page resumed the morning after a session kept filing the
+evening before's practice under « aujourd'hui », because nothing on the page
+had heard anything.
+
+`didBecomeActive` is a notification the app does get, so `ViewController`
+forwards it:
+
+```swift
+evaluate("document.dispatchEvent(new Event('arabesque:foreground'))")
+```
+
+`onForeground()` in `public/js/utils.js` listens for that event alongside
+`visibilitychange`, and everything waiting on a return to the foreground —
+the day rollover, the sync on the way back in — hangs off it. Both can fire
+for a single return, so every listener is idempotent.
+
+Covered by `test/js/dayRollover.test.js`.
+
 ## Building
 
 Requires a Mac with Xcode 15+ and [XcodeGen](https://github.com/yonaskolb/XcodeGen)

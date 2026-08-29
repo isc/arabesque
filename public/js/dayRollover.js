@@ -5,28 +5,25 @@
 // reloaded — the app is suspended and woken for weeks — so the morning after a
 // session, "aujourd'hui" still held the evening before's work.
 //
-// Two things turn the day over: coming back to the app after it was away
-// across midnight, and the clock moving past midnight — or jumping, when a
-// device lands and picks up another timezone — with the page still open.
+// onDayChange() fires when the local day key changes, on two triggers: the page
+// coming back to the foreground, and a one-minute poll.
 //
-// The foreground event is what should carry the first case, and in the wrapper
-// it doesn't: a library page woken with the app still read "aujourd'hui" over
-// the evening before, seconds after the app came back, and only a navigation
-// put it right. Whatever WKWebView does with visibility across a suspension,
-// the poll is the trigger to count on — so its period is not an idle cost to
-// keep low, it is how long a stale journal stays on screen, and a second is the
-// budget. The check compares one day key to another and the handler behind it
-// runs on the one tick a day where the answer changes; a timer armed for
-// midnight would spare even that, and would sleep through both the suspension
-// and the jump.
+// The foreground trigger is the one that answers the iPad, and for a while it
+// answered nothing at all: inside the wrapper no foreground event reached the
+// page, and the journal stayed a day behind until the poll caught it a minute
+// later — long enough to be read wrong. onForeground() now hears the wrapper
+// itself (see utils.js), which is where that belonged.
 //
-// The foreground event stays all the same, and not for the second it saves: a
-// hidden tab has its timers throttled to about one a minute, so a tab switched
-// back to is the case the poll alone would answer slowest.
+// The poll stays for the page nobody leaves: open across midnight with the app
+// in front, no foreground event to wait for. It also catches a clock that
+// jumps — a device landing in another timezone moves the wall clock with no
+// elapsed time to wait for — which a timer armed for midnight would sleep
+// through. One day-key comparison a minute costs nothing next to the handler it
+// guards.
 import { localDayKey } from './practiceTracker.js'
 import { onForeground } from './utils.js'
 
-const POLL_MS = 1000
+const POLL_MS = 60000
 
 export function onDayChange(handler) {
   let day = localDayKey(new Date())
