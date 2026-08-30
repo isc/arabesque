@@ -34,7 +34,7 @@
   </head>
   <body>
     <main class="container pt-library-page" @keydown.escape.window="menuOpen = false; showChangelogModal = false; showFeedbackModal = false">
-      <div class="pt-library-chrome">
+      <div class="pt-library-chrome" :class="{ 'is-collapsed': !filtersOpen }">
         <div class="pt-page-header">
           <h1 x-text="$t('library.heading')">Bibliothèque</h1>
           <div class="pt-page-header__actions">
@@ -48,6 +48,30 @@
             </div>
             <div data-menu-slot></div>
           </div>
+        </div>
+
+        <!-- Narrow-screen only (see .pt-librarybar): the filters below cost a
+             whole phone screen before any content, and the sortable table
+             headers are gone once the rows become cards. -->
+        <div class="pt-librarybar" x-show="scores.length > 0">
+          <button
+            type="button"
+            class="pt-filter-pill"
+            :aria-expanded="filtersOpen"
+            @click="filtersOpen = !filtersOpen"
+          >
+            <span x-text="$t('library.filters')">Filtrer</span>
+            <span class="pt-filter-pill__count" x-show="activeFilterCount > 0" x-text="activeFilterCount"></span>
+          </button>
+          <select
+            class="pt-select pt-librarybar__sort"
+            :aria-label="$t('library.sortAria')"
+            @change="toggleSort($event.target.value)"
+          >
+            <template x-for="opt in sortOptions" :key="opt.value">
+              <option :value="opt.value" :selected="opt.value === sortBy" x-text="opt.label"></option>
+            </template>
+          </select>
         </div>
 
         <div class="pt-filters" x-show="scores.length > 0">
@@ -68,13 +92,13 @@
               <span class="pt-filter-pill__count" x-text="opt.count"></span>
             </button>
           </template>
-          <select x-model="composerFilter" :aria-label="$t('library.composerFilterAria')" x-show="composerOptions.length > 1">
+          <select class="pt-select" x-model="composerFilter" :aria-label="$t('library.composerFilterAria')" x-show="composerOptions.length > 1">
             <option value="" x-text="$t('library.allComposers')">Tous compositeurs</option>
             <template x-for="c in composerOptions" :key="c">
               <option :value="c" x-text="c"></option>
             </template>
           </select>
-          <select x-model="periodFilter" :aria-label="$t('library.periodFilterAria')" x-show="periodOptions.length > 1">
+          <select class="pt-select" x-model="periodFilter" :aria-label="$t('library.periodFilterAria')" x-show="periodOptions.length > 1">
             <option value="" x-text="$t('library.allPeriods')">Toutes périodes</option>
             <template x-for="p in periodOptions" :key="p.value">
               <option :value="p.value" x-text="`${p.label} (${p.count})`"></option>

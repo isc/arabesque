@@ -1,3 +1,28 @@
+2026-08-30
+
+- **La bibliothèque tient sur un téléphone.** Le tableau des partitions faisait
+  628 px quel que soit l'écran : la page entière scrollait de côté et les titres
+  se cassaient sur trois lignes. Sous 700 px chaque ligne devient une carte —
+  titre sur sa ligne, puis compositeur, statut et temps de pratique —, les
+  filtres se replient derrière un bouton « Filtrer » qui compte ceux encore
+  actifs, et un menu déroulant reprend le tri que les en-têtes de colonnes
+  assuraient. Les filtres coûtaient 348 px avant le moindre contenu.
+
+- **La barre du haut d'une partition ne déborde plus.** Ses actions ne
+  rétrécissent pas, et retour + titre + clavier MIDI + historique + ⚙️ font plus
+  large qu'un téléphone : le ⚙️ était dessiné hors de l'écran. Elles passent
+  maintenant sur une ligne à elles.
+
+- **Le titre gravé s'adapte à la largeur.** OSMD le dessine à une taille fixée
+  dans ses propres unités : 40 px aussi bien sur un écran de 1280 px que sur un
+  de 390 px, soit un tiers de la largeur, au-dessus de 148 px d'en-tête avant la
+  première portée. Il suit désormais la largeur du conteneur, avec un plancher
+  par ligne — au facteur qui ramène le titre à 20 px, le compositeur tombait à
+  10 px.
+
+- **Le sélecteur de fichier de sauvegarde ne fait plus scroller la page de
+  côté.** Masqué visuellement, il gardait quand même toute la largeur.
+
 2026-08-28
 
 - **Reprendre depuis la première mesure repart vraiment de zéro.** Les mesures
