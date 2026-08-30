@@ -7,8 +7,9 @@
 
 The invitation is the last step of a chain Apple insists on, so the script does
 the whole chain and says what it did: an external beta group, the newest valid
-build attached to it, the "what to test" note, the beta review contact and
-notes, the review submission, then the tester.
+build attached to it, the beta description and feedback address, the "what to
+test" note, the beta review contact and notes, the review submission, then the
+tester.
 
 Apple mails the invitation once that beta review passes — a day or so, once per
 build rather than per tester. `--status` says where it stands. Adding a tester
@@ -67,20 +68,45 @@ def attach_build(group, build):
         {"data": [{"type": "builds", "id": build}]}))
 
 
-def ensure_whats_new(build):
-    """External testing is refused without a what-to-test note on the build."""
-    _, d = asc.call("GET", f"/v1/builds/{build}/betaBuildLocalizations")
+def upsert_localization(label, resource, owner, attributes):
+    """Apple has no upsert: the fr-FR entry is looked up under its owner, then
+    PATCHed or created. `owner` is the (relationship name, type, id) it hangs
+    from — a build for what-to-test, the app for the beta description."""
+    name, kind, owner_id = owner
+    _, d = asc.call("GET", f"/v1/{kind}/{owner_id}/{resource}")
     for loc in d.get("data", []):
         if loc["attributes"]["locale"] == copy.LOCALE:
-            asc.expect("what to test", *asc.call(
-                "PATCH", f"/v1/betaBuildLocalizations/{loc['id']}",
-                {"data": {"type": "betaBuildLocalizations", "id": loc["id"],
-                          "attributes": {"whatsNew": copy.BETA_WHATS_NEW}}}))
+            asc.expect(label, *asc.call(
+                "PATCH", f"/v1/{resource}/{loc['id']}",
+                {"data": {"type": resource, "id": loc["id"], "attributes": attributes}}))
             return
-    asc.expect("what to test", *asc.call("POST", "/v1/betaBuildLocalizations", {
-        "data": {"type": "betaBuildLocalizations",
-                 "attributes": {"locale": copy.LOCALE, "whatsNew": copy.BETA_WHATS_NEW},
-                 "relationships": {"build": {"data": {"type": "builds", "id": build}}}}}))
+    asc.expect(label, *asc.call("POST", f"/v1/{resource}", {
+        "data": {"type": resource, "attributes": {**attributes, "locale": copy.LOCALE},
+                 "relationships": {name: {"data": {"type": kind, "id": owner_id}}}}}))
+
+
+def ensure_whats_new(build):
+    """External testing is refused without a what-to-test note on the build."""
+    upsert_localization("what to test", "betaBuildLocalizations",
+                        ("build", "builds", build),
+                        {"whatsNew": copy.BETA_WHATS_NEW})
+
+
+def ensure_beta_description(app):
+    """TestFlight carries its own description and feedback address, app-wide
+    rather than per build. Apple refuses an external submission without them,
+    and says so only at the submission itself."""
+    contact = asc.review_contact()
+    if contact is None:
+        raise SystemExit(
+            "no ~/.appstoreconnect/review_contact.json — TestFlight needs an "
+            "address for tester feedback")
+    upsert_localization("beta description", "betaAppLocalizations",
+                        ("app", "apps", app),
+                        {"description": copy.DESCRIPTION,
+                         "feedbackEmail": contact["email"],
+                         "marketingUrl": copy.MARKETING_URL,
+                         "privacyPolicyUrl": copy.PRIVACY_URL})
 
 
 def ensure_review_detail(app):
@@ -103,6 +129,7 @@ def submit_for_review(app, build):
     if state != "READY_FOR_BETA_SUBMISSION":
         print(f"  ok    beta review: {readable(state)}")
         return state == "IN_BETA_TESTING"
+    ensure_beta_description(app)
     ensure_whats_new(build)
     ensure_review_detail(app)
     asc.expect("submitted for beta review", *asc.call("POST", "/v1/betaAppReviewSubmissions", {

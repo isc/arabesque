@@ -39,9 +39,12 @@ python3 scripts/appstore/testflight_invite.py --status
 
 Apple will not mail an invitation to an outsider until a chain of things exists,
 so the script makes each of them and prints what it did: an external beta group
-(`Testeurs`, `--group` for another), the newest valid build attached to it, a
-what-to-test note, the beta review contact and notes, and the beta review
-submission. Adding a tester before that review passes is fine — Apple mails them
+(`Testeurs`, `--group` for another), the newest valid build attached to it, the
+beta description and feedback address, a what-to-test note, the beta review
+contact and notes, and the beta review submission. Several of these are only
+demanded at the submission itself, one error at a time, which is the reason the
+script does all of them rather than the one that was missing the first time.
+Adding a tester before that review passes is fine — Apple mails them
 on approval, and the review happens once per build, not once per tester.
 `--status` says where it stands.
 
