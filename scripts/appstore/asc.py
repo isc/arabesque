@@ -57,10 +57,9 @@ def _issuer_id() -> str:
     )
 
 
-def review_notes_attributes(notes):
-    """The contact-and-notes block both review resources take, App Store and
-    beta alike. The contact lives outside the repo — it is personal data — and
-    None means it is not there; callers differ on whether that is fatal."""
+def review_contact():
+    """The contact lives outside the repo — it is personal data. None means it is
+    not there; callers differ on whether that is fatal."""
     path = KEY_DIR / "review_contact.json"
     if not path.exists():
         return None
@@ -68,6 +67,15 @@ def review_notes_attributes(notes):
     missing = [k for k in ("firstName", "lastName", "email", "phone") if not contact.get(k)]
     if missing:
         raise SystemExit(f"{path} is missing: {', '.join(missing)}")
+    return contact
+
+
+def review_notes_attributes(notes):
+    """The contact-and-notes block both review resources take, App Store and
+    beta alike."""
+    contact = review_contact()
+    if contact is None:
+        return None
     return {
         "notes": notes,
         "demoAccountRequired": False,
