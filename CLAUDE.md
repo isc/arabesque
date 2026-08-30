@@ -104,8 +104,12 @@ both work on a throwaway copy of `public/` — no demo hook ever ships. See
 `scripts/appstore/push_listing.py` writes the listing itself — description,
 keywords, URLs, categories, age rating, screenshots — through the App Store
 Connect API, from the copy in `scripts/appstore/listing_fr.py`. It never
-submits for review, and App Privacy has no API and stays manual. Credentials
-live outside the repo; see `scripts/appstore/README.md`.
+submits for review, and App Privacy has no API and stays manual.
+
+`scripts/appstore/testflight_invite.py <email>` invites a TestFlight tester,
+making the external group, build attachment and beta review submission it needs
+on the way; `--status` reports where the review is. Credentials for both live
+outside the repo; see `scripts/appstore/README.md`.
 
 ## New HTML pages
 
