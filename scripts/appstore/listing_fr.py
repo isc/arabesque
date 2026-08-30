@@ -4,6 +4,8 @@ Edit here, then `python3 scripts/appstore/push_listing.py` to push it. Running
 this module on its own checks every field against Apple's length limits.
 """
 
+LOCALE = "fr-FR"  # the language this file is written in
+
 SUBTITLE = "Le piano, note après note"  # 30 max
 
 DESCRIPTION = """\
@@ -72,6 +74,18 @@ SUPPORT_URL = "https://arabesque.app/support.html"
 MARKETING_URL = "https://arabesque.app/"
 PRIVACY_URL = "https://arabesque.app/privacy.html"
 
+# Shown to TestFlight testers as "what to test", and required before Apple will
+# take a build into external beta review. 4000 max.
+BETA_WHATS_NEW = """\
+Branchez un clavier MIDI (USB ou Bluetooth, via le bouton antenne en bas à \
+droite), ouvrez une partition et jouez : les notes se colorent selon qu'elles \
+sont réussies, manquées ou anticipées.
+
+Ce qui mérite un retour : la connexion du clavier, la justesse du suivi note à \
+note, la lisibilité de la partition sur votre appareil, et l'historique de \
+pratique.
+"""
+
 REVIEW_NOTES = """\
 Arabesque needs a MIDI keyboard (USB or Bluetooth) for its core feature, and \
 review devices do not have one. Demonstration video:
@@ -113,6 +127,7 @@ if __name__ == "__main__":
         ("KEYWORDS", KEYWORDS, 100),
         ("PROMOTIONAL_TEXT", PROMOTIONAL_TEXT, 170),
         ("DESCRIPTION", DESCRIPTION, 4000),
+        ("BETA_WHATS_NEW", BETA_WHATS_NEW, 4000),
         ("REVIEW_NOTES", REVIEW_NOTES, 4000),
     ]:
         flag = "OK " if len(value) <= limit else "OVER"

@@ -25,8 +25,6 @@ Two things it cannot do, because the API has no endpoint for them:
 """
 import argparse
 import hashlib
-import json
-import os
 import pathlib
 import sys
 
@@ -35,8 +33,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).parent))
 import asc  # noqa: E402
 import listing_fr as copy  # noqa: E402
 
-BUNDLE_ID = "app.arabesque.Arabesque"
-LOCALE = "fr-FR"
+LOCALE = copy.LOCALE
 PRIMARY_CATEGORY = "MUSIC"
 SECONDARY_CATEGORY = "EDUCATION"
 BASE_TERRITORY = "FRA"
@@ -53,11 +50,7 @@ EDITABLE_STATES = {
 
 
 def find_ids():
-    _, d = asc.call("GET", f"/v1/apps?filter[bundleId]={BUNDLE_ID}")
-    apps = d.get("data") or []
-    if not apps:
-        raise SystemExit(f"no app with bundle id {BUNDLE_ID} on this account")
-    app_id = apps[0]["id"]
+    app_id = asc.app_id()
 
     _, d = asc.call("GET", f"/v1/apps/{app_id}/appStoreVersions?limit=10")
     versions = [v for v in d.get("data", [])
@@ -149,48 +142,25 @@ def push_metadata(ids):
             # with other users.
             "userGeneratedContent": False}}}))
 
-    contact = review_contact()
-    if contact is None:
+    review_body = asc.review_notes_attributes(copy.REVIEW_NOTES)
+    if review_body is None:
         print("  --    review notes: skipped, no ~/.appstoreconnect/review_contact.json")
         print("        Apple requires a name, email and phone alongside the notes;")
         print('        write {"firstName","lastName","email","phone"} there.')
         return False
 
-    review_body = {
-        "notes": copy.REVIEW_NOTES,
-        "demoAccountRequired": False,
-        "contactFirstName": contact["firstName"],
-        "contactLastName": contact["lastName"],
-        "contactEmail": contact["email"],
-        # Apple wants +<country code> first, and says so unhelpfully late.
-        "contactPhone": contact["phone"],
-    }
-    status, existing = asc.call("GET", f"/v1/appStoreVersions/{ids['version']}/appStoreReviewDetail")
+    _, existing = asc.call("GET", f"/v1/appStoreVersions/{ids['version']}/appStoreReviewDetail")
     if existing.get("data"):
         detail_id = existing["data"]["id"]
         asc.expect("review notes", *asc.call(
             "PATCH", f"/v1/appStoreReviewDetails/{detail_id}",
             {"data": {"type": "appStoreReviewDetails", "id": detail_id, "attributes": review_body}}))
-        return True
     else:
         asc.expect("review notes", *asc.call("POST", "/v1/appStoreReviewDetails", {
             "data": {"type": "appStoreReviewDetails", "attributes": review_body,
                      "relationships": {"appStoreVersion": {
                          "data": {"type": "appStoreVersions", "id": ids["version"]}}}}}))
-        return True
-
-
-def review_contact():
-    """Read the App Review contact from outside the repo — it is personal data,
-    and Apple will not take the notes without it."""
-    path = pathlib.Path(os.path.expanduser("~/.appstoreconnect/review_contact.json"))
-    if not path.exists():
-        return None
-    contact = json.loads(path.read_text())
-    missing = [k for k in ("firstName", "lastName", "email", "phone") if not contact.get(k)]
-    if missing:
-        raise SystemExit(f"{path} is missing: {', '.join(missing)}")
-    return contact
+    return True
 
 
 def push_price_free(ids):
@@ -266,12 +236,7 @@ def upload_one(path, set_id):
 
 def attach_newest_build(ids):
     print("Build")
-    _, d = asc.call("GET", f"/v1/apps/{ids['app']}/builds?limit=20")
-    valid = [b for b in d.get("data", [])
-             if b["attributes"]["processingState"] == "VALID" and not b["attributes"]["expired"]]
-    if not valid:
-        raise SystemExit("  no valid build — run the TestFlight workflow first")
-    newest = max(valid, key=lambda b: int(b["attributes"]["version"]))
+    newest = asc.newest_build(ids["app"])
     asc.expect(f"attach build {newest['attributes']['version']}", *asc.call(
         "PATCH", f"/v1/appStoreVersions/{ids['version']}/relationships/build",
         {"data": {"type": "builds", "id": newest["id"]}}))
