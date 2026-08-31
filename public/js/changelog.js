@@ -16,6 +16,21 @@
 
 export const CHANGELOG = [
   {
+    date: '2026-08-30',
+    items: {
+      fr: [
+        "La bibliothèque et le journal de pratique tiennent enfin sur un téléphone. Le tableau des partitions débordait de l'écran : la page entière glissait de côté et les titres se cassaient sur trois lignes. Chaque partition est maintenant une ligne à elle seule — titre, puis compositeur, statut et temps de pratique en dessous —, les filtres se replient derrière un bouton, et un menu déroulant remplace les en-têtes de colonnes pour le tri.",
+        "Sur la page d'une partition, le bouton ⚙️ n'est plus hors écran sur un téléphone : la barre du haut passe à la ligne au lieu de dépasser.",
+        "Le titre gravé au-dessus de la partition s'adapte à la largeur de l'écran. Il était dessiné à taille fixe, donc il occupait le tiers d'un écran de téléphone et repoussait la musique vers le bas.",
+      ],
+      en: [
+        'The library and the practice journal finally fit on a phone. The score table ran off the screen: the whole page slid sideways and titles broke over three lines. Each score is now a row of its own — title, then composer, status and practice time underneath — the filters fold behind a button, and a dropdown replaces the column headers for sorting.',
+        'On a score page, the ⚙️ button is no longer off-screen on a phone: the top bar wraps instead of overflowing.',
+        'The title engraved above the score now scales with the screen. It was drawn at a fixed size, so it took a third of a phone screen and pushed the music down.',
+      ],
+    },
+  },
+  {
     date: '2026-08-28',
     items: {
       fr: [

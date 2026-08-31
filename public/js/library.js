@@ -18,6 +18,10 @@ const STATUS_RANK = Object.fromEntries(STATUS_ORDER.map((s, i) => [s, i]))
 const DAYS_TO_SHOW = 14
 const STALE_DAYS = 7
 const STALE_MS = STALE_DAYS * 24 * 60 * 60 * 1000
+// The dropdown/pill filters, as opposed to the search box: each is mirrored
+// into the URL, and each counts towards the badge on the narrow-screen
+// "Filtrer" button. Adding a filter here wires up both.
+const FILTER_KEYS = ['statusFilter', 'composerFilter', 'periodFilter', 'focusFilter']
 
 export function libraryApp() {
   const midi = initMidi()
@@ -39,6 +43,9 @@ export function libraryApp() {
     focusFilter: '',     // '' | 'reinforce' | 'near-mastery' | 'stale'
     sortBy: 'lastPlayed', // 'title' | 'composer' | 'status' | 'practice' | 'lastPlayed'
     sortDir: 'desc',      // 'asc' | 'desc'
+    // Only read below the breakpoint where .pt-librarybar appears; the filters
+    // are always laid out on a wide screen, whatever this says.
+    filtersOpen: false,
     baseUrl: '',
     dailyLogsByDate: [],
     // In-flight refreshPracticeViews(), shared by concurrent callers.
@@ -55,7 +62,7 @@ export function libraryApp() {
         // localStorage unavailable (private mode): no marker, no redirect — fine.
       }
 
-      for (const key of ['statusFilter', 'composerFilter', 'periodFilter', 'focusFilter', 'searchQuery']) {
+      for (const key of [...FILTER_KEYS, 'searchQuery']) {
         this.$watch(key, () => this.syncUrl())
       }
 
@@ -260,6 +267,26 @@ export function libraryApp() {
       this.sortBy = column
       // Text columns sort A→Z by default; numeric/date columns biggest/most-recent first.
       this.sortDir = (column === 'title' || column === 'composer') ? 'asc' : 'desc'
+    },
+
+    // The narrow-screen sort control, which replaces the sortable table headers
+    // once the rows are cards. lastPlayed has no column of its own but is the
+    // default order, so it has to be offered somewhere.
+    get sortOptions() {
+      return [
+        { value: 'lastPlayed', label: t('library.sortLastPlayed') },
+        { value: 'title',      label: t('library.colTitle') },
+        { value: 'composer',   label: t('library.colComposer') },
+        { value: 'status',     label: t('library.colStatus') },
+        { value: 'practice',   label: t('library.colPractice') },
+      ]
+    },
+
+    // Badge on the "Filtrer" button: what is still narrowing the list while the
+    // filters themselves are folded away. Search is not one of them — its input
+    // stays visible, so it needs no reminder.
+    get activeFilterCount() {
+      return FILTER_KEYS.filter((key) => this[key]).length
     },
 
     sortArrow(column) {

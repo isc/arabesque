@@ -228,6 +228,38 @@ async function loadMusicXML(file) {
   }
 }
 
+// OSMD engraves the title block into the SVG at a size fixed in its own units
+// (1 unit = 10px), so it never answers to the viewport: 40px of title is a tenth
+// of a 1280px window and a third of a 390px phone, above 148px of header before
+// the first staff. Scale the block with the container instead — but per rule,
+// with its own floor: at the factor that brings the title down to a sensible 20px,
+// the composer and arranger land on 10px, which is not readable.
+//
+// The font is not ours to change: OSMD 2.1.2 exposes a single DefaultFontFamily,
+// which also draws dynamics, tempo marks and directions — all of which want the
+// serif they have. Size is the only lever, and it is the one that was wrong.
+const TITLE_RULES = {
+  // rule:              [full size, floor]
+  SheetTitleHeight:     [4.0, 2.0],
+  SheetSubtitleHeight:  [2.0, 1.4],
+  SheetComposerHeight:  [2.0, 1.4],
+  SheetAuthorHeight:    [2.0, 1.4],
+  TitleTopDistance:     [5.0, 2.0],
+}
+// The width at which the title is engraved at its full, OSMD-default size.
+const FULL_TITLE_WIDTH = 900
+
+// Called before every render, never only on the way down: the rules are a
+// property of the OSMD instance and persist between renders, so a phone turned
+// to landscape has to grow the title back as well as shrink it.
+function scaleTitleBlock() {
+  const width = document.getElementById('score')?.clientWidth || FULL_TITLE_WIDTH
+  const scale = Math.min(1, width / FULL_TITLE_WIDTH)
+  for (const [rule, [full, floor]] of Object.entries(TITLE_RULES)) {
+    osmdInstance.rules[rule] = Math.max(floor, full * scale)
+  }
+}
+
 // `reextract: false` re-draws at the container's current width without rebuilding
 // the note model. osmd.render() replaces every graphical object, but allNotes
 // holds *source* notes, which survive it — so played/active flags plus the
@@ -244,6 +276,7 @@ async function loadMusicXML(file) {
 // but un-indexed (no allNotes, no measure click handlers).
 async function renderScore({ reextract = true, afterDraw = null } = {}) {
   if (!osmdInstance) return
+  scaleTitleBlock()
   osmdInstance.render()
   disableInvisibleNoteClicks()
   if (afterDraw) await afterDraw()

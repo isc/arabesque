@@ -269,7 +269,12 @@ input, optgroup, select, textarea {
   line-height: 1.5;
   letter-spacing: inherit;
 }
-input:not([type="checkbox"], [type="radio"]), select, textarea {
+/* :where() so the :not() adds no weight: unwrapped, this outranked a single
+   class and .pt-sr-only lost, which left the visually hidden backup file input
+   at full width and scrolled the whole page sideways on a phone. At 0-0-1 the
+   three controls here now carry the same weight as each other, and any
+   component class beats all of them. */
+input:where(:not([type="checkbox"], [type="radio"])), select, textarea {
   display: block;
   width: 100%;
   margin-bottom: 1rem;
@@ -1160,12 +1165,16 @@ table tbody td:nth-child(2) a:hover { color: var(--pt-accent); }
   gap: 6px;
 }
 .pt-filter-pill:hover { background: var(--pt-surface-2); color: var(--pt-text); }
-.pt-filter-pill[aria-pressed="true"] { background: var(--pt-accent); color: var(--pt-text-inverse); border-color: var(--pt-accent); }
+.pt-filter-pill[aria-pressed="true"],
+.pt-filter-pill[aria-expanded="true"] { background: var(--pt-accent); color: var(--pt-text-inverse); border-color: var(--pt-accent); }
 .pt-filter-pill[aria-pressed="true"][data-status="dechiffrage"] { background: var(--pt-status-dechiffrage); border-color: var(--pt-status-dechiffrage); }
 .pt-filter-pill[aria-pressed="true"][data-status="perfectionnement"] { background: var(--pt-status-perfectionnement); border-color: var(--pt-status-perfectionnement); }
 .pt-filter-pill[aria-pressed="true"][data-status="repertoire"] { background: var(--pt-status-repertoire); border-color: var(--pt-status-repertoire); }
 .pt-filter-pill__count { opacity: 0.7; font-size: 0.78rem; }
-.pt-filters select {
+
+/* Compact dropdown, sized to sit in a row of pills rather than to fill a form
+   column — the composer and period filters, and the narrow-screen sort. */
+.pt-select {
   margin: 0;
   padding: 5px 28px 5px 12px;
   border-radius: var(--pt-radius-md);
@@ -1184,8 +1193,16 @@ table tbody td:nth-child(2) a:hover { color: var(--pt-accent); }
   background-position: right 10px center;
   background-size: 10px 7px;
 }
-.pt-filters select:hover { background-color: var(--pt-bg-elevated); }
-.pt-filters select:focus { outline: 2px solid color-mix(in srgb, var(--pt-accent) 30%, transparent); outline-offset: 1px; }
+.pt-select:hover { background-color: var(--pt-bg-elevated); }
+.pt-select:focus { outline: 2px solid color-mix(in srgb, var(--pt-accent) 30%, transparent); outline-offset: 1px; }
+
+/* Narrow-screen bar standing in for the chrome that doesn't fit: a toggle for
+   the folded filters and a sort control for the headers the card list loses.
+   Hidden by default — the 700px query below is what puts it on screen. */
+.pt-librarybar { display: none; gap: var(--pt-space-2); align-items: center; }
+/* Takes the width the button leaves, against .pt-select's 180px floor: on a
+   360px screen that floor plus the button is wider than the bar. */
+.pt-librarybar__sort { flex: 1 1 auto; min-width: 0; }
 
 /* Focus chips — actionable subset filters (reinforce / near-mastery / stale).
    Visually distinct from status filter pills: subtle background, no "selected
@@ -1363,6 +1380,44 @@ table tbody td:nth-child(2) a:hover { color: var(--pt-accent); }
   .pt-library { grid-template-columns: 1fr; }
   .pt-library__sidebar, .pt-library__main { overflow-y: visible; min-height: 0; }
   .pt-library__main table thead { position: static; }
+}
+
+/* Phone layout for the library — the second of two stages, and deliberately a
+   narrower breakpoint than the 800px block above: a tablet has the width for
+   four columns and only wants the app-shell dropped, where a phone does not.
+   Two things were wrong at this width: the table is 628px whatever the
+   viewport, so the whole page scrolled sideways and titles broke over three
+   lines; and the filter chrome ran to 348px, pushing the first score past
+   2500px of journal. Rows become cards, filters fold behind a button. */
+@media (max-width: 700px) {
+  .pt-librarybar { display: flex; }
+  .pt-library-chrome.is-collapsed .pt-filters,
+  .pt-library-chrome.is-collapsed .pt-focus { display: none; }
+
+  /* The rows do their own layout below; these two only have to stop being a
+     table box, or the cells would still be laid out in columns. */
+  .pt-library__main table,
+  .pt-library__main tbody { display: block; }
+  /* The sort control in .pt-librarybar replaces them. */
+  .pt-library__main thead { display: none; }
+
+  /* Title on its own line, then whatever of composer / status / practice time
+     the score has, in source order. The cells that stay empty simply take no
+     room, which is why this needs no separators between them. */
+  .pt-library__main tbody tr {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 2px var(--pt-space-2);
+    padding: var(--pt-space-3) var(--pt-space-1);
+    border-top: 1px solid var(--pt-border);
+  }
+  .pt-library__main tbody td { padding: 0; border: none; }
+  .pt-library__main tbody td:first-child { flex: 0 0 100%; }
+  /* Right-aligned and block-level in the table; neither survives the reflow. */
+  .pt-library__main .pt-row__time { text-align: left; }
+  .pt-library__main .pt-row__time small { display: inline; margin: 0; }
+  .pt-library__main .pt-row__time small::before { content: " · "; }
 }
 
 /* =============================================================================
@@ -1736,6 +1791,11 @@ img[id^="cursorImg"] { scroll-margin-top: var(--pt-sticky-offset, 100px); }
 
 /* Responsive tweaks */
 @media (max-width: 600px) {
+  /* The actions don't shrink, and back + title + MIDI pill + history + ⚙️ come
+     to more than a phone is wide — the ⚙️ ended up off-screen, reachable only
+     by scrolling the page sideways. Give them a row of their own instead. */
+  .pt-topbar { flex-wrap: wrap; row-gap: var(--pt-space-2); }
+  .pt-topbar__actions { margin-left: auto; }
   .pt-modebar { padding: var(--pt-space-2); }
   .pt-segmented button { padding: 6px 10px; font-size: 0.82rem; }
   .pt-topbar__title { font-size: 0.88rem; }
