@@ -1,3 +1,17 @@
+2026-08-31
+
+- **Deux onglets sur téléphone : Journal et Partitions.** Filtres, puis journal
+  de pratique, puis liste filtrée : l'ordre n'avait pas de sens, les filtres
+  flottaient au-dessus d'un journal qu'ils ne touchent pas. Chaque onglet est
+  une vue cohérente, la barre de filtres et de tri est passée avec la liste, et
+  le journal ouvre en premier — c'est ce qu'on vient consulter sur un téléphone,
+  et il n'y a plus 2000 px de cartes avant la première partition. Une recherche
+  bascule sur Partitions, comme un lien portant un filtre. Sur grand écran rien
+  ne change : le journal et la liste restent côte à côte.
+
+- **Les titres de partitions s'alignent sur le journal.** Ils commençaient 8 px
+  plus à gauche que les lignes du journal, juste en dessous.
+
 2026-08-30
 
 - **La bibliothèque tient sur un téléphone.** Le tableau des partitions faisait

@@ -1196,6 +1196,27 @@ table tbody td:nth-child(2) a:hover { color: var(--pt-accent); }
 .pt-select:hover { background-color: var(--pt-bg-elevated); }
 .pt-select:focus { outline: 2px solid color-mix(in srgb, var(--pt-accent) 30%, transparent); outline-offset: 1px; }
 
+/* Narrow-screen tab bar. A phone has room for one of the two panes at a time;
+   a wide screen shows both, so this stays hidden and the pane rules below never
+   match. Hidden by default — the 700px query is what puts it on screen. */
+.pt-librarytabs { display: none; gap: var(--pt-space-1); border-bottom: 1px solid var(--pt-border); }
+.pt-librarytabs__tab {
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  padding: var(--pt-space-2) var(--pt-space-3);
+  color: var(--pt-text-muted);
+  font-size: 0.92rem;
+  font-weight: 500;
+}
+/* The resting fill needs no help — `:is(button, [role="button"])` weighs the
+   same as one class (`:is()` takes its heaviest argument, `[role="button"]`)
+   and loses on source order. Its :hover is (0-2-0) and does not, so without
+   this the tab under the pointer turns accent-on-accent. */
+.pt-librarytabs__tab:hover { background: transparent; color: var(--pt-text); }
+.pt-librarytabs__tab[aria-selected="true"] { color: var(--pt-text); border-bottom-color: var(--pt-accent); }
+
 /* Narrow-screen bar standing in for the chrome that doesn't fit: a toggle for
    the folded filters and a sort control for the headers the card list loses.
    Hidden by default — the 700px query below is what puts it on screen. */
@@ -1390,7 +1411,18 @@ table tbody td:nth-child(2) a:hover { color: var(--pt-accent); }
    lines; and the filter chrome ran to 348px, pushing the first score past
    2500px of journal. Rows become cards, filters fold behind a button. */
 @media (max-width: 700px) {
-  .pt-librarybar { display: flex; }
+  .pt-librarytabs { display: flex; }
+
+  /* One pane at a time, and the filter chrome belongs to the score list rather
+     than floating above the journal it does not touch. Driven by data-tab on
+     the page, not by x-show: an inline display:none would apply at every width
+     and take the wide layout's second column with it. */
+  .pt-library-page[data-tab="journal"] .pt-filters,
+  .pt-library-page[data-tab="journal"] .pt-focus,
+  .pt-library-page[data-tab="journal"] .pt-library__main { display: none; }
+  .pt-library-page[data-tab="scores"] .pt-library__sidebar { display: none; }
+
+  .pt-library-page[data-tab="scores"] .pt-librarybar { display: flex; }
   .pt-library-chrome.is-collapsed .pt-filters,
   .pt-library-chrome.is-collapsed .pt-focus { display: none; }
 
@@ -1409,7 +1441,10 @@ table tbody td:nth-child(2) a:hover { color: var(--pt-accent); }
     flex-wrap: wrap;
     align-items: baseline;
     gap: 2px var(--pt-space-2);
-    padding: var(--pt-space-3) var(--pt-space-1);
+    /* Same inset as .pt-journal__day's padding, so a score title and a journal
+       line start on the same vertical: the two lists sit one above the other
+       on a phone, and 8px of drift between them reads as a misalignment. */
+    padding: var(--pt-space-3);
     border-top: 1px solid var(--pt-border);
   }
   .pt-library__main tbody td { padding: 0; border: none; }

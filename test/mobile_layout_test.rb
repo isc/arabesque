@@ -26,13 +26,19 @@ class MobileLayoutTest < CapybaraTestBase
   def test_no_page_is_wider_than_a_phone
     page.current_window.resize_to(*PHONE)
 
-    { '/library.html' => 'tbody tr', '/data.html' => '.pt-card', '/practice.html' => '.pt-calendar' }
+    { '/library.html' => '.pt-journal__day', '/data.html' => '.pt-card', '/practice.html' => '.pt-calendar' }
       .each do |path, ready|
         visit path
         assert_selector ready
 
         assert_no_horizontal_overflow(path)
       end
+
+    # The score list is the half that used to overflow, and it is behind a tab.
+    visit '/library.html'
+    find('[role="tab"]', text: 'Partitions').click
+    assert_selector 'tbody tr'
+    assert_no_horizontal_overflow('/library.html (partitions)')
   end
 
   def test_score_page_is_not_wider_than_a_phone
@@ -87,33 +93,100 @@ class MobileLayoutTest < CapybaraTestBase
   def test_library_filters_fold_away_and_report_what_is_active
     page.current_window.resize_to(*PHONE)
     visit '/library.html'
+    # The filter chrome lives with the list it narrows, so it is on that tab.
+    find('[role="tab"]', text: 'Partitions').click
     assert_selector 'tbody tr'
 
-    refute filters_visible?, 'filters should start folded on a phone'
+    assert_no_selector '.pt-filters', visible: true
 
     find('.pt-librarybar button.pt-filter-pill').click
-    assert filters_visible?, 'clicking Filtrer should unfold the filters'
+    assert_selector '.pt-filters', visible: true
 
     # A composer, not a status pill: the catalog always has several composers,
     # where a status only exists once something has been practised.
     select 'Chopin', from: 'Filtrer par compositeur'
     find('.pt-librarybar button.pt-filter-pill').click
 
-    refute filters_visible?
+    assert_no_selector '.pt-filters', visible: true
     assert_selector '.pt-librarybar .pt-filter-pill__count', text: '1'
   end
 
+  # Filters above the journal above the filtered list read as one page acting on
+  # itself. Two panes, one at a time, put the filter chrome back next to the
+  # list it narrows — and cut the journal's 14 cards out of the way of the
+  # scores, which sat ~2000px down.
+  def test_library_shows_one_pane_at_a_time_on_a_phone
+    page.current_window.resize_to(*PHONE)
+    visit '/library.html'
+    assert_selector 'tbody tr', visible: :all
+
+    assert_selector '.pt-library__sidebar', text: 'aujourd', wait: 5
+    assert_no_selector '.pt-library__main'
+    assert_no_selector '.pt-librarybar', visible: true
+
+    find('[role="tab"]', text: 'Partitions').click
+    assert_no_selector '.pt-library__sidebar'
+    assert_selector '.pt-library__main'
+    assert_selector '.pt-librarybar'
+  end
+
+  # Two ways to say "I want the list": a link that carries a filter, and the
+  # search box, which sits above both panes and is the one narrowing control
+  # reachable while the journal is showing.
+  def test_narrowing_the_list_opens_the_scores
+    page.current_window.resize_to(*PHONE)
+
+    visit '/library.html?composer=Chopin'
+    assert_selector '.pt-library__main'
+    assert_no_selector '.pt-library__sidebar'
+
+    visit '/library.html'
+    assert_selector '.pt-library__sidebar'
+    fill_in 'Rechercher une partition', with: 'chopin'
+    assert_selector '.pt-library__main'
+    assert_no_selector '.pt-library__sidebar'
+  end
+
+  # The whole point of keying the panes off data-tab in CSS rather than x-show:
+  # an inline display:none would apply at every width and cost the wide layout
+  # its second column.
+  def test_a_wide_screen_keeps_both_panes_and_no_tabs
+    page.current_window.resize_to(1280, 900)
+    visit '/library.html'
+    assert_selector 'tbody tr'
+
+    assert_selector '.pt-library__sidebar', visible: true
+    assert_selector '.pt-library__main', visible: true
+    assert_selector '.pt-filters', visible: true
+    assert_no_selector '.pt-librarytabs', visible: true
+  end
+
+  # A score title and a journal line sit one above the other on a phone; 8px of
+  # drift between their left edges reads as a misalignment.
+  def test_score_titles_line_up_with_the_journal
+    page.current_window.resize_to(*PHONE)
+    visit '/library.html'
+    assert_selector 'tbody tr', visible: :all
+
+    journal = left_edge_of('.pt-journal__day-header h3')
+    find('[role="tab"]', text: 'Partitions').click
+    title = left_edge_of('tbody tr td:first-child a')
+
+    assert_in_delta journal, title, 1,
+                    "score titles start at #{title}px, journal lines at #{journal}px"
+  end
+
   private
+
+  def left_edge_of(selector)
+    page.evaluate_script("document.querySelector('#{selector}').getBoundingClientRect().left")
+  end
 
   def assert_no_horizontal_overflow(path)
     overflow = page.evaluate_script(<<~JS)
       document.scrollingElement.scrollWidth - document.documentElement.clientWidth
     JS
     assert_operator overflow, :<=, 0, "#{path} scrolls #{overflow}px sideways at #{PHONE.first}px"
-  end
-
-  def filters_visible?
-    page.evaluate_script("getComputedStyle(document.querySelector('.pt-filters')).display") != 'none'
   end
 
   # The title is the largest text OSMD draws, and it is drawn before the staves.

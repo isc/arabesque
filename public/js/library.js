@@ -43,9 +43,11 @@ export function libraryApp() {
     focusFilter: '',     // '' | 'reinforce' | 'near-mastery' | 'stale'
     sortBy: 'lastPlayed', // 'title' | 'composer' | 'status' | 'practice' | 'lastPlayed'
     sortDir: 'desc',      // 'asc' | 'desc'
-    // Only read below the breakpoint where .pt-librarybar appears; the filters
-    // are always laid out on a wide screen, whatever this says.
+    // Both only matter below the breakpoint where .pt-librarybar and
+    // .pt-librarytabs appear: a wide screen lays out the filters and both panes
+    // regardless, so neither of these has a rule to match there.
     filtersOpen: false,
+    tab: 'journal',   // 'journal' | 'scores' — the visible pane on a phone
     baseUrl: '',
     dailyLogsByDate: [],
     // In-flight refreshPracticeViews(), shared by concurrent callers.
@@ -65,6 +67,18 @@ export function libraryApp() {
       for (const key of [...FILTER_KEYS, 'searchQuery']) {
         this.$watch(key, () => this.syncUrl())
       }
+
+      // Narrowing the list means you want to see it. The search box is the one
+      // narrowing control reachable from the journal pane — it sits in the
+      // header, above both — so it is the only one that has to say so here.
+      this.$watch('searchQuery', () => this.showScoresIfNarrowed())
+
+      // Folding the filters away with the pane keeps the two switches from
+      // making four states out of two: coming back to the list always shows it
+      // the way opening it does.
+      this.$watch('tab', (value) => {
+        if (value !== 'scores') this.filtersOpen = false
+      })
 
       // "/" focuses the search input (GitHub / YouTube convention). Skip when
       // the user is already typing somewhere so the slash isn't swallowed.
@@ -126,6 +140,9 @@ export function libraryApp() {
       this.periodFilter = params.get('period') || ''
       this.focusFilter = params.get('focus') || ''
       this.searchQuery = params.get('q') || ''
+      // Synchronously, rather than leaving it to the $watch above: that flushes
+      // on a microtask, which is a frame of the wrong pane on first paint.
+      this.showScoresIfNarrowed()
 
       await this.reloadDailyLogs()
 
@@ -279,6 +296,19 @@ export function libraryApp() {
         { value: 'composer',   label: t('library.colComposer') },
         { value: 'status',     label: t('library.colStatus') },
         { value: 'practice',   label: t('library.colPractice') },
+      ]
+    },
+
+    // A filter or a search is a request for the list, wherever it came from —
+    // a link, or the search box while the journal is showing.
+    showScoresIfNarrowed() {
+      if (this.activeFilterCount > 0 || this.searchQuery) this.tab = 'scores'
+    },
+
+    get tabs() {
+      return [
+        { value: 'journal', label: t('library.tabJournal') },
+        { value: 'scores', label: t('library.tabScores') },
       ]
     },
 
