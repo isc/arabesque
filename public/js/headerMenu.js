@@ -151,16 +151,18 @@ const MODALS_HTML = `
       <p><strong x-text="$t('library.changelog')">✨ Nouveautés</strong></p>
       <button :aria-label="$t('common.close')" rel="prev" @click="showChangelogModal = false"></button>
     </header>
-    <template x-for="entry in changelog" :key="entry.date">
-      <section class="pt-changelog-entry">
-        <h4 x-text="formatChangelogDate(entry.date)"></h4>
-        <ul>
-          <template x-for="(item, i) in changelogItems(entry)" :key="i">
-            <li x-text="item"></li>
-          </template>
-        </ul>
-      </section>
-    </template>
+    <div class="pt-modal-body">
+      <template x-for="entry in changelog" :key="entry.date">
+        <section class="pt-changelog-entry">
+          <h4 x-text="formatChangelogDate(entry.date)"></h4>
+          <ul>
+            <template x-for="(item, i) in changelogItems(entry)" :key="i">
+              <li x-text="item"></li>
+            </template>
+          </ul>
+        </section>
+      </template>
+    </div>
   </article>
 </dialog>
 <dialog :open="showFeedbackModal">
@@ -169,6 +171,7 @@ const MODALS_HTML = `
       <p><strong x-text="$t('feedback.title')">💬 Votre avis</strong></p>
       <button :aria-label="$t('common.close')" rel="prev" @click="showFeedbackModal = false"></button>
     </header>
+    <div class="pt-modal-body">
     <template x-if="feedbackStatus === 'sent'">
       <div>
         <p x-text="$t('feedback.thanks')">Merci, c'est bien reçu !</p>
@@ -209,6 +212,7 @@ const MODALS_HTML = `
         </footer>
       </form>
     </template>
+    </div>
   </article>
 </dialog>`
 
