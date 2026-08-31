@@ -43,9 +43,11 @@ export function libraryApp() {
     focusFilter: '',     // '' | 'reinforce' | 'near-mastery' | 'stale'
     sortBy: 'lastPlayed', // 'title' | 'composer' | 'status' | 'practice' | 'lastPlayed'
     sortDir: 'desc',      // 'asc' | 'desc'
-    // Only read below the breakpoint where .pt-librarybar appears; the filters
-    // are always laid out on a wide screen, whatever this says.
+    // Both only matter below the breakpoint where .pt-librarybar and
+    // .pt-librarytabs appear: a wide screen lays out the filters and both panes
+    // regardless, so neither of these has a rule to match there.
     filtersOpen: false,
+    tab: 'journal',   // 'journal' | 'scores' — the visible pane on a phone
     baseUrl: '',
     dailyLogsByDate: [],
     // In-flight refreshPracticeViews(), shared by concurrent callers.
@@ -65,6 +67,13 @@ export function libraryApp() {
       for (const key of [...FILTER_KEYS, 'searchQuery']) {
         this.$watch(key, () => this.syncUrl())
       }
+
+      // The search box sits in the header, above both panes, so it is the one
+      // control that can narrow the score list while a phone is showing the
+      // journal. Typing in it means you want the list.
+      this.$watch('searchQuery', (value) => {
+        if (value) this.tab = 'scores'
+      })
 
       // "/" focuses the search input (GitHub / YouTube convention). Skip when
       // the user is already typing somewhere so the slash isn't swallowed.
@@ -126,6 +135,7 @@ export function libraryApp() {
       this.periodFilter = params.get('period') || ''
       this.focusFilter = params.get('focus') || ''
       this.searchQuery = params.get('q') || ''
+      if (this.activeFilterCount > 0 || this.searchQuery) this.tab = 'scores'
 
       await this.reloadDailyLogs()
 
@@ -279,6 +289,13 @@ export function libraryApp() {
         { value: 'composer',   label: t('library.colComposer') },
         { value: 'status',     label: t('library.colStatus') },
         { value: 'practice',   label: t('library.colPractice') },
+      ]
+    },
+
+    get tabs() {
+      return [
+        { value: 'journal', label: t('library.tabJournal') },
+        { value: 'scores', label: t('library.tabScores') },
       ]
     },
 

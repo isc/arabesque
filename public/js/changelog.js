@@ -16,6 +16,17 @@
 
 export const CHANGELOG = [
   {
+    date: '2026-08-31',
+    items: {
+      fr: [
+        "Sur téléphone, la bibliothèque se lit en deux onglets : Journal et Partitions. L'ordre d'avant n'avait pas de sens — les filtres, puis le journal de pratique, puis la liste filtrée. Les filtres sont maintenant avec la liste qu'ils filtrent, et le journal s'ouvre en premier sans qu'il faille passer deux semaines de cartes pour atteindre les partitions. Chercher une partition bascule sur l'onglet Partitions. Sur grand écran rien ne change : le journal et la liste restent côte à côte.",
+      ],
+      en: [
+        "On a phone the library reads as two tabs: Journal and Scores. The old order made no sense — filters, then the practice journal, then the filtered list. The filters now sit with the list they filter, and the journal opens first without two weeks of cards standing between you and the scores. Searching switches to the Scores tab. Nothing changes on a wide screen: journal and list stay side by side.",
+      ],
+    },
+  },
+  {
     date: '2026-08-30',
     items: {
       fr: [

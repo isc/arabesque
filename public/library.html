@@ -33,7 +33,7 @@
     </script>
   </head>
   <body>
-    <main class="container pt-library-page" @keydown.escape.window="menuOpen = false; showChangelogModal = false; showFeedbackModal = false">
+    <main class="container pt-library-page" data-tab="journal" :data-tab="tab" @keydown.escape.window="menuOpen = false; showChangelogModal = false; showFeedbackModal = false">
       <div class="pt-library-chrome" :class="{ 'is-collapsed': !filtersOpen }">
         <div class="pt-page-header">
           <h1 x-text="$t('library.heading')">Bibliothèque</h1>
@@ -48,6 +48,21 @@
             </div>
             <div data-menu-slot></div>
           </div>
+        </div>
+
+        <!-- Narrow-screen only, like .pt-librarybar below. A phone shows one of
+             the two panes at a time; a wide screen shows both side by side and
+             never sees these. -->
+        <div class="pt-librarytabs" role="tablist" :aria-label="$t('library.tabsAria')" x-show="scores.length > 0">
+          <template x-for="opt in tabs" :key="opt.value">
+            <button
+              type="button"
+              role="tab"
+              :aria-selected="tab === opt.value"
+              @click="tab = opt.value"
+              x-text="opt.label"
+            ></button>
+          </template>
         </div>
 
         <!-- Narrow-screen only (see .pt-librarybar): the filters below cost a
