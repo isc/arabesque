@@ -226,7 +226,7 @@ class MobileLayoutTest < CapybaraTestBase
   private
 
   def open_changelog
-    find('.pt-changelog-btn').click
+    open_menu
     find('button', text: 'Nouveautés').click
     assert_selector 'dialog[open] .pt-changelog-entry'
   end

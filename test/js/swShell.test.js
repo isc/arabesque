@@ -38,6 +38,10 @@ describe('the service worker shell', () => {
     expect(shell.filter((asset) => asset.startsWith('scores/'))).toEqual([])
     expect(shell.filter((asset) => asset.startsWith('video/'))).toEqual([])
     expect(shell.filter((asset) => asset.startsWith('cassettes/'))).toEqual([])
+    // The install icons are fetched by the browser process, not by a page, so
+    // the worker never gets to answer for them — a cached copy is dead weight
+    // re-downloaded on every deploy.
+    expect(shell.filter((asset) => asset.startsWith('icons/'))).toEqual([])
     expect(shell).not.toContain('sw.js')
   })
 })
@@ -54,5 +58,53 @@ describe('which pages install it', () => {
 
   it.each(['index.html', 'privacy.html', 'support.html'])('%s does not', (page) => {
     expect(registers(page)).toBe(false)
+  })
+
+  // A manifest without a worker is not installable, so the two travel together.
+  // Without this a page added later ships silently uninstallable from itself.
+  it('is exactly the set of pages carrying the install manifest', () => {
+    const pages = readdirSync(PUBLIC_DIR).filter((name) => name.endsWith('.html'))
+    const linksManifest = pages.filter((page) => read(page).includes('rel="manifest"'))
+    expect(linksManifest).toEqual(pages.filter(registers))
+  })
+
+  // Android tints its status bar with this, and it sits directly above the page
+  // ground — see the note on --pt-bg in styles.css, which is the same value.
+  it.each(['library.html', 'score.html', 'practice.html', 'data.html'])(
+    '%s declares the theme colour the manifest does',
+    (page) => {
+      const manifest = JSON.parse(read('manifest.webmanifest'))
+      expect(read(page)).toContain(`<meta name="theme-color" content="${manifest.theme_color}" />`)
+    },
+  )
+})
+
+describe('the install manifest', () => {
+  const manifest = JSON.parse(read('manifest.webmanifest'))
+
+  it('opens the app rather than the pitch, and not in a browser tab', () => {
+    expect(manifest.start_url).toBe('library.html')
+    expect(manifest.display).toBe('standalone')
+  })
+
+  // The app is also served from a project subpath on GitHub Pages, where a
+  // root-absolute path resolves off the base.
+  it('addresses everything relative to itself', () => {
+    expect(manifest.start_url.startsWith('/')).toBe(false)
+    for (const icon of manifest.icons) expect(icon.src.startsWith('/')).toBe(false)
+  })
+
+  it('carries the sizes Chrome asks for, and a maskable one', () => {
+    const sizes = manifest.icons.map((icon) => icon.sizes)
+    expect(sizes).toContain('192x192')
+    expect(sizes).toContain('512x512')
+    // Without one, Android boxes the artwork inside a white circle.
+    expect(manifest.icons.some((icon) => icon.purpose === 'maskable')).toBe(true)
+  })
+
+  it('points only at icons that exist', () => {
+    for (const icon of manifest.icons) {
+      expect(() => readFileSync(join(PUBLIC_DIR, icon.src))).not.toThrow()
+    }
   })
 })

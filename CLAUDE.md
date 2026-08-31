@@ -122,7 +122,17 @@ marker, and `test/js/version.test.js` catches it earlier.
 
 A page of the app itself — not the landing, privacy or support pages — also
 loads `<script type="module" src="js/swRegister.js"></script>`, which installs
-the offline cache (`public/sw.js`). The precache list is generated from
+the offline cache (`public/sw.js`), and carries the two install markers that
+travel with it — a manifest without a worker is not installable:
+
+```html
+<link rel="manifest" href="manifest.webmanifest" />
+<meta name="theme-color" content="#f7f7f9" />
+```
+
+`test/js/swShell.test.js` asserts that the set of pages carrying the manifest is
+exactly the set registering the worker, and that the theme colour matches the
+manifest's. The precache list is generated from
 `public/` by the same deploy step, so a new file is covered without being
 listed anywhere; add a new top-level directory to `SHELL_SKIP` in
 `scripts/stamp-version.mjs` if it must stay out.

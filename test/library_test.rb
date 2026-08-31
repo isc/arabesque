@@ -122,7 +122,4 @@ class LibraryTest < CapybaraTestBase
   # The changelog, feedback, data-page link and language controls now live
   # behind the ⚙️ header menu; open it before interacting with those items.
   # (Backup import/export moved to the data page — see data_test.rb.)
-  def open_menu
-    find('button[aria-label="Menu"]').click
-  end
 end

@@ -26,6 +26,10 @@
 
 :root {
   /* Surfaces */
+  /* Also written as a literal in manifest.webmanifest (background_color and
+     theme_color) and in each app page's <meta name="theme-color">: neither JSON
+     nor a meta tag can read a custom property, and the status bar Android tints
+     with it sits directly above this ground. Change them together. */
   --pt-bg: #f7f7f9;
   --pt-bg-elevated: #ffffff;
   --pt-surface: #ffffff;

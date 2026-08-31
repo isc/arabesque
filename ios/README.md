@@ -171,6 +171,23 @@ rsvg-convert -w 1024 -h 1024 -b '#1095c1' icon.svg -o \
 
 où `icon.svg` est le favicon dont on a retiré le `rx` du rectangle de fond.
 
+Les icônes d'installation Android (`public/icons/`) dérivent à leur tour de ce
+PNG 1024, et se regénèrent avec lui :
+
+```bash
+SRC=ios/Arabesque/Assets.xcassets/AppIcon.appiconset/icon-1024.png
+convert $SRC -resize 192x192 public/icons/icon-192.png
+convert $SRC -resize 512x512 public/icons/icon-512.png
+convert $SRC -resize 400x400 -background '#1095c1' -gravity center \
+  -extent 512x512 public/icons/icon-maskable-512.png
+```
+
+La troisième est la variante `maskable` : Android découpe l'icône à la forme du
+lanceur, en ne garantissant que le cercle central de 80 % du côté. Le clavier
+touche ce cercle dans l'icône pleine, d'où le redimensionnement à 400 px (78 %)
+recentré sur le même fond — sans quoi ses angles seraient rognés. Les deux
+autres sont marquées `any` et gardent le cadrage d'origine.
+
 ## Publier sur TestFlight
 
 Prérequis : l'**Apple Developer Program** (99 €/an). Aucune voie gratuite n'y

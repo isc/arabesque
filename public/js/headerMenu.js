@@ -17,6 +17,7 @@
 import { CHANGELOG } from './changelog.js'
 import { feedbackEnabled, buildBaseContext, submitFeedback } from './feedback.js'
 import { getLang, locale } from './i18n.js'
+import { INSTALL_AVAILABLE_EVENT, installAvailable, promptInstall } from './installPrompt.js'
 
 const CHANGELOG_SEEN_KEY = 'arabesque:changelog-seen'
 const CHANGELOG_DATE_FORMATTER = new Intl.DateTimeFormat(locale(), {
@@ -41,6 +42,15 @@ export function headerMenu() {
     },
     closeMenu() {
       this.menuOpen = false
+    },
+
+    // --- Install (Android / desktop Chrome) ---
+    // Read once here for the value the menu is built with; the binding on the
+    // anchor below keeps it current. See installPrompt.js for the timing.
+    canInstall: installAvailable(),
+    install() {
+      this.closeMenu()
+      promptInstall()
     },
 
     // --- Changelog ("Nouveautés") ---
@@ -113,7 +123,9 @@ export function headerMenu() {
 // The ⚙️ trigger + popover. Replaces a [data-menu-slot] placeholder so it lands
 // exactly where each page wants it in the header.
 const TRIGGER_HTML = `
-<div class="pt-popover-anchor" @click.outside="closeMenu()">
+<div class="pt-popover-anchor"
+     @${INSTALL_AVAILABLE_EVENT}.window="canInstall = $event.detail"
+     @click.outside="closeMenu()">
   <button type="button" class="pt-icon-button pt-changelog-btn" :aria-pressed="menuOpen" :aria-label="$t('menu.open')" @click="toggleMenu()">
     ⚙️
     <span class="pt-changelog-dot" x-show="hasUnseenChangelog" aria-hidden="true"></span>
@@ -121,6 +133,7 @@ const TRIGGER_HTML = `
   <div class="pt-popover" x-show="menuOpen" x-cloak>
     <div class="pt-popover__section">
       <a href="score.html" class="pt-menu-item" @click="closeMenu()" x-text="$t('library.loadScore')">📄 Charger une partition</a>
+      <button type="button" class="pt-menu-item" x-show="canInstall" @click="install()" x-text="$t('menu.install')">📲 Installer l'application</button>
       <button type="button" class="pt-menu-item" @click="openChangelog()">
         <span x-text="$t('library.changelog')">✨ Nouveautés</span>
         <span class="pt-menu-dot" x-show="hasUnseenChangelog" aria-hidden="true"></span>
