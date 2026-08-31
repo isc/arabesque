@@ -1,7 +1,28 @@
 /* =============================================================================
    Arabesque — Design System
    Tokens, base layer (reset/typography/controls) and utility components.
+
+   The three layers below are cascade layers, not just section banners: @layer
+   makes layer order outrank specificity, so a component always wins over the
+   base rules whatever the two selectors weigh. Without it the file only
+   *described* a hierarchy — .pt-sr-only (0-1-0) lost to the base's
+   `input:not([type="checkbox"], [type="radio"])` (0-1-1) and a visually
+   hidden file input kept width:100%, which scrolled the whole page sideways
+   on a phone.
+
+   Two things to know when editing. A component never needs to out-specify the
+   base — write the plainest selector that identifies the element. And a rule
+   left outside every layer beats all of them, so the space after the last
+   closer is a trap rather than a place to append; test/css_layers_test.rb
+   fails if anything lands there.
+
+   The blocks are deliberately not indented: re-indenting 1800 lines to add
+   four wrappers would bury the change in whitespace and cost the blame.
    ========================================================================== */
+
+@layer tokens, base, components, utilities;
+
+@layer tokens {
 
 :root {
   /* Surfaces */
@@ -122,6 +143,9 @@
   --pt-icon-loading: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none'%3E%3Ccircle cx='12' cy='12' r='10' stroke='%238a90a0' stroke-width='4' stroke-linecap='round' stroke-dasharray='47 16'/%3E%3C/svg%3E");
 }
 
+} /* @layer tokens */
+
+@layer base {
 /* =============================================================================
    Base — reset, typography, form controls
    Everything below this banner used to come from Pico CSS. Only the ~7% of it
@@ -247,6 +271,7 @@ button[type="submit"] { width: 100%; margin-bottom: 1rem; }
   border-color: var(--pt-error);
   color: var(--pt-error);
 }
+
 :is(button, [role="button"]):disabled,
 :is(button, [role="button"])[aria-disabled="true"] {
   opacity: 0.5;
@@ -269,12 +294,10 @@ input, optgroup, select, textarea {
   line-height: 1.5;
   letter-spacing: inherit;
 }
-/* :where() so the :not() adds no weight: unwrapped, this outranked a single
-   class and .pt-sr-only lost, which left the visually hidden backup file input
-   at full width and scrolled the whole page sideways on a phone. At 0-0-1 the
-   three controls here now carry the same weight as each other, and any
-   component class beats all of them. */
-input:where(:not([type="checkbox"], [type="radio"])), select, textarea {
+/* The :where() this carried is gone: the layer does that job now, and does it
+   for every rule in here rather than this one. .pt-sr-only wins on being a
+   component, whatever either selector weighs. */
+input:not([type="checkbox"], [type="radio"]), select, textarea {
   display: block;
   width: 100%;
   margin-bottom: 1rem;
@@ -431,10 +454,6 @@ body {
    got the full viewport it declares. */
 main.container { padding-block: var(--pt-space-4); max-width: var(--pt-page-max, 1200px); }
 
-/* Vertical rhythm for index / composer / status pages (consistent gaps
-   between page-level sections so margins on individual blocks don't fight). */
-.pt-page { display: flex; flex-direction: column; gap: var(--pt-space-4); }
-
 /* Headings tighter than the base scale */
 h1 { font-size: 1.6rem; font-weight: 600; line-height: 1.125; margin: 0 0 var(--pt-space-3); letter-spacing: -0.01em; }
 h2 { font-size: 1.2rem; font-weight: 600; line-height: 1.15; margin: 0 0 var(--pt-space-3); }
@@ -447,6 +466,9 @@ a:hover { text-decoration: underline; }
 
 button { transition: background-color var(--pt-transition-fast), border-color var(--pt-transition-fast), color var(--pt-transition-fast); }
 
+} /* @layer base */
+
+@layer components {
 /* =============================================================================
    Topbar (sticky page header on score.html)
    ========================================================================== */
@@ -544,6 +566,10 @@ button.pt-topbar__pill:disabled { opacity: 0.4; cursor: default; }
 }
 
 /* Icon buttons (settings, history) */
+/* No `cursor: pointer` here: the base gives it to every button and takes it
+   back on :disabled, which is what a disabled year-nav arrow wants. The
+   declaration this component used to carry only ever won by out-specifying
+   that, which is exactly the accident the layers removed. */
 .pt-icon-button {
   width: 38px; height: 38px;
   display: inline-flex; align-items: center; justify-content: center;
@@ -551,7 +577,6 @@ button.pt-topbar__pill:disabled { opacity: 0.4; cursor: default; }
   border: 1px solid var(--pt-border);
   border-radius: var(--pt-radius-md);
   color: var(--pt-text-muted);
-  cursor: pointer;
   font-size: 1.05rem;
   line-height: 1;
   margin: 0;
@@ -1210,10 +1235,10 @@ table tbody td:nth-child(2) a:hover { color: var(--pt-accent); }
   font-size: 0.92rem;
   font-weight: 500;
 }
-/* The resting fill needs no help — `:is(button, [role="button"])` weighs the
-   same as one class (`:is()` takes its heaviest argument, `[role="button"]`)
-   and loses on source order. Its :hover is (0-2-0) and does not, so without
-   this the tab under the pointer turns accent-on-accent. */
+/* Only to say the tab has no hover fill of its own — the layer already keeps
+   the base's `:is(button, [role="button"]):hover` off it. Before the layers
+   this rule was load-bearing: that selector is (0-2-0) against the class's
+   (0-1-0), and the tab under the pointer turned accent-on-accent. */
 .pt-librarytabs__tab:hover { background: transparent; color: var(--pt-text); }
 .pt-librarytabs__tab[aria-selected="true"] { color: var(--pt-text); border-bottom-color: var(--pt-accent); }
 
@@ -1810,20 +1835,6 @@ img[id^="cursorImg"] { scroll-margin-top: var(--pt-sticky-offset, 100px); }
 .playthrough-chart .chart-label { fill: var(--pt-text-muted); font-size: 11px; font-family: var(--pt-font-ui); }
 .playthrough-chart .chart-point { fill: var(--pt-accent); }
 
-/* =============================================================================
-   Visually-hidden helper
-   ========================================================================== */
-
-.pt-sr-only {
-  position: absolute;
-  width: 1px; height: 1px;
-  padding: 0; margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-  border: 0;
-}
-
 /* Responsive tweaks */
 @media (max-width: 600px) {
   /* The actions don't shrink, and back + title + MIDI pill + history + ⚙️ come
@@ -1994,3 +2005,26 @@ a.pt-hero__visual:hover {
   .pt-hero__intro { grid-template-columns: 1fr; gap: var(--pt-space-4); }
   .pt-steps { grid-template-columns: 1fr; gap: var(--pt-space-4); }
 }
+
+} /* @layer components */
+
+/* =============================================================================
+   Utilities — last layer, so nothing can take one back
+   .pt-sr-only was the rule that motivated the layers: it lost to the base and
+   left a hidden file input at full width. In `components` it would beat the
+   base but only tie with every component, winning on source order alone — the
+   same failure one layer up. A utility does one thing and has to win it.
+   ========================================================================== */
+@layer utilities {
+
+.pt-sr-only {
+  position: absolute;
+  width: 1px; height: 1px;
+  padding: 0; margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+} /* @layer utilities */
