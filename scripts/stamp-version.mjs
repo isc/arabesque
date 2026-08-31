@@ -35,7 +35,11 @@ const VERSION_SCRIPT = '<script type="module" src="js/version.js"></script>'
 // 120KB of JPEG shown only by the landing page, which is the one page that does
 // not register the worker — and they front a video that is not cached either.
 // Which cache each asset lands in is a separate decision, and it lives in sw.js.
-const SHELL_SKIP = new Set(['video', 'scores', 'cassettes', 'img'])
+// icons/ holds the PWA install icons, which the browser process fetches for the
+// home screen and the splash — never a page, so the worker is never asked for
+// them. Cached, they would be 16KB of the shell re-downloaded on every deploy
+// and served to nobody. Same argument as img/ above, one step further.
+const SHELL_SKIP = new Set(['video', 'scores', 'cassettes', 'img', 'icons'])
 const SHELL_EXTENSIONS = /\.(html|css|js|json|svg|jpg|png|webmanifest)$/
 
 // The URL the iOS wrapper opens (ios/project.yml) and the one a bookmark keeps:

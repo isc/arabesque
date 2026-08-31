@@ -13,6 +13,7 @@ export default {
     data: '🗂 Données',
     support: '🛟 Assistance',
     privacy: '🔒 Confidentialité',
+    install: '📲 Installer l’application',
     language: 'Langue',
   },
   // Which hands a run through the score was played with.

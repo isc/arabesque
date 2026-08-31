@@ -64,6 +64,12 @@ class CapybaraTestBase < Minitest::Test
   end
 
   # Wait for a file matching pattern to appear in download dir
+  # The ⚙️ popover, shared by every page that mounts the header menu.
+  def open_menu
+    find('.pt-changelog-btn').click
+    assert_selector '.pt-popover', visible: true
+  end
+
   def wait_for_download(pattern, timeout: Capybara.default_max_wait_time)
     Timeout.timeout(timeout) do
       loop do
