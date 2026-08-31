@@ -129,7 +129,10 @@
   /* Icons drawn as background images. A data: URI cannot read a custom
      property, so the stroke colors are literals — keep them in step with
      --pt-text-subtle / --pt-text-inverse above. */
-  --pt-icon-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%238a90a0' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+  /* Stroked in --pt-text-muted rather than the --pt-text-subtle the other Pico
+     icons use: .pt-select draws this at 10px, where subtle stops reading as an
+     affordance. The bare <select> and the <details> marker draw it at 1rem. */
+  --pt-icon-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%235b6270' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
   --pt-icon-close: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%238a90a0' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cline x1='18' y1='6' x2='6' y2='18'/%3E%3Cline x1='6' y1='6' x2='18' y2='18'/%3E%3C/svg%3E");
   --pt-icon-check: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23ffffff' stroke-width='4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='20 6 9 17 4 12'/%3E%3C/svg%3E");
   /* Static on purpose: the arc is turned by the page's own animation below.
@@ -1213,10 +1216,14 @@ table tbody td:nth-child(2) a:hover { color: var(--pt-accent); }
   cursor: pointer;
   appearance: none;
   -webkit-appearance: none;
-  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8' fill='none' stroke='%235b6270' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'><polyline points='1 1.5 6 6.5 11 1.5'/></svg>");
+  background-image: var(--pt-icon-chevron);
   background-repeat: no-repeat;
-  background-position: right 10px center;
-  background-size: 10px 7px;
+  /* Same box as the base draws on a bare <select>, so every dropdown in the app
+     shows a mark of the same size — only the inset is tighter, this control
+     being a pill in a row of pills rather than a full-width field. The glyph
+     fills half its square viewBox, so 1rem of box is an 8px chevron. */
+  background-position: right 8px center;
+  background-size: 1rem auto;
 }
 .pt-select:hover { background-color: var(--pt-bg-elevated); }
 .pt-select:focus { outline: 2px solid color-mix(in srgb, var(--pt-accent) 30%, transparent); outline-offset: 1px; }
