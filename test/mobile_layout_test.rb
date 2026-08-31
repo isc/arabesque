@@ -97,17 +97,17 @@ class MobileLayoutTest < CapybaraTestBase
     find('[role="tab"]', text: 'Partitions').click
     assert_selector 'tbody tr'
 
-    refute filters_visible?, 'filters should start folded on a phone'
+    assert_no_selector '.pt-filters', visible: true
 
     find('.pt-librarybar button.pt-filter-pill').click
-    assert filters_visible?, 'clicking Filtrer should unfold the filters'
+    assert_selector '.pt-filters', visible: true
 
     # A composer, not a status pill: the catalog always has several composers,
     # where a status only exists once something has been practised.
     select 'Chopin', from: 'Filtrer par compositeur'
     find('.pt-librarybar button.pt-filter-pill').click
 
-    refute filters_visible?
+    assert_no_selector '.pt-filters', visible: true
     assert_selector '.pt-librarybar .pt-filter-pill__count', text: '1'
   end
 
@@ -120,38 +120,31 @@ class MobileLayoutTest < CapybaraTestBase
     visit '/library.html'
     assert_selector 'tbody tr', visible: :all
 
-    assert visible?('.pt-library__sidebar'), 'a phone opens on the journal'
-    refute visible?('.pt-library__main')
-    refute visible?('.pt-librarybar'), 'the sort/filter bar belongs to the score list'
+    assert_selector '.pt-library__sidebar', text: 'aujourd', wait: 5
+    assert_no_selector '.pt-library__main'
+    assert_no_selector '.pt-librarybar', visible: true
 
     find('[role="tab"]', text: 'Partitions').click
-    refute visible?('.pt-library__sidebar')
-    assert visible?('.pt-library__main')
-    assert visible?('.pt-librarybar')
+    assert_no_selector '.pt-library__sidebar'
+    assert_selector '.pt-library__main'
+    assert_selector '.pt-librarybar'
   end
 
-  # The search box is above both panes, so it is the one control that can narrow
-  # the list while the journal is showing.
-  def test_searching_from_the_journal_switches_to_the_scores
+  # Two ways to say "I want the list": a link that carries a filter, and the
+  # search box, which sits above both panes and is the one narrowing control
+  # reachable while the journal is showing.
+  def test_narrowing_the_list_opens_the_scores
     page.current_window.resize_to(*PHONE)
-    visit '/library.html'
-    assert_selector 'tbody tr', visible: :all
-    assert visible?('.pt-library__sidebar')
 
-    fill_in 'Rechercher une partition', with: 'chopin'
-
-    assert visible?('.pt-library__main')
-    refute visible?('.pt-library__sidebar')
-  end
-
-  # A link carrying a filter is a request to see the list, not the journal.
-  def test_a_filtered_url_opens_on_the_scores
-    page.current_window.resize_to(*PHONE)
     visit '/library.html?composer=Chopin'
-    assert_selector 'tbody tr', visible: :all
+    assert_selector '.pt-library__main'
+    assert_no_selector '.pt-library__sidebar'
 
-    assert visible?('.pt-library__main')
-    refute visible?('.pt-library__sidebar')
+    visit '/library.html'
+    assert_selector '.pt-library__sidebar'
+    fill_in 'Rechercher une partition', with: 'chopin'
+    assert_selector '.pt-library__main'
+    assert_no_selector '.pt-library__sidebar'
   end
 
   # The whole point of keying the panes off data-tab in CSS rather than x-show:
@@ -162,10 +155,10 @@ class MobileLayoutTest < CapybaraTestBase
     visit '/library.html'
     assert_selector 'tbody tr'
 
-    assert visible?('.pt-library__sidebar'), 'journal and list sit side by side above 700px'
-    assert visible?('.pt-library__main')
-    assert visible?('.pt-filters')
-    refute visible?('.pt-librarytabs'), 'the tab bar is for phones only'
+    assert_selector '.pt-library__sidebar', visible: true
+    assert_selector '.pt-library__main', visible: true
+    assert_selector '.pt-filters', visible: true
+    assert_no_selector '.pt-librarytabs', visible: true
   end
 
   # A score title and a journal line sit one above the other on a phone; 8px of
@@ -185,15 +178,6 @@ class MobileLayoutTest < CapybaraTestBase
 
   private
 
-  def visible?(selector)
-    page.evaluate_script(<<~JS)
-      (() => {
-        const el = document.querySelector('#{selector}')
-        return !!el && getComputedStyle(el).display !== 'none'
-      })()
-    JS
-  end
-
   def left_edge_of(selector)
     page.evaluate_script("document.querySelector('#{selector}').getBoundingClientRect().left")
   end
@@ -203,10 +187,6 @@ class MobileLayoutTest < CapybaraTestBase
       document.scrollingElement.scrollWidth - document.documentElement.clientWidth
     JS
     assert_operator overflow, :<=, 0, "#{path} scrolls #{overflow}px sideways at #{PHONE.first}px"
-  end
-
-  def filters_visible?
-    page.evaluate_script("getComputedStyle(document.querySelector('.pt-filters')).display") != 'none'
   end
 
   # The title is the largest text OSMD draws, and it is drawn before the staves.

@@ -6,9 +6,8 @@
   une vue cohérente, la barre de filtres et de tri est passée avec la liste, et
   le journal ouvre en premier — c'est ce qu'on vient consulter sur un téléphone,
   et il n'y a plus 2000 px de cartes avant la première partition. Une recherche
-  bascule sur Partitions, comme un lien portant un filtre. Le panneau visible
-  est piloté par un attribut lu uniquement sous 700 px, donc le grand écran
-  garde ses deux colonnes côte à côte, au pixel près.
+  bascule sur Partitions, comme un lien portant un filtre. Sur grand écran rien
+  ne change : le journal et la liste restent côte à côte.
 
 - **Les titres de partitions s'alignent sur le journal.** Ils commençaient 8 px
   plus à gauche que les lignes du journal, juste en dessous.

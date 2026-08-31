@@ -68,11 +68,16 @@ export function libraryApp() {
         this.$watch(key, () => this.syncUrl())
       }
 
-      // The search box sits in the header, above both panes, so it is the one
-      // control that can narrow the score list while a phone is showing the
-      // journal. Typing in it means you want the list.
-      this.$watch('searchQuery', (value) => {
-        if (value) this.tab = 'scores'
+      // Narrowing the list means you want to see it. The search box is the one
+      // narrowing control reachable from the journal pane — it sits in the
+      // header, above both — so it is the only one that has to say so here.
+      this.$watch('searchQuery', () => this.showScoresIfNarrowed())
+
+      // Folding the filters away with the pane keeps the two switches from
+      // making four states out of two: coming back to the list always shows it
+      // the way opening it does.
+      this.$watch('tab', (value) => {
+        if (value !== 'scores') this.filtersOpen = false
       })
 
       // "/" focuses the search input (GitHub / YouTube convention). Skip when
@@ -135,7 +140,9 @@ export function libraryApp() {
       this.periodFilter = params.get('period') || ''
       this.focusFilter = params.get('focus') || ''
       this.searchQuery = params.get('q') || ''
-      if (this.activeFilterCount > 0 || this.searchQuery) this.tab = 'scores'
+      // Synchronously, rather than leaving it to the $watch above: that flushes
+      // on a microtask, which is a frame of the wrong pane on first paint.
+      this.showScoresIfNarrowed()
 
       await this.reloadDailyLogs()
 
@@ -290,6 +297,12 @@ export function libraryApp() {
         { value: 'status',     label: t('library.colStatus') },
         { value: 'practice',   label: t('library.colPractice') },
       ]
+    },
+
+    // A filter or a search is a request for the list, wherever it came from —
+    // a link, or the search box while the journal is showing.
+    showScoresIfNarrowed() {
+      if (this.activeFilterCount > 0 || this.searchQuery) this.tab = 'scores'
     },
 
     get tabs() {

@@ -33,6 +33,8 @@
     </script>
   </head>
   <body>
+    <!-- data-tab is also static: the pane rules key off it, and without a
+         value during parsing both panes show until Alpine binds. -->
     <main class="container pt-library-page" data-tab="journal" :data-tab="tab" @keydown.escape.window="menuOpen = false; showChangelogModal = false; showFeedbackModal = false">
       <div class="pt-library-chrome" :class="{ 'is-collapsed': !filtersOpen }">
         <div class="pt-page-header">
@@ -58,6 +60,7 @@
             <button
               type="button"
               role="tab"
+              class="pt-librarytabs__tab"
               :aria-selected="tab === opt.value"
               @click="tab = opt.value"
               x-text="opt.label"
