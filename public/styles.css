@@ -1235,10 +1235,10 @@ table tbody td:nth-child(2) a:hover { color: var(--pt-accent); }
   font-size: 0.92rem;
   font-weight: 500;
 }
-/* The resting fill needs no help — `:is(button, [role="button"])` weighs the
-   same as one class (`:is()` takes its heaviest argument, `[role="button"]`)
-   and loses on source order. Its :hover is (0-2-0) and does not, so without
-   this the tab under the pointer turns accent-on-accent. */
+/* Only to say the tab has no hover fill of its own — the layer already keeps
+   the base's `:is(button, [role="button"]):hover` off it. Before the layers
+   this rule was load-bearing: that selector is (0-2-0) against the class's
+   (0-1-0), and the tab under the pointer turned accent-on-accent. */
 .pt-librarytabs__tab:hover { background: transparent; color: var(--pt-text); }
 .pt-librarytabs__tab[aria-selected="true"] { color: var(--pt-text); border-bottom-color: var(--pt-accent); }
 
