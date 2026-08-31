@@ -421,6 +421,7 @@ details[open] > summary::after { transform: rotate(0); }
 /* Modal close affordance: a bare button wearing the close icon. */
 dialog > article :is(a, button)[rel="prev"] {
   display: block;
+  position: relative;
   width: 1rem;
   height: 1rem;
   margin-inline-start: auto;
@@ -432,6 +433,14 @@ dialog > article :is(a, button)[rel="prev"] {
   background-size: auto 1rem;
   opacity: 0.5;
   transition: opacity var(--pt-transition-fast);
+}
+/* The glyph reads best at 16px and the header is laid out around that size, but
+   16px is a third of the 44px a thumb needs. The touch target is grown with a
+   pseudo-element instead of the box, so every modal header keeps its height. */
+dialog > article :is(a, button)[rel="prev"]::after {
+  content: "";
+  position: absolute;
+  inset: -14px;
 }
 dialog > article :is(a, button)[rel="prev"]:hover { opacity: 1; background-color: transparent; }
 

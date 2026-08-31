@@ -176,7 +176,60 @@ class MobileLayoutTest < CapybaraTestBase
                     "score titles start at #{title}px, journal lines at #{journal}px"
   end
 
+  # 16px of glyph is a third of what a thumb needs, and the header it sits in
+  # used to scroll away with the content — so the one control the changelog has
+  # was both tiny and, once you had read anything, gone.
+  def test_the_modal_close_button_is_a_thumb_sized_target
+    page.current_window.resize_to(*PHONE)
+    visit '/library.html'
+    open_changelog
+
+    # The glyph stays 16px; the target around it is what grew.
+    reach = page.evaluate_script(<<~JS)
+      (() => {
+        const btn = document.querySelector('dialog[open] [rel="prev"]')
+        const r = btn.getBoundingClientRect()
+        const cx = r.left + r.width / 2, cy = r.top + r.height / 2
+        // How far from the centre a tap still lands on the button.
+        let d = 0
+        while (d < 40) {
+          const el = document.elementFromPoint(cx - d - 1, cy + d + 1)
+          if (el !== btn && !btn.contains(el)) break
+          d += 1
+        }
+        return d
+      })()
+    JS
+    assert_operator reach, :>=, 20,
+                    "the close target reaches #{reach}px from its centre, short of the 22 a 44px target needs"
+  end
+
+  def test_the_modal_header_stays_put_while_the_body_scrolls
+    page.current_window.resize_to(*PHONE)
+    visit '/library.html'
+    open_changelog
+
+    body = find('dialog[open] .pt-modal-body')
+    assert_operator body.evaluate_script('this.scrollHeight'), :>,
+                    body.evaluate_script('this.clientHeight'),
+                    'the changelog needs to be long enough for this test to mean anything'
+
+    body.execute_script('this.scrollTop = 600')
+    assert page.evaluate_script(<<~JS), 'the close button scrolled out of view'
+      (() => {
+        const h = document.querySelector('dialog[open] header').getBoundingClientRect()
+        return h.top >= 0 && h.bottom <= window.innerHeight
+      })()
+    JS
+  end
+
   private
+
+  def open_changelog
+    find('.pt-changelog-btn').click
+    find('button', text: 'Nouveautés').click
+    assert_selector 'dialog[open] .pt-changelog-entry'
+  end
 
   def left_edge_of(selector)
     page.evaluate_script("document.querySelector('#{selector}').getBoundingClientRect().left")
