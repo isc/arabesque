@@ -82,10 +82,12 @@ export const CHANGELOG = [
     date: '2026-08-24',
     items: {
       fr: [
+        "Mode micro (bêta) : pas de clavier MIDI ? Sur la page partition, le bouton 🎤 fait écouter votre piano par le microphone et valide les notes jouées. Une note à la fois pour l'instant — idéal pour les mélodies et le travail mains séparées ; les accords ne sont pas encore reconnus.",
         'Une page « Assiduité » montre l’année entière, une case par jour : plus vous avez joué longtemps ce jour-là, plus la case est foncée. On y lit d’un coup d’œil les semaines tenues et les trous, avec les jours joués, le temps total, les lectures complètes, la série en cours et la meilleure série. Cliquer une case rappelle ce qui a été travaillé ce jour-là.',
         'La page Données permet de supprimer son compte : le compte et toutes les données synchronisées sont effacés de nos serveurs, en deux temps pour éviter le clic malheureux. Les données de cet appareil, elles, restent en place — la sauvegarde dans un fichier, juste au-dessus, sert à les emporter.',
       ],
       en: [
+        "Mic mode (beta): no MIDI keyboard? On the score page, the 🎤 button lets the app listen to your piano through the microphone and validate the notes you play. One note at a time for now — great for melodies and hands-separate practice; chords aren't recognised yet.",
         'A "Consistency" page shows the whole year, one square per day: the longer you played that day, the darker the square. The weeks you kept up and the gaps you left read at a glance, along with days played, total time, full playthroughs, current streak and longest streak. Clicking a square recalls what you worked on that day.',
         'The Data page can now delete your account: the account and everything synced under it are erased from our servers, in two steps so no stray tap can do it. This device keeps its own data — the file backup just above is there to take it with you.',
       ],
