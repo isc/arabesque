@@ -16,6 +16,17 @@
 
 export const CHANGELOG = [
   {
+    date: '2026-09-02',
+    items: {
+      fr: [
+        "Une fausse note se voit. En mode entraînement, un point ne se remplit que si la mesure est jouée sans faute — mais rien ne signalait la faute, et un doigt qui effleure la touche voisine suffisait à bloquer les trois points sans qu'on comprenne pourquoi. La note attendue s'allume maintenant en rouge au moment de l'erreur, et le point de la répétition en cours passe en rouge : on sait tout de suite qu'elle ne comptera pas.",
+      ],
+      en: [
+        "A wrong note now shows. In training mode a dot only fills when the bar is played without a mistake — but nothing marked the mistake, and a finger brushing the next key was enough to stall all three dots with no explanation. The note you owed now lights up red as it happens, and the dot for the repetition under way turns red: you know straight away that it won't count.",
+      ],
+    },
+  },
+  {
     date: '2026-08-31',
     items: {
       fr: [

@@ -1,3 +1,12 @@
+2026-09-02
+
+- **Une fausse note se voit.** En mode entraînement, un point ne se remplit que
+  si la mesure est jouée sans faute, mais la faute elle-même n'était matérialisée
+  nulle part : un doigt qui effleure la touche voisine comptait comme une note en
+  trop, et les trois points restaient bloqués sans explication. La note attendue
+  s'allume en rouge au moment de l'erreur, et le point de la répétition en cours
+  passe en rouge — on sait immédiatement qu'elle ne comptera pas.
+
 2026-08-31
 
 - **Deux onglets sur téléphone : Journal et Partitions.** Filtres, puis journal

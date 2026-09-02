@@ -1791,6 +1791,15 @@ svg g.vf-notehead.expected-note path { fill: var(--pt-note-expected); }
 svg g.vf-notehead.offtempo-note path { fill: var(--pt-note-offtempo); }
 svg g.vf-notehead.missed-note path { fill: var(--pt-note-missed); }
 
+/* A wrong note outside strict mode: the notehead the player owed lights up for
+   a moment, so the mistake that spoils a repetition is visible when it happens.
+   Its own class rather than strict mode's .missed-note, whose marks stay up for
+   a whole run. musicxml.js drops the class on animationend. */
+@keyframes pt-wrong-note-flash {
+  from, to { fill: var(--pt-note-missed); }
+}
+svg g.vf-notehead.wrong-note path { animation: pt-wrong-note-flash 700ms; }
+
 /* Clickable measure areas */
 .measure-click-area {
   fill: transparent;
@@ -1808,6 +1817,8 @@ svg g.vf-notehead.missed-note path { fill: var(--pt-note-missed); }
   fill: none;
 }
 .repeat-indicator.filled { fill: var(--pt-mode-training); }
+/* The repetition under way is already lost: a wrong note spoiled it. */
+.repeat-indicator.spoiled { stroke: var(--pt-note-missed); }
 
 /* Clickable noteheads for fingering annotation */
 #score svg .vf-notehead { cursor: pointer; }
