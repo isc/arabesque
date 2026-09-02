@@ -70,6 +70,23 @@ with the same count in the same order. New entries must include both languages
 top of `CHANGELOG` (antechronological order), grouping items under the
 publication date (`YYYY-MM-DD`). Keep each item short and concrete.
 
+## User feedback
+
+The app's Feedback button files into `public.feedback` on Supabase. The anon key
+the frontend ships can only INSERT, so reading happens out of band — through the
+Management API, with the token the Supabase CLI already keeps outside the repo:
+
+```bash
+node scripts/feedback.mjs list          # what is still to deal with
+node scripts/feedback.mjs treat <id>    # mark one as dealt with
+```
+
+The header of `scripts/feedback.mjs` has the rest (`show`, `untreat`, flags).
+Each new feedback also emails ivan.schneider@hey.com, so there is nothing to poll.
+
+`supabase/feedback.sql` is the canonical DDL — the project has no migration
+system, so a schema change is applied by hand **and** written there.
+
 ## Playwright Browser Testing
 
 Use the **Playwright CLI** (`@playwright/cli`, already a devDependency — binary at

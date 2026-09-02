@@ -27,6 +27,9 @@
 --   psql "$SUPABASE_DB_URL" -f supabase/feedback.sql
 -- (idempotent: if not exists + create or replace + drop ... if exists)
 --
+-- Reading the feedback back (the anon role cannot: insert only) goes through
+-- the Management API — see the header of scripts/feedback.mjs.
+--
 -- Debugging deliveries (pg_net logs responses):
 --   select status_code, content from net._http_response order by created desc limit 5;
 
@@ -38,8 +41,24 @@ create table if not exists public.feedback (
   message    text not null,
   email      text,
   category   text,          -- 'bug' | 'idea' | 'score' | 'other' (free text; UI-constrained)
-  context    jsonb          -- app_version, locale, user_agent, viewport, anonymized stats
+  context    jsonb,         -- app_version, locale, user_agent, viewport, anonymized stats
+  status     text not null default 'new'   -- constrained just below
 );
+
+-- Which feedback is still to deal with. Without it the only way to tell was to
+-- remember which dates had been read; `scripts/feedback.mjs` reads and writes
+-- this column. The alter is what reaches a database the create table skipped.
+alter table public.feedback
+  add column if not exists status text not null default 'new';
+
+alter table public.feedback drop constraint if exists feedback_status_check;
+alter table public.feedback
+  add constraint feedback_status_check check (status in ('new', 'done'));
+
+-- The listing reads the pending ones, newest first, and nothing else.
+create index if not exists feedback_status_new_idx
+  on public.feedback (created_at desc)
+  where status = 'new';
 
 -- RLS: the anon role may only INSERT. No select/update/delete — feedback is
 -- read out-of-band (SQL / admin), never exposed back to the client.
@@ -50,7 +69,9 @@ create policy feedback_anon_insert
   on public.feedback
   for insert
   to anon
-  with check (true);
+  -- The column has a default, so the app never sends it; spelling it out here
+  -- stops a hand-rolled POST from filing feedback pre-marked as dealt with.
+  with check (status = 'new');
 
 create or replace function public.notify_new_feedback()
 returns trigger
