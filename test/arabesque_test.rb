@@ -77,6 +77,25 @@ class ArabesqueTest < CapybaraTestBase
     assert_no_text 'complété toutes les mesures'
   end
 
+  def test_a_wrong_note_is_shown_and_reddens_the_repetition_under_way
+    load_score('simple-score.xml', 4)
+
+    click_on 'Mode Entraînement'
+    assert_text 'Mode Entraînement Actif'
+
+    # A dot only fills on a flawless repetition, and nothing used to say a
+    # mistake had happened: the dots simply stopped filling.
+    play_note('D4') # the measure opens on C4
+
+    assert_selector 'svg g.vf-notehead.wrong-note', count: 1
+    assert_selector 'svg circle.repeat-indicator.spoiled', count: 1
+
+    # Playing the note that was owed clears the flash rather than leaving it
+    # red over the played colour until the animation ends.
+    play_note('C4')
+    assert_no_selector 'svg g.vf-notehead.wrong-note'
+  end
+
   def test_training_mode_allows_jumping_to_specific_measure
     load_score('schumann-melodie.xml', 256)
 

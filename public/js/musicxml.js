@@ -1,4 +1,3 @@
-import { noteName } from './midi.js'
 import { traced, ENABLED as PERF_TRACE } from './perfTrace.js' // TEMP diagnostic
 import {
   extractNotesFromScore as extractNotes,
@@ -46,9 +45,24 @@ const MEASURE_CLICK_PADDING = 15
 // Delay in ms before resetting measure progress in training mode
 const TRAINING_RESET_DELAY_MS = 200
 
+// A mistake used to leave no trace at all: the repetition was silently spoiled
+// and the player, seeing the dot refuse to fill, had no way to know a stray key
+// had counted as an extra note. The notehead they owed lights up for a moment
+// instead. The duration lives in the stylesheet, next to the colour, and the
+// end of the animation takes the class back off; the reset paths clear it too,
+// alongside the played/active classes, in case no animation ever ran.
+function flashWrongNote(noteData) {
+  const notehead = svgNotehead(noteData)
+  if (!notehead || notehead.classList.contains('wrong-note')) return
+
+  notehead.classList.add('wrong-note')
+  notehead.addEventListener('animationend', () => notehead.classList.remove('wrong-note'), {
+    once: true,
+  })
+}
+
 let callbacks = {
   onScoreCompleted: null,
-  onNoteError: null,
   onTrainingComplete: null,
   onMeasureStarted: null,
   onMeasureCompleted: null,
@@ -360,7 +374,7 @@ function resetMeasureProgress(resetRepeatCount = true) {
 
   for (const noteData of measureData.notes) {
     const notehead = svgNotehead(noteData)
-    notehead?.classList.remove('played-note', 'active-note')
+    notehead?.classList.remove('played-note', 'active-note', 'wrong-note')
     noteData.played = false
     noteData.active = false
   }
@@ -427,7 +441,7 @@ function createRepeatIndicators(noteElements, svg) {
     circle.setAttribute('cx', centerX + offsetX)
     circle.setAttribute('cy', circleY)
     circle.setAttribute('r', circleRadius)
-    circle.className.baseVal = i < repeatCount ? 'repeat-indicator filled' : 'repeat-indicator'
+    circle.className.baseVal = repeatIndicatorClass(i, repeatCount, currentRepetitionIsClean)
     circle.dataset.index = i
     indicatorsGroup.appendChild(circle)
   }
@@ -435,13 +449,22 @@ function createRepeatIndicators(noteElements, svg) {
   svg.appendChild(indicatorsGroup)
 }
 
+// Classes for the dot at `index`: filled once its repetition is banked, red
+// while the repetition under way is spoiled — only a flawless run fills a dot,
+// and nothing else on screen says so.
+export function repeatIndicatorClass(index, banked, clean) {
+  if (index < banked) return 'repeat-indicator filled'
+  if (index === banked && !clean) return 'repeat-indicator spoiled'
+  return 'repeat-indicator'
+}
+
 function updateRepeatIndicators() {
   if (!osmdInstance || !trainingMode) return
 
-  const indicators = document.querySelectorAll('.repeat-indicator')
-  indicators.forEach((circle, index) => {
-    circle.classList.toggle('filled', index < repeatCount)
-  })
+  const indicators = document.getElementById('repeat-indicators')?.children ?? []
+  for (let i = 0; i < indicators.length; i++) {
+    indicators[i].className.baseVal = repeatIndicatorClass(i, repeatCount, currentRepetitionIsClean)
+  }
 }
 
 function getBoundingBoxesForNotes(noteElements) {
@@ -726,8 +749,13 @@ function activateNote(midiNote) {
   }
 
   if (matchingIndices.length === 0) {
-    // Wrong note - mark repetition as dirty in training mode
-    if (trainingMode) currentRepetitionIsClean = false
+    // Wrong note - mark repetition as dirty in training mode, and redden its dot
+    // right away rather than leaving the player to discover at the bar line that
+    // it won't fill. Only the first wrong note of a repetition changes anything.
+    if (trainingMode && currentRepetitionIsClean) {
+      currentRepetitionIsClean = false
+      updateRepeatIndicators()
+    }
 
     // Initialize practice tracking on first wrong note if not already set
     if (measureStartTime === null) {
@@ -740,14 +768,18 @@ function activateNote(midiNote) {
     callbacks.onWrongNote?.()
 
     const expected = activeNotes.find((n) => !n.played && !n.active)
-    if (expected) callbacks.onNoteError?.(expected.noteName, noteName(midiNote))
+    if (expected) flashWrongNote(expected)
     return false
   }
 
   // Mark matching notes as active (highlighted but not validated yet)
   for (const index of matchingIndices) {
     const noteData = measureData.notes[index]
-    svgNotehead(noteData)?.classList.add('active-note')
+    // Drop any flash still running: the note the player owed has just arrived,
+    // and it should read as played rather than stay red until the animation ends.
+    const notehead = svgNotehead(noteData)
+    notehead?.classList.remove('wrong-note')
+    notehead?.classList.add('active-note')
     noteData.active = true
   }
 
@@ -1025,7 +1057,7 @@ function resetNotesFromIndex(fromIndex = 0) {
     for (const noteData of measureData.notes) {
       const notehead = svgNotehead(noteData)
       if (notehead) {
-        notehead.classList.remove('played-note', 'active-note')
+        notehead.classList.remove('played-note', 'active-note', 'wrong-note')
       }
       noteData.played = false
       noteData.active = false
