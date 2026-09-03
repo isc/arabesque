@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE score-partwise PUBLIC "-//Recordare//DTD MusicXML 3.0 Partwise//EN" "http://www.musicxml.org/dtds/partwise.dtd">
+<!-- Three measures carrying the three kinds of tempo direction a MuseScore
+     export produces: a real marking with a sound tempo, the bare number the
+     playback curve leaves behind, and a real marking again. -->
+<score-partwise version="3.0">
+  <work>
+    <work-title>Playback Tempo Marks</work-title>
+  </work>
+  <part-list>
+    <score-part id="P1">
+      <part-name/>
+    </score-part>
+  </part-list>
+  <part id="P1">
+    <measure number="1">
+      <attributes>
+        <divisions>4</divisions>
+        <key>
+          <fifths>0</fifths>
+          <mode>major</mode>
+        </key>
+        <time>
+          <beats>4</beats>
+          <beat-type>4</beat-type>
+        </time>
+        <clef>
+          <sign>G</sign>
+          <line>2</line>
+        </clef>
+      </attributes>
+      <direction placement="above">
+        <direction-type>
+          <words font-weight="bold">Andantino con moto</words>
+        </direction-type>
+        <sound tempo="120"/>
+      </direction>
+      <note>
+        <duration>16</duration>
+        <pitch>
+          <step>C</step>
+          <octave>4</octave>
+        </pitch>
+        <type>whole</type>
+      </note>
+    </measure>
+    <measure number="2">
+      <direction placement="above">
+        <direction-type>
+          <words font-style="italic" font-size="10">137</words>
+        </direction-type>
+        <sound tempo="137"/>
+      </direction>
+      <note>
+        <duration>16</duration>
+        <pitch>
+          <step>D</step>
+          <octave>4</octave>
+        </pitch>
+        <type>whole</type>
+      </note>
+    </measure>
+    <measure number="3">
+      <direction placement="above">
+        <direction-type>
+          <words font-style="italic">rit.</words>
+        </direction-type>
+        <sound tempo="108"/>
+      </direction>
+      <note>
+        <duration>16</duration>
+        <pitch>
+          <step>E</step>
+          <octave>4</octave>
+        </pitch>
+        <type>whole</type>
+      </note>
+    </measure>
+  </part>
+</score-partwise>

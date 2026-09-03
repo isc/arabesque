@@ -10,6 +10,7 @@ import {
 } from './noteExtraction.js'
 import { scrollSystemIntoView } from './utils.js'
 import { arrayBufferToXml, isMusicXml } from './mxlLoader.js'
+import { stripPlaybackTempoMarks } from './tempoMarks.js'
 import { t } from './i18n.js'
 
 let osmdInstance = null
@@ -339,6 +340,7 @@ async function renderMusicXML(xmlContent) {
     })
     osmd.rules.MetronomeMarkYShift = -2.8;
     await osmd.load(xmlContent)
+    stripPlaybackTempoMarks(osmd.Sheet.SourceMeasures)
     osmdInstance = osmd
     window.osmdInstance = osmd
   } catch (error) {
