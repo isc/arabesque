@@ -59,6 +59,10 @@ export function midiApp() {
   // Orders the reinforcement refreshes fired at every measure boundary (see
   // refreshReinforcementSuggestions).
   let reinforcementRefreshSeq = 0
+  // The last strict run being filed. Awaited by anything that would otherwise
+  // end the same session underneath it (see setMode): closing a session twice
+  // credits its practice time twice.
+  let strictRunRecorded = Promise.resolve()
   // The end of a session is the moment its data becomes worth pushing: runSync
   // only takes sessions that have ended, so a playthrough finished here would
   // otherwise sit on this device until the data page is opened.
@@ -562,6 +566,9 @@ export function midiApp() {
 
       strictPlaythrough.setActiveHands(this.activeHands)
       this.isStrictPlaying = true
+      // Read before the run: onComplete clears the start measure once the run
+      // is over, and what the journal records depends on where it began.
+      const fromTheTop = this.strictStartMeasure === 0
 
       strictPlaythrough.start({
         bpm: this.strictBpm,
@@ -571,6 +578,9 @@ export function midiApp() {
         onComplete: (result) => {
           this.isStrictPlaying = false
           this.strictResult = result
+          // Not awaited here: the result modal is not going to wait on
+          // IndexedDB, and the run is already fully described by `result`.
+          strictRunRecorded = this.recordStrictRun(result, fromTheTop)
           if (!result.aborted) {
             // A clean finish resets the start point so the next ▶ replays
             // from the top; aborted runs keep it for retry from the same spot.
@@ -582,6 +592,33 @@ export function midiApp() {
       })
     },
 
+    // A strict run is practice like any other, and until it was filed here it
+    // left no trace at all: its notes go to the strict engine instead of the
+    // score's cursor, so none of the measure callbacks that feed the tracker in
+    // free mode ever fire. The engine hands back the run measure by measure,
+    // already timed at the tempo it was played at.
+    //
+    // Played from the top with every expected note played, the run is the piece
+    // played in full — the same bar as free mode, where the cursor never gets
+    // past a note that wasn't played. A run nobody played to (the metronome
+    // ticking on an empty keyboard) is not practice and is not recorded.
+    async recordStrictRun(result, fromTheTop) {
+      if (!this.scoreUrl || !result.measures?.length) return
+      const notesPlayed = result.hit + result.offTempoEarly + result.offTempoLate + result.wrongNotes
+      if (notesPlayed === 0) return
+
+      if (fromTheTop) practiceTracker.restartPlaythrough(result.measures[0].startedAt)
+      for (const attempt of result.measures) practiceTracker.recordMeasureAttempt(attempt)
+      if (fromTheTop && !result.aborted && result.missed === 0) practiceTracker.markScoreCompleted()
+
+      // One session per run: a session carries at most one playthrough, and
+      // ending it here is what credits the practice time to the journal.
+      await endSessionAndSync()
+      const metadata = musicxml.getScoreMetadata()
+      practiceTracker.startSession(this.scoreUrl, metadata.title, metadata.composer, 'free', metadata.totalMeasures)
+      await this.refreshReinforcementSuggestions()
+    },
+
     // Reinforcement is a flavor of training, so currentMode reports
     // 'training' for it — the segmented control stays on the training tab.
     get currentMode() {
@@ -590,9 +627,15 @@ export function midiApp() {
       return 'free'
     },
 
-    setMode(name) {
+    async setMode(name) {
       if (this.currentMode === name) return
-      if (this.isStrictPlaying) strictPlaythrough.stop()
+      if (this.isStrictPlaying) {
+        strictPlaythrough.stop()
+        // The run stopped by the switch closes the session it was played in;
+        // the mode being switched to opens the next one. Sequenced, or the two
+        // ends race and the session is credited twice.
+        await strictRunRecorded
+      }
       if (this.strictSelected) {
         this.strictSelected = false
         this.strictStartMeasure = 0

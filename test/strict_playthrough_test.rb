@@ -64,6 +64,38 @@ class StrictPlaythroughTest < CapybaraTestBase
     assert_text '3 manquées'
   end
 
+  # Regression: a strict run used to leave no trace at all — its notes go to the
+  # strict engine instead of the score's cursor, so nothing ever fed the
+  # practice tracker and a piece played end to end in strict mode was missing
+  # from the practice journal.
+  def test_full_run_lands_in_the_practice_journal
+    # From the catalog rather than an upload: a session is only opened for a
+    # score that has a URL, and there is nothing to record without one.
+    visit '/score.html?url=/test-fixtures/chord.xml'
+    wait_for_score_render(1)
+    start_strict_mode
+
+    with_clock_control do
+      trigger_click_on('▶ Démarrer')
+
+      advance_clock(2000)
+      assert_selector 'svg g.vf-notehead.expected-note', wait: 4
+      play_chord(%w[C4 E4 G4])
+
+      advance_clock(1000)
+      assert_text 'Playthrough strict terminé', wait: 2
+    end
+
+    # Leaving the page before the session lands would lose it from the journal.
+    wait_for_records('sessions', where: 'record.completedAt && record.measures.length === 1')
+
+    visit '/library.html'
+    within '#daily-log' do
+      assert_text 'Chord Test'
+      assert_text 'Joué en entier'
+    end
+  end
+
   # Regression: when the cursor crosses a repeat barline, free mode wipes the
   # whole upcoming repeat section. Strict mode must do the same — clearing only
   # the entered measure leaves later notes in the section showing first-pass

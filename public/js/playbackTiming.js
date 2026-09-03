@@ -15,10 +15,15 @@ export function buildMeasureStartTimes(allNotes, sourceMeasures) {
   let elapsed = 0
   for (const measureData of allNotes) {
     startTimes.push(elapsed)
-    const duration = sourceMeasures[measureData.sourceMeasureIndex]?.Duration?.RealValue ?? 1.0
-    elapsed += duration
+    elapsed += measureDurationTs(measureData, sourceMeasures)
   }
   return startTimes
+}
+
+// How long one measure of the playback order lasts, in whole-note fractions.
+// Falls back to a whole note for a measure OSMD gives no duration for.
+export function measureDurationTs(measureData, sourceMeasures) {
+  return sourceMeasures[measureData.sourceMeasureIndex]?.Duration?.RealValue ?? 1.0
 }
 
 // Build the list of cursor advance timestamps (in ms from start) from allNotes

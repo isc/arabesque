@@ -1,5 +1,12 @@
 import { scheduleCursorAdvances } from './playback.js'
-import { tsToSeconds, buildMeasureStartTimes, buildCursorTimeline, cursorStepsBeforeMeasure } from './playbackTiming.js'
+import {
+  tsToSeconds,
+  buildMeasureStartTimes,
+  buildCursorTimeline,
+  cursorStepsBeforeMeasure,
+  measureDurationTs,
+} from './playbackTiming.js'
+import { handsKey } from './hands.js'
 import {
   isOrnamentOrGrace,
   isNoteActiveForHands,
@@ -37,6 +44,12 @@ let onProgressCb = null
 let activeHands = { right: true, left: true }
 let audioContext = null
 let startedAtPerf = 0
+// Wall clock at the same instant as startedAtPerf, so the run's measures can be
+// dated for the practice journal (see measureAttempts).
+let startedAtWall = 0
+// One entry per measure of the run, in playback order, holding when it played
+// and what went wrong in it (see measureAttempts).
+let measureRuns = []
 let currentToleranceMs = DEFAULT_TOLERANCE_MS
 let currentOffTempoWindowMs = DEFAULT_OFFTEMPO_WINDOW_MS
 
@@ -143,6 +156,12 @@ function start({
   const countInMs = resolvedCountInBeats * beatMs
 
   pendingEvents = []
+  measureRuns = allNotes.map((measureData, i) => ({
+    sourceMeasureIndex: measureData.sourceMeasureIndex,
+    startMs: countInMs + tsToSeconds(measureStartTimes[i], bpm) * 1000,
+    durationMs: tsToSeconds(measureDurationTs(measureData, sourceMeasures), bpm) * 1000,
+    wrongNotes: 0,
+  }))
   const cursorTimes = buildCursorTimeline(allNotes, measureStartTimes, bpm, countInMs)
 
   // Single pass: look up each notehead once, clear residual strict-mode
@@ -183,6 +202,7 @@ function start({
   }
 
   startedAtPerf = performance.now()
+  startedAtWall = Date.now()
 
   for (let i = 0; i < resolvedCountInBeats; i++) {
     const t = i * beatMs
@@ -249,6 +269,10 @@ function handleNoteOn(midiNumber) {
   const match = findMatchingEvent(pendingEvents, midiNumber, now, currentOffTempoWindowMs)
   if (!match) {
     stats.wrongNotes++
+    // Charged to the measure being played through. Anything struck during the
+    // count-in belongs to no measure and is only counted in the run's stats.
+    const run = runAt(now)
+    if (run) run.wrongNotes++
     onProgressCb?.({ ...stats })
     return false
   }
@@ -270,6 +294,53 @@ function handleNoteOn(midiNumber) {
   return true
 }
 
+// The measure being played through at `ms` from the start of the run, or null
+// while the count-in is still going.
+function runAt(ms) {
+  let current = null
+  for (const run of measureRuns) {
+    if (ms < run.startMs) break
+    current = run
+  }
+  return current
+}
+
+// The run, measure by measure, in the shape the practice tracker files an
+// attempt in — the piece practised in strict mode is practice like any other,
+// and this is what puts it in the journal.
+//
+// A measure only counts once every note it expected has a verdict: the run is
+// driven by the metronome, so a measure is over well before its last off-tempo
+// window closes, and a run stopped mid-piece leaves that tail undecided. Timing
+// comes from the tempo rather than from a clock read at each boundary — that is
+// exactly what the player played to.
+function measureAttempts() {
+  const expected = new Map()
+  for (const event of pendingEvents) {
+    const counts = expected.get(event.measureIndex) ?? { missed: 0, pending: 0 }
+    if (event.status === EVENT_STATUS.MISSED) counts.missed++
+    if (event.status === EVENT_STATUS.PENDING) counts.pending++
+    expected.set(event.measureIndex, counts)
+  }
+
+  const hands = handsKey(activeHands)
+  const attempts = []
+  for (const [index, counts] of expected) {
+    if (counts.pending > 0) continue
+    const run = measureRuns[index]
+    attempts.push({
+      sourceMeasureIndex: run.sourceMeasureIndex,
+      startedAt: new Date(startedAtWall + run.startMs).toISOString(),
+      durationMs: Math.round(run.durationMs),
+      wrongNotes: run.wrongNotes,
+      clean: counts.missed === 0 && run.wrongNotes === 0,
+      hands,
+    })
+  }
+  // pendingEvents is sorted by time, so the attempts come out in playing order.
+  return attempts
+}
+
 function teardown() {
   for (const id of timeouts) clearTimeout(id)
   timeouts = []
@@ -287,14 +358,16 @@ function teardown() {
   }
   activeOsmd = null
   pendingEvents = []
+  measureRuns = []
 }
 
 function finish(aborted) {
   if (!isRunning) return
   isRunning = false
   const finalStats = stats
+  const measures = measureAttempts()
   teardown()
-  onCompleteCb?.({ ...finalStats, aborted })
+  onCompleteCb?.({ ...finalStats, aborted, measures })
 }
 
 function stop() {

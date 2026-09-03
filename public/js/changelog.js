@@ -16,6 +16,17 @@
 
 export const CHANGELOG = [
   {
+    date: '2026-09-03',
+    items: {
+      fr: [
+        "Le mode strict compte comme du travail. Un morceau joué en entier au métronome ne laissait aucune trace : ni temps de pratique, ni mesures travaillées, ni « joué en entier » dans le journal. Chaque passage est maintenant enregistré, mesure par mesure, et un morceau joué du début à la fin sans note manquée compte comme un jeu complet.",
+      ],
+      en: [
+        'Strict mode now counts as practice. A piece played end to end with the metronome left no trace at all: no practice time, no bars worked, no "played in full" in the journal. Every run is now recorded bar by bar, and a run from the top with no missed note counts as the piece played in full.',
+      ],
+    },
+  },
+  {
     date: '2026-09-02',
     items: {
       fr: [

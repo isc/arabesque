@@ -322,21 +322,39 @@ class CapybaraTestBase < Minitest::Test
 
   private
 
+  # The count is left on a global and picked up by plain, synchronous
+  # evaluations rather than returned by evaluate_async_script — which arms a
+  # timer of its own inside the page to enforce its timeout. After a test has
+  # driven the virtual clock (see with_clock_control), that timer is due the
+  # instant it is set, so the script reports a timeout before IndexedDB has had
+  # any chance to answer, whatever the store holds.
   def count_records(store, where)
-    page.evaluate_async_script(<<~JS, store)
-      const [store, done] = [arguments[0], arguments[arguments.length - 1]];
+    page.execute_script(<<~JS, store)
+      const store = arguments[0];
+      window.__recordCount = null;
+      const answer = (n) => { window.__recordCount = n };
       const request = indexedDB.open('arabesque', 3);
-      request.onerror = () => done(0);
+      request.onerror = () => answer(0);
       request.onsuccess = () => {
         const db = request.result;
         const all = db.transaction(store, 'readonly').objectStore(store).getAll();
-        all.onerror = () => { db.close(); done(0); };
+        all.onerror = () => { db.close(); answer(0); };
         all.onsuccess = () => {
           db.close();
-          done(all.result.filter((record) => #{where}).length);
+          answer(all.result.filter((record) => #{where}).length);
         };
       };
     JS
+
+    deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + Capybara.default_max_wait_time
+    loop do
+      count = page.evaluate_script('window.__recordCount')
+      return count if count
+      flunk "the page never answered how many records '#{store}' holds" if
+        Process.clock_gettime(Process::CLOCK_MONOTONIC) > deadline
+
+      sleep 0.02
+    end
   end
 
   def parse_midi_notation(notation)

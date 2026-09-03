@@ -260,6 +260,7 @@ export function initPracticeTracker(storageInstance = null) {
     startMeasureAttempt,
     recordWrongNote,
     endMeasureAttempt,
+    recordMeasureAttempt,
     markScoreCompleted,
     restartPlaythrough,
     endSession,
@@ -500,28 +501,43 @@ export function initPracticeTracker(storageInstance = null) {
       currentMeasureAttempt.clean = clean
     }
 
+    const completedAttempt = { ...currentMeasureAttempt }
+    currentMeasureAttempt = null
+    fileAttempt(completedAttempt)
+    return completedAttempt
+  }
+
+  // An attempt the caller timed itself, filed as if it had been played through
+  // startMeasureAttempt/endMeasureAttempt. Strict mode is the caller: its runs
+  // are driven by the metronome rather than by the notes played, so a measure's
+  // verdict is only settled once its last off-tempo window has closed — well
+  // after the measure itself is over. The engine hands over the whole run at
+  // the end, each measure already timed from the tempo it was played at.
+  function recordMeasureAttempt({ sourceMeasureIndex, startedAt, durationMs, wrongNotes = 0, clean = true, hands = TWO_HANDS }) {
+    if (!currentSession) return null
+    const attempt = { sourceMeasureIndex, startedAt, durationMs, wrongNotes, clean, hands }
+    fileAttempt(attempt)
+    return attempt
+  }
+
+  // Appends a finished attempt to the session under way and persists it.
+  function fileAttempt(attempt) {
     let measureEntry = currentSession.measures.find(
-      (m) => m.sourceMeasureIndex === currentMeasureAttempt.sourceMeasureIndex
+      (m) => m.sourceMeasureIndex === attempt.sourceMeasureIndex
     )
 
     if (!measureEntry) {
-      measureEntry = {
-        sourceMeasureIndex: currentMeasureAttempt.sourceMeasureIndex,
-        attempts: [],
-      }
+      measureEntry = { sourceMeasureIndex: attempt.sourceMeasureIndex, attempts: [] }
       currentSession.measures.push(measureEntry)
     }
 
     measureEntry.attempts.push({
-      startedAt: currentMeasureAttempt.startedAt,
-      durationMs: currentMeasureAttempt.durationMs,
-      wrongNotes: currentMeasureAttempt.wrongNotes,
-      clean: currentMeasureAttempt.clean,
-      hands: currentMeasureAttempt.hands,
+      startedAt: attempt.startedAt,
+      durationMs: attempt.durationMs,
+      wrongNotes: attempt.wrongNotes,
+      clean: attempt.clean,
+      hands: attempt.hands,
     })
-
-    const completedAttempt = { ...currentMeasureAttempt }
-    currentMeasureAttempt = null
 
     // Save session incrementally (don't await - fire and forget)
     storage.saveSession({ ...currentSession })
@@ -535,8 +551,6 @@ export function initPracticeTracker(storageInstance = null) {
     // showing "Untitled". Ensure the title/composer land early and cheaply,
     // without touching the stats that endSession() is responsible for.
     ensureAggregateTitle(currentSession.scoreId, currentScoreTitle, currentComposer)
-
-    return completedAttempt
   }
 
   function markScoreCompleted() {
@@ -544,9 +558,12 @@ export function initPracticeTracker(storageInstance = null) {
     currentSession.completedAt = new Date().toISOString()
   }
 
-  function restartPlaythrough() {
+  // `at` (an ISO string) dates the restart, for a caller that knows when the
+  // run began better than the moment it tells us about it — strict mode files
+  // its run once it is over.
+  function restartPlaythrough(at = new Date().toISOString()) {
     if (!currentSession) return
-    currentSession.playthroughStartedAt = new Date().toISOString()
+    currentSession.playthroughStartedAt = at
   }
 
   async function endSession() {
