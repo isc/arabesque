@@ -12,6 +12,21 @@ let activeOsmd = null
 let activeAllNotes = null
 
 const GRACE_NOTE_DURATION_S = 0.08
+
+// How hard playback presses each key. The engine has no dynamics of its own, so
+// this one value *is* the playback level, and it has to sit under the touch of
+// someone practising — it was a forte, so ▶ Écouter came out of the player's own
+// piano much louder than their own playing.
+//
+// Deliberately a velocity and not a volume (CC 7) or expression (CC 11)
+// message: a CC turns the instrument itself down, and would have to be restored
+// on every way playback can end — ⏹, a seek, the last note, a closed tab, a
+// pulled cable — any one of them missed leaving the piano quiet under the
+// player's own hands. A velocity only describes the note it is sent with, so
+// there is nothing to put back.
+const PLAYBACK_VELOCITY = 0.5
+const PLAYBACK_VELOCITY_BYTE = Math.round(PLAYBACK_VELOCITY * 127) // 64
+
 // Must match GRACE_NOTE_OFFSET in noteExtraction.js adjustGraceNoteTimestamps
 const GRACE_NOTE_OFFSET_WN = 0.0001
 
@@ -34,9 +49,12 @@ function sendMidi(midiBytes, pianoFn) {
   }
 }
 
-function noteOn(midiNumber, velocity) {
+function noteOn(midiNumber) {
   activeNotes.add(midiNumber)
-  sendMidi([0x90, midiNumber, Math.round(velocity * 127)], (p) => p.keyDown({ midi: midiNumber, velocity }))
+  sendMidi(
+    [0x90, midiNumber, PLAYBACK_VELOCITY_BYTE],
+    (p) => p.keyDown({ midi: midiNumber, velocity: PLAYBACK_VELOCITY }),
+  )
 }
 
 function noteOff(midiNumber) {
@@ -282,7 +300,7 @@ function startPlayback(allNotes, osmdInstance, startMeasureIndex = 0) {
       }
 
       if (!n.isTieContinuation) {
-        scheduledTimeouts.push(setTimeout(() => noteOn(n.midiNumber, 0.7), startMs))
+        scheduledTimeouts.push(setTimeout(() => noteOn(n.midiNumber), startMs))
       }
       scheduledTimeouts.push(setTimeout(() => noteOff(n.midiNumber), startMs + durationMs))
 

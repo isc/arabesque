@@ -19,9 +19,11 @@ export const CHANGELOG = [
     date: '2026-09-03',
     items: {
       fr: [
+        "▶ Écouter ne fait plus sursauter. L'app appuyait les touches du clavier à une nuance forte, bien au-dessus de ce qu'on joue soi-même en travaillant : le morceau sortait de l'instrument beaucoup plus fort que sa propre main. Elle joue maintenant un cran en dessous d'un toucher normal. Le volume de l'instrument, lui, n'est jamais touché : dès qu'on se remet à jouer, c'est son propre toucher qui décide, comme avant.",
         "Les partitions ne sont plus criblées de chiffres. Une cinquantaine de nombres isolés flottaient au-dessus des portées de l'Arabesque, et il y en avait dans cinq autres partitions : des changements de tempo écrits pour la lecture automatique du logiciel de saisie, qui n'ont rien à dire à un pianiste. Ils quittent la page. Les indications réelles — Andantino con moto, rit., a tempo — restent en place.",
       ],
       en: [
+        "▶ Écouter no longer makes you jump. The app pressed the keys at a forte, well above what you play yourself while practising, so the piece came out of the instrument far louder than your own hand. It now plays a step below a normal touch. The instrument's own volume is never touched: the moment you go back to playing, your touch decides, as before.",
         'Scores are no longer littered with numbers. Some fifty lone numbers floated above the staves of the Arabesque, and five other scores carried them too: tempo changes written for the playback of the software they were typeset in, with nothing to say to a pianist. They leave the page. The real markings — Andantino con moto, rit., a tempo — stay where they are.',
       ],
     },

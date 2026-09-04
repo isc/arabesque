@@ -1,5 +1,14 @@
 2026-09-03
 
+- **L'écoute ne couvre plus le jeu.** Le moteur de lecture envoyait toutes ses
+  notes à vélocité 89 — un forte —, alors qu'on travaille autour de 70 : le
+  morceau joué par l'app sortait du clavier bien plus fort que sa propre main.
+  Les notes partent maintenant à vélocité 64, un cran sous un toucher normal.
+  C'est bien la vélocité qui baisse, pas le volume de l'instrument (CC 7) :
+  aucun réglage à remettre en place à l'arrêt, au saut de mesure ou à la
+  fermeture de l'onglet, donc aucun risque de laisser le piano baissé pour le
+  joueur.
+
 - **Les partitions ne sont plus criblées de chiffres.** L'Arabesque portait 52
   nombres isolés au-dessus des portées, et cinq autres partitions en comptaient
   une soixantaine à elles toutes : les changements de tempo que MuseScore écrit
