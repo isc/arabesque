@@ -204,11 +204,11 @@ class CapybaraTestBase < Minitest::Test
   def wait_for_records(store, where: 'true', count: 1, timeout: Capybara.default_max_wait_time)
     deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + timeout
     loop do
-      matching = count_records(store, where)
-      return if matching >= count
+      matching = count_records(store, where, deadline)
+      return if matching && matching >= count
 
       if Process.clock_gettime(Process::CLOCK_MONOTONIC) > deadline
-        flunk "'#{store}' still held #{matching} record(s) matching #{where.inspect} " \
+        flunk "'#{store}' still held #{matching || 0} record(s) matching #{where.inspect} " \
               "after #{timeout}s, expected #{count}"
       end
       sleep 0.05
@@ -322,13 +322,18 @@ class CapybaraTestBase < Minitest::Test
 
   private
 
-  # The count is left on a global and picked up by plain, synchronous
-  # evaluations rather than returned by evaluate_async_script — which arms a
+  # How many records the store holds, or nil if IndexedDB has not answered by
+  # `deadline` — which wait_for_records, the only caller, owns: its timeout is
+  # the only one, so a failure carries the message that names the store.
+  #
+  # The count is left on a global and picked up by a plain, synchronous
+  # evaluation rather than returned by evaluate_async_script, which arms a
   # timer of its own inside the page to enforce its timeout. After a test has
   # driven the virtual clock (see with_clock_control), that timer is due the
   # instant it is set, so the script reports a timeout before IndexedDB has had
-  # any chance to answer, whatever the store holds.
-  def count_records(store, where)
+  # any chance to answer, whatever the store holds. wait_for_store and
+  # seed_store have the same hazard but run before the clock is driven.
+  def count_records(store, where, deadline)
     page.execute_script(<<~JS, store)
       const store = arguments[0];
       window.__recordCount = null;
@@ -346,12 +351,10 @@ class CapybaraTestBase < Minitest::Test
       };
     JS
 
-    deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + Capybara.default_max_wait_time
     loop do
       count = page.evaluate_script('window.__recordCount')
       return count if count
-      flunk "the page never answered how many records '#{store}' holds" if
-        Process.clock_gettime(Process::CLOCK_MONOTONIC) > deadline
+      return nil if Process.clock_gettime(Process::CLOCK_MONOTONIC) > deadline
 
       sleep 0.02
     end

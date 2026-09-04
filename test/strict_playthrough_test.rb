@@ -24,22 +24,7 @@ class StrictPlaythroughTest < CapybaraTestBase
 
     start_strict_mode
 
-    with_clock_control do
-      trigger_click_on('▶ Démarrer')
-
-      # Sync on the engine opening the timing window (cursor arrival at T=2s).
-      advance_clock(2000)
-      assert_selector 'svg g.vf-notehead.expected-note', wait: 4
-
-      # The clock is parked exactly on the note's instant, so the chord lands
-      # dead centre of the tolerance window rather than wherever the runner
-      # happened to schedule it.
-      play_chord(%w[C4 E4 G4])
-
-      # Past the last event's off-tempo window (450ms) and the 300ms tail.
-      advance_clock(1000)
-      assert_text 'Playthrough strict terminé', wait: 2
-    end
+    play_perfect_chord_run
 
     assert_text '100%'
     assert_text '3 sur 3'
@@ -75,16 +60,7 @@ class StrictPlaythroughTest < CapybaraTestBase
     wait_for_score_render(1)
     start_strict_mode
 
-    with_clock_control do
-      trigger_click_on('▶ Démarrer')
-
-      advance_clock(2000)
-      assert_selector 'svg g.vf-notehead.expected-note', wait: 4
-      play_chord(%w[C4 E4 G4])
-
-      advance_clock(1000)
-      assert_text 'Playthrough strict terminé', wait: 2
-    end
+    play_perfect_chord_run
 
     # Leaving the page before the session lands would lose it from the journal.
     wait_for_records('sessions', where: 'record.completedAt && record.measures.length === 1')
@@ -138,5 +114,26 @@ class StrictPlaythroughTest < CapybaraTestBase
   def start_strict_mode(bpm: 120)
     click_on '⏱ Mode strict'
     fill_in 'Tempo en BPM', with: bpm.to_s
+  end
+
+  # One flawless run of chord.xml at the tempo start_strict_mode set, from
+  # ▶ Démarrer to the result modal.
+  def play_perfect_chord_run
+    with_clock_control do
+      trigger_click_on('▶ Démarrer')
+
+      # Sync on the engine opening the timing window (cursor arrival at T=2s).
+      advance_clock(2000)
+      assert_selector 'svg g.vf-notehead.expected-note', wait: 4
+
+      # The clock is parked exactly on the note's instant, so the chord lands
+      # dead centre of the tolerance window rather than wherever the runner
+      # happened to schedule it.
+      play_chord(%w[C4 E4 G4])
+
+      # Past the last event's off-tempo window (450ms) and the 300ms tail.
+      advance_clock(1000)
+      assert_text 'Playthrough strict terminé', wait: 2
+    end
   end
 end
