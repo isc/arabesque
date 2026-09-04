@@ -260,6 +260,7 @@ export function initPracticeTracker(storageInstance = null) {
     startMeasureAttempt,
     recordWrongNote,
     endMeasureAttempt,
+    recordMeasureAttempt,
     markScoreCompleted,
     restartPlaythrough,
     endSession,
@@ -500,31 +501,38 @@ export function initPracticeTracker(storageInstance = null) {
       currentMeasureAttempt.clean = clean
     }
 
-    let measureEntry = currentSession.measures.find(
-      (m) => m.sourceMeasureIndex === currentMeasureAttempt.sourceMeasureIndex
-    )
+    const completedAttempt = { ...currentMeasureAttempt }
+    currentMeasureAttempt = null
+    recordMeasureAttempt(completedAttempt)
+    return completedAttempt
+  }
+
+  // Appends a finished attempt to the session under way and persists it. The
+  // caller timed the attempt itself, which is how strict mode files a run: it
+  // is driven by the metronome rather than by the notes played, so a measure's
+  // verdict is only settled once its last off-tempo window has closed — well
+  // after the measure itself is over — and the whole run is handed over at the
+  // end, each measure already timed from the tempo it was played at.
+  //
+  // `persist` skips the incremental save when the caller commits the session
+  // itself right after: filing a whole run would otherwise write the session,
+  // growing as it goes, once per measure.
+  function recordMeasureAttempt(
+    { sourceMeasureIndex, startedAt, durationMs, wrongNotes = 0, clean = true, hands = TWO_HANDS },
+    { persist = true } = {}
+  ) {
+    if (!currentSession) return
+    let measureEntry = currentSession.measures.find((m) => m.sourceMeasureIndex === sourceMeasureIndex)
 
     if (!measureEntry) {
-      measureEntry = {
-        sourceMeasureIndex: currentMeasureAttempt.sourceMeasureIndex,
-        attempts: [],
-      }
+      measureEntry = { sourceMeasureIndex, attempts: [] }
       currentSession.measures.push(measureEntry)
     }
 
-    measureEntry.attempts.push({
-      startedAt: currentMeasureAttempt.startedAt,
-      durationMs: currentMeasureAttempt.durationMs,
-      wrongNotes: currentMeasureAttempt.wrongNotes,
-      clean: currentMeasureAttempt.clean,
-      hands: currentMeasureAttempt.hands,
-    })
-
-    const completedAttempt = { ...currentMeasureAttempt }
-    currentMeasureAttempt = null
+    measureEntry.attempts.push({ startedAt, durationMs, wrongNotes, clean, hands })
 
     // Save session incrementally (don't await - fire and forget)
-    storage.saveSession({ ...currentSession })
+    if (persist) storage.saveSession({ ...currentSession })
 
     // Full aggregate stats (totalSessions, measures, practice time) are only
     // ever accumulated once, in endSession(). But endSession() only reliably
@@ -535,8 +543,6 @@ export function initPracticeTracker(storageInstance = null) {
     // showing "Untitled". Ensure the title/composer land early and cheaply,
     // without touching the stats that endSession() is responsible for.
     ensureAggregateTitle(currentSession.scoreId, currentScoreTitle, currentComposer)
-
-    return completedAttempt
   }
 
   function markScoreCompleted() {
@@ -544,9 +550,12 @@ export function initPracticeTracker(storageInstance = null) {
     currentSession.completedAt = new Date().toISOString()
   }
 
-  function restartPlaythrough() {
+  // `at` (an ISO string) dates the restart, for a caller that knows when the
+  // run began better than the moment it tells us about it — strict mode files
+  // its run once it is over.
+  function restartPlaythrough(at = new Date().toISOString()) {
     if (!currentSession) return
-    currentSession.playthroughStartedAt = new Date().toISOString()
+    currentSession.playthroughStartedAt = at
   }
 
   async function endSession() {
@@ -588,23 +597,22 @@ export function initPracticeTracker(storageInstance = null) {
   }
 
   // Cheap, idempotent title/composer upsert — see the call site in
-  // endMeasureAttempt() for why this can't just be an early call to
+  // recordMeasureAttempt() for why this can't just be an early call to
   // updateAggregates(), which accumulates stats and must run exactly once.
   // Skips the IndexedDB round-trip once a session has already ensured it.
   async function ensureAggregateTitle(scoreId, title, composer) {
     if (aggregateTitleEnsured || (!title && !composer)) return
+    // Claimed before the first await: filing a whole run calls this once per
+    // measure in a single tick, and a flag set at the end would let every one
+    // of those calls through the guard.
+    aggregateTitleEnsured = true
 
     const aggregate = (await storage.getAggregate(scoreId)) || createDefaultAggregate(scoreId)
-
-    if (aggregate.scoreTitle && aggregate.composer) {
-      aggregateTitleEnsured = true
-      return
-    }
+    if (aggregate.scoreTitle && aggregate.composer) return
 
     if (title) aggregate.scoreTitle = title
     if (composer) aggregate.composer = composer
     await storage.saveAggregate(aggregate)
-    aggregateTitleEnsured = true
   }
 
   // `meta` ({ title, composer }) overrides the live-session metadata — used when

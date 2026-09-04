@@ -24,22 +24,7 @@ class StrictPlaythroughTest < CapybaraTestBase
 
     start_strict_mode
 
-    with_clock_control do
-      trigger_click_on('▶ Démarrer')
-
-      # Sync on the engine opening the timing window (cursor arrival at T=2s).
-      advance_clock(2000)
-      assert_selector 'svg g.vf-notehead.expected-note', wait: 4
-
-      # The clock is parked exactly on the note's instant, so the chord lands
-      # dead centre of the tolerance window rather than wherever the runner
-      # happened to schedule it.
-      play_chord(%w[C4 E4 G4])
-
-      # Past the last event's off-tempo window (450ms) and the 300ms tail.
-      advance_clock(1000)
-      assert_text 'Playthrough strict terminé', wait: 2
-    end
+    play_perfect_chord_run
 
     assert_text '100%'
     assert_text '3 sur 3'
@@ -62,6 +47,29 @@ class StrictPlaythroughTest < CapybaraTestBase
 
     assert_text '0%'
     assert_text '3 manquées'
+  end
+
+  # Regression: a strict run used to leave no trace at all — its notes go to the
+  # strict engine instead of the score's cursor, so nothing ever fed the
+  # practice tracker and a piece played end to end in strict mode was missing
+  # from the practice journal.
+  def test_full_run_lands_in_the_practice_journal
+    # From the catalog rather than an upload: a session is only opened for a
+    # score that has a URL, and there is nothing to record without one.
+    visit '/score.html?url=/test-fixtures/chord.xml'
+    wait_for_score_render(1)
+    start_strict_mode
+
+    play_perfect_chord_run
+
+    # Leaving the page before the session lands would lose it from the journal.
+    wait_for_records('sessions', where: 'record.completedAt && record.measures.length === 1')
+
+    visit '/library.html'
+    within '#daily-log' do
+      assert_text 'Chord Test'
+      assert_text 'Joué en entier'
+    end
   end
 
   # Regression: when the cursor crosses a repeat barline, free mode wipes the
@@ -106,5 +114,26 @@ class StrictPlaythroughTest < CapybaraTestBase
   def start_strict_mode(bpm: 120)
     click_on '⏱ Mode strict'
     fill_in 'Tempo en BPM', with: bpm.to_s
+  end
+
+  # One flawless run of chord.xml at the tempo start_strict_mode set, from
+  # ▶ Démarrer to the result modal.
+  def play_perfect_chord_run
+    with_clock_control do
+      trigger_click_on('▶ Démarrer')
+
+      # Sync on the engine opening the timing window (cursor arrival at T=2s).
+      advance_clock(2000)
+      assert_selector 'svg g.vf-notehead.expected-note', wait: 4
+
+      # The clock is parked exactly on the note's instant, so the chord lands
+      # dead centre of the tolerance window rather than wherever the runner
+      # happened to schedule it.
+      play_chord(%w[C4 E4 G4])
+
+      # Past the last event's off-tempo window (450ms) and the 300ms tail.
+      advance_clock(1000)
+      assert_text 'Playthrough strict terminé', wait: 2
+    end
   end
 end

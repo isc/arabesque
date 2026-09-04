@@ -90,6 +90,36 @@ describe('practiceTracker', () => {
     })
   })
 
+  // A strict run is handed over once it is over, each measure already timed at
+  // the tempo it was played at, and it must reach the journal like any other
+  // practice: measures worked, practice time, run played in full.
+  describe('pre-timed attempts', () => {
+    beforeEach(() => {
+      tracker.startSession('/scores/test.xml', 'Test', 'Composer', 'free', 2)
+    })
+
+    it('files pre-timed attempts and puts the run in the daily log', async () => {
+      const startedAt = new Date(Date.now() - 4000).toISOString()
+      tracker.restartPlaythrough(startedAt)
+      tracker.recordMeasureAttempt({ sourceMeasureIndex: 0, startedAt, durationMs: 2000, hands: 'both' })
+      tracker.recordMeasureAttempt({
+        sourceMeasureIndex: 1,
+        startedAt: new Date(Date.now() - 2000).toISOString(),
+        durationMs: 2000,
+        wrongNotes: 1,
+        clean: false,
+        hands: 'both',
+      })
+      tracker.markScoreCompleted()
+      await tracker.endSession()
+
+      const [entry] = await tracker.getDailyLog(new Date())
+      expect(entry.measuresWorked).toEqual([0, 1])
+      expect(entry.totalPracticeTimeMs).toBe(4000)
+      expect(entry.timesPlayedInFull).toBe(1)
+    })
+  })
+
   describe('session duration', () => {
     it('calculates duration based only on measure timestamps, not session start time', async () => {
       tracker.startSession('/scores/test.xml', 'Test', 'Composer', 'training')

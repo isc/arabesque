@@ -18,6 +18,14 @@
   dire à un pianiste. Ils sont retirés de la partition avant la mise en page ;
   les indications réelles (Andantino con moto, rit., a tempo) restent.
 
+- **Le mode strict compte comme du travail.** Un morceau joué en entier au
+  métronome ne laissait aucune trace : ni temps de pratique, ni mesures
+  travaillées, ni « joué en entier » dans le journal — les notes vont au moteur
+  du mode strict, jamais au curseur de la partition qui alimente le suivi.
+  Chaque passage est maintenant enregistré mesure par mesure, avec ses notes
+  manquées et ses fausses notes, et un passage du début à la fin sans note
+  manquée compte comme un jeu complet.
+
 2026-09-02
 
 - **Une fausse note se voit.** En mode entraînement, un point ne se remplit que

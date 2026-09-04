@@ -21,10 +21,12 @@ export const CHANGELOG = [
       fr: [
         "▶ Écouter ne fait plus sursauter. L'app appuyait les touches du clavier à une nuance forte, bien au-dessus de ce qu'on joue soi-même en travaillant : le morceau sortait de l'instrument beaucoup plus fort que sa propre main. Elle joue maintenant un cran en dessous d'un toucher normal. Le volume de l'instrument, lui, n'est jamais touché : dès qu'on se remet à jouer, c'est son propre toucher qui décide, comme avant.",
         "Les partitions ne sont plus criblées de chiffres. Une cinquantaine de nombres isolés flottaient au-dessus des portées de l'Arabesque, et il y en avait dans cinq autres partitions : des changements de tempo écrits pour la lecture automatique du logiciel de saisie, qui n'ont rien à dire à un pianiste. Ils quittent la page. Les indications réelles — Andantino con moto, rit., a tempo — restent en place.",
+        "Le mode strict compte comme du travail. Un morceau joué en entier au métronome ne laissait aucune trace : ni temps de pratique, ni mesures travaillées, ni « joué en entier » dans le journal. Chaque passage est maintenant enregistré, mesure par mesure, et un morceau joué du début à la fin sans note manquée compte comme un jeu complet.",
       ],
       en: [
         "▶ Écouter no longer makes you jump. The app pressed the keys at a forte, well above what you play yourself while practising, so the piece came out of the instrument far louder than your own hand. It now plays a step below a normal touch. The instrument's own volume is never touched: the moment you go back to playing, your touch decides, as before.",
         'Scores are no longer littered with numbers. Some fifty lone numbers floated above the staves of the Arabesque, and five other scores carried them too: tempo changes written for the playback of the software they were typeset in, with nothing to say to a pianist. They leave the page. The real markings — Andantino con moto, rit., a tempo — stay where they are.',
+        'Strict mode now counts as practice. A piece played end to end with the metronome left no trace at all: no practice time, no bars worked, no "played in full" in the journal. Every run is now recorded bar by bar, and a run from the top with no missed note counts as the piece played in full.',
       ],
     },
   },

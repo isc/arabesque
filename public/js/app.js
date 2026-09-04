@@ -59,12 +59,24 @@ export function midiApp() {
   // Orders the reinforcement refreshes fired at every measure boundary (see
   // refreshReinforcementSuggestions).
   let reinforcementRefreshSeq = 0
+  // The last strict run being filed. Awaited by anything that would otherwise
+  // end the same session underneath it (see setMode): closing a session twice
+  // credits its practice time twice.
+  let strictRunRecorded = Promise.resolve()
   // The end of a session is the moment its data becomes worth pushing: runSync
   // only takes sessions that have ended, so a playthrough finished here would
   // otherwise sit on this device until the data page is opened.
   async function endSessionAndSync() {
     await practiceTracker.endSession()
     triggerSync('session ended')
+  }
+
+  // Opens the next session on the score being played. Every completion path
+  // closes the session its playthrough belonged to and opens a fresh one, so
+  // the score's title and measure count are pulled from the sheet in one place.
+  function startFreshSession(scoreUrl, mode) {
+    const metadata = musicxml.getScoreMetadata()
+    practiceTracker.startSession(scoreUrl, metadata.title, metadata.composer, mode, metadata.totalMeasures)
   }
 
   return {
@@ -229,8 +241,7 @@ export function midiApp() {
           this.showScoreComplete(allPlaythroughs)
 
           // Start new session for next playthrough
-          const metadata = musicxml.getScoreMetadata()
-          practiceTracker.startSession(this.scoreUrl, metadata.title, metadata.composer, 'free', metadata.totalMeasures)
+          startFreshSession(this.scoreUrl, 'free')
 
           await this.refreshReinforcementSuggestions()
         },
@@ -238,8 +249,7 @@ export function midiApp() {
           this.openResultModal('training')
           await endSessionAndSync()
           // Start new session for next playthrough
-          const metadata = musicxml.getScoreMetadata()
-          practiceTracker.startSession(this.scoreUrl, metadata.title, metadata.composer, 'training', metadata.totalMeasures)
+          startFreshSession(this.scoreUrl, 'training')
         },
         onMeasureStarted: (sourceMeasureIndex, startsPlaythrough) => {
           practiceTracker.startMeasureAttempt(sourceMeasureIndex, startsPlaythrough, this.activeHands)
@@ -264,8 +274,7 @@ export function midiApp() {
           this.openResultModal('reinforcement')
 
           // Start new free session so subsequent play is tracked
-          const metadata = musicxml.getScoreMetadata()
-          practiceTracker.startSession(this.scoreUrl, metadata.title, metadata.composer, 'free', metadata.totalMeasures)
+          startFreshSession(this.scoreUrl, 'free')
         },
         onMeasureClicked: (measureIndex) => {
           // While listening, a measure click seeks playback there instead of
@@ -398,9 +407,8 @@ export function midiApp() {
         return
       }
 
-      const metadata = musicxml.getScoreMetadata()
       await trackerReady
-      practiceTracker.startSession(url, metadata.title, metadata.composer, 'free', metadata.totalMeasures)
+      startFreshSession(url, 'free')
 
       // Suggestions from the score's recent history, before a note is played
       await this.refreshReinforcementSuggestions()
@@ -571,6 +579,9 @@ export function midiApp() {
         onComplete: (result) => {
           this.isStrictPlaying = false
           this.strictResult = result
+          // Not awaited here: the result modal is not going to wait on
+          // IndexedDB, and the run is already fully described by `result`.
+          strictRunRecorded = this.recordStrictRun(result)
           if (!result.aborted) {
             // A clean finish resets the start point so the next ▶ replays
             // from the top; aborted runs keep it for retry from the same spot.
@@ -582,6 +593,33 @@ export function midiApp() {
       })
     },
 
+    // A strict run is practice like any other, and until it was filed here it
+    // left no trace at all: its notes go to the strict engine instead of the
+    // score's cursor, so none of the measure callbacks that feed the tracker in
+    // free mode ever fire. The engine hands back the run measure by measure,
+    // already timed at the tempo it was played at, and says whether it counts
+    // as the piece played in full. A run nobody played to (the metronome
+    // ticking on an empty keyboard) is not practice and is not recorded.
+    async recordStrictRun(result) {
+      if (!this.scoreUrl || !result.measures.length) return
+      const notesPlayed = result.hit + result.offTempoEarly + result.offTempoLate + result.wrongNotes
+      if (notesPlayed === 0) return
+
+      if (result.fromTheTop) practiceTracker.restartPlaythrough(result.measures[0].startedAt)
+      // Not persisted attempt by attempt: endSessionAndSync() below commits the
+      // session once, instead of rewriting it once per measure of the run.
+      for (const attempt of result.measures) {
+        practiceTracker.recordMeasureAttempt(attempt, { persist: false })
+      }
+      if (result.completed) practiceTracker.markScoreCompleted()
+
+      // One session per run: a session carries at most one playthrough, and
+      // ending it here is what credits the practice time to the journal.
+      await endSessionAndSync()
+      startFreshSession(this.scoreUrl, 'free')
+      await this.refreshReinforcementSuggestions()
+    },
+
     // Reinforcement is a flavor of training, so currentMode reports
     // 'training' for it — the segmented control stays on the training tab.
     get currentMode() {
@@ -590,9 +628,15 @@ export function midiApp() {
       return 'free'
     },
 
-    setMode(name) {
+    async setMode(name) {
       if (this.currentMode === name) return
-      if (this.isStrictPlaying) strictPlaythrough.stop()
+      if (this.isStrictPlaying) {
+        strictPlaythrough.stop()
+        // The run stopped by the switch closes the session it was played in;
+        // the mode being switched to opens the next one. Sequenced, or the two
+        // ends race and the session is credited twice.
+        await strictRunRecorded
+      }
       if (this.strictSelected) {
         this.strictSelected = false
         this.strictStartMeasure = 0
@@ -716,8 +760,7 @@ export function midiApp() {
       // mid-piece, and simply starting the training session on top of a free
       // one would strand it with no endedAt (see endSession).
       await endSessionAndSync()
-      const metadata = musicxml.getScoreMetadata()
-      practiceTracker.startSession(this.scoreUrl, metadata.title, metadata.composer, 'training', metadata.totalMeasures)
+      startFreshSession(this.scoreUrl, 'training')
 
       musicxml.setReinforcementMode(measures)
     },

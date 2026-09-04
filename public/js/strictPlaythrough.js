@@ -1,5 +1,12 @@
 import { scheduleCursorAdvances } from './playback.js'
-import { tsToSeconds, buildMeasureStartTimes, buildCursorTimeline, cursorStepsBeforeMeasure } from './playbackTiming.js'
+import {
+  tsToSeconds,
+  buildMeasureStartTimes,
+  buildCursorTimeline,
+  cursorStepsBeforeMeasure,
+  measureDurationTs,
+} from './playbackTiming.js'
+import { handsKey } from './hands.js'
 import {
   isOrnamentOrGrace,
   isNoteActiveForHands,
@@ -37,6 +44,16 @@ let onProgressCb = null
 let activeHands = { right: true, left: true }
 let audioContext = null
 let startedAtPerf = 0
+// Wall clock at the same instant as startedAtPerf, so the run's measures can be
+// dated for the practice journal (see measureAttempts).
+let startedAtWall = 0
+// One entry per measure of the run, in playback order, holding when it played
+// and what went wrong in it (see measureAttempts).
+let measureRuns = []
+// Where the run was started from, kept for the result: teardown() runs before
+// the callback, and a run from the top is what can count as the piece played
+// in full.
+let runStartMeasureIndex = 0
 let currentToleranceMs = DEFAULT_TOLERANCE_MS
 let currentOffTempoWindowMs = DEFAULT_OFFTEMPO_WINDOW_MS
 
@@ -86,20 +103,20 @@ function quarterBeatsInFirstMeasure(sourceMeasures) {
   return Math.max(1, Math.round(dur * 4))
 }
 
-// Returns [{ atMs, sources }] for each repeat-boundary crossing in allNotes.
+// Returns [{ atMs, sources }] for each repeat-boundary crossing in allNotes,
+// dated off the same measureRuns entries the practice journal is dated from.
 // Caller schedules the actual class-clear timeouts. Ordering matters at the
 // scheduling site: when a chord lands on the first beat of a repeated
 // measure, the reset must be enqueued before the chord's window-open so FIFO
 // on equal-time setTimeouts fires the reset first — otherwise the new
 // expected-note class lands and is immediately wiped.
-function planRepeatResets(allNotes, measureStartTimes, bpm, countInMs) {
+function planRepeatResets(allNotes, runs) {
   const playedSources = new Set([allNotes[0].sourceMeasureIndex])
   const plans = []
   for (let i = 0; i < allNotes.length - 1; i++) {
     const sources = sourceMeasuresToResetOnEntry(allNotes, i, i + 1, playedSources)
     if (sources.size > 0) {
-      const atMs = countInMs + tsToSeconds(measureStartTimes[i + 1], bpm) * 1000
-      plans.push({ atMs, sources })
+      plans.push({ atMs: runs[i + 1].startMs, sources })
     }
     playedSources.add(allNotes[i + 1].sourceMeasureIndex)
   }
@@ -134,6 +151,7 @@ function start({
   currentOffTempoWindowMs = offTempoWindow
   isRunning = true
 
+  runStartMeasureIndex = startMeasureIndex
   const sourceMeasures = osmdInstance.Sheet.SourceMeasures
   const cursorSkipSteps = cursorStepsBeforeMeasure(allNotes, startMeasureIndex, sourceMeasures, bpm)
   allNotes = allNotes.slice(startMeasureIndex)
@@ -143,6 +161,12 @@ function start({
   const countInMs = resolvedCountInBeats * beatMs
 
   pendingEvents = []
+  measureRuns = allNotes.map((measureData, i) => ({
+    sourceMeasureIndex: measureData.sourceMeasureIndex,
+    startMs: countInMs + tsToSeconds(measureStartTimes[i], bpm) * 1000,
+    durationMs: tsToSeconds(measureDurationTs(measureData, sourceMeasures), bpm) * 1000,
+    wrongNotes: 0,
+  }))
   const cursorTimes = buildCursorTimeline(allNotes, measureStartTimes, bpm, countInMs)
 
   // Single pass: look up each notehead once, clear residual strict-mode
@@ -183,6 +207,7 @@ function start({
   }
 
   startedAtPerf = performance.now()
+  startedAtWall = Date.now()
 
   for (let i = 0; i < resolvedCountInBeats; i++) {
     const t = i * beatMs
@@ -206,7 +231,7 @@ function start({
   // when both fire at the same instant (chord on the first beat of a
   // repeated measure), FIFO order on equal-time setTimeouts ensures the wipe
   // runs first and the new expected-note class survives.
-  for (const { atMs, sources } of planRepeatResets(allNotes, measureStartTimes, bpm, countInMs)) {
+  for (const { atMs, sources } of planRepeatResets(allNotes, measureRuns)) {
     timeouts.push(setTimeout(() => {
       for (const event of pendingEvents) {
         if (sources.has(event.sourceMeasureIndex)) {
@@ -249,6 +274,10 @@ function handleNoteOn(midiNumber) {
   const match = findMatchingEvent(pendingEvents, midiNumber, now, currentOffTempoWindowMs)
   if (!match) {
     stats.wrongNotes++
+    // Charged to the measure being played through. Anything struck during the
+    // count-in belongs to no measure and is only counted in the run's stats.
+    const run = runAt(now)
+    if (run) run.wrongNotes++
     onProgressCb?.({ ...stats })
     return false
   }
@@ -270,6 +299,53 @@ function handleNoteOn(midiNumber) {
   return true
 }
 
+// The measure being played through at `ms` from the start of the run, or null
+// while the count-in is still going.
+function runAt(ms) {
+  let current = null
+  for (const run of measureRuns) {
+    if (ms < run.startMs) break
+    current = run
+  }
+  return current
+}
+
+// The run, measure by measure, in the shape the practice tracker files an
+// attempt in — the piece practised in strict mode is practice like any other,
+// and this is what puts it in the journal.
+//
+// A measure only counts once every note it expected has a verdict: the run is
+// driven by the metronome, so a measure is over well before its last off-tempo
+// window closes, and a run stopped mid-piece leaves that tail undecided. Timing
+// comes from the tempo rather than from a clock read at each boundary — that is
+// exactly what the player played to.
+function measureAttempts() {
+  const expected = new Map()
+  for (const event of pendingEvents) {
+    const counts = expected.get(event.measureIndex) ?? { missed: 0, pending: 0 }
+    if (event.status === EVENT_STATUS.MISSED) counts.missed++
+    if (event.status === EVENT_STATUS.PENDING) counts.pending++
+    expected.set(event.measureIndex, counts)
+  }
+
+  const hands = handsKey(activeHands)
+  const attempts = []
+  for (const [index, counts] of expected) {
+    if (counts.pending > 0) continue
+    const run = measureRuns[index]
+    attempts.push({
+      sourceMeasureIndex: run.sourceMeasureIndex,
+      startedAt: new Date(startedAtWall + run.startMs).toISOString(),
+      durationMs: Math.round(run.durationMs),
+      wrongNotes: run.wrongNotes,
+      clean: counts.missed === 0 && run.wrongNotes === 0,
+      hands,
+    })
+  }
+  // pendingEvents is sorted by time, so the attempts come out in playing order.
+  return attempts
+}
+
 function teardown() {
   for (const id of timeouts) clearTimeout(id)
   timeouts = []
@@ -287,14 +363,21 @@ function teardown() {
   }
   activeOsmd = null
   pendingEvents = []
+  measureRuns = []
 }
 
 function finish(aborted) {
   if (!isRunning) return
   isRunning = false
   const finalStats = stats
+  const measures = measureAttempts()
+  // Played from the top with every expected note played: the piece practised
+  // in full. Same bar as free mode, where the cursor never gets past a note
+  // that wasn't played.
+  const fromTheTop = runStartMeasureIndex === 0
+  const completed = fromTheTop && !aborted && finalStats.missed === 0
   teardown()
-  onCompleteCb?.({ ...finalStats, aborted })
+  onCompleteCb?.({ ...finalStats, aborted, measures, fromTheTop, completed })
 }
 
 function stop() {
