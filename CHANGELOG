@@ -1,3 +1,14 @@
+2026-09-04
+
+- **Le clic du mode strict peut sortir dans le piano.** Il partait du haut-parleur
+  de l'appareil qui affiche la partition, donc au casque branché sur
+  l'instrument on s'entendait jouer sans entendre le métronome. Une bascule dans
+  le menu ⚙️ l'envoie au piano, en note de percussion sur le canal 10 —
+  le wood block d'un appareil General MIDI. Tous les instruments ne répondent
+  pas sur ce canal et rien ne permet de le leur demander, d'où le réglage :
+  on l'active et on juge à l'oreille. Sans sortie MIDI connectée, le clic
+  revient tout seul au haut-parleur.
+
 2026-09-03
 
 - **L'écoute ne couvre plus le jeu.** Le moteur de lecture envoyait toutes ses

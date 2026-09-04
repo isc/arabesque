@@ -15,6 +15,9 @@ export default {
     privacy: '🔒 Privacy',
     install: '📲 Install the app',
     language: 'Language',
+    metronome: 'Metronome',
+    metronomeMidi: '🥁 Click through the piano',
+    metronomeMidiHint: 'Sends the strict-mode click to the piano, so it reaches your headphones. Not every instrument answers it.',
   },
   // Which hands a run through the score was played with.
   hands: {

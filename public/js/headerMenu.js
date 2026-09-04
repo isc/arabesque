@@ -18,6 +18,7 @@ import { CHANGELOG } from './changelog.js'
 import { feedbackEnabled, buildBaseContext, submitFeedback } from './feedback.js'
 import { getLang, locale } from './i18n.js'
 import { INSTALL_AVAILABLE_EVENT, installAvailable, promptInstall } from './installPrompt.js'
+import { midiClickEnabled, setMidiClickEnabled } from './metronomeClick.js'
 
 const CHANGELOG_SEEN_KEY = 'arabesque:changelog-seen'
 const CHANGELOG_DATE_FORMATTER = new Intl.DateTimeFormat(locale(), {
@@ -52,6 +53,13 @@ export function headerMenu() {
       this.closeMenu()
       promptInstall()
     },
+
+    // --- Metronome click ---
+    // A preference for the app rather than for a page, so it belongs here next
+    // to the language, even though only the score page makes a sound. Why it is
+    // a setting at all is in metronomeClick.js.
+    midiClick: midiClickEnabled(),
+    setMidiClickEnabled,
 
     // --- Changelog ("Nouveautés") ---
     changelog: CHANGELOG,
@@ -143,6 +151,15 @@ const TRIGGER_HTML = `
       <a href="data.html" class="pt-menu-item" @click="closeMenu()" x-text="$t('menu.data')">🗂 Données</a>
       <a href="support.html" class="pt-menu-item" @click="closeMenu()" x-text="$t('menu.support')">🛟 Assistance</a>
       <a href="privacy.html" class="pt-menu-item" @click="closeMenu()" x-text="$t('menu.privacy')">🔒 Confidentialité</a>
+    </div>
+    <hr />
+    <div class="pt-popover__section">
+      <h4 x-text="$t('menu.metronome')">Métronome</h4>
+      <label>
+        <input type="checkbox" x-model="midiClick" @change="setMidiClickEnabled(midiClick)" />
+        <span x-text="$t('menu.metronomeMidi')">🥁 Clic dans le piano</span>
+      </label>
+      <small x-text="$t('menu.metronomeMidiHint')">Envoie le clic du mode strict au piano, pour l’entendre au casque. Tous les instruments n’y répondent pas.</small>
     </div>
     <hr />
     <div class="pt-popover__section">

@@ -7,6 +7,7 @@ import {
   measureDurationTs,
 } from './playbackTiming.js'
 import { handsKey } from './hands.js'
+import { prepareClick, playClick } from './metronomeClick.js'
 import {
   isOrnamentOrGrace,
   isNoteActiveForHands,
@@ -42,7 +43,6 @@ let stats = null
 let onCompleteCb = null
 let onProgressCb = null
 let activeHands = { right: true, left: true }
-let audioContext = null
 let startedAtPerf = 0
 // Wall clock at the same instant as startedAtPerf, so the run's measures can be
 // dated for the practice journal (see measureAttempts).
@@ -65,27 +65,6 @@ export function initStrictPlaythrough() {
     setActiveHands: (h) => { activeHands = { ...activeHands, ...h } },
     get isPlaying() { return isRunning },
   }
-}
-
-function ensureAudio() {
-  if (!audioContext) {
-    audioContext = new (window.AudioContext || window.webkitAudioContext)()
-  }
-  if (audioContext.state === 'suspended') audioContext.resume()
-}
-
-function click({ accent = false } = {}) {
-  if (!audioContext) return
-  const t0 = audioContext.currentTime
-  const osc = audioContext.createOscillator()
-  const gain = audioContext.createGain()
-  osc.frequency.value = accent ? 1500 : 1000
-  gain.gain.setValueAtTime(0.0001, t0)
-  gain.gain.exponentialRampToValueAtTime(0.3, t0 + 0.005)
-  gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.05)
-  osc.connect(gain).connect(audioContext.destination)
-  osc.start(t0)
-  osc.stop(t0 + 0.06)
 }
 
 // One full measure of count-in, expressed in quarter-note beats so it lines up
@@ -143,7 +122,7 @@ function start({
   if (isRunning) return
   if (!osmdInstance || !allNotes?.length) return
 
-  ensureAudio()
+  prepareClick()
   activeOsmd = osmdInstance
   onCompleteCb = onComplete
   onProgressCb = onProgress
@@ -211,7 +190,7 @@ function start({
 
   for (let i = 0; i < resolvedCountInBeats; i++) {
     const t = i * beatMs
-    timeouts.push(setTimeout(() => click({ accent: i === 0 }), t))
+    timeouts.push(setTimeout(() => playClick({ accent: i === 0 }), t))
   }
 
   if (pendingEvents.length > 0) {
@@ -219,7 +198,7 @@ function start({
     const beatsDuringMusic = Math.ceil((lastTimeMs - countInMs) / beatMs) + 1
     for (let i = 0; i <= beatsDuringMusic; i++) {
       const t = countInMs + i * beatMs
-      timeouts.push(setTimeout(() => click({ accent: false }), t))
+      timeouts.push(setTimeout(() => playClick(), t))
     }
   }
 

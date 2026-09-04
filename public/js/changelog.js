@@ -16,6 +16,17 @@
 
 export const CHANGELOG = [
   {
+    date: '2026-09-04',
+    items: {
+      fr: [
+        "Le clic du mode strict peut sortir dans le piano. Il partait du haut-parleur de l'appareil qui affiche la partition : au casque branché sur l'instrument, on s'entendait jouer sans entendre le métronome. Une bascule dans le menu ⚙️ l'envoie au piano. Tous les instruments ne répondent pas à un clic envoyé par MIDI, et rien ne permet de le leur demander à l'avance — on l'active et on juge à l'oreille. Sans piano connecté, le clic revient tout seul au haut-parleur.",
+      ],
+      en: [
+        "The strict-mode click can come out of the piano. It played through the speaker of the device showing the score, so with headphones plugged into the instrument you heard yourself play but not the metronome. A switch in the ⚙️ menu sends it to the piano instead. Not every instrument answers a click sent over MIDI, and there is no way to ask one in advance — turn it on and judge by ear. With no piano connected the click goes back to the speaker on its own.",
+      ],
+    },
+  },
+  {
     date: '2026-09-03',
     items: {
       fr: [
