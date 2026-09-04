@@ -9,6 +9,15 @@
   fermeture de l'onglet, donc aucun risque de laisser le piano baissé pour le
   joueur.
 
+- **Les partitions ne sont plus criblées de chiffres.** L'Arabesque portait 52
+  nombres isolés au-dessus des portées, et cinq autres partitions en comptaient
+  une soixantaine à elles toutes : les changements de tempo que MuseScore écrit
+  pour sa propre lecture automatique, exportés en toutes lettres à côté des
+  indications réelles. OSMD prend tout mot accompagné d'un `<sound tempo>` pour
+  une indication de tempo et les gravait donc sur la page, où ils n'ont rien à
+  dire à un pianiste. Ils sont retirés de la partition avant la mise en page ;
+  les indications réelles (Andantino con moto, rit., a tempo) restent.
+
 2026-09-02
 
 - **Une fausse note se voit.** En mode entraînement, un point ne se remplit que
