@@ -134,10 +134,17 @@ export function initMusicXML() {
       }
     },
     jumpToMeasure: (measureIndex) => jumpToMeasure(measureIndex),
-    markStrictStartMeasure: (measureIndex) => {
-      measureClickRectangles.forEach((rect) => rect.classList.remove('strict-start'))
-      if (measureIndex == null) return
-      measureRect(measureIndex)?.classList.add('strict-start')
+    // Marks where a strict run starts — or, for a looped passage with an end,
+    // shades the measures it covers up to `endIndex` (inclusive), which says
+    // where it starts as well. Null clears both.
+    markStrictRange: (startIndex, endIndex = null) => {
+      measureClickRectangles.forEach((rect) => rect.classList.remove('strict-start', 'strict-range'))
+      if (startIndex == null) return
+      if (endIndex == null) {
+        measureRect(startIndex)?.classList.add('strict-start')
+        return
+      }
+      for (let i = startIndex; i <= endIndex; i++) measureRect(i)?.classList.add('strict-range')
     },
     setCurrentMeasureIndex: (index) => {
       currentMeasureIndex = index

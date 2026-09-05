@@ -1,5 +1,19 @@
 2026-09-05
 
+- **Le mode strict travaille un passage en boucle.** Le bouton 🔁 Boucle,
+  à côté du tempo, rejoue en boucle le passage délimité par deux clics sur
+  la partition (ou la partition entière), avec un temps de pause entre deux
+  passages. Le tempo évolue au fil des passages, de deux façons au choix :
+  progressif, +5 BPM après trois passages propres d'affilée (et −5 après
+  trois ratés, jamais sous le tempo de départ) ; ou tempos alternés, 70, 85,
+  100 et 110 % du tempo dans le désordre, jamais deux fois le même — moins
+  confortable sur le moment, mais mieux retenu, et le tempo cible est
+  abordé dès les premiers passages au lieu d'attendre la fin d'une longue
+  montée. Le bandeau affiche le tempo, le numéro du passage et la série en
+  cours ; ⏸ arrête la boucle et résume les passages joués, leur tempo et la
+  meilleure série. Chaque passage est consigné dans le journal comme un
+  passage strict.
+
 - **Un passage strict compte comme joué en entier, notes manquées ou pas.**
   Il fallait jusqu'ici n'en manquer aucune pour que le passage soit consigné
   comme joué en entier : sur un morceau de quatre cents notes au métronome,

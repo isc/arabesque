@@ -558,13 +558,13 @@ export function initPracticeTracker(storageInstance = null) {
   }
 
   // Files a strict run into the session under way: its measures as attempts,
-  // the run as a playthrough when it started from the top, and the verdict the
+  // the run as a playthrough when it covered the whole score, and the verdict the
   // engine gave it — hit rate, tempo, what went wrong — which is what the
   // history compares strict runs by. Nothing is persisted here: the caller
   // ends the session right after, which writes it once.
-  function recordStrictRun({ measures, fromTheTop, completed, verdict }) {
+  function recordStrictRun({ measures, wholeScore, completed, verdict }) {
     if (!currentSession) return
-    if (fromTheTop) restartPlaythrough(measures[0].startedAt)
+    if (wholeScore) restartPlaythrough(measures[0].startedAt)
     for (const attempt of measures) recordMeasureAttempt(attempt, { persist: false })
     if (completed) markScoreCompleted()
     currentSession.strict = verdict
