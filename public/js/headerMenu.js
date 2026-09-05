@@ -15,7 +15,7 @@
 // non-identifying context merged into a report (practice stats on the library,
 // current score on the score page).
 import { CHANGELOG } from './changelog.js'
-import { feedbackEnabled, buildBaseContext, submitFeedback } from './feedback.js'
+import { feedbackEnabled, buildBaseContext, submitFeedback, defaultFeedbackEmail } from './feedback.js'
 import { getLang, locale } from './i18n.js'
 import { INSTALL_AVAILABLE_EVENT, installAvailable, promptInstall } from './installPrompt.js'
 import { appSoundEnabled, setAppSoundEnabled } from './appSound.js'
@@ -99,7 +99,7 @@ export function headerMenu() {
     feedbackError: '',
 
     openFeedback() {
-      this.feedback = { message: '', email: '', category: '' }
+      this.feedback = { message: '', email: defaultFeedbackEmail(), category: '' }
       this.feedbackStatus = 'idle'
       this.feedbackError = ''
       this.menuOpen = false
