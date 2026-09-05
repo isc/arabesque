@@ -175,9 +175,9 @@
 
       <button
         class="pt-action-button"
-        :class="{ 'is-active': isPlaying }"
+        :class="{ 'is-active': isListening }"
         @click="togglePlayback"
-        x-text="isPlaying ? $t('score.stop') : $t('score.listen')"
+        x-text="isListening ? $t('score.stop') : $t('score.listen')"
       ></button>
     </nav>
     <!-- Strict band: the mode's controls and what it says about the run.
@@ -187,9 +187,9 @@
       <!-- Everything strict mode is driven with lives here, next to what it
            says about the run, so the modebar above stays the same in every
            mode. -->
-      <div class="pt-strict-controls">
+      <div class="pt-band-controls">
         <button
-          class="pt-strict-play"
+          class="pt-band-button"
           :class="{ 'is-playing': isStrictPlaying }"
           @click="toggleStrictPlaythrough"
           :aria-label="isStrictPlaying ? $t('score.pause') : $t('score.start')"
@@ -210,7 +210,7 @@
           <span class="pt-bpm-field__suffix" x-text="$t('score.bpm')">BPM</span>
         </label>
         <button
-          class="pt-strict-loop"
+          class="pt-band-button"
           :aria-pressed="loopEnabled"
           :title="$t('score.loopTitle')"
           @click="toggleLoop"
@@ -218,7 +218,7 @@
         >🔁 Boucle</button>
         <select
           x-show="loopEnabled"
-          class="pt-strict-select"
+          class="pt-band-select"
           x-model="trainerMode"
           :disabled="isStrictPlaying"
           :aria-label="$t('score.trainerModeAria')"
@@ -241,6 +241,35 @@
           </template>
         </span>
       </template>
+    </div>
+    <!-- Playback band: the same shape as the strict one, for the piece being
+         listened to. It is up for as long as the listening lasts — including
+         while ⏸ holds it — so the tempo and the transport stay within reach as
+         the piece scrolls the score past. -->
+    <div class="pt-context pt-context--playback" x-show="isListening" x-cloak>
+      <div class="pt-band-controls">
+        <button
+          class="pt-band-button"
+          :class="{ 'is-playing': isPlaying }"
+          @click="togglePlaybackPause"
+          :aria-label="isPlaying ? $t('score.pause') : $t('score.resume')"
+          x-text="isPlaying ? $t('score.pauseBtn') : $t('score.resumeBtn')"
+        ></button>
+        <label class="pt-bpm-field">
+          <span class="pt-sr-only" x-text="$t('score.playbackTempoBpm')">Tempo de lecture en BPM</span>
+          <input
+            id="playback-bpm"
+            type="number"
+            min="20"
+            max="300"
+            step="1"
+            x-model.number.debounce.400ms="playbackBpm"
+            :aria-label="$t('score.playbackTempoBpm')"
+          />
+          <span class="pt-bpm-field__suffix" x-text="$t('score.bpm')">BPM</span>
+        </label>
+      </div>
+      <span class="pt-context__row" x-text="playbackBandText()">Cliquez sur une mesure pour écouter à partir de là.</span>
     </div>
     </div><!-- /.pt-stickybars -->
 
