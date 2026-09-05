@@ -56,6 +56,16 @@
   même casque, en phase. À n'activer qu'avec le Local Control du piano coupé,
   sinon chaque note s'entend deux fois.
 
+- **Les doigtés s'annotent au doigt.** Sur tablette, ouvrir la saisie d'un
+  doigté demandait de toucher une tête de note large de trois millimètres : à
+  la souris on visait sans y penser, au doigt la plupart des touchers tombaient
+  à côté — et à côté, c'était le rectangle de la mesure qui prenait le toucher,
+  donc le curseur sautait là au lieu d'ouvrir le pavé. Un toucher va maintenant
+  à la tête de note la plus proche, à une douzaine de pixels près, et dans un
+  accord serré c'est celle dont le doigt est le plus près qui l'emporte. À la
+  souris, rien ne change : la visée reste au pixel près, et l'espace vide d'une
+  mesure y déplace toujours le curseur.
+
 2026-09-03
 
 - **L'écoute ne couvre plus le jeu.** Le moteur de lecture envoyait toutes ses

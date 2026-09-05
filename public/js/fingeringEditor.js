@@ -41,6 +41,37 @@ export function chooseCurrentPassOccurrences(allNotes, currentMeasureIndex) {
   return result
 }
 
+// A fingertip is far wider than a notehead: engraved on an iPad a head is about
+// 12 px across, where a comfortable touch target is 44. Aiming one with a mouse
+// is easy, with a finger it is a lottery — and a near miss used to fall through
+// to the measure rectangle underneath, so the tap jumped playback instead of
+// opening the fingering pad. On a coarse pointer a miss is therefore resolved to
+// the nearest head within this margin (CSS px, added around the head's box).
+// Big enough to bring the target to roughly a fingertip, small enough to leave
+// the space between staves to the measure rectangle.
+const TOUCH_SLOP_PX = 12
+
+// Live, so it answers for the pointer the page has now; built once rather than
+// per click. Asked of *any* pointer here, not of the one in hand: a click
+// carries no usable trace of the finger that made it (Safari reports a tap as a
+// mouse click), so a device with a touch screen is served as a touch screen.
+const COARSE_POINTER = globalThis.matchMedia?.('(any-pointer: coarse)')
+
+// The boxes `point` falls into once each is grown by `slop`, as indexes ordered
+// from the nearest centre outwards. Nearest by centre distance, so a finger
+// landing between two heads of a dense chord resolves to the one it is closer
+// to rather than to whichever happens to be drawn on top; the rest of the order
+// is the fallback for a head that carries no fingering of its own (an ornament
+// OSMD drew, say), which would otherwise swallow the tap.
+export function boxesByProximity(point, boxes, slop) {
+  const inRange = (box) =>
+    point.x >= box.left - slop && point.x <= box.right + slop && point.y >= box.top - slop && point.y <= box.bottom + slop
+  const toCentre = (box) => Math.hypot(point.x - (box.left + box.right) / 2, point.y - (box.top + box.bottom) / 2)
+  return boxes
+    .flatMap((box, index) => (inRange(box) ? [index] : []))
+    .sort((a, b) => toCentre(boxes[a]) - toCentre(boxes[b]))
+}
+
 export function initFingeringEditor({ getOsmdInstance, getAllNotes, getNoteDataByKey, svgNote, svgNotehead }) {
   let onNoteClick = null
   let delegatedHandlerAttached = false
@@ -96,6 +127,40 @@ export function initFingeringEditor({ getOsmdInstance, getAllNotes, getNoteDataB
     return svgIdToNoteDatas
   }
 
+  // The heads a click may have meant, nearest first. A finger gets every head
+  // within the slop of where it landed — the one it is actually on leads that
+  // list — while a mouse gets only the head under the cursor: it aims precisely,
+  // and widening its target would steal clicks from the measure rectangle.
+  function noteheadsForClick(e) {
+    if (!COARSE_POINTER?.matches) {
+      const hit = e.target.closest('.vf-notehead')
+      return hit ? [hit] : []
+    }
+    const svg = e.target.closest('svg')
+    if (!svg) return []
+    const heads = [...svg.querySelectorAll('.vf-notehead')]
+    const boxes = heads.map((head) => head.getBoundingClientRect())
+    return (
+      boxesByProximity({ x: e.clientX, y: e.clientY }, boxes, TOUCH_SLOP_PX)
+        .map((index) => heads[index])
+        // A head OSMD drew for a note the score hides carries pointer-events="none"
+        // (see fixUpInvisibleNotes) and has no fingering entry of its own: hit
+        // testing by hand rather than by the browser, we have to skip it ourselves.
+        // Asked of the handful the finger reached, not of every head in the score.
+        .filter((head) => !head.closest('[pointer-events="none"]'))
+    )
+  }
+
+  // The note a head stands for, or null when it carries no fingering entry —
+  // OSMD draws heads the extraction skips, an ornament's realization among them.
+  function noteDataForNotehead(notehead, svgIdToNoteDatas) {
+    const svgGroup = notehead.closest('g[id]')
+    const noteDatas = svgGroup && svgIdToNoteDatas.get(svgGroup.id)
+    if (!noteDatas) return null
+    const noteheadIndex = [...svgGroup.querySelectorAll('.vf-notehead')].indexOf(notehead)
+    return noteDatas.find((nd) => nd.noteheadIndex === noteheadIndex) ?? null
+  }
+
   function setupFingeringClickHandlers(cbs) {
     onNoteClick = cbs.onNoteClick
 
@@ -105,31 +170,32 @@ export function initFingeringEditor({ getOsmdInstance, getAllNotes, getNoteDataB
     const scoreContainer = document.getElementById('score')
     if (!scoreContainer) return
 
-    scoreContainer.addEventListener('click', (e) => {
-      if (!onNoteClick) return
+    // Capture phase: a tap the slop above resolves to a head has landed on the
+    // measure rectangle underneath it, whose own listener sits on this same
+    // container and would jump playback there. Capture runs before every
+    // bubbling listener whatever order they were bound in, so claiming the
+    // event here — and stopping it — settles note against measure once.
+    scoreContainer.addEventListener(
+      'click',
+      (e) => {
+        if (!onNoteClick) return
 
-      const notehead = e.target.closest('.vf-notehead')
-      if (!notehead) return
+        const candidates = noteheadsForClick(e)
+        if (candidates.length === 0) return
 
-      const svgGroup = notehead.closest('g[id]')
-      if (!svgGroup) return
+        if (!getOsmdInstance()) return
+        const svgIdToNoteDatas = buildSvgIdToNoteDataMap()
 
-      const osmdInstance = getOsmdInstance()
-      if (!osmdInstance) return
-
-      const svgIdToNoteDatas = buildSvgIdToNoteDataMap()
-      const noteDatas = svgIdToNoteDatas.get(svgGroup.id)
-      if (!noteDatas) return
-
-      const noteheads = svgGroup.querySelectorAll('.vf-notehead')
-      const noteheadIndex = Array.from(noteheads).indexOf(notehead)
-
-      const noteData = noteDatas.find((nd) => nd.noteheadIndex === noteheadIndex)
-      if (noteData) {
-        e.stopPropagation()
-        onNoteClick(noteData)
-      }
-    })
+        for (const notehead of candidates) {
+          const noteData = noteDataForNotehead(notehead, svgIdToNoteDatas)
+          if (!noteData) continue
+          e.stopPropagation()
+          onNoteClick(noteData)
+          return
+        }
+      },
+      true,
+    )
   }
 
   // Restore played/active state captured positionally as savedStates[measureIndex][noteIndex],
