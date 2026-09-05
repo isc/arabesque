@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import 'fake-indexeddb/auto'
 import {
   initPracticeTracker,
@@ -12,11 +12,32 @@ describe('practiceTracker', () => {
   let tracker
   let storage
 
+  const BASE = new Date('2026-06-10T10:00:00.000Z').getTime()
+
+  // The tracker times every attempt off the wall clock, so the suite runs on a
+  // frozen one: nothing moves unless a test moves it, and a duration is then
+  // exactly the milliseconds it was given rather than that plus whatever the
+  // scheduler cost. Only Date is faked — fake-indexeddb runs its transactions
+  // on the real timers.
+  let clock
+
+  function advanceClock(ms) {
+    clock += ms
+    vi.setSystemTime(clock)
+  }
+
   beforeEach(async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    clock = BASE
+    vi.setSystemTime(clock)
     indexedDB = new IDBFactory()
     storage = initStorage()
     tracker = initPracticeTracker(storage)
     await tracker.init()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
   })
 
   describe('session management', () => {
@@ -99,12 +120,15 @@ describe('practiceTracker', () => {
     })
 
     it('files pre-timed attempts and puts the run in the daily log', async () => {
-      const startedAt = new Date(Date.now() - 4000).toISOString()
+      // One clock reading for the whole run: two of them, a millisecond apart,
+      // would put 4001 in the journal.
+      const runStartedAt = Date.now() - 4000
+      const startedAt = new Date(runStartedAt).toISOString()
       tracker.restartPlaythrough(startedAt)
       tracker.recordMeasureAttempt({ sourceMeasureIndex: 0, startedAt, durationMs: 2000, hands: 'both' })
       tracker.recordMeasureAttempt({
         sourceMeasureIndex: 1,
-        startedAt: new Date(Date.now() - 2000).toISOString(),
+        startedAt: new Date(runStartedAt + 2000).toISOString(),
         durationMs: 2000,
         wrongNotes: 1,
         clean: false,
@@ -124,8 +148,8 @@ describe('practiceTracker', () => {
     it('calculates duration based only on measure timestamps, not session start time', async () => {
       tracker.startSession('/scores/test.xml', 'Test', 'Composer', 'training')
 
-      // Wait 100ms to simulate user delay before starting to play
-      await sleep(100)
+      // 100ms of user delay before starting to play
+      advanceClock(100)
 
       // Play first and second measures
       await playMeasure(0, 50)
@@ -135,10 +159,8 @@ describe('practiceTracker', () => {
 
       const stats = await tracker.getScoreStats('/scores/test.xml')
 
-      // Duration should be approximately 100ms (two measures of ~50ms each)
-      // NOT ~200ms which would include the initial 100ms delay
-      expect(stats.totalPracticeTimeMs).toBeGreaterThan(80)
-      expect(stats.totalPracticeTimeMs).toBeLessThan(150)
+      // Two measures of 50ms, NOT 200ms — the initial 100ms delay is excluded.
+      expect(stats.totalPracticeTimeMs).toBe(100)
     })
 
     it('calculates correct duration for daily log', async () => {
@@ -146,7 +168,7 @@ describe('practiceTracker', () => {
       tracker.startSession('/scores/test.xml', 'Test Score', 'Composer', 'training')
 
       // Wait before starting to play
-      await sleep(100)
+      advanceClock(100)
 
       await playMeasure(0, 50)
 
@@ -155,9 +177,8 @@ describe('practiceTracker', () => {
       const dailyLog = await tracker.getDailyLog(today)
 
       expect(dailyLog).toHaveLength(1)
-      // Should be ~50ms, not ~150ms
-      expect(dailyLog[0].totalPracticeTimeMs).toBeGreaterThan(30)
-      expect(dailyLog[0].totalPracticeTimeMs).toBeLessThan(100)
+      // The measure alone: 50ms, not 150ms.
+      expect(dailyLog[0].totalPracticeTimeMs).toBe(50)
     })
   })
 
@@ -718,7 +739,10 @@ describe('practiceTracker', () => {
       await playMeasure(1, 50)
       await playMeasure(2, 50)
 
-      // Now restart from measure 0 (simulates clicking on measure 0)
+      // Now restart from measure 0 (simulates clicking on measure 0), a moment
+      // after measure 2 ended — an attempt finishing on the very millisecond a
+      // playthrough starts belongs to it.
+      advanceClock(10)
       tracker.restartPlaythrough()
       await playMeasure(0, 30)
       await playMeasure(1, 30)
@@ -730,10 +754,9 @@ describe('practiceTracker', () => {
       const history = await tracker.getScoreHistory('/scores/test.xml')
 
       expect(history[0].fullPlaythroughs).toHaveLength(1)
-      // Duration should be ~90ms (from restart to completion)
-      // NOT ~190ms (which would include the initial measures 1, 2)
-      expect(history[0].fullPlaythroughs[0].durationMs).toBeGreaterThan(70)
-      expect(history[0].fullPlaythroughs[0].durationMs).toBeLessThan(150)
+      // 90ms, from restart to completion — NOT 190ms, which would include the
+      // initial measures 1, 2.
+      expect(history[0].fullPlaythroughs[0].durationMs).toBe(90)
     })
 
     it('consecutive playthroughs have correct independent timings', async () => {
@@ -760,13 +783,9 @@ describe('practiceTracker', () => {
       // Playthroughs are sorted by most recent first
       const [secondPlaythrough, firstPlaythrough] = history[0].fullPlaythroughs
 
-      // First playthrough should be ~150ms
-      expect(firstPlaythrough.durationMs).toBeGreaterThan(120)
-      expect(firstPlaythrough.durationMs).toBeLessThan(200)
-
-      // Second playthrough should be ~60ms (not affected by first)
-      expect(secondPlaythrough.durationMs).toBeGreaterThan(40)
-      expect(secondPlaythrough.durationMs).toBeLessThan(100)
+      expect(firstPlaythrough.durationMs).toBe(150)
+      // The second one is timed on its own, not from the first.
+      expect(secondPlaythrough.durationMs).toBe(60)
     })
   })
 
@@ -795,9 +814,8 @@ describe('practiceTracker', () => {
       const history = await tracker.getScoreHistory('/scores/test.xml')
 
       expect(history[0].fullPlaythroughs).toHaveLength(1)
-      // Duration should be ~100ms (time from start of measure 0 to end of measure 1)
-      expect(history[0].fullPlaythroughs[0].durationMs).toBeGreaterThan(80)
-      expect(history[0].fullPlaythroughs[0].durationMs).toBeLessThan(200)
+      // From the start of measure 0 to the end of measure 1.
+      expect(history[0].fullPlaythroughs[0].durationMs).toBe(100)
     })
 
     it('does not track measuresReinforced for free mode', async () => {
@@ -809,8 +827,6 @@ describe('practiceTracker', () => {
       expect(history[0].measuresReinforced).toEqual([])
     })
   })
-
-  const BASE = new Date('2026-06-10T10:00:00.000Z').getTime()
 
   // Lay out {dur, gapBefore} segments on a timeline starting at BASE: the cursor
   // advances by each gap, then by each measure duration. Both duration functions
@@ -956,14 +972,10 @@ describe('practiceTracker', () => {
     })
   })
 
-  function sleep(ms) {
-    return new Promise((resolve) => setTimeout(resolve, ms))
-  }
-
   async function playMeasure(measureIndex, delayMs = 0, activeHands = undefined) {
     tracker.startMeasureAttempt(measureIndex, measureIndex === 0, activeHands)
-    if (delayMs > 0) await sleep(delayMs)
-    tracker.endMeasureAttempt(true)
+    advanceClock(delayMs)
+    await tracker.endMeasureAttempt(true)
   }
 
   async function playSession(scoreId, measures, mode = 'training', totalMeasures = null, markComplete = false) {
