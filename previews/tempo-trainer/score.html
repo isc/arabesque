@@ -1,0 +1,589 @@
+<!doctype html>
+<html lang="fr" data-theme="light" x-data="midiApp()">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="app-version" content="03b08e648fa9" />
+    <title data-i18n="score.pageTitle">Arabesque</title>
+    <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+    <link rel="manifest" href="manifest.webmanifest" />
+    <meta name="theme-color" content="#f7f7f9" />
+    <link rel="stylesheet" href="styles.css" />
+    <script>
+      // Runs during parsing, before a single byte of JS has been evaluated, and
+      // does the two things that are worth doing that early:
+      //
+      //  1. Starts downloading the score. Left to the module graph, that request
+      //     only went out once OSMD (1.3MB) and every module had been fetched,
+      //     evaluated and Alpine had booted — a second or more of doing nothing
+      //     with the connection. loadMxlAsXml() picks the bytes up from here.
+      //  2. Flags the document as loading a score, which is what puts the
+      //     spinner below on screen in place of the onboarding card.
+      ;(function () {
+        var url = new URLSearchParams(location.search).get('url')
+        if (!url) return
+        document.documentElement.dataset.loadingScore = '1'
+        // Resolves to null rather than rejecting on failure: nobody awaits this
+        // for another second or so, and a rejection with no handler yet is an
+        // unhandled-rejection report. null simply sends the consumer back to a
+        // normal fetch, which reports the error in its own right.
+        window.__scorePrefetch = {
+          url: url,
+          promise: fetch(url).then(function (response) {
+            return response.ok ? response.arrayBuffer() : null
+          }, function () { return null }),
+        }
+      })()
+    </script>
+    <script type="importmap">
+    {
+      "imports": {
+        "tone": "./vendor/tone.14.8.49.min.js",
+        "@tonejs/piano": "./vendor/tonejs-piano.0.2.1.min.js"
+      }
+    }
+    </script>
+    <script type="module" src="js/version.js"></script>
+    <script type="module" src="js/swRegister.js"></script>
+    <!-- defer, not blocking: these two are only needed once a score is being
+         rendered, and evaluating 1.4MB of vendor code up front held back both
+         the first paint and the fetch of the module graph below. Deferred
+         classic scripts still run in document order, before the module. -->
+    <script defer src="vendor/jszip.3.10.1.min.js"></script>
+    <script defer src="vendor/opensheetmusicdisplay.2.1.2.min.js"></script>
+    <script type="module">
+      // Register the Alpine root component before Alpine boots, then load Alpine.
+      // Loading Alpine from inside this module (rather than a sibling `defer`
+      // script) guarantees `midiApp` exists before Alpine evaluates `x-data`,
+      // even when app.js's import graph is slow to resolve (it pulls in the
+      // vendored Tone bundle). Otherwise Alpine can win the race and every
+      // expression throws "<name> is not defined".
+      import { midiApp } from './js/app.js'
+      import { initAlpineI18n } from './js/i18n.js'
+      import { mountHeaderMenu } from './js/headerMenu.js'
+      window.midiApp = midiApp
+      // Inject the shared ⚙️ menu + modals before Alpine boots and before the
+      // FR/EN switch is wired by initAlpineI18n.
+      mountHeaderMenu()
+      // Translate static chrome, wire the FR/EN switch, and expose $t to templates.
+      initAlpineI18n()
+      const alpine = document.createElement('script')
+      alpine.src = 'vendor/alpinejs.3.14.9.min.js'
+      document.head.appendChild(alpine)
+    </script>
+  </head>
+  <body @keydown.escape.window="handleEscape()">
+    <div class="pt-stickybars">
+    <header class="pt-topbar">
+      <a href="library.html" class="pt-topbar__back" data-i18n="score.back">&larr; Bibliothèque</a>
+      <div class="pt-topbar__title" x-show="osmdInstance" x-cloak>
+        <span x-text="collection ? collection.title : (scoreTitle || $t('score.titleFallback'))"></span>
+        <small x-show="scoreComposer" x-text="scoreComposer"></small>
+      </div>
+
+      <!-- Part navigator, shown when the score belongs to a collection -->
+      <div class="pt-part-nav" x-show="collection && osmdInstance" x-cloak>
+        <button
+          class="pt-topbar__pill"
+          :disabled="collectionIndex <= 0"
+          @click="gotoPart(collectionIndex - 1)"
+          :aria-label="$t('score.prevExercise')"
+        >←</button>
+        <select :aria-label="$t('score.chooseExercise')" @change="gotoPart(Number($event.target.value))">
+          <template x-for="(part, i) in collection?.parts ?? []" :key="part.file">
+            <option :value="i" :selected="i === collectionIndex" x-text="part.title"></option>
+          </template>
+        </select>
+        <button
+          class="pt-topbar__pill"
+          :disabled="collectionIndex >= (collection?.parts.length ?? 0) - 1"
+          @click="gotoPart(collectionIndex + 1)"
+          :aria-label="$t('score.nextExercise')"
+        >→</button>
+      </div>
+      <div class="pt-topbar__actions">
+        <!-- MIDI status / connect -->
+        <span class="pt-midi-status" x-show="bluetoothConnected" x-cloak :title="$t('score.midiConnected')">
+          🎹 <span x-text="midiDeviceName || $t('score.midiKeyboard')"></span>
+        </span>
+        <button
+          class="pt-midi-status is-disconnected"
+          x-show="!bluetoothConnected"
+          x-cloak
+          @click="connectMIDI"
+          x-text="$t('score.connectMidi')"
+        >🎹 Connecter clavier MIDI</button>
+
+        <!-- History (only for library scores) -->
+        <button
+          class="pt-topbar__pill"
+          x-show="!!scoreUrl"
+          x-cloak
+          @click="openScoreHistory"
+          :aria-label="$t('score.historyAria')"
+          x-text="$t('score.history')"
+        >📜 Historique</button>
+
+        <div data-menu-slot></div>
+      </div>
+    </header>
+
+    <!-- Modebar: segmented mode selector + reinforcement badge + listen -->
+    <nav class="pt-modebar" x-show="!!osmdInstance" x-cloak>
+      <div class="pt-segmented" role="group" :aria-label="$t('score.modeGroupAria')">
+        <button
+          data-mode="free"
+          @click="setMode('free')"
+          :aria-pressed="currentMode === 'free'"
+          x-text="$t('score.modeFree')"
+        >Libre</button>
+        <button
+          data-mode="training"
+          @click="setMode('training')"
+          :aria-pressed="currentMode === 'training'"
+          :title="$t('score.modeTrainingTitle')"
+          x-text="currentMode === 'training' ? $t('score.modeTrainingActive') : $t('score.modeTraining')"
+        ></button>
+        <button
+          data-mode="strict"
+          @click="setMode('strict')"
+          :aria-pressed="currentMode === 'strict'"
+          x-text="$t('score.modeStrict')"
+        >⏱ Mode strict</button>
+      </div>
+
+      <!-- Strict-mode controls: pause/play + BPM. Only shown when strict is
+           the selected mode; tied visually to the segmented control so users
+           know these belong to strict. -->
+      <template x-if="currentMode === 'strict'">
+        <div class="pt-strict-controls">
+          <button
+            class="pt-strict-play"
+            :class="{ 'is-playing': isStrictPlaying }"
+            @click="toggleStrictPlaythrough"
+            :aria-label="isStrictPlaying ? $t('score.pause') : $t('score.start')"
+            x-text="isStrictPlaying ? $t('score.pauseBtn') : (strictStartMeasure > 0 ? $t('score.resumeMeasure', { n: strictStartMeasure + 1 }) : $t('score.startBtn'))"
+          ></button>
+          <label class="pt-bpm-field">
+            <span class="pt-sr-only" x-text="$t('score.tempoBpm')">Tempo en BPM</span>
+            <input
+              id="strict-bpm"
+              type="number"
+              min="20"
+              max="300"
+              step="1"
+              x-model.number="strictBpm"
+              :disabled="isStrictPlaying"
+              :aria-label="$t('score.tempoBpm')"
+            />
+            <span class="pt-bpm-field__suffix" x-text="$t('score.bpm')">BPM</span>
+          </label>
+          <button
+            class="pt-strict-loop"
+            :aria-pressed="loopEnabled"
+            :title="$t('score.loopTitle')"
+            @click="toggleLoop"
+            x-text="$t('score.loopBtn')"
+          >🔁 Boucle</button>
+          <select
+            x-show="loopEnabled"
+            class="pt-strict-select"
+            x-model="trainerMode"
+            :disabled="isStrictPlaying"
+            :aria-label="$t('score.trainerModeAria')"
+          >
+            <option value="graduated" x-text="trainerModeLabel('graduated')"></option>
+            <option value="random" x-text="trainerModeLabel('random')"></option>
+          </select>
+        </div>
+      </template>
+
+      <div class="pt-hands">
+        <label class="pt-hands__option">
+          <input type="checkbox" x-model="rightHandActive" @change="updateActiveHands" />
+          <span x-text="$t('score.rightHand')">Main droite</span>
+        </label>
+        <label class="pt-hands__option">
+          <input type="checkbox" x-model="leftHandActive" @change="updateActiveHands" />
+          <span x-text="$t('score.leftHand')">Main gauche</span>
+        </label>
+      </div>
+
+      <a
+        href="#"
+        class="pt-reinforce-badge"
+        x-show="measuresToReinforce.length > 0 && !trainingMode && !isStrictPlaying"
+        @click.prevent="startReinforcementMode()"
+        x-text="$t(measuresToReinforce.length > 1 ? 'score.reinforceMany' : 'score.reinforceOne', { n: measuresToReinforce.length })"
+      ></a>
+
+      <div class="pt-modebar__spacer"></div>
+
+      <button
+        class="pt-action-button"
+        :class="{ 'is-active': isPlaying }"
+        @click="togglePlayback"
+        x-text="isPlaying ? $t('score.stop') : $t('score.listen')"
+      ></button>
+    </nav>
+    </div><!-- /.pt-stickybars -->
+
+    <!-- Mode-context band: shows mode-specific hints. Strict-mode controls
+         now live in the sticky modebar; the band only carries a passive
+         hint about clicking measures to set a start point. -->
+    <!-- One band for the whole of strict mode, its contents swapping: the hint
+         before a run, the count-in during it. Same element rather than two that
+         happen to alternate, so the score below never moves — and the count-in
+         is read against the first measure, which an overlay would cover. -->
+    <div class="pt-context pt-context--strict" x-show="currentMode === 'strict' && !!osmdInstance" x-cloak>
+      <template x-if="!isStrictPlaying || (trainerStatus && countInBeat === 0)">
+        <span class="pt-context__row">
+          <strong x-text="$t(loopEnabled ? 'score.loopBtn' : 'score.strictBand')">⏱ Mode strict</strong>
+          <span x-text="strictBandText()">Cliquez sur une mesure pour démarrer la lecture à partir de ce point.</span>
+        </span>
+      </template>
+      <template x-if="countInBeat > 0">
+        <span class="pt-context__row pt-countin" aria-hidden="true">
+          <strong x-text="$t('score.countIn')">Départ</strong>
+          <template x-for="n in countInBeats" :key="n">
+            <span class="pt-countin__beat" :class="{ 'is-now': n === countInBeat, 'is-past': n < countInBeat }" x-text="n"></span>
+          </template>
+        </span>
+      </template>
+    </div>
+
+    <div class="pt-context pt-context--training" x-show="currentMode === 'training' && !reinforcementMode && !!osmdInstance" x-cloak>
+      <strong x-text="$t('score.trainingBand')">🎯 Entraînement</strong>
+      <span x-text="$t('score.trainingHint')">Chaque mesure doit être jouée 3× sans erreur.</span>
+    </div>
+
+    <main class="container pt-score-main">
+      <!-- Shown from the first paint until the score is drawn, for a page opened
+           with ?url= (the head script raises the flag, afterScoreLoad() in
+           app.js drops it). Deliberately outside Alpine: it has to be up long
+           before Alpine boots, which is most of the wait. -->
+      <div class="pt-score-loading" aria-busy="true"></div>
+
+      <!-- A score that never arrived; the wording differs offline (see
+           reportScoreLoadFailure). Reuses the onboarding card that sits in the
+           same slot: same shape, same place on the page. -->
+      <div class="pt-onboarding" x-show="scoreLoadError" x-cloak>
+        <h2 x-text="scoreLoadMessage.title"></h2>
+        <p x-text="scoreLoadMessage.body"></p>
+        <div class="pt-onboarding__cta">
+          <button type="button" x-show="scoreLoadMessage.retry" @click="retryScoreLoad()" x-text="$t('score.loadRetry')">Réessayer</button>
+          <a x-show="!scoreLoadMessage.retry" href="library.html" x-text="$t('common.openLibrary')">Ouvrir la bibliothèque</a>
+        </div>
+      </div>
+
+      <!-- Onboarding: shown when no score is loaded. The "Bibliothèque"
+           link in the topbar handles catalog access, so this card focuses
+           only on the case the topbar doesn't cover: importing a local
+           MusicXML file. -->
+      <div
+        class="pt-onboarding"
+        x-show="!osmdInstance && !scoreLoading && !scoreLoadError"
+        x-data="{ dragOver: false }"
+        :class="{ 'is-dragover': dragOver }"
+        @dragover.prevent="dragOver = true"
+        @dragleave.prevent="dragOver = false"
+        @drop.prevent="dragOver = false; loadMusicXMLFromFile($event.dataTransfer.files[0])"
+      >
+        <h2 data-i18n="score.onboardingTitle">Charger un fichier MusicXML</h2>
+        <p data-i18n-html="score.onboardingDrag">Glissez votre fichier ici ou cliquez pour le sélectionner. Les fichiers <code>.mxl</code> compressés sont acceptés.</p>
+        <div class="pt-onboarding__cta">
+          <label for="musicxml-upload"><span data-i18n="score.onboardingChoose">📄 Choisir un fichier</span>
+            <input type="file" accept=".xml,.musicxml,.mxl" @change="loadMusicXMLFromFile($event.target.files[0])" id="musicxml-upload" />
+          </label>
+        </div>
+      </div>
+
+      <!-- Score (full-bleed) -->
+      <section id="score" x-show="!!osmdInstance"></section>
+
+      <!-- Cassettes MIDI (compact bottom strip) -->
+      <template x-if="cassetteApiAvailable && !!osmdInstance">
+        <section class="pt-cassette-bar">
+          <span class="pt-cassette-bar__label" x-text="$t('score.cassettes')">🎙️ Cassettes</span>
+          <div class="pt-cassette-bar__controls" x-show="!isRecording">
+            <select x-model="selectedCassette" @change="loadCassettesList()">
+              <option value="" x-text="$t('score.chooseCassette')">Choisir une cassette…</option>
+              <template x-for="cassette in cassettes" :key="cassette.name">
+                <option :value="cassette.file" x-text="cassette.name"></option>
+              </template>
+            </select>
+            <button @click="replayCassette" x-show="selectedCassette && !isReplaying" class="pt-action-button" x-text="$t('score.replayCassette')">▶️ Rejouer cassette</button>
+            <button @click="startRecording" x-show="!isReplaying && bluetoothConnected" class="pt-action-button" x-text="$t('score.startRecording')">🔴 Démarrer enregistrement</button>
+          </div>
+          <button @click="stopRecording" x-show="isRecording" class="pt-action-button" x-text="$t('score.stopRecording')">⏹️ Arrêter enregistrement</button>
+          <small x-show="isReplaying" x-text="$t('score.replayInProgress')">▶️ Rejeu en cours…</small>
+          <small x-show="replayEnded && !isReplaying" x-text="$t('score.replayEnded')">✅ Rejeu terminé</small>
+          <small x-show="isRecording" x-text="$t('score.recordingInProgress')">🔴 Enregistrement en cours…</small>
+        </section>
+      </template>
+    </main>
+
+    <!-- Unified result modal: replaces 4 legacy dialogs/banners -->
+    <dialog class="pt-result-dialog" :open="showResultModal">
+      <article>
+        <header>
+          <p><strong x-text="resultTitle()"></strong></p>
+          <button aria-label="Close" rel="prev" @click="closeResultModal()"></button>
+        </header>
+
+        <div class="pt-modal-body">
+          <!-- Free / Training: playthrough rankings + evolution chart -->
+          <template x-if="resultMode === 'free' || resultMode === 'training'">
+            <div>
+              <p x-show="currentPlaythroughDuration && previousPlaythroughs.length === 0" class="pt-modal-stat pt-modal-stat--accent">
+                <span x-text="$t('score.resultTime')">Temps : </span><strong x-text="formatDuration(currentPlaythroughDuration)"></strong>
+              </p>
+              <div class="pt-result-cols">
+                <div class="pt-playthrough-scroll" x-show="previousPlaythroughs.length > 0">
+                  <table class="pt-playthrough-table">
+                    <tbody>
+                      <template x-for="(pt, idx) in previousPlaythroughs" :key="idx">
+                        <tr :class="{ 'is-current': pt.isCurrent }">
+                          <td>
+                            <strong x-show="pt.isCurrent" x-text="formatDuration(pt.durationMs)"></strong>
+                            <span x-show="!pt.isCurrent" x-text="formatDuration(pt.durationMs)"></span>
+                          </td>
+                          <td><small x-text="pt.isCurrent ? $t('score.now') : formatDate(pt.startedAt)"></small></td>
+                        </tr>
+                      </template>
+                    </tbody>
+                  </table>
+                </div>
+                <template x-if="playthroughChartSvg(previousPlaythroughs)">
+                  <div class="pt-modal-section">
+                    <h4 x-text="$t('score.playtimeEvolution')">Évolution du temps de jeu</h4>
+                    <div x-html="playthroughChartSvg(previousPlaythroughs)"></div>
+                  </div>
+                </template>
+              </div>
+              <p x-show="resultMode === 'training'" class="pt-modal-note" x-text="$t('score.trainingDone')">
+                Vous avez complété toutes les mesures du morceau.
+              </p>
+            </div>
+          </template>
+
+          <!-- Strict: accuracy + breakdown -->
+          <template x-if="resultMode === 'strict'">
+            <div>
+              <p class="pt-modal-stat pt-modal-stat--strict" :class="strictAccuracyClass()">
+                <strong x-text="strictAccuracyPercent() + '%'"></strong>
+                <span x-text="$t('score.strictInTempo', { hit: strictResult?.hit ?? 0, total: strictResult?.total ?? 0 })"></span>
+              </p>
+              <ul class="pt-strict-breakdown">
+                <li x-show="strictOffTempoTotal() > 0">
+                  ⚠️ <span x-text="strictOffTempoTotal()"></span> <span x-text="$t('score.strictOffTempo')">hors tempo</span>
+                  (<span x-text="strictResult?.offTempoEarly ?? 0"></span> <span x-text="$t('score.strictTooEarly')">trop tôt</span>,
+                  <span x-text="strictResult?.offTempoLate ?? 0"></span> <span x-text="$t('score.strictTooLate')">trop tard</span>)
+                </li>
+                <li x-show="strictResult?.missed > 0">
+                  ❌ <span x-text="strictResult?.missed ?? 0"></span> <span x-text="$t('score.strictMissed')">manquées</span>
+                </li>
+                <li x-show="strictResult?.wrongNotes > 0">
+                  🚫 <span x-text="strictResult?.wrongNotes ?? 0"></span> <span x-text="$t('score.strictWrongNotes')">fausses notes</span>
+                </li>
+              </ul>
+            </div>
+          </template>
+
+          <!-- Tempo trainer: the loop's runs, tempo and streak -->
+          <template x-if="resultMode === 'trainer'">
+            <div>
+              <p class="pt-modal-note" x-show="trainerSummary.count === 0" x-text="$t('score.trainerNoRun')">Aucun passage joué jusqu'au bout.</p>
+              <p class="pt-modal-stat pt-modal-stat--strict" x-show="trainerSummary.count > 0">
+                <strong x-text="$tn('score.trainerRuns', trainerSummary.count)"></strong>
+                <span x-text="trainerTempoLine()"></span>
+              </p>
+              <ul class="pt-strict-breakdown" x-show="trainerSummary.count > 0">
+                <li>
+                  ✅ <span x-text="$t('score.trainerClean', { n: trainerSummary.cleanCount })"></span>
+                  · <span x-text="$t('score.trainerBestStreak', { n: trainerSummary.bestStreak })"></span>
+                </li>
+                <template x-for="(run, i) in trainerSummary.runs" :key="i">
+                  <li><span x-text="run.clean ? '✅' : '❌'"></span> <span x-text="trainerRunLine(run)"></span></li>
+                </template>
+              </ul>
+            </div>
+          </template>
+
+          <!-- Reinforcement: brief acknowledgement -->
+          <template x-if="resultMode === 'reinforcement'">
+            <p class="pt-modal-note" x-text="$t('score.reinforcementDone')">Toutes les mesures ont été renforcées avec succès.</p>
+          </template>
+        </div>
+
+        <footer>
+          <button class="pt-action-button" x-show="!!scoreUrl" @click="closeResultModal(); openScoreHistory()" x-text="$t('score.history')">📜 Historique</button>
+          <button class="pt-action-button" @click="closeResultModal()" x-text="$t('score.close')">Fermer</button>
+          <button
+            class="pt-action-button is-primary"
+            x-show="resultMode !== 'reinforcement' && measuresToReinforce.length > 0"
+            @click="closeResultModal(); startReinforcementMode()"
+            x-text="$t(measuresToReinforce.length > 1 ? 'score.reinforceMany' : 'score.reinforceOne', { n: measuresToReinforce.length })"
+          ></button>
+        </footer>
+      </article>
+    </dialog>
+
+    <!-- History modal -->
+    <dialog id="scoreHistoryModal" :open="showHistoryModal">
+      <article>
+        <header>
+          <p>
+            <strong x-text="$t('score.historyTitle')">📜 Historique de pratique</strong>
+            <small x-show="historyTotalMs > 0" class="pt-modal-note pt-modal-note--inline">
+              <span x-text="$t('score.total')">Total : </span><span x-text="formatDuration(historyTotalMs)"></span>
+            </small>
+          </p>
+          <button aria-label="Close" rel="prev" @click="showHistoryModal = false"></button>
+        </header>
+
+        <template x-if="scoreHistory.length === 0">
+          <p class="pt-modal-note" x-text="$t('score.noHistory')">Aucun historique pour cette partition.</p>
+        </template>
+
+        <template x-for="chart in playthroughCharts" :key="chart.key">
+          <div class="pt-modal-section">
+            <h4 x-text="chartTitle(chart)">Évolution du temps de jeu</h4>
+            <div x-html="chart.svg"></div>
+          </div>
+        </template>
+
+        <template x-if="historyHotMeasures.length > 0">
+          <div class="pt-modal-section">
+            <h4 x-text="$t('score.measuresToWork')">Mesures à travailler</h4>
+            <ul class="pt-hot-measures">
+              <template x-for="m in historyHotMeasures" :key="m.index">
+                <li>
+                  <span><span x-text="$t('score.measureLabel')">Mesure</span> <strong x-text="m.index + 1"></strong></span>
+                  <small>
+                    <span x-text="Math.round(m.errorRate * 100)"></span><span x-text="$t('score.errorPercent')">% d'erreur</span> · <span x-text="m.attempts"></span> <span x-text="$t('score.attempts')">tentatives</span>
+                  </small>
+                </li>
+              </template>
+            </ul>
+          </div>
+        </template>
+
+        <template x-if="scoreHistory.length > 0">
+          <div class="pt-modal-section">
+            <h4 x-text="$t('score.dailyJournal')">Journal jour par jour</h4>
+            <template x-for="day in scoreHistory" :key="day.date">
+              <div class="pt-history-day">
+                <div class="pt-history-day__header">
+                  <strong x-text="formatDate(day.date)"></strong>
+                  <small x-text="formatDuration(day.totalPracticeTimeMs)"></small>
+                </div>
+                <div class="pt-history-day__body">
+                  <small x-show="day.fullPlaythroughs.length === 0 && day.measuresWorked.length > 0" x-text="$tn('score.measuresPlayed', day.measuresWorked.length)"></small>
+                  <small x-show="day.measuresReinforced.length > 0" x-text="$tn('score.measuresReinforced', day.measuresReinforced.length)"></small>
+                  <template x-for="group in playthroughGroups(day.fullPlaythroughs)" :key="group.key">
+                    <small x-text="formatPlaythroughs(group)"></small>
+                  </template>
+                </div>
+              </div>
+            </template>
+          </div>
+        </template>
+      </article>
+    </dialog>
+
+    <!-- No-MIDI fallback -->
+    <dialog id="noMidiModal" x-bind:open="!navigator.requestMIDIAccess">
+      <article>
+        <header>
+          <p><strong data-i18n="score.noMidiTitle">Web MIDI non supporté</strong></p>
+          <button aria-label="Close" rel="prev" onclick="noMidiModal.close()"></button>
+        </header>
+        <p>
+          <span data-i18n="score.noMidiBody">Votre navigateur ne supporte pas Web MIDI API. Essayez avec</span>
+          <a href="https://caniuse.com/?search=web%20midi" data-i18n="score.otherBrowser">un autre navigateur</a>
+          <span data-i18n="score.noMidiBrowsers">(Chrome, Edge ou Opera).</span>
+        </p>
+      </article>
+    </dialog>
+
+    <!-- Fingering editor -->
+    <dialog id="fingeringModal" :open="showFingeringModal" @keydown.escape.prevent="closeFingeringModal()">
+      <article>
+        <header>
+          <p><strong data-i18n="score.fingeringTitle">Doigté</strong></p>
+          <button aria-label="Close" rel="prev" @click="closeFingeringModal()"></button>
+        </header>
+
+        <p class="pt-fingering-display" x-text="fingeringSequence || '…'" data-testid="fingering-display"></p>
+        <div class="pt-fingering-pad">
+          <template x-for="finger in [1, 2, 3, 4, 5]" :key="finger">
+            <button @click="appendFinger(finger)" x-text="finger"></button>
+          </template>
+          <button class="pt-action-button" @click="removeFingering()">×</button>
+        </div>
+        <footer>
+          <button class="pt-action-button is-primary" @click="validateFingering()" x-text="$t('score.fingeringValidate')">✓ Valider</button>
+        </footer>
+      </article>
+    </dialog>
+
+    <!-- MIDI help -->
+    <dialog id="midiHelpModal" :open="showMidiHelpModal">
+      <article>
+        <header>
+          <p><strong x-text="$t('score.midiHelpTitle')">Connexion clavier MIDI</strong></p>
+          <button aria-label="Close" rel="prev" @click="showMidiHelpModal = false"></button>
+        </header>
+
+        <p x-text="$t('score.midiHelpIntro')">Aucun périphérique MIDI détecté. Voici comment connecter votre clavier :</p>
+
+        <template x-if="detectedOS() === 'mac'">
+          <div>
+            <h4>macOS</h4>
+            <p x-text="$t('score.macTwoCases')">Selon votre piano, deux cas de figure :</p>
+            <details open>
+              <summary><strong x-text="$t('score.macDirectSummary')">Connexion directe (ex : Roland FP-30)</strong></summary>
+              <p x-text="$t('score.macDirectBody')">Allumez simplement votre piano. La connexion Bluetooth s'effectue automatiquement. Revenez ensuite sur cette page et cliquez sur « Connecter clavier MIDI ».</p>
+            </details>
+            <details>
+              <summary><strong x-text="$t('score.macSetupSummary')">Via Audio MIDI Setup (ex : Kawai)</strong></summary>
+              <ol>
+                <li x-html="$t('score.macSetupStep1')">Ouvrez l'application <strong>Audio MIDI Setup</strong> (Spotlight : « Audio MIDI »)</li>
+                <li x-html="$t('score.macSetupStep2')">Allez dans <strong>Fenêtre → Afficher le studio MIDI</strong></li>
+                <li x-html="$t('score.macSetupStep3')">Cliquez sur l'icône <strong>Bluetooth</strong></li>
+                <li x-html="$t('score.macSetupStep4')">Repérez votre piano dans la liste et cliquez sur <strong>Connecter</strong></li>
+              </ol>
+              <p x-text="$t('score.macSetupReturn')">Revenez ensuite sur cette page et cliquez sur « Connecter clavier MIDI ».</p>
+            </details>
+          </div>
+        </template>
+
+        <template x-if="detectedOS() === 'windows'">
+          <div>
+            <h4>Windows</h4>
+            <p x-text="$t('score.windowsIntro')">La connexion Bluetooth MIDI sur Windows nécessite des logiciels tiers :</p>
+            <ol>
+              <li x-html="$t('score.windowsStep1')">Installez <strong>BLE MIDI Bridge</strong> (pour recevoir le signal Bluetooth MIDI)</li>
+              <li x-html="$t('score.windowsStep2')">Installez <strong>loopMIDI</strong> (pour créer un port MIDI virtuel)</li>
+              <li x-text="$t('score.windowsStep3')">Configurez BLE MIDI Bridge pour rediriger vers le port loopMIDI</li>
+            </ol>
+            <p x-text="$t('score.windowsReturn')">Une fois le pont configuré, revenez sur cette page et cliquez sur « Connecter clavier MIDI ».</p>
+          </div>
+        </template>
+
+        <template x-if="detectedOS() === 'other'">
+          <div>
+            <h4>Linux</h4>
+            <p x-text="$t('score.linuxBody')">Connectez votre clavier MIDI via USB ou configurez la connexion Bluetooth MIDI via BlueZ. Revenez ensuite sur cette page et cliquez sur « Connecter clavier MIDI ».</p>
+          </div>
+        </template>
+
+        <footer>
+          <button class="pt-action-button is-primary" @click="showMidiHelpModal = false; connectMIDI()" x-text="$t('score.midiHelpRetry')">Réessayer la connexion</button>
+        </footer>
+      </article>
+    </dialog>
+
+  </body>
+</html>
