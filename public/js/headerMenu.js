@@ -11,9 +11,10 @@
 // markup-in-HTML convention, forced by the no-build-step constraint. If a
 // bundler is ever added, this should become a proper partial/component.
 //
-// Page-specific seam (kept out of here): feedbackContext() — extra,
+// Page-specific seams (kept out of here): feedbackContext() — extra,
 // non-identifying context merged into a report (practice stats on the library,
-// current score on the score page).
+// current score on the score page) — and captureFeedbackShot(), which returns a
+// picture of what the modal is covering on the pages that can make one.
 import { CHANGELOG } from './changelog.js'
 import { feedbackEnabled, buildBaseContext, submitFeedback } from './feedback.js'
 import { getLang, locale } from './i18n.js'
@@ -97,11 +98,27 @@ export function headerMenu() {
     feedback: { message: '', email: '', category: '' },
     feedbackStatus: 'idle', // 'idle' | 'sending' | 'sent' | 'error'
     feedbackError: '',
+    // A picture of what the modal is covering, or null where the page cannot
+    // make one. Attached by default and shown in the form, so it is never a
+    // surprise — the checkbox opts out.
+    feedbackShot: null,
+    feedbackShotWanted: true,
 
     openFeedback() {
       this.feedback = { message: '', email: '', category: '' }
       this.feedbackStatus = 'idle'
       this.feedbackError = ''
+      this.feedbackShot = null
+      this.feedbackShotWanted = true
+      // The other page-specific seam: only a page showing something worth
+      // picturing supplies captureFeedbackShot() (the score page does, from
+      // screenshot.js). Started before the dialog goes up, so the picture is of
+      // the scroll position the reporter was looking at, and resolving to null
+      // where the capture found nothing or failed — the form then never offers
+      // it, and the report goes as words alone.
+      this.captureFeedbackShot?.().then((shot) => {
+        this.feedbackShot = shot
+      })
       this.menuOpen = false
       this.showFeedbackModal = true
     },
@@ -116,6 +133,7 @@ export function headerMenu() {
           message,
           email: this.feedback.email,
           category: this.feedback.category,
+          screenshot: this.feedbackShotWanted ? this.feedbackShot : null,
           context: { ...buildBaseContext(), ...(this.feedbackContext?.() ?? {}) },
         })
         this.feedbackStatus = 'sent'
@@ -232,6 +250,15 @@ const MODALS_HTML = `
           <input type="email" x-model="feedback.email" maxlength="320" :disabled="feedbackStatus === 'sending'" :placeholder="$t('feedback.emailPlaceholder')" />
           <small x-text="$t('feedback.emailHint')"></small>
         </label>
+        <template x-if="feedbackShot">
+          <div class="pt-feedback-shot">
+            <label>
+              <input type="checkbox" x-model="feedbackShotWanted" :disabled="feedbackStatus === 'sending'" />
+              <span x-text="$t('feedback.screenshotLabel')">Joindre l'image de la partition affichée</span>
+            </label>
+            <img class="pt-feedback-shot__preview" x-show="feedbackShotWanted" :src="feedbackShot" :alt="$t('feedback.screenshotAlt')" />
+          </div>
+        </template>
         <small class="pt-feedback-privacy" x-text="$t('feedback.privacy')"></small>
         <p x-show="feedbackStatus === 'error'" role="alert" class="pt-feedback-error">
           <span x-text="$t('feedback.error')">L'envoi a échoué.</span>

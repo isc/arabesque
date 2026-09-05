@@ -94,8 +94,14 @@ Management API, with the token the Supabase CLI already keeps outside the repo:
 
 ```bash
 node scripts/feedback.mjs list          # what is still to deal with
+node scripts/feedback.mjs shot <id>     # write its screenshot to a file
 node scripts/feedback.mjs treat <id>    # mark one as dealt with
 ```
+
+A report filed from the score page carries a picture of the score behind the
+modal (`public/js/screenshot.js`, opt-out in the form); `list` marks those with
+📷 and `shot` writes the image out. Neither `list` nor `show` ever prints the
+value itself — a few hundred kB of base64 would bury the entry.
 
 The header of `scripts/feedback.mjs` has the rest (`show`, `untreat`, flags).
 Each new feedback also emails ivan.schneider@hey.com, so there is nothing to poll.

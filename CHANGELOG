@@ -1,5 +1,15 @@
 2026-09-05
 
+- **Un avis envoyé depuis une partition emporte l'image de ce qu'on avait
+  sous les yeux.** Un problème de notation se décrivait mal en mots : la
+  mesure fautive n'a pas de nom. La fenêtre d'avis joint maintenant l'image
+  de la partition affichée — le SVG d'OSMD rasterisé par le navigateur,
+  recadré sur ce que la modale recouvre, sans dépendance ajoutée. Elle est
+  visible dans le formulaire avant l'envoi et une case permet de la retirer ;
+  un échec de capture n'empêche jamais l'envoi du message. Rien n'est joint
+  depuis les autres pages. Côté base, une colonne `screenshot` bornée à
+  400 ko, sans rien élargir de ce que la clé publique peut faire.
+
 - **Le mode strict travaille un passage en boucle.** Le bouton 🔁 Boucle,
   à côté du tempo, rejoue en boucle le passage délimité par deux clics sur
   la partition (ou la partition entière), avec un temps de pause entre deux

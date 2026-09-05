@@ -42,8 +42,35 @@ create table if not exists public.feedback (
   email      text,
   category   text,          -- 'bug' | 'idea' | 'score' | 'other' (free text; UI-constrained)
   context    jsonb,         -- app_version, locale, user_agent, viewport, anonymized stats
+  screenshot text,          -- data URL of the score on screen, opt-out (see below)
   status     text not null default 'new'   -- constrained just below
 );
+
+-- A picture of what the reporter was looking at, as a data URL (WebP, or JPEG
+-- where WebP is not available) produced in the browser by public/js/screenshot.js.
+--
+-- Why a column and not Supabase Storage: uploading from the browser would mean
+-- a storage policy letting `anon` INSERT into storage.objects, which hands the
+-- publishable key a brand-new power — arbitrary file upload into the project,
+-- off-table and unbounded. It would also split one submission into two
+-- unrelated requests, so a row can end up naming an object that never arrived.
+-- A column keeps the existing security property exactly as it was: one table,
+-- one insert-only policy, nothing else granted. The cost is storage — at ~80 kB
+-- of base64 per report it is single-digit MB a year against the free tier's
+-- 500 MB, and TOAST keeps the value out of the main heap so the listing query,
+-- which never selects it, does not slow down.
+alter table public.feedback
+  add column if not exists screenshot text;
+
+-- The ceiling the client encodes against (screenshot.js walks quality down
+-- until it fits, and sends nothing rather than overflow). It is here because
+-- the client is not the only thing that can POST with a publishable key: this
+-- is what stops a hand-rolled insert from parking megabytes in the table. The
+-- message column has no such bound, which is the older gap, not a new one.
+alter table public.feedback drop constraint if exists feedback_screenshot_size;
+alter table public.feedback
+  add constraint feedback_screenshot_size
+  check (screenshot is null or length(screenshot) <= 400000);
 
 -- Which feedback is still to deal with. Without it the only way to tell was to
 -- remember which dates had been read; `scripts/feedback.mjs` reads and writes
@@ -115,11 +142,17 @@ begin
       'html', format(
         '<p><strong>New feedback</strong>%s</p>'
         '<blockquote style="border-left:3px solid #ddd;padding-left:12px;color:#333">%s</blockquote>'
-        '<p style="color:#666">— %s</p>'
+        '<p style="color:#666">— %s</p>%s'
         '<p style="color:#999;font-size:13px">id <code>%s</code></p>',
         coalesce(' · ' || new.category, ''),
         excerpt,
         coalesce(nullif(new.email, ''), 'anonymous'),
+        -- The image is too big to inline in the notification; say it exists and
+        -- how to look at it, or it never gets looked at.
+        case when new.screenshot is null then ''
+             else '<p style="color:#666">📷 Screenshot attached — <code>node scripts/feedback.mjs shot ' ||
+                  left(new.id::text, 8) || '</code></p>'
+        end,
         new.id
       )
     )
