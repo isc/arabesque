@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="fr" data-theme="light">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="app-version" content="475099d600f6" />
+    <title data-i18n="privacy.pageTitle">Arabesque · Confidentialité</title>
+    <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="styles.css" />
+    <script type="module" src="js/version.js"></script>
+    <script type="module">
+      import { initI18n } from './js/i18n.js'
+      initI18n()
+    </script>
+  </head>
+  <body>
+    <main class="container pt-prose">
+      <div class="pt-page-header">
+        <a href="library.html" class="pt-topbar__back" data-i18n="privacy.back">← Bibliothèque</a>
+        <h1 data-i18n="privacy.heading">Confidentialité</h1>
+      </div>
+      <p class="pt-hint" data-i18n="privacy.updated">Dernière mise à jour : 24 août 2026.</p>
+
+      <h2 data-i18n="privacy.summaryTitle">En bref</h2>
+      <p data-i18n="privacy.summaryBody">
+        Arabesque fonctionne dans votre navigateur et garde vos données de pratique
+        sur votre appareil. Rien n'est envoyé ailleurs tant que vous ne le demandez
+        pas — en créant un compte pour synchroniser vos appareils, ou en envoyant un
+        avis. Il n'y a ni publicité, ni traceur, ni revente de quoi que ce soit.
+      </p>
+
+      <h2 data-i18n="privacy.localTitle">Ce qui reste sur votre appareil</h2>
+      <p data-i18n="privacy.localBody">
+        Vos séances de travail, vos doigtés et vos préférences (langue, morceaux vus)
+        sont écrits dans le stockage local du navigateur. Ils ne quittent pas
+        l'appareil de leur propre initiative, et vider les données du site les efface
+        définitivement. La page Données permet de les exporter dans un fichier.
+      </p>
+
+      <h2 data-i18n="privacy.accountTitle">Le compte, si vous en créez un</h2>
+      <p data-i18n="privacy.accountBody">
+        Se connecter sert à retrouver sa pratique d'un appareil à l'autre. Cela
+        demande une adresse e-mail, à laquelle est envoyé un lien — ou un code — de
+        connexion : il n'y a pas de mot de passe. Une fois connecté, vos séances et
+        vos doigtés sont copiés sur le serveur pour être redescendus sur vos autres
+        appareils. Aucune autre donnée n'est associée au compte.
+      </p>
+      <p data-i18n="privacy.accountDelete">
+        Vous pouvez supprimer votre compte depuis la page Données. Le compte et
+        toutes les données synchronisées sont alors effacés des serveurs, sans délai
+        et sans avoir à le demander à qui que ce soit.
+      </p>
+
+      <h2 data-i18n="privacy.feedbackTitle">Les avis que vous envoyez</h2>
+      <p data-i18n="privacy.feedbackBody">
+        Le formulaire d'avis transmet votre message, la catégorie choisie, et un
+        contexte technique destiné à reproduire les problèmes : version de l'app,
+        navigateur, taille d'écran, langue, et selon la page, le titre du morceau
+        ouvert ou vos totaux de pratique. L'adresse e-mail est facultative et ne sert
+        qu'à vous répondre. Un avis n'est jamais rattaché à un compte.
+      </p>
+
+      <h2 data-i18n="privacy.neverTitle">Ce qu'Arabesque ne fait pas</h2>
+      <p data-i18n="privacy.neverBody">
+        Pas de publicité, pas de mesure d'audience, pas de traceur tiers, pas de
+        cookie publicitaire, pas de profilage. Vos données ne sont ni vendues, ni
+        louées, ni partagées à des fins commerciales. Le microphone et la caméra ne
+        sont jamais utilisés ; le clavier MIDI ne sert qu'à savoir quelles notes vous
+        jouez, et ce flux ne quitte pas votre appareil.
+      </p>
+
+      <h2 data-i18n="privacy.hostingTitle">Hébergement et prestataires</h2>
+      <p data-i18n="privacy.hostingBody">
+        Le site est hébergé par GitHub Pages, qui journalise les requêtes comme tout
+        serveur web. Les comptes et les données synchronisées sont chez Supabase, sur
+        des serveurs situés en Irlande (Union européenne). Les avis y sont également
+        stockés, et notifiés par e-mail via Resend. La page Données charge la
+        bibliothèque de connexion depuis le CDN esm.sh, qui voit donc votre adresse
+        IP lors de cette requête.
+      </p>
+
+      <h2 data-i18n="privacy.retentionTitle">Durées de conservation</h2>
+      <p data-i18n="privacy.retentionBody">
+        Les données synchronisées sont conservées tant que le compte existe, et
+        disparaissent avec lui. Les avis sont conservés le temps de traiter la
+        demande et de garder la trace des corrections apportées.
+      </p>
+
+      <h2 data-i18n="privacy.rightsTitle">Vos droits</h2>
+      <p data-i18n="privacy.rightsBody">
+        Vous pouvez à tout moment consulter et exporter vos données depuis la page
+        Données, et supprimer votre compte avec tout ce qu'il contient. Pour la
+        suppression d'un avis, ou pour toute question sur vos données, passez par le
+        formulaire d'avis (menu ⚙️) — il arrive dans la même boîte.
+      </p>
+
+      <h2 data-i18n="privacy.childrenTitle">Enfants</h2>
+      <p data-i18n="privacy.childrenBody">
+        Arabesque n'est pas destiné aux enfants de moins de 13 ans et ne leur demande
+        sciemment aucune donnée. L'app s'utilise entièrement sans compte.
+      </p>
+
+      <h2 data-i18n="privacy.changesTitle">Modifications</h2>
+      <p data-i18n="privacy.changesBody">
+        Cette page évolue avec l'application. La date de mise à jour en haut indique
+        la dernière version ; un changement qui vous concerne sera annoncé dans les
+        « Nouveautés ».
+      </p>
+
+      <footer class="pt-landing__footer">
+        <a href="support.html" data-i18n="common.support">Assistance</a>
+      </footer>
+    </main>
+  </body>
+</html>
