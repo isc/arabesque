@@ -37,7 +37,10 @@ export function buildBaseContext() {
 
 // POST one feedback row. Throws on a non-2xx response so the caller can show an
 // error state; the Supabase trigger handles the email asynchronously.
-export async function submitFeedback({ message, email, category, context }) {
+// `screenshot` is a data URL of the score the reporter was looking at, or null.
+// It rides in its own column rather than in `context` so the listing query can
+// leave the big value on disk — see supabase/feedback.sql.
+export async function submitFeedback({ message, email, category, context, screenshot = null }) {
   if (!feedbackEnabled) throw new Error('Feedback disabled (missing configuration)')
   const res = await fetch(`${SUPABASE_URL}/rest/v1/feedback`, {
     method: 'POST',
@@ -52,6 +55,7 @@ export async function submitFeedback({ message, email, category, context }) {
       email: email && email.trim() ? email.trim() : null,
       category: category || null,
       context,
+      screenshot,
     }),
   })
   if (!res.ok) {

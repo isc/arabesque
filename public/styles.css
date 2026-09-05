@@ -1712,6 +1712,20 @@ dialog > article > footer button { margin: 0; }
 /* Feedback modal helper text + error banner (the form itself is unstyled). */
 .pt-feedback-intro { margin: 0 0 var(--pt-space-4); color: var(--pt-text-muted); }
 .pt-feedback-privacy { display: block; margin-top: var(--pt-space-3); color: var(--pt-text-subtle); }
+/* The picture that goes with a report is shown, not merely promised: the
+   checkbox above it is then an informed choice rather than a leap of faith. */
+.pt-feedback-shot__preview {
+  /* Sized by the picture itself, and bounded — a screen of staves at full width
+     pushes Envoyer out of the modal. Scaled down whole rather than cropped:
+     what is shown has to be all of what is sent. */
+  display: block;
+  max-width: 100%;
+  max-height: 200px;
+  margin: var(--pt-space-2) auto 0;
+  border: 1px solid var(--pt-border);
+  border-radius: var(--pt-radius-sm);
+  background: var(--pt-bg-elevated);
+}
 .pt-feedback-error {
   margin: var(--pt-space-3) 0 0;
   padding: var(--pt-space-2) var(--pt-space-3);
