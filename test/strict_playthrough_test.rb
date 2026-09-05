@@ -148,6 +148,19 @@ class StrictPlaythroughTest < CapybaraTestBase
     end
   end
 
+  # Reported as feedback 1e25381f: the notes lit by the free run you were just
+  # playing stayed lit when you switched to strict mode, so the run started on
+  # a score already marked up by a different, earlier session.
+  def test_entering_strict_mode_clears_free_mode_colouring
+    load_score('two-measures.xml', 2)
+
+    play_note('C4')
+    assert_selector 'svg g.vf-notehead.played-note', count: 1
+
+    click_on '⏱ Mode strict'
+    assert_no_selector 'svg g.vf-notehead.played-note'
+  end
+
   # The tempo trainer: the passage between two clicked measures, run after run
   # with a pause between them, the tempo moving with the results — and a
   # summary of the runs when ⏸ ends it.

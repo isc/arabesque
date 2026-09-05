@@ -802,10 +802,14 @@ export function midiApp() {
       if (this.strictSelected) {
         this.strictSelected = false
         this.resetStrictRange()
-        // The last run's verdict stays on the score for the player to read,
-        // not for the next mode to play over.
-        strictPlaythrough.clearMarks()
       }
+      // A mode switch starts on a clean score: whatever is lit on it — a
+      // strict run's verdict, the notes a free or training run played —
+      // belongs to the run that lit it, and that run is over. The two halves
+      // are cleared by their own module; both no-op when there is nothing to
+      // clear.
+      strictPlaythrough.clearMarks()
+      musicxml.resetProgress()
       const training = name === 'training'
       if (this.trainingMode !== training) {
         this.trainingMode = training
