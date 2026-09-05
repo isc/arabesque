@@ -1,4 +1,8 @@
 import { initMidi } from './midi.js'
+// The score page is not the only place a player touches the keys: a score is
+// found here by playing its opening bars. With their instrument silenced, that
+// has to make a sound too, so this page shares the score page's sampler.
+import { echoNoteOn, echoNoteOff, echoPedal, warmUp } from './playback.js'
 import { initPracticeTracker } from './practiceTracker.js'
 import { initStorage } from './storage.js'
 import { formatDuration, formatDate, formatRelativeDate, statusLabel, scorePageUrl } from './utils.js'
@@ -93,8 +97,14 @@ export function libraryApp() {
         search.select()
       })
 
+      warmUp()
       midi.setCallbacks({
-        onNotePlayed: (_, midiNote) => this.handleSearchNote(midiNote),
+        onNotePlayed: (_, midiNote, velocity) => {
+          echoNoteOn(midiNote, velocity)
+          this.handleSearchNote(midiNote)
+        },
+        onNoteReleased: (_, midiNote) => echoNoteOff(midiNote),
+        onPedal: echoPedal,
       })
       midi.connectMIDI({ silent: true, autoSelectFirst: true })
 

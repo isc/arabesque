@@ -14,6 +14,9 @@ export default {
     support: '🛟 Support',
     privacy: '🔒 Privacy',
     install: '📲 Install the app',
+    sound: 'Sound',
+    appSound: '🎧 Play the sound in the app',
+    appSoundHint: 'The piece, your playing and the metronome all come out of the same place. Switch Local Control off on the piano, or every note is heard twice.',
     language: 'Language',
   },
   // Which hands a run through the score was played with.

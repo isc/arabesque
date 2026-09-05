@@ -1,8 +1,12 @@
 import { isTestEnv } from './utils.js'
+import { appSoundEnabled } from './appSound.js'
 import { tsToSeconds, buildMeasureStartTimes, buildCursorTimeline, cursorStepsBeforeMeasure } from './playbackTiming.js'
 import { scrollSystemIntoView } from './utils.js'
 
 let piano = null
+// The sampler's load while it is still in flight, so every caller waits on the
+// one download (see ensurePianoLoaded).
+let pianoLoading = null
 let midiState = null
 let scheduledTimeouts = []
 let activeNotes = new Set()
@@ -41,8 +45,14 @@ export function initPlayback(externalMidiState = null) {
   }
 }
 
+// Where the score's own sound goes: the instrument by default, the app's
+// sampler when the player asked for it or when there is nothing to send to.
+function playbackGoesToInstrument() {
+  return !!midiState?.midiOutput && !appSoundEnabled()
+}
+
 function sendMidi(midiBytes, pianoFn) {
-  if (midiState?.midiOutput) {
+  if (playbackGoesToInstrument()) {
     midiState.midiOutput.send(midiBytes)
   } else if (piano) {
     pianoFn(piano)
@@ -70,8 +80,9 @@ function pedalUp() {
   sendMidi([0xB0, 64, 0], (p) => p.pedalUp())
 }
 
-async function ensurePianoLoaded() {
-  if (midiState?.midiOutput || piano) return
+function ensurePianoLoaded() {
+  if (piano) return pianoLoading
+  if (playbackGoesToInstrument()) return
   // Under test, play silently. The samples are a ~6s CDN download, and it sits
   // between the click on ▶ Écouter and the button becoming ⏹ Stop — so a test
   // asserting that transition was really asserting that a CDN answered within
@@ -79,15 +90,64 @@ async function ensurePianoLoaded() {
   // tests do check — scheduling, the cursor, isPlaying — runs without it, and
   // sendMidi() already no-ops when there is neither an output nor a piano.
   if (isTestEnv()) return
+  // The load is remembered, not just its result: `piano` is only assigned once
+  // the samples are in, so a second call while they are coming would build a
+  // whole second sampler — and echoNoteOn calls this on every note the player
+  // presses, which during the download is one sampler and one full sample set
+  // per key.
+  //
   // Imported here, not at the top of the module: @tonejs/piano pulls in Tone
   // (~400KB with its dependencies) and the score page's whole module graph hangs
   // off this file, so a static import made every score wait on a bundle that is
   // only needed once someone presses ▶ Écouter — and only when no MIDI output is
   // connected to play through instead.
-  const { Piano } = await import('@tonejs/piano')
-  piano = new Piano({ velocities: 1 })
-  piano.toDestination()
-  await piano.load()
+  pianoLoading ??= (async () => {
+    const { Piano } = await import('@tonejs/piano')
+    const loaded = new Piano({ velocities: 1 })
+    loaded.toDestination()
+    await loaded.load()
+    piano = loaded
+  })()
+  return pianoLoading
+}
+
+// Pulls the samples in before the first note when the app is making the sound,
+// so the player does not lose the start of their playing to a download.
+//
+// Gated on the setting alone, never on whether an instrument is connected: a
+// page calls this while connectMIDI is still in flight, so midiOutput is null
+// at that moment whatever is plugged in — testing it would load the samples for
+// everyone and undo the lazy import below.
+export function warmUp() {
+  if (!appSoundEnabled()) return
+  // Nobody awaits this: a CDN that never answers leaves the player without the
+  // app's sound, which the console should say and the page should survive.
+  ensurePianoLoaded()?.catch((e) => console.error('Sampler failed to load:', e))
+}
+
+// The keys and pedal the player works, sounded by the app rather than by the
+// instrument. See appSound.js for what that costs the player in exchange.
+//
+// Awaiting the load on the first note would swallow it and the several after
+// it, so a note that arrives while the samples are still coming is dropped
+// rather than queued — a late note is worse than a missing one under the hands.
+export function echoNoteOn(midiNumber, velocityByte) {
+  if (!appSoundEnabled()) return
+  ensurePianoLoaded()
+  piano?.keyDown({ midi: midiNumber, velocity: velocityByte / 127 })
+}
+
+// Releases are not gated on the setting: turning it off with keys down would
+// otherwise leave them ringing with nothing left to lift them, and releasing a
+// key the sampler never pressed costs nothing.
+export function echoNoteOff(midiNumber) {
+  piano?.keyUp({ midi: midiNumber })
+}
+
+export function echoPedal(down) {
+  if (!appSoundEnabled() && down) return
+  if (down) piano?.pedalDown()
+  else piano?.pedalUp()
 }
 
 export function getBPM(osmdInstance) {
@@ -243,7 +303,7 @@ function clearSchedule() {
   // just cancelled, so without this they would ring indefinitely.
   for (const midiNumber of [...activeNotes]) noteOff(midiNumber)
   pedalUp()
-  if (midiState?.midiOutput) {
+  if (playbackGoesToInstrument()) {
     midiState.midiOutput.send([0xB0, 123, 0]) // All Notes Off
   }
 }
