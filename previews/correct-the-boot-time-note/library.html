@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="fr" data-theme="light" x-data="libraryApp()">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="app-version" content="0a66fdad3082" />
+    <title data-i18n="library.pageTitle">Arabesque · Bibliothèque</title>
+    <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+    <link rel="manifest" href="manifest.webmanifest" />
+    <meta name="theme-color" content="#f7f7f9" />
+    <link rel="stylesheet" href="styles.css" />
+    <script type="module" src="js/version.js"></script>
+    <script type="module" src="js/swRegister.js"></script>
+    <script type="module">
+      // Register the Alpine root component before Alpine boots, then load Alpine.
+      // Loading Alpine from inside this module (rather than a sibling `defer`
+      // script) guarantees `libraryApp` exists before Alpine evaluates `x-data`,
+      // even when library.js's import graph is slow to resolve. Otherwise Alpine
+      // can win the race and every expression throws "<name> is not defined".
+      import { libraryApp } from './js/library.js'
+      import { initAlpineI18n } from './js/i18n.js'
+      import { mountHeaderMenu } from './js/headerMenu.js'
+      import { mountJournalEntries } from './js/journalEntries.js'
+      window.libraryApp = libraryApp
+      // Inject the shared ⚙️ menu + modals before Alpine boots and before the
+      // FR/EN switch is wired by initAlpineI18n.
+      mountHeaderMenu()
+      // Same, for the journal entry line shared with the calendar page.
+      mountJournalEntries()
+      // Translate static chrome, wire the FR/EN switch, and expose $t to templates.
+      initAlpineI18n()
+      const alpine = document.createElement('script')
+      alpine.src = 'vendor/alpinejs.3.14.9.min.js'
+      document.head.appendChild(alpine)
+    </script>
+  </head>
+  <body>
+    <!-- data-tab is also static: the pane rules key off it, and without a
+         value during parsing both panes show until Alpine binds. -->
+    <main class="container pt-library-page" data-tab="journal" :data-tab="tab" @keydown.escape.window="menuOpen = false; showChangelogModal = false; showFeedbackModal = false">
+      <div class="pt-library-chrome" :class="{ 'is-collapsed': !filtersOpen }">
+        <div class="pt-page-header">
+          <h1 x-text="$t('library.heading')">Bibliothèque</h1>
+          <div class="pt-page-header__actions">
+            <div class="pt-page-header__search">
+              <input
+                type="search"
+                x-model="searchQuery"
+                :placeholder="$t('library.searchPlaceholder')"
+                :aria-label="$t('library.searchAria')"
+              />
+            </div>
+            <div data-menu-slot></div>
+          </div>
+        </div>
+
+        <!-- Narrow-screen only, like .pt-librarybar below. A phone shows one of
+             the two panes at a time; a wide screen shows both side by side and
+             never sees these. -->
+        <div class="pt-librarytabs" role="tablist" :aria-label="$t('library.tabsAria')" x-show="scores.length > 0">
+          <template x-for="opt in tabs" :key="opt.value">
+            <button
+              type="button"
+              role="tab"
+              class="pt-librarytabs__tab"
+              :aria-selected="tab === opt.value"
+              @click="tab = opt.value"
+              x-text="opt.label"
+            ></button>
+          </template>
+        </div>
+
+        <!-- Narrow-screen only (see .pt-librarybar): the filters below cost a
+             whole phone screen before any content, and the sortable table
+             headers are gone once the rows become cards. -->
+        <div class="pt-librarybar" x-show="scores.length > 0">
+          <button
+            type="button"
+            class="pt-filter-pill"
+            :aria-expanded="filtersOpen"
+            @click="filtersOpen = !filtersOpen"
+          >
+            <span x-text="$t('library.filters')">Filtrer</span>
+            <span class="pt-filter-pill__count" x-show="activeFilterCount > 0" x-text="activeFilterCount"></span>
+          </button>
+          <select
+            class="pt-select pt-librarybar__sort"
+            :aria-label="$t('library.sortAria')"
+            @change="toggleSort($event.target.value)"
+          >
+            <template x-for="opt in sortOptions" :key="opt.value">
+              <option :value="opt.value" :selected="opt.value === sortBy" x-text="opt.label"></option>
+            </template>
+          </select>
+        </div>
+
+        <div class="pt-filters" x-show="scores.length > 0">
+          <button
+            class="pt-filter-pill"
+            :aria-pressed="!statusFilter"
+            @click="statusFilter = ''"
+          ><span x-text="$t('library.filterAll')">Tous</span> <span class="pt-filter-pill__count" x-text="scores.length"></span></button>
+          <template x-for="opt in statusOptions" :key="opt.value">
+            <button
+              class="pt-filter-pill"
+              :data-status="opt.value"
+              :aria-pressed="statusFilter === opt.value"
+              @click="statusFilter = (statusFilter === opt.value ? '' : opt.value)"
+              x-show="opt.count > 0"
+            >
+              <span x-text="opt.label"></span>
+              <span class="pt-filter-pill__count" x-text="opt.count"></span>
+            </button>
+          </template>
+          <select class="pt-select" x-model="composerFilter" :aria-label="$t('library.composerFilterAria')" x-show="composerOptions.length > 1">
+            <option value="" x-text="$t('library.allComposers')">Tous compositeurs</option>
+            <template x-for="c in composerOptions" :key="c">
+              <option :value="c" x-text="c"></option>
+            </template>
+          </select>
+          <select class="pt-select" x-model="periodFilter" :aria-label="$t('library.periodFilterAria')" x-show="periodOptions.length > 1">
+            <option value="" x-text="$t('library.allPeriods')">Toutes périodes</option>
+            <template x-for="p in periodOptions" :key="p.value">
+              <option :value="p.value" x-text="`${p.label} (${p.count})`"></option>
+            </template>
+          </select>
+        </div>
+
+        <div class="pt-focus" x-show="focusOptions.length > 0">
+          <span class="pt-focus__label" x-text="$t('library.focusLabel')">À travailler :</span>
+          <template x-for="opt in focusOptions" :key="opt.value">
+            <button
+              class="pt-focus__chip"
+              :data-focus="opt.value"
+              :aria-pressed="focusFilter === opt.value"
+              @click="setFocusFilter(opt.value)"
+            >
+              <span x-text="opt.label"></span>
+              <span class="pt-focus__count" x-text="opt.count"></span>
+            </button>
+          </template>
+        </div>
+      </div>
+
+      <div class="pt-library">
+        <!-- Sidebar: practice journal + data management -->
+        <aside class="pt-library__sidebar">
+          <div class="pt-row-between pt-journal__header">
+            <h2 class="pt-eyebrow" x-text="$t('library.journalHeading')">Journal de pratique</h2>
+            <a href="practice.html" x-text="$t('library.seeYear')">Voir l'année →</a>
+          </div>
+          <div id="daily-log" style="display: flex; flex-direction: column; gap: var(--pt-space-2);">
+            <template x-for="dateEntry in dailyLogsByDate" :key="dateEntry.date.toISOString()">
+              <div class="pt-journal__day">
+                <div class="pt-journal__day-header">
+                  <h3 x-text="formatDate(dateEntry.date)"></h3>
+                  <small x-show="dateEntry.log.length > 0" x-text="formatDuration(getTotalPracticeTimeForDate(dateEntry))"></small>
+                </div>
+                <template x-if="dateEntry.log.length === 0">
+                  <p class="pt-journal__entry pt-journal__entry--empty" x-text="$t('library.noPractice')">Aucune pratique</p>
+                </template>
+                <div data-journal-entries="dateEntry.log"></div>
+              </div>
+            </template>
+          </div>
+        </aside>
+
+        <!-- Library list -->
+        <div class="pt-library__main">
+          <table>
+            <thead>
+              <tr>
+                <th class="pt-th-sort" @click="toggleSort('title')" :aria-sort="sortBy === 'title' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'">
+                  <span x-text="$t('library.colTitle')">Titre</span><span x-text="sortArrow('title')"></span>
+                </th>
+                <th class="pt-th-sort" @click="toggleSort('composer')" :aria-sort="sortBy === 'composer' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'">
+                  <span x-text="$t('library.colComposer')">Compositeur</span><span x-text="sortArrow('composer')"></span>
+                </th>
+                <th class="pt-th-sort" @click="toggleSort('status')" :aria-sort="sortBy === 'status' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'">
+                  <span x-text="$t('library.colStatus')">Statut</span><span x-text="sortArrow('status')"></span>
+                </th>
+                <th class="pt-th-sort pt-th-right" @click="toggleSort('practice')" :aria-sort="sortBy === 'practice' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'">
+                  <span x-text="$t('library.colPractice')">Pratiqué</span><span x-text="sortArrow('practice')"></span>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              <template x-for="score in filteredScores" :key="score.file || score.title">
+                <tr>
+                  <td>
+                    <a :href="scorePageUrl(getScoreUrl(score))" x-text="score.title"></a>
+                    <small x-show="isCollection(score)" x-text="$t('library.exercises', { n: score.parts?.length })"></small>
+                  </td>
+                  <td>
+                    <a href="#" @click.prevent="setComposerFilter(score.composer)" x-text="score.composer"></a>
+                  </td>
+                  <td>
+                    <template x-if="getStatusFor(score)">
+                      <a href="#"
+                         @click.prevent="setStatusFilter(getStatusFor(score))"
+                         class="pt-pill is-link"
+                         :class="'pt-pill--' + getStatusFor(score)"
+                         x-text="statusLabel(getStatusFor(score))"></a>
+                    </template>
+                  </td>
+                  <td class="pt-row__time">
+                    <template x-if="getPracticeTimeFor(score)">
+                      <div>
+                        <span x-text="formatDuration(getPracticeTimeFor(score))"></span>
+                        <small x-show="getPracticeSubline(score)" x-text="getPracticeSubline(score)"></small>
+                      </div>
+                    </template>
+                  </td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <!-- The ⚙️ menu + changelog/feedback modals are injected by
+           mountHeaderMenu() (js/headerMenu.js), shared with the score page. -->
+    </main>
+  </body>
+</html>
