@@ -47,6 +47,15 @@
   libère, à hauteur identique : la partition ne bouge pas, et on continue de
   lire la mesure qu'on s'apprête à jouer.
 
+- **Le son peut sortir de l'app plutôt que du piano.** Le métronome n'a pas
+  d'instrument d'où sortir : il joue par l'appareil qui affiche la partition,
+  donc au casque branché sur le piano on entendait tout sauf le clic. Une
+  bascule dans le menu ⚙️ déplace l'autre moitié du côté de l'appareil : les
+  notes jouées sont reprises par l'échantillonneur de l'app, et ▶ Écouter cesse
+  d'être envoyé au piano. Le morceau, le jeu et le clic arrivent alors dans le
+  même casque, en phase. À n'activer qu'avec le Local Control du piano coupé,
+  sinon chaque note s'entend deux fois.
+
 2026-09-03
 
 - **L'écoute ne couvre plus le jeu.** Le moteur de lecture envoyait toutes ses
