@@ -1,5 +1,14 @@
 2026-09-05
 
+- **Le clavier se connecte tout seul une fois appairé.** Sur iPad,
+  l'appairage Bluetooth se fait dans la fenêtre du système, hors de l'app :
+  au retour, les notes passaient déjà, mais l'en-tête proposait toujours
+  « Connecter clavier MIDI » et il fallait le redemander pour que l'app en
+  convienne. Elle gardait une copie de cet état qu'elle ne rafraîchissait
+  qu'à l'appui sur ce bouton ; elle écoute maintenant l'arrivée du clavier.
+  L'en-tête affiche son nom et la fenêtre d'aide se ferme d'elle-même. Un
+  clavier débranché en cours de séance repasse aussitôt en « non connecté ».
+
 - **Le mode strict travaille un passage en boucle.** Le bouton 🔁 Boucle,
   à côté du tempo, rejoue en boucle le passage délimité par deux clics sur
   la partition (ou la partition entière), avec un temps de pause entre deux

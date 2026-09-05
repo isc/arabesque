@@ -285,6 +285,9 @@ export function midiApp() {
           musicxml.deactivateNote(midiNote)
         },
         onPedal: echoPedal,
+        // Without this the notes came through while the header still offered
+        // to connect, and only pressing that button again refreshed it.
+        onConnectionChange: () => this.syncMidiState(),
       })
 
       musicxml.setCallbacks({
@@ -389,6 +392,10 @@ export function midiApp() {
     syncMidiState() {
       this.bluetoothConnected = midi.state.midiConnected
       this.midiDeviceName = midi.state.midiInput?.name || null
+      // The help modal is the "no keyboard found" screen. Once one is found it
+      // has nothing left to say, and its retry button would be asking for a
+      // connection that already happened.
+      if (this.bluetoothConnected) this.showMidiHelpModal = false
     },
 
     async connectMIDI() {

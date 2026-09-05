@@ -36,6 +36,11 @@ let callbacks = {
   onNotePlayed: null,
   onNoteReleased: null,
   onPedal: null,
+  // A port coming or going on its own, without connectMIDI() being called. The
+  // page mirrors this state in its own UI, and nothing else tells it: on iOS
+  // the keyboard is paired in the system sheet, so the connection always
+  // happens outside the button that asked for it.
+  onConnectionChange: null,
 }
 
 export function initMidi() {
@@ -129,9 +134,7 @@ function onPortStateChange(port) {
 
   if (port.state === 'disconnected') {
     if (port === state.midiInput) {
-      state.midiConnected = false
-      state.midiInput = null
-      console.log('MIDI input disconnected')
+      setConnectedInput(null)
     } else if (port === state.midiOutput) {
       state.midiOutput = null
       console.log('MIDI output disconnected')
@@ -153,12 +156,17 @@ function selectMIDIOutput(output) {
 }
 
 function selectMIDIInput(input) {
-  state.midiInput = input
-
   input.onmidimessage = (event) => parseMidiMessage(event.data)
+  setConnectedInput(input)
+}
 
-  state.midiConnected = true
-  console.log('MIDI connected:', input.name)
+// The one place the connection state moves, so it can't move without the page
+// hearing about it. `null` for "no keyboard any more".
+function setConnectedInput(input) {
+  state.midiInput = input
+  state.midiConnected = !!input
+  console.log(input ? `MIDI connected: ${input.name}` : 'MIDI input disconnected')
+  callbacks.onConnectionChange?.()
 }
 
 async function connectMIDIMock() {
@@ -166,9 +174,7 @@ async function connectMIDIMock() {
   mockMIDI.connect((data) => {
     parseMidiMessage(data)
   })
-  state.midiInput = { name: 'Mock MIDI Keyboard' }
-  state.midiConnected = true
-  console.log('Mock MIDI connected')
+  setConnectedInput({ name: 'Mock MIDI Keyboard' })
 }
 
 // Parse standard MIDI messages (from Web MIDI API)
