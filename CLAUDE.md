@@ -37,6 +37,18 @@ CPUS=4 scripts/test-in-docker.sh rake test             # mimic a CI runner
 
 PR titles and descriptions must be in English.
 
+## Branch previews
+
+Every pull request is deployed at
+`https://arabesque.app/previews/<branch-slug>/library.html` (slug: the branch
+name with anything but letters, digits and `-` turned into `-`), refreshed on
+each push and removed when the PR closes; `.github/workflows/preview.yml`
+posts the link as a sticky comment. Production and previews are both served
+from the `gh-pages` branch — `deploy-pages.yml` publishes `public/` at its
+root, previews go under `previews/`. A preview is on the same origin as
+production, so it reads and writes the same IndexedDB and localStorage: runs
+played on a preview land in the real practice journal.
+
 ## Library
 
 **IMPORTANT:** After adding or removing a score (editing `public/data/scores.json`
