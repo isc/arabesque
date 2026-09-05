@@ -18,7 +18,6 @@ import { CHANGELOG } from './changelog.js'
 import { feedbackEnabled, buildBaseContext, submitFeedback } from './feedback.js'
 import { getLang, locale } from './i18n.js'
 import { INSTALL_AVAILABLE_EVENT, installAvailable, promptInstall } from './installPrompt.js'
-import { appSoundEnabled, setAppSoundEnabled } from './appSound.js'
 
 const CHANGELOG_SEEN_KEY = 'arabesque:changelog-seen'
 const CHANGELOG_DATE_FORMATTER = new Intl.DateTimeFormat(locale(), {
@@ -53,13 +52,6 @@ export function headerMenu() {
       this.closeMenu()
       promptInstall()
     },
-
-    // --- Where the sound comes out ---
-    // A preference for the app rather than for a page, so it sits here next to
-    // the language even though only the score page makes a sound. What it does
-    // and what it needs from the instrument is in appSound.js.
-    appSound: appSoundEnabled(),
-    setAppSoundEnabled,
 
     // --- Changelog ("Nouveautés") ---
     changelog: CHANGELOG,
@@ -151,15 +143,6 @@ const TRIGGER_HTML = `
       <a href="data.html" class="pt-menu-item" @click="closeMenu()" x-text="$t('menu.data')">🗂 Données</a>
       <a href="support.html" class="pt-menu-item" @click="closeMenu()" x-text="$t('menu.support')">🛟 Assistance</a>
       <a href="privacy.html" class="pt-menu-item" @click="closeMenu()" x-text="$t('menu.privacy')">🔒 Confidentialité</a>
-    </div>
-    <hr />
-    <div class="pt-popover__section">
-      <h4 x-text="$t('menu.sound')">Son</h4>
-      <label>
-        <input type="checkbox" x-model="appSound" @change="setAppSoundEnabled(appSound)" />
-        <span x-text="$t('menu.appSound')">🎧 Jouer le son dans l'app</span>
-      </label>
-      <small x-text="$t('menu.appSoundHint')">Le morceau, votre jeu et le métronome sortent du même endroit. Coupez le Local Control du piano, sinon chaque note s'entend deux fois.</small>
     </div>
     <hr />
     <div class="pt-popover__section">

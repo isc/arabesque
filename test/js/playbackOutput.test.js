@@ -2,14 +2,13 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 
 // What the app sends to make a sound, and where it sends it.
 //
-// Two facets of one routing decision. Playback drives the player's own MIDI
-// instrument when one is connected and the sampler otherwise, at a velocity
-// that has to stay below a practising touch — an instrument answering
-// ▶ Écouter louder than its own keys is what feedback 15ae51f5 reported. And
-// the app can be asked to make all of the sound itself, which takes playback
-// off the instrument and puts the player's own keys and pedal on the sampler.
+// Playback drives the player's own MIDI instrument when one is connected and
+// the sampler otherwise, at a velocity that has to stay below a practising
+// touch — an instrument answering ▶ Écouter louder than its own keys is what
+// feedback 15ae51f5 reported. And when it is the sampler, it is built at most
+// once however many times it is asked for while its samples are still coming.
 
-const sampler = vi.hoisted(() => ({ keysDown: [], keysUp: [], pedal: [], built: 0 }))
+const sampler = vi.hoisted(() => ({ keysDown: [], built: 0 }))
 
 vi.mock('@tonejs/piano', () => ({
   Piano: class {
@@ -17,9 +16,9 @@ vi.mock('@tonejs/piano', () => ({
     toDestination() { return this }
     async load() {}
     keyDown(arg) { sampler.keysDown.push(arg) }
-    keyUp(arg) { sampler.keysUp.push(arg) }
-    pedalDown() { sampler.pedal.push('down') }
-    pedalUp() { sampler.pedal.push('up') }
+    keyUp() {}
+    pedalDown() {}
+    pedalUp() {}
   },
 }))
 
@@ -36,20 +35,11 @@ function score() {
   return [allNotes, osmd]
 }
 
-// A fresh copy of the modules each time: playback keeps its sampler, and the
-// setting is read through a stubbed localStorage.
-let playback, appSound
-
+// A fresh copy of the module each time: playback keeps its sampler.
 async function load(midiState) {
-  const store = new Map()
-  vi.stubGlobal('localStorage', {
-    getItem: (k) => store.get(k) ?? null,
-    setItem: (k, v) => store.set(k, String(v)),
-  })
   vi.resetModules()
-  appSound = await import('../../public/js/appSound.js')
-  playback = await import('../../public/js/playback.js')
-  return playback.initPlayback(midiState)
+  const { initPlayback } = await import('../../public/js/playback.js')
+  return initPlayback(midiState)
 }
 
 async function playOneNote(midiState) {
@@ -61,8 +51,6 @@ async function playOneNote(midiState) {
 describe('playback output', () => {
   beforeEach(() => {
     sampler.keysDown = []
-    sampler.keysUp = []
-    sampler.pedal = []
     sampler.built = 0
     vi.useFakeTimers()
     // isTestEnv() reads document.cookie; without the test-env marker playback
@@ -91,73 +79,13 @@ describe('playback output', () => {
     expect(sampler.keysDown).toEqual([{ midi: 60, velocity: 0.5 }])
   })
 
-  it('takes playback off the instrument once the app is making the sound', async () => {
-    const sent = []
-    const state = { midiOutput: { send: (bytes) => sent.push([...bytes]) } }
-    const pb = await load(state)
-    appSound.setAppSoundEnabled(true)
-
-    await pb.togglePlayback(...score())
-    vi.advanceTimersByTime(1)
-
-    expect(sent).toEqual([])
-    expect(sampler.keysDown).toEqual([{ midi: 60, velocity: 0.5 }])
-  })
-
-  it('sounds the keys and pedal the player works, at their own touch', async () => {
-    await load({ midiOutput: { send: () => {} } })
-    appSound.setAppSoundEnabled(true)
-    // The samples are fetched on the first note and arrive a tick later; that
-    // note is dropped rather than played late.
-    playback.echoNoteOn(64, 100)
-    await vi.runOnlyPendingTimersAsync()
-
-    playback.echoNoteOn(64, 100)
-    playback.echoPedal(true)
-    playback.echoNoteOff(64)
-    playback.echoPedal(false)
-
-    expect(sampler.keysDown).toEqual([{ midi: 64, velocity: 100 / 127 }])
-    expect(sampler.keysUp).toEqual([{ midi: 64 }])
-    expect(sampler.pedal).toEqual(['down', 'up'])
-  })
-
-  it('leaves the player their own instrument until they ask otherwise', async () => {
-    await load({ midiOutput: { send: () => {} } })
-
-    playback.echoNoteOn(64, 100)
-    playback.echoPedal(true)
-
-    expect(sampler.keysDown).toEqual([])
-    expect(sampler.pedal).toEqual([])
-  })
-
-  // Turning the setting off with keys down would otherwise leave them ringing
-  // with nothing left to lift them.
-  it('still releases a key it sounded after the setting goes off', async () => {
-    await load({ midiOutput: { send: () => {} } })
-    appSound.setAppSoundEnabled(true)
-    playback.echoNoteOn(64, 100)
-    await vi.runOnlyPendingTimersAsync()
-    playback.echoNoteOn(64, 100)
-
-    appSound.setAppSoundEnabled(false)
-    playback.echoNoteOff(64)
-
-    expect(sampler.keysUp).toEqual([{ midi: 64 }])
-  })
-
   // The sampler is only assigned once its samples are in, so a second caller
-  // arriving during the download used to build a whole second one — and the
-  // player pressing keys is one caller per note.
-  it('builds one sampler however many notes arrive while it loads', async () => {
-    await load({ midiOutput: { send: () => {} } })
-    appSound.setAppSoundEnabled(true)
+  // arriving during the download would otherwise build a whole second one, and
+  // pull a whole second sample set with it.
+  it('builds one sampler however many times it is asked for while it loads', async () => {
+    const pb = await load(null)
 
-    playback.echoNoteOn(60, 100)
-    playback.echoNoteOn(62, 100)
-    playback.echoNoteOn(64, 100)
-    await vi.runOnlyPendingTimersAsync()
+    await Promise.all([pb.togglePlayback(...score()), pb.togglePlayback(...score())])
 
     expect(sampler.built).toBe(1)
   })
