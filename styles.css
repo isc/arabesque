@@ -774,7 +774,8 @@ button.pt-topbar__pill:disabled { opacity: 0.4; cursor: default; }
   display: inline-flex;
   align-items: center;
   height: 34px;
-  background: var(--pt-mode-strict-bg);
+  flex: 0 0 auto;
+  background: var(--pt-bg-elevated);
   border: 1px solid color-mix(in srgb, var(--pt-mode-strict) 30%, transparent);
   border-radius: var(--pt-radius-md);
   overflow: hidden;
@@ -787,7 +788,8 @@ button.pt-topbar__pill:disabled { opacity: 0.4; cursor: default; }
   align-self: stretch;
   margin: 0;
 }
-.pt-strict-play {
+.pt-strict-play,
+.pt-strict-loop {
   gap: 6px;
   padding: 0 14px;
   border: none;
@@ -799,8 +801,33 @@ button.pt-topbar__pill:disabled { opacity: 0.4; cursor: default; }
   white-space: nowrap;
   width: auto;
 }
-.pt-strict-play:hover { background: color-mix(in srgb, var(--pt-mode-strict-bg) 70%, var(--pt-mode-strict) 12%); }
+.pt-strict-play:hover,
+.pt-strict-loop:hover { background: color-mix(in srgb, var(--pt-mode-strict-bg) 70%, var(--pt-mode-strict) 12%); }
 .pt-strict-play.is-playing { background: var(--pt-mode-strict); color: var(--pt-text-inverse); }
+.pt-strict-loop[aria-pressed="true"] { background: color-mix(in srgb, var(--pt-mode-strict) 18%, transparent); }
+/* Sized to its longest option, so a progression reads in full, the chevron
+   close by; hovered and focused like the buttons beside it, with their
+   tint rather than the base ring. The selector outweighs the base layer's
+   select:not([multiple], [size]), which sets the chevron's padding. */
+.pt-context--strict .pt-strict-controls .pt-strict-select {
+  height: 28px;
+  width: auto;
+  margin: 0;
+  padding: 0 28px 0 10px;
+  border: none;
+  border-radius: 0;
+  background-color: transparent;
+  background-position: right 8px center;
+  box-shadow: none;
+  color: var(--pt-mode-strict);
+  font-size: 0.85rem;
+}
+.pt-context--strict .pt-strict-controls .pt-strict-select:hover,
+.pt-context--strict .pt-strict-controls .pt-strict-select:focus {
+  outline: none;
+  box-shadow: none;
+  background-color: color-mix(in srgb, var(--pt-mode-strict-bg) 70%, var(--pt-mode-strict) 12%);
+}
 .pt-strict-controls .pt-bpm-field {
   border: none;
   border-radius: 0;
@@ -831,6 +858,17 @@ button.pt-topbar__pill:disabled { opacity: 0.4; cursor: default; }
 .pt-context__row { display: flex; align-items: center; gap: var(--pt-space-3); }
 .pt-context.pt-context--training { background: var(--pt-mode-training-bg); border-bottom-color: color-mix(in srgb, var(--pt-mode-training) 20%, transparent); color: var(--pt-mode-training); }
 .pt-context.pt-context--strict { background: var(--pt-mode-strict-bg); border-bottom-color: color-mix(in srgb, var(--pt-mode-strict) 20%, transparent); color: var(--pt-mode-strict); }
+/* The strict band carries its controls: text and count-in take what is
+   left of the line, and drop under the controls when it is too narrow. */
+.pt-context--strict { flex-wrap: wrap; }
+.pt-context--strict .pt-context__row { flex: 1 1 auto; min-width: 0; min-height: 34px; }
+/* On a phone the controls are wider than the screen: the loop's progression
+   picker takes a line of its own under the other three. */
+@media (max-width: 600px) {
+  .pt-context--strict .pt-strict-controls { flex-wrap: wrap; height: auto; max-width: 100%; }
+  .pt-context--strict .pt-strict-controls > * { height: 34px; }
+  .pt-context--strict .pt-strict-select { flex: 1 1 100%; border-left: none; border-top: 1px solid color-mix(in srgb, var(--pt-mode-strict) 20%, transparent); }
+}
 .pt-context label { color: inherit; font-weight: 500; }
 
 .pt-countin__beat {
@@ -1835,6 +1873,7 @@ svg g.vf-notehead.wrong-note path { animation: pt-wrong-note-flash 700ms; }
 .measure-click-area:hover { fill: rgba(124, 58, 237, 0.06); }
 .measure-click-area.selected { fill: rgba(124, 58, 237, 0.14); }
 .measure-click-area.strict-start { fill: color-mix(in srgb, var(--pt-mode-strict) 14%, transparent); stroke: var(--pt-mode-strict); stroke-width: 2; }
+.measure-click-area.strict-range { fill: color-mix(in srgb, var(--pt-mode-strict) 10%, transparent); }
 
 .repeat-indicator {
   stroke: var(--pt-mode-training);

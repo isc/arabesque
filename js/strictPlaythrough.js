@@ -51,20 +51,25 @@ let startedAtWall = 0
 // One entry per measure of the run, in playback order, holding when it played
 // and what went wrong in it (see measureAttempts).
 let measureRuns = []
-// Where the run was started from, kept for the result: teardown() runs before
-// the callback, and a run from the top is what can count as the piece played
-// in full.
-let runStartMeasureIndex = 0
+// Whether the run covers the score from its first measure to its last, kept
+// for the result: teardown() runs before the callback, and only such a run can
+// count as the piece played in full — not one started partway, nor a passage
+// looped by the tempo trainer.
+let runWholeScore = true
 // The tempo the run was played at, part of the verdict: a hit rate means
 // nothing without it.
 let runBpm = 0
 let currentToleranceMs = DEFAULT_TOLERANCE_MS
 let currentOffTempoWindowMs = DEFAULT_OFFTEMPO_WINDOW_MS
+// The noteheads the last run marked, kept past teardown() so the marks can be
+// cleared once the player leaves strict mode (see clearMarks).
+let markedNoteheads = []
 
 export function initStrictPlaythrough() {
   return {
     start,
     stop,
+    clearMarks,
     handleNoteOn,
     setActiveHands: (h) => { activeHands = { ...activeHands, ...h } },
     get isPlaying() { return isRunning },
@@ -120,12 +125,18 @@ function start({
   offTempoWindow = DEFAULT_OFFTEMPO_WINDOW_MS,
   countInBeats,
   startMeasureIndex = 0,
+  // Inclusive; the run goes to the end of the score by default.
+  endMeasureIndex = null,
   onComplete,
   onProgress,
   onCountIn,
 }) {
-  if (isRunning) return
-  if (!osmdInstance || !allNotes?.length) return
+  if (isRunning || !osmdInstance || !allNotes?.length) {
+    // Nothing to run: over before it began, and said so the way any aborted
+    // run is, so that nothing waits on it.
+    onComplete?.({ verdict: null, aborted: true, measures: [], wholeScore: false, completed: false })
+    return
+  }
 
   prepareClick()
   activeOsmd = osmdInstance
@@ -136,17 +147,19 @@ function start({
   currentOffTempoWindowMs = offTempoWindow
   isRunning = true
 
-  runStartMeasureIndex = startMeasureIndex
+  const lastMeasureIndex = Math.min(endMeasureIndex ?? Infinity, allNotes.length - 1)
+  runWholeScore = startMeasureIndex === 0 && lastMeasureIndex === allNotes.length - 1
   runBpm = bpm
   const sourceMeasures = osmdInstance.Sheet.SourceMeasures
   const cursorSkipSteps = cursorStepsBeforeMeasure(allNotes, startMeasureIndex, sourceMeasures, bpm)
-  allNotes = allNotes.slice(startMeasureIndex)
+  allNotes = allNotes.slice(startMeasureIndex, lastMeasureIndex + 1)
   const measureStartTimes = buildMeasureStartTimes(allNotes, sourceMeasures)
   const beatMs = 60_000 / bpm
   const resolvedCountInBeats = countInBeats ?? quarterBeatsInFirstMeasure(sourceMeasures)
   const countInMs = resolvedCountInBeats * beatMs
 
   pendingEvents = []
+  markedNoteheads = []
   measureRuns = allNotes.map((measureData, i) => ({
     sourceMeasureIndex: measureData.sourceMeasureIndex,
     startMs: countInMs + tsToSeconds(measureStartTimes[i], bpm) * 1000,
@@ -164,6 +177,7 @@ function start({
     for (const noteData of measureData.notes) {
       const noteheadEl = svgNoteheadFor(activeOsmd, noteData)
       noteheadEl?.classList.remove(...STRICT_CLASSES)
+      if (noteheadEl) markedNoteheads.push(noteheadEl)
 
       if (!shouldExpectInput(noteData)) continue
 
@@ -358,21 +372,28 @@ function teardown() {
   measureRuns = []
 }
 
+// Wipes the last run's marks off the score — what teardown() leaves for the
+// player to read, and what has no business staying once another mode is on.
+function clearMarks() {
+  for (const el of markedNoteheads) el.classList.remove(...STRICT_CLASSES)
+  markedNoteheads = []
+}
+
 function finish(aborted) {
   if (!isRunning) return
   isRunning = false
   const finalStats = stats
   const measures = measureAttempts()
-  // Played from the top to the end: the piece practised in full, whatever
-  // the verdict says of it — the metronome moves on past a missed note, so
-  // demanding none would leave almost no run of a real piece in the journal,
-  // and the verdict is what a strict run is read by.
-  const fromTheTop = runStartMeasureIndex === 0
-  const completed = fromTheTop && !aborted
+  // The whole score, from the top to the end: the piece practised in full,
+  // whatever the verdict says of it — the metronome moves on past a missed
+  // note, so demanding none would leave almost no run of a real piece in the
+  // journal, and the verdict is what a strict run is read by.
+  const wholeScore = runWholeScore
+  const completed = wholeScore && !aborted
   teardown()
   // The verdict — what the run is judged by — travels as one value, so what
   // stores it need not know its fields.
-  onCompleteCb?.({ verdict: { ...finalStats, bpm: runBpm }, aborted, measures, fromTheTop, completed })
+  onCompleteCb?.({ verdict: { ...finalStats, bpm: runBpm }, aborted, measures, wholeScore, completed })
 }
 
 function stop() {
