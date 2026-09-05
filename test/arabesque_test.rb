@@ -625,6 +625,14 @@ class ArabesqueTest < CapybaraTestBase
     # from under the assertions; past ⏸ there is no timer left pending.
     with_clock_control do
       trigger_click_on('▶ Écouter')
+      # Alpine puts an x-show element back on screen from a setTimeout of its
+      # own — hiding is immediate, showing is deferred a tick. That tick is
+      # virtual time like any other, so a parked clock leaves the band at
+      # display:none however long Capybara waits on the wall clock, and the
+      # placeholder text in the markup is what it then finds "including
+      # non-visible text". 50ms is far short of the first bar, so the piece is
+      # still where the assertions below expect it.
+      advance_clock(50)
       assert_text 'Cliquez sur une mesure pour écouter à partir de là.'
       trigger_click_on('⏸ Pause')
     end
