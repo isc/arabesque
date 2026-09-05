@@ -798,6 +798,9 @@ export function midiApp() {
       if (this.strictSelected) {
         this.strictSelected = false
         this.resetStrictRange()
+        // The last run's verdict stays on the score for the player to read,
+        // not for the next mode to play over.
+        strictPlaythrough.clearMarks()
       }
       const training = name === 'training'
       if (this.trainingMode !== training) {

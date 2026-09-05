@@ -61,11 +61,15 @@ let runWholeScore = true
 let runBpm = 0
 let currentToleranceMs = DEFAULT_TOLERANCE_MS
 let currentOffTempoWindowMs = DEFAULT_OFFTEMPO_WINDOW_MS
+// The noteheads the last run marked, kept past teardown() so the marks can be
+// cleared once the player leaves strict mode (see clearMarks).
+let markedNoteheads = []
 
 export function initStrictPlaythrough() {
   return {
     start,
     stop,
+    clearMarks,
     handleNoteOn,
     setActiveHands: (h) => { activeHands = { ...activeHands, ...h } },
     get isPlaying() { return isRunning },
@@ -155,6 +159,7 @@ function start({
   const countInMs = resolvedCountInBeats * beatMs
 
   pendingEvents = []
+  markedNoteheads = []
   measureRuns = allNotes.map((measureData, i) => ({
     sourceMeasureIndex: measureData.sourceMeasureIndex,
     startMs: countInMs + tsToSeconds(measureStartTimes[i], bpm) * 1000,
@@ -172,6 +177,7 @@ function start({
     for (const noteData of measureData.notes) {
       const noteheadEl = svgNoteheadFor(activeOsmd, noteData)
       noteheadEl?.classList.remove(...STRICT_CLASSES)
+      if (noteheadEl) markedNoteheads.push(noteheadEl)
 
       if (!shouldExpectInput(noteData)) continue
 
@@ -364,6 +370,13 @@ function teardown() {
   activeOsmd = null
   pendingEvents = []
   measureRuns = []
+}
+
+// Wipes the last run's marks off the score — what teardown() leaves for the
+// player to read, and what has no business staying once another mode is on.
+function clearMarks() {
+  for (const el of markedNoteheads) el.classList.remove(...STRICT_CLASSES)
+  markedNoteheads = []
 }
 
 function finish(aborted) {

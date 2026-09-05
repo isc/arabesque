@@ -47,6 +47,12 @@ class StrictPlaythroughTest < CapybaraTestBase
 
     assert_text '0%'
     assert_text '3 manquées'
+
+    # The verdict stays on the score to be read, but leaves with the mode.
+    within('dialog.pt-result-dialog') { click_on 'Fermer' }
+    assert_selector 'svg g.vf-notehead.missed-note', count: 3
+    click_on 'Libre'
+    assert_no_selector 'svg g.vf-notehead.missed-note'
   end
 
   # Regression: a strict run used to leave no trace at all — its notes go to the
