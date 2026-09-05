@@ -33,7 +33,11 @@ above in a container built from `test/Dockerfile`, on the same Ruby as CI:
 scripts/test-in-docker.sh                              # the whole suite
 scripts/test-in-docker.sh ruby -Itest test/data_test.rb  # one file
 CPUS=4 scripts/test-in-docker.sh rake test             # mimic a CI runner
+scripts/test-in-docker.sh --stop                       # drop every test container
 ```
+Commands go into a container that stays up between runs, one per checkout; the
+script header says why and what it costs. `--stop` drops them all, including
+ones left behind by worktrees that no longer exist.
 
 PR titles and descriptions must be in English.
 
