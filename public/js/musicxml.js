@@ -293,37 +293,108 @@ async function renderScore({ reextract = true, afterDraw = null } = {}) {
   if (!osmdInstance) return
   scaleTitleBlock()
   osmdInstance.render()
-  disableInvisibleNoteClicks()
+  fixUpInvisibleNotes()
   if (afterDraw) await afterDraw()
   // Must precede setupMeasureClickHandlers, which reads allNotes.
   if (reextract) extractNotesFromScore()
   setupMeasureClickHandlers()
 }
 
-// OSMD renders print-object="no" notes (e.g. the realized gruppetto written alongside
-// the turn symbol in the Pathétique 2nd movement) with a fully transparent fill rather
-// than removing them, to preserve layout. These invisible noteheads still capture clicks:
-// OSMD's VexFlow patch tags the note/notehead groups with pointer-events="bounding-box",
-// so they intercept clicks over their whole box (fill ignored) and steal them from the
-// real note drawn underneath. We skip these notes during extraction, so they have no
-// fingering entry and a click on them silently does nothing. Clear the attribute on the
-// group and its tagged descendants so the click falls through to the visible note below.
-function disableInvisibleNoteClicks() {
+// Two fix-ups for the notes a score hides with print-object="no", both DOM work on the freshly
+// drawn SVG: OSMD renders such notes with a fully transparent fill rather than removing them,
+// to preserve layout, so their elements are all there to be adjusted.
+//
+// Clicks: an invisible notehead still captures them. OSMD's VexFlow patch tags the
+// note/notehead groups with pointer-events="bounding-box", so they intercept clicks over
+// their whole box (fill ignored) and steal them from the real note drawn underneath — e.g.
+// the realized gruppetto written alongside the turn symbol in the Pathétique 2nd movement.
+// We skip these notes during extraction, so they have no fingering entry and a click on them
+// silently does nothing. Clearing the attribute on the group and its tagged descendants lets
+// the click fall through to the visible note below.
+//
+// Ink: a note hidden only because another voice writes the same pitch at the same time — how
+// MuseScore asks for one head to serve both voices — still gets its stem and its beam, which
+// OSMD draws for it since our sharesNoteheadWithVisibleUnisonNote() fix upstream. Where the
+// two heads cannot be merged, that leaves a beam hanging off a bare stem, so the head is
+// inked back in — see unisonNoteheadPair() and areSideBySide(). Choosing the fill belongs
+// upstream too, in the same routine that already spares the stem; reparenting the head does
+// not, since the colouring it buys is ours.
+function fixUpInvisibleNotes() {
+  const groups = []
+  const pairs = []
   for (const measure of osmdInstance.Sheet.SourceMeasures) {
     for (const container of measure.verticalSourceStaffEntryContainers || []) {
       for (const staffEntry of container.staffEntries || []) {
         for (const voiceEntry of staffEntry?.voiceEntries || []) {
-          for (const note of voiceEntry.notes || []) {
+          const notes = voiceEntry.notes || []
+          for (let noteheadIndex = 0; noteheadIndex < notes.length; noteheadIndex++) {
+            const note = notes[noteheadIndex]
             if (note.PrintObject !== false) continue
             const group = osmdInstance.rules.GNote(note)?.getSVGGElement?.()
             if (!group) continue
-            group.setAttribute('pointer-events', 'none')
-            group.querySelectorAll('[pointer-events]').forEach((el) => el.setAttribute('pointer-events', 'none'))
+            groups.push(group)
+            const pair = unisonNoteheadPair(note, noteheadIndex)
+            if (pair) pairs.push(pair)
           }
         }
       }
     }
   }
+
+  // Measure before touching anything: a getBBox() that follows a DOM write forces a layout
+  // flush, and one per hidden note would re-lay the whole score dozens of times over. Same
+  // read-then-write split as alignFingeringLabelsToNoteheads().
+  const toReveal = pairs.filter(areSideBySide)
+
+  for (const group of groups) {
+    group.setAttribute('pointer-events', 'none')
+    group.querySelectorAll('[pointer-events]').forEach((el) => el.setAttribute('pointer-events', 'none'))
+  }
+  // The head moves into the visible note's notehead group so the played/active colouring
+  // reaches it: the CSS paints every path inside the group, so both heads light up together
+  // under the single keypress that validates the pitch.
+  for (const { hiddenPath, visibleHead, visiblePath } of toReveal) {
+    hiddenPath.setAttribute('fill', visiblePath.getAttribute('fill'))
+    visibleHead.appendChild(hiddenPath)
+  }
+}
+
+// The head of an invisible note and the head of the visible unison it hides behind, or null
+// when the note is not one of those unisons — OSMD's own sharesNoteheadWithVisibleUnisonNote()
+// decides that, the predicate our upstream fix added and draws the stem and beam from. Only a
+// beamed note has ink to account for: an unbeamed one keeps its stem and flag transparent, and
+// a head on its own would be a note nobody plays.
+function unisonNoteheadPair(note, noteheadIndex) {
+  if (!note.NoteBeam || !note.sharesNoteheadWithVisibleUnisonNote?.()) return null
+  const hiddenPath = svgNotehead({ note, noteheadIndex })?.querySelector('path')
+  const visibleHead = visibleUnisonNotehead(note)
+  const visiblePath = visibleHead?.querySelector('path')
+  return hiddenPath && visiblePath ? { hiddenPath, visibleHead, visiblePath } : null
+}
+
+// The rendered notehead of the visible note another voice writes at the same pitch in the same
+// staff entry — the one MuseScore means to serve both voices.
+function visibleUnisonNotehead(note) {
+  for (const other of note.ParentStaffEntry?.VoiceEntries ?? []) {
+    if (other === note.ParentVoiceEntry || other.IsGrace) continue
+    const noteheadIndex = (other.Notes ?? []).findIndex(
+      (candidate) =>
+        candidate.PrintObject &&
+        candidate.Pitch?.FundamentalNote === note.Pitch.FundamentalNote &&
+        candidate.Pitch?.Octave === note.Pitch.Octave,
+    )
+    if (noteheadIndex >= 0) return svgNotehead({ note: other.Notes[noteheadIndex], noteheadIndex })
+  }
+  return null
+}
+
+// Whether VexFlow gave the two heads places of their own rather than merging them into one.
+// Merged heads report the exact same x, and the visible one is then all the ink both stems
+// need — a second head on top of it would only overprint, a filled one hiding an open one.
+function areSideBySide({ hiddenPath, visiblePath }) {
+  const boxes = getBoundingBoxesForNotes([hiddenPath, visiblePath])
+  // A head that cannot be measured (a detached or hidden SVG) is one we leave hidden.
+  return boxes.length === 2 && Math.abs(boxes[0].x - boxes[1].x) >= 1
 }
 
 async function renderMusicXML(xmlContent) {
