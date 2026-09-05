@@ -6,37 +6,45 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
-  pages: write
-  id-token: write
+  contents: write
 
+# One writer to gh-pages at a time: this deploy and the branch previews all
+# push to the same branch, and two of them at once would race.
 concurrency:
-  group: pages
+  group: gh-pages
   cancel-in-progress: false
+
+# peaceiris/actions-gh-pages@v4 still declares Node.js 20; opting in to Node
+# 24 now, ahead of GitHub making it the default, as Tablito does.
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
   deploy:
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Setup Pages
-        uses: actions/configure-pages@v5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
 
       # Keeps each page's HTML and its JS recognisably one build: see
       # public/js/version.js.
       - name: Stamp the build version
         run: node scripts/stamp-version.mjs "${GITHUB_SHA::12}"
 
-      - name: Upload artifact
-        uses: actions/upload-pages-artifact@v3
+      # public/ goes to the ROOT of the gh-pages branch, which Pages serves.
+      # `keep_files` preserves the sibling previews/ directory the preview
+      # workflow writes, so branch previews survive a deploy of main — at the
+      # price that a file deleted from public/ lingers on the site until the
+      # branch is cleaned by hand.
+      - name: Publish to gh-pages (root)
+        uses: peaceiris/actions-gh-pages@v4
         with:
-          path: public
-
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./public
+          publish_branch: gh-pages
+          keep_files: true
+          cname: arabesque.app
+          commit_message: 'deploy: main @ ${{ github.sha }}'
