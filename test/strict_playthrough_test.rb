@@ -63,12 +63,21 @@ class StrictPlaythroughTest < CapybaraTestBase
     play_perfect_chord_run
 
     # Leaving the page before the session lands would lose it from the journal.
-    wait_for_records('sessions', where: 'record.completedAt && record.measures.length === 1')
+    wait_for_records('sessions', where: "record.completedAt && record.measures.length === 1 && record.mode === 'strict'")
+
+    # Filed as what it is: a run to the metronome, with its verdict, not a
+    # free run whose time would rank against the player's own. The result
+    # modal is still up; its own button leads to the history.
+    within('dialog.pt-result-dialog') { click_on 'Historique' }
+    within '#scoreHistoryModal' do
+      assert_text '1× en entier (100 % à 120 BPM) · mode strict'
+      assert_no_text 'Évolution'
+    end
 
     visit '/library.html'
     within '#daily-log' do
       assert_text 'Chord Test'
-      assert_text 'Joué en entier'
+      assert_text 'Joué en entier · mode strict'
     end
   end
 

@@ -1,5 +1,15 @@
 2026-09-05
 
+- **Les passages en mode strict ont leur place dans l'historique.** Un morceau
+  joué en entier au métronome était consigné comme un passage libre : sa durée
+  — celle du métronome, pas celle du joueur — entrait dans le classement des
+  temps et dans la courbe d'évolution, et rien ne disait qu'il avait été joué
+  en mode strict, ni à quel tempo, ni avec quelle précision. Le journal les
+  distingue maintenant (« 2× en entier (92 % à 100 BPM et 100 % à 100 BPM) ·
+  mode strict »), l'historique de la partition leur donne leur propre courbe,
+  celle de la précision, et le classement des temps de jeu libre ne compare
+  que des passages libres.
+
 - **Le décompte du mode strict se voit.** Une mesure complète s'écoule entre
   l'appui sur ▶ et la première note, et rien ne bougeait à l'écran pendant ce
   temps-là : l'indication du bandeau disparaissait, la partition restait figée,

@@ -55,6 +55,9 @@ let measureRuns = []
 // the callback, and a run from the top is what can count as the piece played
 // in full.
 let runStartMeasureIndex = 0
+// The tempo the run was played at, part of the verdict: a hit rate means
+// nothing without it.
+let runBpm = 0
 let currentToleranceMs = DEFAULT_TOLERANCE_MS
 let currentOffTempoWindowMs = DEFAULT_OFFTEMPO_WINDOW_MS
 
@@ -134,6 +137,7 @@ function start({
   isRunning = true
 
   runStartMeasureIndex = startMeasureIndex
+  runBpm = bpm
   const sourceMeasures = osmdInstance.Sheet.SourceMeasures
   const cursorSkipSteps = cursorStepsBeforeMeasure(allNotes, startMeasureIndex, sourceMeasures, bpm)
   allNotes = allNotes.slice(startMeasureIndex)
@@ -365,7 +369,9 @@ function finish(aborted) {
   const fromTheTop = runStartMeasureIndex === 0
   const completed = fromTheTop && !aborted && finalStats.missed === 0
   teardown()
-  onCompleteCb?.({ ...finalStats, aborted, measures, fromTheTop, completed })
+  // The verdict — what the run is judged by — travels as one value, so what
+  // stores it need not know its fields.
+  onCompleteCb?.({ verdict: { ...finalStats, bpm: runBpm }, aborted, measures, fromTheTop, completed })
 }
 
 function stop() {

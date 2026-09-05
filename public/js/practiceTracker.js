@@ -260,7 +260,7 @@ export function initPracticeTracker(storageInstance = null) {
     startMeasureAttempt,
     recordWrongNote,
     endMeasureAttempt,
-    recordMeasureAttempt,
+    recordStrictRun,
     markScoreCompleted,
     restartPlaythrough,
     endSession,
@@ -454,6 +454,13 @@ export function initPracticeTracker(storageInstance = null) {
 
   async function toggleMode(newMode) {
     if (!currentSession) return null
+    // Nothing recorded yet: the session just changes hands. Ending it would
+    // drop it anyway, and would throw away the reinforcement window's cache
+    // for nothing (see invalidateReinforcementSessions).
+    if (currentSession.measures.length === 0 && !currentMeasureAttempt) {
+      currentSession.mode = newMode
+      return currentSession
+    }
 
     const { scoreId, totalMeasures } = currentSession
     // Preserve metadata from instance variables
@@ -548,6 +555,19 @@ export function initPracticeTracker(storageInstance = null) {
   function markScoreCompleted() {
     if (!currentSession) return
     currentSession.completedAt = new Date().toISOString()
+  }
+
+  // Files a strict run into the session under way: its measures as attempts,
+  // the run as a playthrough when it started from the top, and the verdict the
+  // engine gave it — hit rate, tempo, what went wrong — which is what the
+  // history compares strict runs by. Nothing is persisted here: the caller
+  // ends the session right after, which writes it once.
+  function recordStrictRun({ measures, fromTheTop, completed, verdict }) {
+    if (!currentSession) return
+    if (fromTheTop) restartPlaythrough(measures[0].startedAt)
+    for (const attempt of measures) recordMeasureAttempt(attempt, { persist: false })
+    if (completed) markScoreCompleted()
+    currentSession.strict = verdict
   }
 
   // `at` (an ISO string) dates the restart, for a caller that knows when the
@@ -856,6 +876,9 @@ export function initPracticeTracker(storageInstance = null) {
         startedAt: session.playthroughStartedAt,
         durationMs: playthroughDuration(attempts, start, end),
         hands: playthroughHands(attempts),
+        // The strict engine's verdict on the run, for a run played to the
+        // metronome; a free run has none.
+        strict: session.strict ?? null,
       })
     }
 

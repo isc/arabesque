@@ -19,9 +19,11 @@ export const CHANGELOG = [
     date: '2026-09-05',
     items: {
       fr: [
+        "Les passages en mode strict ont leur place dans l'historique. Un morceau joué en entier au métronome était consigné comme un passage libre : sa durée — celle du métronome, pas celle du joueur — entrait dans le classement des temps et dans la courbe d'évolution, sans que rien ne dise le tempo ni la précision. Le journal les distingue maintenant (« 2× en entier (92 % à 100 BPM et 100 % à 100 BPM) · mode strict »), l'historique de la partition leur donne leur propre courbe, celle de la précision, et le classement des temps de jeu libre ne compare plus que des passages libres.",
         "Le décompte du mode strict se voit. Une mesure complète s'écoule entre l'appui sur ▶ et la première note, et rien ne bougeait à l'écran pendant ce temps-là : qui n'entendait pas les clics croyait que rien n'avait démarré. Le bandeau affiche maintenant les temps de la mesure de départ — 1 2 3 4, ou 1 2 3 selon la métrique — celui en cours en évidence. Il prend la place que l'indication libère, à hauteur identique, donc la partition ne bouge pas et on continue de lire la mesure qu'on s'apprête à jouer.",
       ],
       en: [
+        "Strict-mode runs have their place in the history. A piece played in full to the metronome was filed as a free run: its time — the metronome's, not the player's — entered the play-time ranking and the trend chart, with nothing to say what tempo it was played at or how accurately. The journal now tells them apart (\"2× in full (92% at 100 BPM and 100% at 100 BPM) · strict mode\"), a score's history gives them a chart of their own, the accuracy one, and the free play-time ranking only compares free runs.",
         "The strict-mode count-in can be seen. A whole bar goes by between pressing ▶ and the first note, and nothing moved on screen during it: anyone who could not hear the clicks thought nothing had started. The band now shows the beats of the count-in bar — 1 2 3 4, or 1 2 3 depending on the metre — with the one sounding picked out. It takes the slot the hint gives up, at the same height, so the score does not move and you keep reading the bar you are about to play.",
       ],
     },

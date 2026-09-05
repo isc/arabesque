@@ -29,11 +29,19 @@ export function playthroughHands(attempts) {
   return used.size === 1 ? [...used][0] : 'mixed'
 }
 
-// Runs of the score split by the hands that played them, in that order. A
+// Runs of the score split by how they were played: free runs first, then runs
+// to the metronome, each by the hands that played them, in that order. A
 // right-hand run and a two-hand run of the same piece are not the same feat
-// and their times don't compare, so nothing ever lists or plots them together.
+// and their times don't compare; a strict run isn't timed by the player at
+// all, and is measured by its hit rate. So nothing ever lists or plots two
+// groups together. `key` identifies a group where a template needs one.
 export function playthroughGroups(playthroughs) {
-  return [TWO_HANDS, 'right', 'left', 'mixed']
-    .map((hands) => ({ hands, playthroughs: playthroughs.filter((pt) => pt.hands === hands) }))
-    .filter((group) => group.playthroughs.length > 0)
+  return [false, true].flatMap((strict) =>
+    [TWO_HANDS, 'right', 'left', 'mixed'].map((hands) => ({
+      key: `${strict ? 'strict' : 'free'}-${hands}`,
+      hands,
+      strict,
+      playthroughs: playthroughs.filter((pt) => pt.hands === hands && Boolean(pt.strict) === strict),
+    })),
+  ).filter((group) => group.playthroughs.length > 0)
 }

@@ -4,7 +4,7 @@ import { initFingeringEditor } from './fingeringEditor.js'
 import { initCassettes } from './cassettes.js'
 import { initPracticeTracker } from './practiceTracker.js'
 import { playthroughGroups, TWO_HANDS } from './hands.js'
-import { formatDuration, formatDate, applyStickyOffset, scorePageUrl, onIdle, onForeground, withHands } from './utils.js'
+import { formatDuration, formatDate, applyStickyOffset, scorePageUrl, onIdle, onForeground, withHands, withRunKind } from './utils.js'
 import { initStorage } from './storage.js'
 import { loadMxlAsXml } from './mxlLoader.js'
 import { injectFingerings } from './fingeringInjector.js'
@@ -20,6 +20,38 @@ import { t, locale } from './i18n.js'
 const PLAYTHROUGH_LIST_FORMATTER = new Intl.ListFormat(locale(), { style: 'long', type: 'conjunction' })
 const CHART_DATE_FULL = new Intl.DateTimeFormat(locale())
 const CHART_DATE_AXIS = new Intl.DateTimeFormat(locale(), { day: 'numeric', month: 'short' })
+
+// The headline figure of a strict run: notes in tempo, as a percentage.
+function strictAccuracy({ hit, total }) {
+  return total ? Math.round((hit / total) * 100) : 0
+}
+
+// What a run is measured by, per kind of run (see hands' playthroughGroups):
+// a free run by the time it took, a strict run by its hit rate — which means
+// nothing without the tempo, so its label carries it. Read wherever runs are
+// listed, titled or plotted, so a kind is described in one place.
+const RUN_KINDS = {
+  free: {
+    title: 'score.playtimeEvolution',
+    aria: 'score.chartAria',
+    value: (pt) => pt.durationMs,
+    format: formatDuration,
+    label: (pt) => formatDuration(pt.durationMs),
+    ceiling: Infinity,
+  },
+  strict: {
+    title: 'score.accuracyEvolution',
+    aria: 'score.strictChartAria',
+    value: (pt) => strictAccuracy(pt.strict),
+    format: (pct) => t('score.percent', { pct: Math.round(pct) }),
+    label: (pt) => t('score.strictRunSummary', { pct: strictAccuracy(pt.strict), bpm: pt.strict.bpm }),
+    ceiling: 100,
+  },
+}
+
+function runKind(strict) {
+  return strict ? RUN_KINDS.strict : RUN_KINDS.free
+}
 
 // Redrawing a full score costs ~200ms, and dragging a window edge fires resize
 // continuously — wait for the drag to settle before paying for it once.
@@ -587,7 +619,7 @@ export function midiApp() {
         onComplete: (result) => {
           this.isStrictPlaying = false
           this.countInBeat = 0
-          this.strictResult = result
+          this.strictResult = result.verdict
           // Not awaited here: the result modal is not going to wait on
           // IndexedDB, and the run is already fully described by `result`.
           strictRunRecorded = this.recordStrictRun(result)
@@ -611,21 +643,14 @@ export function midiApp() {
     // ticking on an empty keyboard) is not practice and is not recorded.
     async recordStrictRun(result) {
       if (!this.scoreUrl || !result.measures.length) return
-      const notesPlayed = result.hit + result.offTempoEarly + result.offTempoLate + result.wrongNotes
-      if (notesPlayed === 0) return
+      const { hit, offTempoEarly, offTempoLate, wrongNotes } = result.verdict
+      if (hit + offTempoEarly + offTempoLate + wrongNotes === 0) return
 
-      if (result.fromTheTop) practiceTracker.restartPlaythrough(result.measures[0].startedAt)
-      // Not persisted attempt by attempt: endSessionAndSync() below commits the
-      // session once, instead of rewriting it once per measure of the run.
-      for (const attempt of result.measures) {
-        practiceTracker.recordMeasureAttempt(attempt, { persist: false })
-      }
-      if (result.completed) practiceTracker.markScoreCompleted()
-
+      practiceTracker.recordStrictRun(result)
       // One session per run: a session carries at most one playthrough, and
       // ending it here is what credits the practice time to the journal.
       await endSessionAndSync()
-      startFreshSession(this.scoreUrl, 'free')
+      startFreshSession(this.scoreUrl, 'strict')
       await this.refreshReinforcementSuggestions()
     },
 
@@ -651,15 +676,19 @@ export function midiApp() {
         this.strictStartMeasure = 0
         musicxml.markStrictStartMeasure(null)
       }
-      if (this.trainingMode) this.toggleTrainingMode()
-
-      if (name === 'training') this.toggleTrainingMode()
-      else if (name === 'strict') this.strictSelected = true
+      const training = name === 'training'
+      if (this.trainingMode !== training) {
+        this.trainingMode = training
+        musicxml.setTrainingMode(training)
+      }
+      if (name === 'strict') this.strictSelected = true
+      // The session follows the tab: what it records is filed under the mode
+      // it was practised in.
+      await practiceTracker.toggleMode(this.currentMode)
     },
 
     strictAccuracyPercent() {
-      if (!this.strictResult || !this.strictResult.total) return 0
-      return Math.round((this.strictResult.hit / this.strictResult.total) * 100)
+      return this.strictResult ? strictAccuracy(this.strictResult) : 0
     },
 
     strictOffTempoTotal() {
@@ -668,22 +697,15 @@ export function midiApp() {
       return (r.offTempoEarly ?? 0) + (r.offTempoLate ?? 0)
     },
 
-    async toggleTrainingMode() {
-      this.trainingMode = !this.trainingMode
-
-      const mode = this.trainingMode ? 'training' : 'free'
-      await practiceTracker.toggleMode(mode)
-      musicxml.setTrainingMode(this.trainingMode)
-    },
-
     showScoreComplete(allPlaythroughs) {
       const mostRecent = [...allPlaythroughs].sort((a, b) => new Date(b.startedAt) - new Date(a.startedAt))[0]
       // Ranked fastest-first, current playthrough flagged so the modal can
-      // highlight it. Only runs played with the same hands are in the running:
-      // a right-hand run beats every two-hand time on the clock without being
-      // the better performance.
-      this.previousPlaythroughs = allPlaythroughs
-        .filter((pt) => pt.hands === (mostRecent?.hands ?? TWO_HANDS))
+      // highlight it. Only the runs comparable with it are in the running —
+      // playthroughGroups says which: a right-hand run beats every two-hand
+      // time on the clock without being the better performance, and a strict
+      // run's time is the metronome's, not the player's.
+      const comparable = playthroughGroups(allPlaythroughs).find((g) => g.playthroughs.includes(mostRecent))
+      this.previousPlaythroughs = (comparable?.playthroughs ?? [])
         .map((pt) => ({ ...pt, isCurrent: pt === mostRecent }))
         .sort((a, b) => a.durationMs - b.durationMs)
       this.openResultModal('free')
@@ -699,9 +721,10 @@ export function midiApp() {
       return this.previousPlaythroughs.find((p) => p.isCurrent)?.durationMs ?? null
     },
 
-    // One evolution chart per hand selection, oldest measure of progress
-    // first. Built here rather than in the template so each SVG is generated
-    // once, and so a selection with too few runs to plot simply drops out.
+    // One evolution chart per kind of run and hand selection — play time for
+    // free runs, hit rate for strict ones. Built here rather than in the
+    // template so each SVG is generated once, and so a group with too few
+    // runs to plot simply drops out.
     get playthroughCharts() {
       const playthroughs = this.scoreHistory.flatMap((d) => d.fullPlaythroughs)
       return playthroughGroups(playthroughs)
@@ -817,28 +840,32 @@ export function midiApp() {
 
     formatPlaythroughs(group) {
       // Reverse to show chronological order (oldest first)
-      const durations = [...group.playthroughs].reverse().map((pt) => formatDuration(pt.durationMs))
-      const summary = t('score.playthroughsSummary', { n: group.playthroughs.length, list: PLAYTHROUGH_LIST_FORMATTER.format(durations) })
-      return withHands(summary, group.hands)
+      const runs = [...group.playthroughs].reverse()
+      const list = runs.map(runKind(group.strict).label)
+      const summary = t('score.playthroughsSummary', { n: runs.length, list: PLAYTHROUGH_LIST_FORMATTER.format(list) })
+      return withRunKind(summary, group)
     },
 
-    chartTitle(hands) {
-      return withHands(t('score.playtimeEvolution'), hands)
+    chartTitle(group) {
+      return withRunKind(t(runKind(group.strict).title), group)
     },
 
     // Built as a string (not <template x-for>) because Alpine's templates
     // render in HTML namespace and won't show up inside <svg>. Returns ''
     // when fewer than 2 points — the calling x-if then skips the section.
+    // Plots what the runs are measured by — they are all of one kind, the
+    // way playthroughGroups hands them over.
     playthroughChartSvg(playthroughs) {
       if (playthroughs.length < 2) return ''
-      const all = playthroughs
+      const metric = runKind(playthroughs[0].strict)
 
-      const sorted = [...all].sort((a, b) => new Date(a.startedAt) - new Date(b.startedAt))
-      const durs = sorted.map((p) => p.durationMs)
-      const dMin = Math.min(...durs)
-      const dMax = Math.max(...durs)
+      const sorted = [...playthroughs].sort((a, b) => new Date(a.startedAt) - new Date(b.startedAt))
+      const values = sorted.map(metric.value)
+      const dMin = Math.min(...values)
+      const dMax = Math.max(...values)
+      // A tenth of the spread of headroom either side; a hit rate stops at 100.
       const yMin = Math.max(0, dMin - (dMax - dMin) * 0.1)
-      const yMax = (dMax + (dMax - dMin) * 0.1) || dMax * 1.1
+      const yMax = Math.min(metric.ceiling, (dMax + (dMax - dMin) * 0.1) || dMax * 1.1)
 
       const W = 600
       const H = 200
@@ -854,8 +881,8 @@ export function midiApp() {
 
       const points = sorted.map((p, i) => ({
         x: xScale(i),
-        y: yScale(p.durationMs),
-        duration: formatDuration(p.durationMs),
+        y: yScale(metric.value(p)),
+        label: metric.label(p),
         date: CHART_DATE_FULL.format(new Date(p.startedAt)),
       }))
       const fmtAxis = (iso) => CHART_DATE_AXIS.format(new Date(iso))
@@ -865,8 +892,8 @@ export function midiApp() {
       const xMax = PAD.left + innerW
 
       const yLabels = [
-        `<text x="${xMin - 8}" y="${yScale(yMax) + 4}" text-anchor="end" class="chart-label">${formatDuration(yMax)}</text>`,
-        `<text x="${xMin - 8}" y="${yScale(yMin) + 4}" text-anchor="end" class="chart-label">${formatDuration(yMin)}</text>`,
+        `<text x="${xMin - 8}" y="${yScale(yMax) + 4}" text-anchor="end" class="chart-label">${metric.format(yMax)}</text>`,
+        `<text x="${xMin - 8}" y="${yScale(yMin) + 4}" text-anchor="end" class="chart-label">${metric.format(yMin)}</text>`,
       ].join('')
       const xLabels = [
         `<text x="${xMin}" y="${H - 8}" text-anchor="start" class="chart-label">${fmtAxis(sorted[0].startedAt)}</text>`,
@@ -875,11 +902,11 @@ export function midiApp() {
       const circles = points
         .map(
           (p) =>
-            `<circle cx="${p.x}" cy="${p.y}" r="4" class="chart-point"><title>${p.date} — ${p.duration}</title></circle>`,
+            `<circle cx="${p.x}" cy="${p.y}" r="4" class="chart-point"><title>${p.date} — ${p.label}</title></circle>`,
         )
         .join('')
 
-      return `<svg viewBox="0 0 ${W} ${H}" class="playthrough-chart" role="img" aria-label="${t('score.chartAria')}">
+      return `<svg viewBox="0 0 ${W} ${H}" class="playthrough-chart" role="img" aria-label="${t(metric.aria)}">
         <line x1="${xMin}" x2="${xMax}" y1="${axisY}" y2="${axisY}" class="chart-axis" />
         ${yLabels}
         ${xLabels}

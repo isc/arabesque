@@ -113,34 +113,72 @@ describe('practiceTracker', () => {
 
   // A strict run is handed over once it is over, each measure already timed at
   // the tempo it was played at, and it must reach the journal like any other
-  // practice: measures worked, practice time, run played in full.
-  describe('pre-timed attempts', () => {
-    beforeEach(() => {
-      tracker.startSession('/scores/test.xml', 'Test', 'Composer', 'free', 2)
-    })
+  // practice: measures worked, practice time, run played in full — and, since
+  // its time is the metronome's, the verdict the engine gave it.
+  describe('strict runs', () => {
+    const VERDICT = { bpm: 120, total: 6, hit: 5, offTempoEarly: 0, offTempoLate: 1, missed: 0, wrongNotes: 1 }
 
-    it('files pre-timed attempts and puts the run in the daily log', async () => {
-      // One clock reading for the whole run: two of them, a millisecond apart,
-      // would put 4001 in the journal.
+    // One clock reading for the whole run: two of them, a millisecond apart,
+    // would put 4001 in the journal.
+    function strictRun() {
       const runStartedAt = Date.now() - 4000
       const startedAt = new Date(runStartedAt).toISOString()
-      tracker.restartPlaythrough(startedAt)
-      tracker.recordMeasureAttempt({ sourceMeasureIndex: 0, startedAt, durationMs: 2000, hands: 'both' })
-      tracker.recordMeasureAttempt({
-        sourceMeasureIndex: 1,
-        startedAt: new Date(runStartedAt + 2000).toISOString(),
-        durationMs: 2000,
-        wrongNotes: 1,
-        clean: false,
-        hands: 'both',
-      })
-      tracker.markScoreCompleted()
-      await tracker.endSession()
+      return {
+        verdict: VERDICT,
+        fromTheTop: true,
+        completed: true,
+        measures: [
+          { sourceMeasureIndex: 0, startedAt, durationMs: 2000, hands: 'both' },
+          {
+            sourceMeasureIndex: 1,
+            startedAt: new Date(runStartedAt + 2000).toISOString(),
+            durationMs: 2000,
+            wrongNotes: 1,
+            clean: false,
+            hands: 'both',
+          },
+        ],
+      }
+    }
+
+    async function playStrict(run = strictRun()) {
+      tracker.startSession('/scores/test.xml', 'Test', 'Composer', 'strict', 2)
+      tracker.recordStrictRun(run)
+      return tracker.endSession()
+    }
+
+    it('puts the run in the daily log with its verdict', async () => {
+      await playStrict()
 
       const [entry] = await tracker.getDailyLog(new Date())
       expect(entry.measuresWorked).toEqual([0, 1])
       expect(entry.totalPracticeTimeMs).toBe(4000)
       expect(entry.timesPlayedInFull).toBe(1)
+      expect(entry.fullPlaythroughs[0].strict).toEqual(VERDICT)
+    })
+
+    it('does not file a run stopped mid-piece as a playthrough', async () => {
+      await playStrict({ ...strictRun(), fromTheTop: false, completed: false })
+
+      const [entry] = await tracker.getDailyLog(new Date())
+      expect(entry.measuresWorked).toEqual([0, 1])
+      expect(entry.fullPlaythroughs).toEqual([])
+    })
+
+    it('lists strict runs apart from free ones', async () => {
+      await playStrict()
+      tracker.startSession('/scores/test.xml', 'Test', 'Composer', 'free', 2)
+      await playMeasure(0, 50)
+      await playMeasure(1, 50)
+      tracker.markScoreCompleted()
+      await tracker.endSession()
+
+      const [day] = await tracker.getScoreHistory('/scores/test.xml')
+      expect(day.timesPlayedInFull).toBe(2)
+      const groups = playthroughGroups(day.fullPlaythroughs)
+      expect(groups.map((g) => g.key)).toEqual(['free-both', 'strict-both'])
+      expect(groups[0].playthroughs[0].strict).toBeNull()
+      expect(groups[1].playthroughs[0].strict).toEqual(VERDICT)
     })
   })
 
