@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="fr" data-theme="light" x-data="practiceApp()">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="app-version" content="183728d511a8" />
+    <title data-i18n="practice.pageTitle">Arabesque · Assiduité</title>
+    <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+    <link rel="manifest" href="manifest.webmanifest" />
+    <meta name="theme-color" content="#f7f7f9" />
+    <link rel="stylesheet" href="styles.css" />
+    <script type="module" src="js/version.js"></script>
+    <script type="module" src="js/swRegister.js"></script>
+    <script type="module">
+      import { practiceApp } from './js/practice.js'
+      import { initAlpineI18n } from './js/i18n.js'
+      import { mountJournalEntries } from './js/journalEntries.js'
+      window.practiceApp = practiceApp
+      // Inject the shared journal entry line before Alpine boots.
+      mountJournalEntries()
+      initAlpineI18n()
+      const alpine = document.createElement('script')
+      alpine.src = 'vendor/alpinejs.3.14.9.min.js'
+      document.head.appendChild(alpine)
+    </script>
+  </head>
+  <body>
+    <main class="container pt-practice-page">
+      <div class="pt-page-header">
+        <a href="library.html" class="pt-topbar__back" data-i18n="practice.back">← Bibliothèque</a>
+        <h1 x-text="$t('practice.heading')">Assiduité</h1>
+      </div>
+
+      <article class="pt-card pt-stack">
+        <div class="pt-row-between pt-practice-toolbar">
+          <p class="pt-hint" x-text="$t('practice.intro')"></p>
+          <div class="pt-yearnav" role="group" :aria-label="$t('practice.yearNavAria')" x-show="firstYear < latestYear" x-cloak>
+            <button type="button" class="pt-icon-button" :disabled="year <= firstYear" @click="setYear(year - 1)" :aria-label="$t('practice.previousYear')">‹</button>
+            <strong class="pt-yearnav__year" x-text="year">2026</strong>
+            <button type="button" class="pt-icon-button" :disabled="year >= latestYear" @click="setYear(year + 1)" :aria-label="$t('practice.nextYear')">›</button>
+          </div>
+        </div>
+
+        <!-- Year totals. Streaks are all-time by design (see buildStats). -->
+        <dl class="pt-statrow" x-show="ready" x-cloak>
+          <div class="pt-stat">
+            <dt class="pt-eyebrow" x-text="$t('practice.statDays')">Jours de pratique</dt>
+            <dd x-text="stats.days"></dd>
+          </div>
+          <div class="pt-stat">
+            <dt class="pt-eyebrow" x-text="$t('practice.statTime')">Temps de pratique</dt>
+            <dd x-text="formatDuration(stats.practiceTimeMs)"></dd>
+          </div>
+          <div class="pt-stat">
+            <dt class="pt-eyebrow" x-text="$t('practice.statPlaythroughs')">Lectures complètes</dt>
+            <dd x-text="stats.playthroughs"></dd>
+          </div>
+          <div class="pt-stat">
+            <dt class="pt-eyebrow" x-text="$t('practice.statCurrentStreak')">Série en cours</dt>
+            <dd x-text="$tn('practice.dayCount', stats.current)"></dd>
+          </div>
+          <div class="pt-stat">
+            <dt class="pt-eyebrow" x-text="$t('practice.statLongestStreak')">Meilleure série</dt>
+            <dd x-text="$tn('practice.dayCount', stats.longest)"></dd>
+          </div>
+        </dl>
+
+        <!-- The grid scrolls in its own box: 53 columns don't fit a phone, and
+             the page itself must not scroll sideways. -->
+        <div class="pt-calendar-scroll" x-ref="calendar">
+          <div class="pt-calendar">
+            <div class="pt-calendar__weekdays" aria-hidden="true">
+              <template x-for="(label, row) in weekdayLabels" :key="row">
+                <span x-text="label"></span>
+              </template>
+            </div>
+            <div class="pt-calendar__body">
+              <div class="pt-calendar__months" aria-hidden="true">
+                <template x-for="(label, week) in monthLabels" :key="week">
+                  <span class="pt-calendar__month" x-text="label"></span>
+                </template>
+              </div>
+              <div class="pt-calendar__cells">
+                <template x-for="(week, index) in weeks" :key="index">
+                  <div class="pt-calendar__week">
+                    <!-- Keyed by row, not by date: positions are stable across
+                         years, so switching year patches the cells in place
+                         instead of tearing down all 371 buttons. -->
+                    <template x-for="(day, row) in week" :key="row">
+                      <button
+                        type="button"
+                        class="pt-calendar__day"
+                        :data-level="day.level"
+                        :data-outside="!day.playable"
+                        :data-today="day.isToday"
+                        :aria-pressed="selected?.key === day.key"
+                        :disabled="!day.playable"
+                        :title="day.label"
+                        :aria-label="day.label"
+                        @click="toggleDay(day)"
+                      ></button>
+                    </template>
+                  </div>
+                </template>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="pt-calendar-legend">
+          <span x-text="$t('practice.legendLess')">Moins</span>
+          <template x-for="level in levels" :key="level">
+            <span class="pt-calendar__day" :data-level="level" aria-hidden="true"></span>
+          </template>
+          <span x-text="$t('practice.legendMore')">Plus</span>
+        </div>
+      </article>
+
+      <!-- Detail of the clicked day. Closed by clicking the same square again. -->
+      <article class="pt-card pt-stack" x-show="selected" x-cloak>
+        <div class="pt-row-between pt-practice-toolbar">
+          <h2 x-text="selectedLabel()"></h2>
+          <button type="button" class="pt-icon-button" @click="closeDay()" :aria-label="$t('common.close')">✕</button>
+        </div>
+        <template x-if="selectedEntries.length === 0">
+          <p class="pt-hint" x-text="$t('practice.noPractice')">Aucune pratique ce jour-là.</p>
+        </template>
+        <div data-journal-entries="selectedEntries"></div>
+      </article>
+    </main>
+  </body>
+</html>
