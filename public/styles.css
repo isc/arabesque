@@ -1884,9 +1884,13 @@ svg g.vf-notehead.wrong-note path { animation: pt-wrong-note-flash 700ms; }
 /* The repetition under way is already lost: a wrong note spoiled it. */
 .repeat-indicator.spoiled { stroke: var(--pt-note-missed); }
 
-/* Clickable noteheads for fingering annotation */
+/* Clickable noteheads for fingering annotation. The hover tint is for a real
+   pointer only: a finger has no hover, and the tap that opens the fingering pad
+   would otherwise leave the note faded until something else is touched. */
 #score svg .vf-notehead { cursor: pointer; }
-#score svg .vf-notehead:hover path { fill-opacity: 0.7; }
+@media (hover: hover) {
+  #score svg .vf-notehead:hover path { fill-opacity: 0.7; }
+}
 
 /* Measure numbers — lighter to distinguish from fingerings */
 #score svg g.measure-number text { fill: #999999; }
