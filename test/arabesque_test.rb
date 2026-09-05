@@ -609,7 +609,61 @@ class ArabesqueTest < CapybaraTestBase
     assert_no_selector 'img#cursorImg-0', visible: :visible
   end
 
+  # Feedback 50e2418d: listening got the sub-bar strict mode already had — the
+  # transport, the tempo to hear the piece at, and the bar to hear it from.
+  #
+  # From the catalog rather than an upload: the tempo is remembered per score,
+  # and a score without a URL has nowhere to remember it.
+  def test_playback_band_carries_the_transport_the_tempo_and_the_starting_bar
+    visit '/score.html?url=/test-fixtures/two-measures.xml'
+    wait_for_score_render(2)
+
+    # No band until there is something to listen to.
+    assert_no_text 'Cliquez sur une mesure pour écouter'
+
+    # The clock is parked for the one stretch where the piece could run out
+    # from under the assertions; past ⏸ there is no timer left pending.
+    with_clock_control do
+      trigger_click_on('▶ Écouter')
+      assert_text 'Cliquez sur une mesure pour écouter à partir de là.'
+      trigger_click_on('⏸ Pause')
+    end
+
+    # ⏸ holds the piece rather than ending it: the band stays up and the
+    # modebar still offers ⏹, not a fresh start.
+    assert_text '▶ Reprendre'
+    assert_text '⏹ Stop'
+    assert_text 'En pause à la mesure 1'
+
+    # A bar clicked while paused is where ▶ will pick the piece up.
+    click_measure(2)
+    assert_text 'En pause à la mesure 2'
+
+    # The tempo is the player's, set without leaving the listening. The field
+    # is debounced, so the tempo being filed under the score is what says the
+    # keystrokes reached the app.
+    fill_in 'playback-bpm', with: '20'
+    wait_for_stored_tempo('/test-fixtures/two-measures.xml', '20')
+
+    with_clock_control do
+      trigger_click_on('▶ Reprendre')
+      assert_text '⏸ Pause'
+      trigger_click_on('⏹ Stop')
+    end
+    assert_text '▶ Écouter'
+    assert_no_text 'Cliquez sur une mesure pour écouter'
+  end
+
   private
+
+  # Polls rather than asserting once: the BPM field is debounced, so the value
+  # lands in the app a moment after the last keystroke.
+  def wait_for_stored_tempo(score_url, bpm, timeout: 5)
+    key = "arabesque:playbackBpm:#{score_url}"
+    Timeout.timeout(timeout) do
+      sleep 0.05 until page.evaluate_script("localStorage.getItem(#{key.inspect})") == bpm
+    end
+  end
 
   def replay_cassette(name, wait_for_end: true)
     select name

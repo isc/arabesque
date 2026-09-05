@@ -44,7 +44,7 @@ async function load(midiState) {
 
 async function playOneNote(midiState) {
   const pb = await load(midiState)
-  await pb.togglePlayback(...score())
+  await pb.play(...score())
   vi.advanceTimersByTime(1)
 }
 
