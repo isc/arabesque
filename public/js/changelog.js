@@ -16,6 +16,17 @@
 
 export const CHANGELOG = [
   {
+    date: '2026-09-05',
+    items: {
+      fr: [
+        "Le décompte du mode strict se voit. Une mesure complète s'écoule entre l'appui sur ▶ et la première note, et rien ne bougeait à l'écran pendant ce temps-là : qui n'entendait pas les clics croyait que rien n'avait démarré. Le bandeau affiche maintenant les temps de la mesure de départ — 1 2 3 4, ou 1 2 3 selon la métrique — celui en cours en évidence. Il prend la place que l'indication libère, à hauteur identique, donc la partition ne bouge pas et on continue de lire la mesure qu'on s'apprête à jouer.",
+      ],
+      en: [
+        "The strict-mode count-in can be seen. A whole bar goes by between pressing ▶ and the first note, and nothing moved on screen during it: anyone who could not hear the clicks thought nothing had started. The band now shows the beats of the count-in bar — 1 2 3 4, or 1 2 3 depending on the metre — with the one sounding picked out. It takes the slot the hint gives up, at the same height, so the score does not move and you keep reading the bar you are about to play.",
+      ],
+    },
+  },
+  {
     date: '2026-09-04',
     items: {
       fr: [

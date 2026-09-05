@@ -106,7 +106,40 @@ class StrictPlaythroughTest < CapybaraTestBase
     end
   end
 
+  # A count-in is a whole bar in which nothing else on screen moves. Reported as
+  # feedback 659acd4e by a player who never noticed there was one — the clicks
+  # come out of the device, and she was at the piano.
+  def test_the_count_in_is_shown_beat_by_beat
+    load_score('chord.xml', 1)
+    start_strict_mode
+
+    with_clock_control do
+      trigger_click_on('▶ Démarrer')
+
+      # 4/4 at 120 BPM: four beats of 500ms. The first lands on the click; the
+      # budget only has to clear it, not reach the second.
+      advance_clock(50)
+      assert_selector '.pt-countin__beat', count: 4
+      assert_selector '.pt-countin__beat.is-now', text: '1'
+
+      advance_clock(500)
+      assert_selector '.pt-countin__beat.is-now', text: '2'
+
+      # The band stays, its contents swap back: the score must not move on the
+      # downbeat, which is the moment the player is reading it.
+      top_before = score_top
+      advance_clock(1450)
+      assert_no_selector '.pt-countin__beat'
+      assert_selector 'svg g.vf-notehead.expected-note', wait: 4
+      assert_equal top_before, score_top
+    end
+  end
+
   private
+
+  def score_top
+    page.evaluate_script("document.querySelector('.pt-score-main').getBoundingClientRect().top")
+  end
 
   # BPM=120 → 2s count-in, ±150ms strict window, ±450ms off-tempo. The window
   # is an absolute constant, so the tempo is what every timing comment below

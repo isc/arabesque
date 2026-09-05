@@ -42,6 +42,7 @@ let pendingEvents = []
 let stats = null
 let onCompleteCb = null
 let onProgressCb = null
+let onCountInCb = null
 let activeHands = { right: true, left: true }
 let startedAtPerf = 0
 // Wall clock at the same instant as startedAtPerf, so the run's measures can be
@@ -118,6 +119,7 @@ function start({
   startMeasureIndex = 0,
   onComplete,
   onProgress,
+  onCountIn,
 }) {
   if (isRunning) return
   if (!osmdInstance || !allNotes?.length) return
@@ -126,6 +128,7 @@ function start({
   activeOsmd = osmdInstance
   onCompleteCb = onComplete
   onProgressCb = onProgress
+  onCountInCb = onCountIn
   currentToleranceMs = tolerance
   currentOffTempoWindowMs = offTempoWindow
   isRunning = true
@@ -188,10 +191,16 @@ function start({
   startedAtPerf = performance.now()
   startedAtWall = Date.now()
 
+  // Each count-in beat is reported as it lands, for a view that shows the count
+  // to a player who cannot hear it. Beat 0 means the count is over.
   for (let i = 0; i < resolvedCountInBeats; i++) {
     const t = i * beatMs
-    timeouts.push(setTimeout(() => playClick({ accent: i === 0 }), t))
+    timeouts.push(setTimeout(() => {
+      playClick({ accent: i === 0 })
+      onCountInCb?.({ beat: i + 1, beats: resolvedCountInBeats })
+    }, t))
   }
+  timeouts.push(setTimeout(() => onCountInCb?.({ beat: 0, beats: resolvedCountInBeats }), countInMs))
 
   if (pendingEvents.length > 0) {
     const lastTimeMs = pendingEvents[pendingEvents.length - 1].timeMs

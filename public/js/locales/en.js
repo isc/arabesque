@@ -205,6 +205,7 @@ export default {
     reinforceMany: '🎯 Reinforce {n} bars',
     stop: '⏹ Stop',
     listen: '▶ Listen',
+    countIn: 'Count-in',
     strictBand: '⏱ Strict mode',
     strictHint: 'Click a bar to start playback from that point.',
     strictStartAt: 'Starting at bar {n}.',
