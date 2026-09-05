@@ -81,6 +81,33 @@ class StrictPlaythroughTest < CapybaraTestBase
     end
   end
 
+  # A run to the end with a note missed is still the piece played through —
+  # the metronome moved on — and it is listed with its verdict, which is the
+  # point. Demanding a clean run left nearly every real run out of the journal.
+  def test_a_run_with_a_missed_note_still_counts_as_played_in_full
+    visit '/score.html?url=/test-fixtures/chord.xml'
+    wait_for_score_render(1)
+    start_strict_mode
+
+    with_clock_control do
+      trigger_click_on('▶ Démarrer')
+      advance_clock(2000)
+      assert_selector 'svg g.vf-notehead.expected-note', wait: 4
+      play_chord(%w[C4 E4])
+      advance_clock(1000)
+      assert_text 'Playthrough strict terminé', wait: 2
+    end
+    assert_text '67%'
+    assert_text '1 manquée'
+
+    wait_for_records('sessions', where: 'record.completedAt && record.measures.length === 1')
+
+    within('dialog.pt-result-dialog') { click_on 'Historique' }
+    within '#scoreHistoryModal' do
+      assert_text '1× en entier (67 % à 120 BPM) · mode strict'
+    end
+  end
+
   # Regression: when the cursor crosses a repeat barline, free mode wipes the
   # whole upcoming repeat section. Strict mode must do the same — clearing only
   # the entered measure leaves later notes in the section showing first-pass

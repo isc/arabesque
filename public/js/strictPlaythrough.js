@@ -363,11 +363,12 @@ function finish(aborted) {
   isRunning = false
   const finalStats = stats
   const measures = measureAttempts()
-  // Played from the top with every expected note played: the piece practised
-  // in full. Same bar as free mode, where the cursor never gets past a note
-  // that wasn't played.
+  // Played from the top to the end: the piece practised in full, whatever
+  // the verdict says of it — the metronome moves on past a missed note, so
+  // demanding none would leave almost no run of a real piece in the journal,
+  // and the verdict is what a strict run is read by.
   const fromTheTop = runStartMeasureIndex === 0
-  const completed = fromTheTop && !aborted && finalStats.missed === 0
+  const completed = fromTheTop && !aborted
   teardown()
   // The verdict — what the run is judged by — travels as one value, so what
   // stores it need not know its fields.

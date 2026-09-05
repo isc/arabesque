@@ -354,7 +354,7 @@
           <!-- Strict: accuracy + breakdown -->
           <template x-if="resultMode === 'strict'">
             <div>
-              <p class="pt-modal-stat pt-modal-stat--strict">
+              <p class="pt-modal-stat pt-modal-stat--strict" :class="strictAccuracyClass()">
                 <strong x-text="strictAccuracyPercent() + '%'"></strong>
                 <span x-text="$t('score.strictInTempo', { hit: strictResult?.hit ?? 0, total: strictResult?.total ?? 0 })"></span>
               </p>
