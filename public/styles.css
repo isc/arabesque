@@ -634,7 +634,6 @@ button.pt-topbar__pill:disabled { opacity: 0.4; cursor: default; }
 .pt-modebar > .pt-segmented,
 .pt-modebar > .pt-hands,
 .pt-modebar > .pt-bpm-field,
-.pt-modebar > .pt-strict-controls,
 .pt-modebar > .pt-action-button { height: 34px; align-items: center; box-sizing: border-box; }
 .pt-modebar > .pt-action-button { display: inline-flex; padding-block: 0; }
 .pt-modebar .pt-segmented button { height: 28px; padding-block: 0; line-height: 28px; }
@@ -766,50 +765,50 @@ button.pt-topbar__pill:disabled { opacity: 0.4; cursor: default; }
 }
 .pt-action-button.is-primary:hover { background: var(--pt-accent-strong); border-color: var(--pt-accent-strong); }
 
-/* Strict-mode cluster: pause/play + BPM live in a single strict-tinted
-   panel so they read as an extension of the "Mode strict" tab. Inner
-   items share the same color/typography and are separated by a divider,
-   not by independent boxes that would look unrelated. */
-.pt-strict-controls {
+/* Band cluster: transport + BPM (+ the strict band's loop controls) live in a
+   single panel tinted with the band's own colour, so they read as an extension
+   of the band they sit in. Inner items share the same color/typography and are
+   separated by a divider, not by independent boxes that would look unrelated.
+   The tint is --pt-band / --pt-band-bg, set once per band below, which is what
+   lets strict mode and playback share the whole component. */
+.pt-band-controls {
   display: inline-flex;
   align-items: center;
   height: 34px;
   flex: 0 0 auto;
   background: var(--pt-bg-elevated);
-  border: 1px solid color-mix(in srgb, var(--pt-mode-strict) 30%, transparent);
+  border: 1px solid color-mix(in srgb, var(--pt-band) 30%, transparent);
   border-radius: var(--pt-radius-md);
   overflow: hidden;
-  color: var(--pt-mode-strict);
+  color: var(--pt-band);
 }
-.pt-strict-controls > * + * { border-left: 1px solid color-mix(in srgb, var(--pt-mode-strict) 20%, transparent); }
-.pt-strict-controls > * {
+.pt-band-controls > * + * { border-left: 1px solid color-mix(in srgb, var(--pt-band) 20%, transparent); }
+.pt-band-controls > * {
   display: inline-flex;
   align-items: center;
   align-self: stretch;
   margin: 0;
 }
-.pt-strict-play,
-.pt-strict-loop {
+.pt-band-button {
   gap: 6px;
   padding: 0 14px;
   border: none;
   background: transparent;
-  color: var(--pt-mode-strict);
+  color: var(--pt-band);
   font-size: 0.88rem;
   font-weight: 600;
   cursor: pointer;
   white-space: nowrap;
   width: auto;
 }
-.pt-strict-play:hover,
-.pt-strict-loop:hover { background: color-mix(in srgb, var(--pt-mode-strict-bg) 70%, var(--pt-mode-strict) 12%); }
-.pt-strict-play.is-playing { background: var(--pt-mode-strict); color: var(--pt-text-inverse); }
-.pt-strict-loop[aria-pressed="true"] { background: color-mix(in srgb, var(--pt-mode-strict) 18%, transparent); }
+.pt-band-button:hover { background: color-mix(in srgb, var(--pt-band-bg) 70%, var(--pt-band) 12%); }
+.pt-band-button.is-playing { background: var(--pt-band); color: var(--pt-text-inverse); }
+.pt-band-button[aria-pressed="true"] { background: color-mix(in srgb, var(--pt-band) 18%, transparent); }
 /* Sized to its longest option, so a progression reads in full, the chevron
    close by; hovered and focused like the buttons beside it, with their
    tint rather than the base ring. The selector outweighs the base layer's
    select:not([multiple], [size]), which sets the chevron's padding. */
-.pt-context--strict .pt-strict-controls .pt-strict-select {
+.pt-context .pt-band-controls .pt-band-select {
   height: 28px;
   width: auto;
   margin: 0;
@@ -819,55 +818,62 @@ button.pt-topbar__pill:disabled { opacity: 0.4; cursor: default; }
   background-color: transparent;
   background-position: right 8px center;
   box-shadow: none;
-  color: var(--pt-mode-strict);
+  color: var(--pt-band);
   font-size: 0.85rem;
 }
-.pt-context--strict .pt-strict-controls .pt-strict-select:hover,
-.pt-context--strict .pt-strict-controls .pt-strict-select:focus {
+.pt-context .pt-band-controls .pt-band-select:hover,
+.pt-context .pt-band-controls .pt-band-select:focus {
   outline: none;
   box-shadow: none;
-  background-color: color-mix(in srgb, var(--pt-mode-strict-bg) 70%, var(--pt-mode-strict) 12%);
+  background-color: color-mix(in srgb, var(--pt-band-bg) 70%, var(--pt-band) 12%);
 }
-.pt-strict-controls .pt-bpm-field {
+.pt-band-controls .pt-bpm-field {
   border: none;
   border-radius: 0;
   background: transparent;
   padding: 0 10px;
   color: inherit;
 }
-.pt-strict-controls .pt-bpm-field input[type="number"] { color: var(--pt-mode-strict); height: 28px; line-height: 28px; }
-.pt-strict-controls .pt-bpm-field__suffix { color: color-mix(in srgb, var(--pt-mode-strict) 75%, transparent); }
+.pt-band-controls .pt-bpm-field input[type="number"] { color: var(--pt-band); height: 28px; line-height: 28px; }
+.pt-band-controls .pt-bpm-field__suffix { color: color-mix(in srgb, var(--pt-band) 75%, transparent); }
 
 /* =============================================================================
    Mode-context band (under modebar, varies per mode)
    ========================================================================== */
 
+/* The band takes its colour from the --pt-band pair each modifier below names,
+   and falls back to the neutral chrome for a band that names none. Everything
+   in it — the band itself and the control cluster it carries — is tinted from
+   that one pair, so a new band is a line of colour rather than an edit to every
+   rule here. */
 .pt-context {
-  background: var(--pt-bg-elevated);
-  border-bottom: 1px solid var(--pt-border);
+  background: var(--pt-band-bg, var(--pt-bg-elevated));
+  border-bottom: 1px solid color-mix(in srgb, var(--pt-band, var(--pt-border)) 20%, transparent);
   padding: var(--pt-space-2) var(--pt-space-4);
   display: flex;
   align-items: center;
+  /* A band carrying controls lets the text and the count-in take what is left
+     of the line, and drop under the controls when it is too narrow. */
+  flex-wrap: wrap;
   gap: var(--pt-space-3);
   font-size: 0.85rem;
-  color: var(--pt-text-muted);
+  color: var(--pt-band, var(--pt-text-muted));
   /* The band holds its height as its contents swap from the hint to the
      count-in, so pressing ▶ does not shift the score the player is reading. */
   min-height: var(--pt-space-10);
 }
 .pt-context__row { display: flex; align-items: center; gap: var(--pt-space-3); }
-.pt-context.pt-context--training { background: var(--pt-mode-training-bg); border-bottom-color: color-mix(in srgb, var(--pt-mode-training) 20%, transparent); color: var(--pt-mode-training); }
-.pt-context.pt-context--strict { background: var(--pt-mode-strict-bg); border-bottom-color: color-mix(in srgb, var(--pt-mode-strict) 20%, transparent); color: var(--pt-mode-strict); }
-/* The strict band carries its controls: text and count-in take what is
-   left of the line, and drop under the controls when it is too narrow. */
-.pt-context--strict { flex-wrap: wrap; }
-.pt-context--strict .pt-context__row { flex: 1 1 auto; min-width: 0; min-height: 34px; }
+.pt-context:has(.pt-band-controls) .pt-context__row { flex: 1 1 auto; min-width: 0; min-height: 34px; }
+/* Playback is not a mode, so it takes the app's accent rather than a mode colour. */
+.pt-context--training { --pt-band: var(--pt-mode-training); --pt-band-bg: var(--pt-mode-training-bg); }
+.pt-context--strict { --pt-band: var(--pt-mode-strict); --pt-band-bg: var(--pt-mode-strict-bg); }
+.pt-context--playback { --pt-band: var(--pt-accent); --pt-band-bg: var(--pt-accent-soft); }
 /* On a phone the controls are wider than the screen: the loop's progression
    picker takes a line of its own under the other three. */
 @media (max-width: 600px) {
-  .pt-context--strict .pt-strict-controls { flex-wrap: wrap; height: auto; max-width: 100%; }
-  .pt-context--strict .pt-strict-controls > * { height: 34px; }
-  .pt-context--strict .pt-strict-select { flex: 1 1 100%; border-left: none; border-top: 1px solid color-mix(in srgb, var(--pt-mode-strict) 20%, transparent); }
+  .pt-context .pt-band-controls { flex-wrap: wrap; height: auto; max-width: 100%; }
+  .pt-context .pt-band-controls > * { height: 34px; }
+  .pt-context .pt-band-select { flex: 1 1 100%; border-left: none; border-top: 1px solid color-mix(in srgb, var(--pt-band) 20%, transparent); }
 }
 .pt-context label { color: inherit; font-weight: 500; }
 

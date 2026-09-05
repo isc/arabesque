@@ -1,5 +1,17 @@
 2026-09-05
 
+- **▶ Écouter a son propre bandeau.** Le morceau qu'on écoute se pilotait
+  avec un seul bouton : ▶ pour partir du début, ⏹ pour tout arrêter. Un
+  bandeau apparaît maintenant sous les onglets, de la même forme que celui du
+  mode strict, et porte les trois choses qui manquaient : ⏸ / ▶ pour
+  suspendre le morceau et le reprendre à la mesure où on l'a laissé ; le
+  tempo d'écoute, modifiable en cours de lecture — il prend effet à la mesure
+  en cours, sans repartir du début — et retenu pour la partition ; et un clic
+  sur n'importe quelle mesure pour écouter à partir de là, en marche comme en
+  pause (en pause, le curseur s'y place pour dire d'où ▶ repartira). Le ⏹ de
+  la barre du dessus reste le seul à ranger le morceau ; changer de mode
+  l'arrête aussi.
+
 - **Le mode strict travaille un passage en boucle.** Le bouton 🔁 Boucle,
   à côté du tempo, rejoue en boucle le passage délimité par deux clics sur
   la partition (ou la partition entière), avec un temps de pause entre deux
