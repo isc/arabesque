@@ -1,5 +1,18 @@
 2026-09-05
 
+- **Un passage strict compte comme joué en entier, notes manquées ou pas.**
+  Il fallait jusqu'ici n'en manquer aucune pour que le passage soit consigné
+  comme joué en entier : sur un morceau de quatre cents notes au métronome,
+  autant dire jamais, et le journal ne montrait rien de spécifique. Un
+  passage joué du début à la fin est maintenant consigné avec son verdict —
+  « 1× en entier (94 % à 55 BPM) · mode strict » — qui est justement ce qu'on
+  veut lire. Le statut du morceau, lui, continue de dépendre des mesures
+  jouées proprement.
+
+- **La modale de fin de passage strict n'écrit plus le score en rouge.** 94 %
+  en rouge vif se lisait comme un échec. Le pourcentage est neutre sous 70 %,
+  bleu jusqu'à 90 %, vert au-delà.
+
 - **Les passages en mode strict ont leur place dans l'historique.** Un morceau
   joué en entier au métronome était consigné comme un passage libre : sa durée
   — celle du métronome, pas celle du joueur — entrait dans le classement des

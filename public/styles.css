@@ -1692,7 +1692,11 @@ dialog > article > footer button { margin: 0; }
 }
 .pt-modal-stat strong { font-size: 1.4rem; font-weight: 700; }
 .pt-modal-stat--accent strong { color: var(--pt-accent); }
-.pt-modal-stat--strict strong { color: var(--pt-mode-strict); }
+/* The strict accuracy: neutral by default, and coloured up — never down —
+   as the figure improves, so a good run reads as one. */
+.pt-modal-stat--strict strong { color: var(--pt-text); }
+.pt-modal-stat--strict.is-fair strong { color: var(--pt-accent); }
+.pt-modal-stat--strict.is-good strong { color: var(--pt-success); }
 
 /* Playthrough ranking table (inside result modal). Stays a <table>
    to keep practice_tracking tests' `table tbody tr` selector working.

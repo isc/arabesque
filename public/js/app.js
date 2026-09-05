@@ -691,6 +691,13 @@ export function midiApp() {
       return this.strictResult ? strictAccuracy(this.strictResult) : 0
     },
 
+    // How the accuracy is coloured: a good run reads as one. It used to be
+    // the mode's red whatever the figure, which made 94 % look like a fail.
+    strictAccuracyClass() {
+      const pct = this.strictAccuracyPercent()
+      return pct >= 90 ? 'is-good' : pct >= 70 ? 'is-fair' : ''
+    },
+
     strictOffTempoTotal() {
       const r = this.strictResult
       if (!r) return 0
