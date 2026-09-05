@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="fr" data-theme="light" x-data="dataApp()">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="app-version" content="9cc736fcdfe8" />
+    <title data-i18n="data.pageTitle">Arabesque · Données</title>
+    <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+    <link rel="manifest" href="manifest.webmanifest" />
+    <meta name="theme-color" content="#f7f7f9" />
+    <link rel="stylesheet" href="styles.css" />
+    <script type="module" src="js/version.js"></script>
+    <script type="module" src="js/swRegister.js"></script>
+    <script type="module">
+      import { dataApp } from './js/data.js'
+      import { initAlpineI18n } from './js/i18n.js'
+      window.dataApp = dataApp
+      initAlpineI18n()
+      const alpine = document.createElement('script')
+      alpine.src = 'vendor/alpinejs.3.14.9.min.js'
+      document.head.appendChild(alpine)
+    </script>
+  </head>
+  <body>
+    <main class="container pt-data-page">
+      <div class="pt-page-header">
+        <a href="library.html" class="pt-topbar__back" data-i18n="data.back">← Bibliothèque</a>
+        <h1 x-text="$t('data.heading')">Données</h1>
+      </div>
+
+      <!-- Local backup -->
+      <article class="pt-card pt-stack">
+        <h2 x-text="$t('data.localHeading')">Sauvegarde dans un fichier</h2>
+        <p class="pt-hint" x-text="$t('data.localIntro')"></p>
+        <div class="pt-data-actions">
+          <button type="button" class="outline secondary" @click="exportBackup()" x-text="$t('library.exportBackup')">📤 Exporter sauvegarde</button>
+          <label class="outline secondary" role="button" for="backup-import" x-text="$t('library.importBackup')">📥 Importer sauvegarde</label>
+          <input class="pt-sr-only" type="file" accept=".json" @change="importBackup($event)" id="backup-import" />
+        </div>
+      </article>
+
+      <!-- Account / cloud -->
+      <article class="pt-card pt-stack">
+        <h2 x-text="$t('data.accountHeading')">Synchronisation entre appareils</h2>
+
+        <template x-if="!cloudConfigured">
+          <p class="pt-hint" x-text="$t('data.cloudUnavailable')">La synchronisation cloud n'est pas configurée.</p>
+        </template>
+
+        <div class="pt-stack" x-show="cloudConfigured && authReady" x-cloak>
+          <!-- Signed out: magic-link form -->
+          <template x-if="!user">
+            <div class="pt-stack">
+              <!-- Just deleted: the form below is the whole signed-out page, so
+                   without this the button would look like it did nothing. -->
+              <p x-show="deleteStatus === 'done'" class="pt-sync-ok" x-text="$t('data.deleteDone')"></p>
+              <p class="pt-hint" x-text="$t('data.accountIntro')"></p>
+              <!-- Email sent: the code is the path that works everywhere, the
+                   link only in the browser that opens it. -->
+              <template x-if="codeSent">
+                <div class="pt-stack">
+                  <p class="pt-sync-ok" x-text="$t('data.linkSent')">Lien envoyé !</p>
+                  <form @submit.prevent="verifyOtp()" class="pt-account-form">
+                    <input
+                      type="text"
+                      x-model="otp"
+                      required
+                      inputmode="numeric"
+                      autocomplete="one-time-code"
+                      :disabled="authStatus === 'verifying'"
+                      :placeholder="$t('data.otpPlaceholder')"
+                      :aria-label="$t('data.otpLabel')"
+                    />
+                    <button type="submit" :aria-busy="authStatus === 'verifying'" :disabled="!otp.trim() || authStatus === 'verifying'" x-text="$t('data.verifyOtp')">Valider le code</button>
+                  </form>
+                  <p class="pt-hint" x-text="$t('data.otpHint')"></p>
+                </div>
+              </template>
+              <template x-if="!codeSent">
+                <form @submit.prevent="requestSignInEmail()" class="pt-account-form">
+                  <input
+                    type="email"
+                    x-model="email"
+                    required
+                    :disabled="authStatus === 'sending'"
+                    :placeholder="$t('data.emailPlaceholder')"
+                    :aria-label="$t('data.emailLabel')"
+                  />
+                  <button type="submit" :aria-busy="authStatus === 'sending'" :disabled="!email.trim() || authStatus === 'sending'" x-text="$t('data.sendLink')">Recevoir un lien</button>
+                </form>
+              </template>
+              <!-- Shown on any authError: a rejected code keeps the status on
+                   'sent' so the form stays open for another try. The label says
+                   which step failed, decided where the failure happened. -->
+              <p x-show="authError" role="alert" class="pt-feedback-error">
+                <span x-text="$t(authErrorLabel)">Échec :</span>
+                <span x-text="authError"></span>
+              </p>
+            </div>
+          </template>
+
+          <!-- Signed in -->
+          <template x-if="user">
+            <div class="pt-stack">
+              <div class="pt-data-identity">
+                <span class="pt-hint" x-text="$t('data.signedInAs')">Connecté :</span>
+                <strong x-text="user.email"></strong>
+              </div>
+
+              <p class="pt-hint" x-text="$t('data.syncHint')">
+                Vos données se synchronisent à la fin de chaque morceau joué et au retour sur l’app.
+              </p>
+
+              <div class="pt-data-actions">
+                <button type="button" class="outline secondary" @click="syncNow()" :aria-busy="syncStatus === 'syncing'" :disabled="syncStatus === 'syncing'" x-text="$t('data.syncNow')">Synchroniser maintenant</button>
+                <button type="button" class="outline secondary" @click="signOut()" x-text="$t('data.signOut')">Se déconnecter</button>
+              </div>
+
+              <p class="pt-hint">
+                <span x-text="$t('data.lastSync')">Dernière synchro :</span>
+                <span x-text="lastSyncLabel()"></span>
+              </p>
+              <p x-show="syncStatus === 'done' && syncSummary" class="pt-sync-ok" x-text="syncSummary"></p>
+              <p x-show="syncStatus === 'error'" role="alert" class="pt-feedback-error">
+                <span x-text="$t('data.syncError')">Échec de la synchro :</span>
+                <span x-text="syncError"></span>
+              </p>
+
+              <hr />
+
+              <h3 x-text="$t('data.deleteHeading')">Supprimer le compte</h3>
+              <p class="pt-hint" x-text="$t('data.deleteIntro')"></p>
+              <template x-if="!confirmingDelete">
+                <div class="pt-data-actions">
+                  <button type="button" class="outline danger" @click="confirmingDelete = true" x-text="$t('data.deleteAccount')">Supprimer mon compte</button>
+                </div>
+              </template>
+              <template x-if="confirmingDelete">
+                <div class="pt-stack">
+                  <p role="alert" class="pt-feedback-error" x-text="$t('data.deleteWarning')"></p>
+                  <div class="pt-data-actions">
+                    <button type="button" class="danger" @click="deleteAccount()" :aria-busy="deleteStatus === 'deleting'" :disabled="deleteStatus === 'deleting'" x-text="$t('data.deleteConfirm')">Oui, supprimer définitivement</button>
+                    <button type="button" class="outline secondary" @click="confirmingDelete = false" :disabled="deleteStatus === 'deleting'" x-text="$t('common.cancel')">Annuler</button>
+                  </div>
+                </div>
+              </template>
+              <p x-show="deleteStatus === 'error'" role="alert" class="pt-feedback-error">
+                <span x-text="$t('data.deleteError')">Échec de la suppression :</span>
+                <span x-text="deleteError"></span>
+              </p>
+            </div>
+          </template>
+        </div>
+      </article>
+
+      <!-- This page is where someone comes to think about their data, so it is
+           where the two pages explaining it belong; the ⚙️ menu that carries
+           them elsewhere is not mounted here. -->
+      <footer class="pt-landing__footer">
+        <span class="pt-footer-links">
+          <a href="privacy.html" data-i18n="common.privacy">Confidentialité</a>
+          <a href="support.html" data-i18n="common.support">Assistance</a>
+        </span>
+      </footer>
+    </main>
+  </body>
+</html>
