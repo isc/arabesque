@@ -1,0 +1,96 @@
+name: Deploy branch preview
+
+# Every pull request gets its own copy of the app at
+# https://arabesque.app/previews/<branch-slug>/, refreshed on each push and
+# removed when the PR closes (preview-cleanup.yml). Same origin as the
+# production site, so a preview shares the browser's practice data with it.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: gh-pages
+  cancel-in-progress: false
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  deploy-preview:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      # Slug = branch name with any non-alphanumeric char collapsed to `-`.
+      - name: Compute preview slug
+        id: slug
+        run: |
+          raw='${{ github.head_ref }}'
+          slug=$(echo "$raw" | tr -c 'a-zA-Z0-9-' '-' | tr -s '-' | sed 's/^-\|-$//g')
+          echo "slug=$slug" >> "$GITHUB_OUTPUT"
+
+      # Stamped with the PR's head SHA, like a deploy of main is with its
+      # own: the preview is a build of its own, and the version check in
+      # public/js/version.js tells it apart from the production one.
+      - name: Stamp the build version
+        run: node scripts/stamp-version.mjs "${SHA::12}"
+        env:
+          SHA: ${{ github.event.pull_request.head.sha }}
+
+      # Marker polled from GitHub Pages once it actually serves the fresh
+      # build; without it the PR comment lands before Pages has propagated
+      # and the link gives a 404, or stale content on later pushes. Written
+      # after the stamp so it stays out of the worker's precache list.
+      - name: Write deployment marker
+        run: echo "${{ github.event.pull_request.head.sha }}" > public/.preview-sha
+
+      - name: Publish to gh-pages (previews/${{ steps.slug.outputs.slug }})
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./public
+          publish_branch: gh-pages
+          destination_dir: previews/${{ steps.slug.outputs.slug }}
+          keep_files: true
+          commit_message: 'preview: ${{ steps.slug.outputs.slug }} @ ${{ github.event.pull_request.head.sha }}'
+
+      - name: Wait for GitHub Pages to serve the fresh preview
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+          SLUG: ${{ steps.slug.outputs.slug }}
+        run: |
+          url="https://arabesque.app/previews/$SLUG/.preview-sha"
+          for i in $(seq 1 60); do
+            actual=$(curl -fsSL "$url" 2>/dev/null | tr -d '[:space:]' || true)
+            if [ "$actual" = "$EXPECTED_SHA" ]; then
+              echo "Preview live with $EXPECTED_SHA after ${i}×5s"
+              exit 0
+            fi
+            echo "Attempt $i/60: got '$actual', want '$EXPECTED_SHA'"
+            sleep 5
+          done
+          echo "::warning::Preview did not become live with the expected SHA in 5 minutes — comment posted anyway"
+
+      # Retried: the issues API now and then answers a transient 504 here.
+      - name: Comment PR with the preview link
+        uses: Wandalen/wretry.action@v3.8.0
+        with:
+          action: marocchino/sticky-pull-request-comment@v2
+          attempt_limit: 3
+          attempt_delay: 10000
+          with: |
+            header: preview-${{ steps.slug.outputs.slug }}
+            message: |
+              **Preview déployée** pour cette PR : https://arabesque.app/previews/${{ steps.slug.outputs.slug }}/library.html
+
+              Commit : `${{ github.event.pull_request.head.sha }}`
+              _Mise à jour à chaque push, supprimée à la fermeture de la PR. Même origine que la prod : la preview lit et écrit le même journal de pratique._
