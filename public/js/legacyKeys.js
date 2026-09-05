@@ -14,7 +14,7 @@ export const KEY_PREFIX = 'arabesque:'
 // Keys the app no longer reads, swept so a stale value can't outlive its
 // meaning. `sync-enabled` was the "Automatic sync" switch; syncing now follows
 // the stored session itself (supabaseConfig.js).
-const OBSOLETE_KEYS = ['arabesque:sync-enabled']
+const OBSOLETE_KEYS = ['arabesque:sync-enabled', 'arabesque:metronome-midi']
 
 function migrate() {
   const renames = []

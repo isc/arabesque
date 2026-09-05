@@ -15,9 +15,6 @@ export default {
     privacy: '🔒 Confidentialité',
     install: '📲 Installer l’application',
     language: 'Langue',
-    metronome: 'Métronome',
-    metronomeMidi: '🥁 Clic dans le piano',
-    metronomeMidiHint: 'Envoie le clic du mode strict au piano, pour l’entendre au casque. Tous les instruments n’y répondent pas.',
   },
   // Which hands a run through the score was played with.
   hands: {
