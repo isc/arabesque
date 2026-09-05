@@ -178,6 +178,23 @@
             />
             <span class="pt-bpm-field__suffix" x-text="$t('score.bpm')">BPM</span>
           </label>
+          <button
+            class="pt-strict-loop"
+            :aria-pressed="loopEnabled"
+            :title="$t('score.loopTitle')"
+            @click="toggleLoop"
+            x-text="$t('score.loopBtn')"
+          >🔁 Boucle</button>
+          <select
+            x-show="loopEnabled"
+            class="pt-strict-select"
+            x-model="trainerMode"
+            :disabled="isStrictPlaying"
+            :aria-label="$t('score.trainerModeAria')"
+          >
+            <option value="graduated" x-text="trainerModeLabel('graduated')"></option>
+            <option value="random" x-text="trainerModeLabel('random')"></option>
+          </select>
         </div>
       </template>
 
@@ -219,11 +236,10 @@
          happen to alternate, so the score below never moves — and the count-in
          is read against the first measure, which an overlay would cover. -->
     <div class="pt-context pt-context--strict" x-show="currentMode === 'strict' && !!osmdInstance" x-cloak>
-      <template x-if="!isStrictPlaying">
+      <template x-if="!isStrictPlaying || (trainerStatus && countInBeat === 0)">
         <span class="pt-context__row">
-          <strong x-text="$t('score.strictBand')">⏱ Mode strict</strong>
-          <span x-show="strictStartMeasure === 0" x-text="$t('score.strictHint')">Cliquez sur une mesure pour démarrer la lecture à partir de ce point.</span>
-          <span x-show="strictStartMeasure > 0" x-text="$t('score.strictStartAt', { n: strictStartMeasure + 1 })"></span>
+          <strong x-text="$t(loopEnabled ? 'score.loopBtn' : 'score.strictBand')">⏱ Mode strict</strong>
+          <span x-text="strictBandText()">Cliquez sur une mesure pour démarrer la lecture à partir de ce point.</span>
         </span>
       </template>
       <template x-if="countInBeat > 0">
@@ -370,6 +386,26 @@
                 <li x-show="strictResult?.wrongNotes > 0">
                   🚫 <span x-text="strictResult?.wrongNotes ?? 0"></span> <span x-text="$t('score.strictWrongNotes')">fausses notes</span>
                 </li>
+              </ul>
+            </div>
+          </template>
+
+          <!-- Tempo trainer: the loop's runs, tempo and streak -->
+          <template x-if="resultMode === 'trainer'">
+            <div>
+              <p class="pt-modal-note" x-show="trainerSummary.count === 0" x-text="$t('score.trainerNoRun')">Aucun passage joué jusqu'au bout.</p>
+              <p class="pt-modal-stat pt-modal-stat--strict" x-show="trainerSummary.count > 0">
+                <strong x-text="$tn('score.trainerRuns', trainerSummary.count)"></strong>
+                <span x-text="trainerTempoLine()"></span>
+              </p>
+              <ul class="pt-strict-breakdown" x-show="trainerSummary.count > 0">
+                <li>
+                  ✅ <span x-text="$t('score.trainerClean', { n: trainerSummary.cleanCount })"></span>
+                  · <span x-text="$t('score.trainerBestStreak', { n: trainerSummary.bestStreak })"></span>
+                </li>
+                <template x-for="(run, i) in trainerSummary.runs" :key="i">
+                  <li><span x-text="run.clean ? '✅' : '❌'"></span> <span x-text="trainerRunLine(run)"></span></li>
+                </template>
               </ul>
             </div>
           </template>

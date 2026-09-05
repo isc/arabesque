@@ -142,6 +142,46 @@ class StrictPlaythroughTest < CapybaraTestBase
     end
   end
 
+  # The tempo trainer: the passage between two clicked measures, run after run
+  # with a pause between them, the tempo moving with the results — and a
+  # summary of the runs when ⏸ ends it.
+  def test_loop_replays_the_passage_and_sums_the_runs_up
+    load_score('two-measures.xml', 2)
+    start_strict_mode
+    click_on '🔁 Boucle'
+    click_measure(1)
+    assert_text 'cliquez sur la dernière mesure du passage'
+    click_measure(1)
+    assert_text 'Boucle des mesures 1 à 1.'
+
+    with_clock_control do
+      trigger_click_on('▶ Démarrer')
+
+      # Count-in 2s, then the whole-note C4 of bar 1 — the only note expected.
+      advance_clock(2000)
+      assert_selector 'svg g.vf-notehead.expected-note', count: 1, wait: 4
+      play_chord(%w[C4])
+
+      # The passage stops at bar 1: past its tail (450ms window + 300ms) the
+      # run is judged and the band counts it in the streak, while a run to
+      # the end of the score would still be waiting for bar 2.
+      advance_clock(1000)
+      assert_text '120 BPM · passage 1 · 1 sur 3 propres', wait: 2
+      assert_no_selector 'svg g.vf-notehead.missed-note'
+
+      # A second's pause, then the next run counts in.
+      advance_clock(1000)
+      assert_selector '.pt-countin__beat.is-now', text: '1', wait: 2
+
+      trigger_click_on('⏸ Pause')
+    end
+
+    assert_text 'Boucle terminée'
+    assert_text '1 passage'
+    assert_text 'à 120 BPM'
+    assert_text 'meilleure série : 1 propres'
+  end
+
   # A count-in is a whole bar in which nothing else on screen moves. Reported as
   # feedback 659acd4e by a player who never noticed there was one — the clicks
   # come out of the device, and she was at the piano.

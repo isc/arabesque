@@ -10,6 +10,7 @@ import { loadMxlAsXml } from './mxlLoader.js'
 import { injectFingerings } from './fingeringInjector.js'
 import { initPlayback, getBPM } from './playback.js'
 import { initStrictPlaythrough } from './strictPlaythrough.js'
+import { createTempoPlan, createTempoTrainer, GRADUATED, BPM_STEP, STREAK } from './tempoTrainer.js'
 import { headerMenu } from './headerMenu.js'
 import { initAutoSync, triggerSync } from './autoSync.js'
 import { traced, mark } from './perfTrace.js' // TEMP diagnostic
@@ -91,6 +92,8 @@ export function midiApp() {
   // Orders the reinforcement refreshes fired at every measure boundary (see
   // refreshReinforcementSuggestions).
   let reinforcementRefreshSeq = 0
+  // The tempo trainer's loop while one is running (see tempoTrainer.js).
+  let trainer = null
   // The last strict run being filed. Awaited by anything that would otherwise
   // end the same session underneath it (see setMode): closing a session twice
   // credits its practice time twice.
@@ -131,6 +134,19 @@ export function midiApp() {
     strictStartMeasure: 0,
     strictBpm: 120,
     strictResult: null,
+    // The tempo trainer: strict runs of a passage in a loop, the tempo moving
+    // between runs (see tempoTrainer.js). Armed by the loop button in place of
+    // a single run; the passage runs from the start measure to
+    // `strictEndMeasure`, set by a second measure click while the range is
+    // armed, or to the end of the score without one.
+    loopEnabled: false,
+    trainerMode: GRADUATED,
+    strictEndMeasure: null,
+    strictRangeArmed: false,
+    // What the band says about the loop under way, and what the result modal
+    // says once it is over.
+    trainerStatus: null,
+    trainerSummary: null,
     cassettes: [],
     selectedCassette: '',
     cassetteApiAvailable: false,
@@ -320,9 +336,7 @@ export function midiApp() {
             return true
           }
           if (!this.strictSelected) return false
-          if (this.isStrictPlaying) strictPlaythrough.stop()
-          this.strictStartMeasure = measureIndex
-          musicxml.markStrictStartMeasure(measureIndex)
+          this.pickStrictMeasure(measureIndex)
           return true
         },
       })
@@ -597,6 +611,9 @@ export function midiApp() {
 
     toggleStrictPlaythrough() {
       if (this.isStrictPlaying) {
+        // Mid-run the engine's aborted result ends the loop; between runs the
+        // loop has to be told itself.
+        trainer?.stop()
         strictPlaythrough.stop()
         return
       }
@@ -607,31 +624,132 @@ export function midiApp() {
       strictPlaythrough.setActiveHands(this.activeHands)
       this.isStrictPlaying = true
 
-      strictPlaythrough.start({
-        bpm: this.strictBpm,
-        allNotes: musicxml.getAllNotes(),
-        osmdInstance: musicxml.getOsmdInstance(),
-        startMeasureIndex: this.strictStartMeasure,
-        onCountIn: ({ beat, beats }) => {
-          this.countInBeat = beat
-          this.countInBeats = beats
-        },
-        onComplete: (result) => {
-          this.isStrictPlaying = false
-          this.countInBeat = 0
-          this.strictResult = result.verdict
-          // Not awaited here: the result modal is not going to wait on
-          // IndexedDB, and the run is already fully described by `result`.
-          strictRunRecorded = this.recordStrictRun(result)
-          if (!result.aborted) {
-            // A clean finish resets the start point so the next ▶ replays
-            // from the top; aborted runs keep it for retry from the same spot.
-            this.strictStartMeasure = 0
-            musicxml.markStrictStartMeasure(null)
-            this.openResultModal('strict')
-          }
-        },
+      if (this.loopEnabled) this.startTempoTrainer()
+      else this.startStrictRun(this.strictBpm).then((result) => this.finishSingleRun(result))
+    },
+
+    // One strict run of the selected passage at `bpm`, resolving with the
+    // engine's result once it is over — and filed in the journal on the way.
+    // `settle` is what follows a filing but can wait for the end of a loop:
+    // the cloud sync and the reinforcement suggestions, which read the
+    // score's whole history back.
+    startStrictRun(bpm, { settle = true } = {}) {
+      return new Promise((resolve) => {
+        strictPlaythrough.start({
+          bpm,
+          allNotes: musicxml.getAllNotes(),
+          osmdInstance: musicxml.getOsmdInstance(),
+          startMeasureIndex: this.strictStartMeasure,
+          endMeasureIndex: this.strictEndMeasure,
+          onCountIn: ({ beat, beats }) => {
+            this.countInBeat = beat
+            this.countInBeats = beats
+          },
+          onComplete: (result) => {
+            this.countInBeat = 0
+            // Not awaited here: the result modal is not going to wait on
+            // IndexedDB, and the run is already fully described by `result`.
+            // Chained, so that one await covers every run a loop has filed.
+            strictRunRecorded = strictRunRecorded.then(() => this.recordStrictRun(result, { settle }))
+            resolve(result)
+          },
+        })
       })
+    },
+
+    finishSingleRun(result) {
+      this.isStrictPlaying = false
+      this.strictResult = result.verdict
+      if (result.aborted) return
+      // A clean finish resets the start point so the next ▶ replays from
+      // the top; aborted runs keep it for retry from the same spot.
+      this.resetStrictRange()
+      this.openResultModal('strict')
+    },
+
+    // Runs the passage in a loop until ⏸, the plan moving the tempo between
+    // runs, then sums the session up in the result modal.
+    async startTempoTrainer() {
+      const plan = createTempoPlan({ mode: this.trainerMode, bpm: this.strictBpm })
+      trainer = createTempoTrainer({
+        plan,
+        runOnce: (bpm) => {
+          this.trainerStatus = { bpm, run: plan.runs.length + 1, cleanStreak: plan.cleanStreak }
+          return this.startStrictRun(bpm, { settle: false })
+        },
+        // The streak moves as soon as the run is judged, not a pause later.
+        onRun: () => (this.trainerStatus = { ...this.trainerStatus, cleanStreak: plan.cleanStreak }),
+      })
+      const summary = await trainer.start()
+      trainer = null
+      this.isStrictPlaying = false
+      this.trainerStatus = null
+      this.trainerSummary = { ...summary, runs: plan.runs }
+      this.openResultModal('trainer')
+      await strictRunRecorded
+      await this.settleStrictRuns()
+    },
+
+    toggleLoop() {
+      if (this.isStrictPlaying) this.toggleStrictPlaythrough()
+      this.loopEnabled = !this.loopEnabled
+      // The end of the passage is the loop's: a single run goes to the end.
+      this.setStrictRange(this.strictStartMeasure, null)
+    },
+
+    // A click sets where a run starts. With the loop on, the next click
+    // further along sets where the passage ends; the one after starts over.
+    pickStrictMeasure(measureIndex) {
+      if (this.isStrictPlaying) this.toggleStrictPlaythrough()
+      if (this.strictRangeArmed && measureIndex >= this.strictStartMeasure) {
+        this.setStrictRange(this.strictStartMeasure, measureIndex)
+      } else {
+        this.setStrictRange(measureIndex, null)
+        this.strictRangeArmed = this.loopEnabled
+      }
+    },
+
+    setStrictRange(start, end) {
+      this.strictStartMeasure = start
+      this.strictEndMeasure = end
+      this.strictRangeArmed = false
+      musicxml.markStrictRange(start, end)
+    },
+
+    // Back to a run from the top, with no marker on the score.
+    resetStrictRange() {
+      this.setStrictRange(0, null)
+      musicxml.markStrictRange(null)
+    },
+
+    trainerModeLabel(mode) {
+      return mode === GRADUATED
+        ? t('score.trainerGraduated', { step: BPM_STEP, streak: STREAK })
+        : t('score.trainerRandom')
+    },
+
+    // What the strict band says before a run, or during a loop.
+    strictBandText() {
+      if (this.trainerStatus) {
+        const { bpm, run, cleanStreak } = this.trainerStatus
+        const parts = [`${bpm} ${t('score.bpm')}`, t('score.loopRun', { n: run })]
+        if (this.trainerMode === GRADUATED) parts.push(t('score.loopStreak', { n: cleanStreak, streak: STREAK }))
+        return parts.join(' · ')
+      }
+      const from = this.strictStartMeasure + 1
+      if (!this.loopEnabled) return from > 1 ? t('score.strictStartAt', { n: from }) : t('score.strictHint')
+      if (this.strictRangeArmed) return t('score.loopHintEnd', { n: from })
+      if (this.strictEndMeasure != null) return t('score.loopRange', { from, to: this.strictEndMeasure + 1 })
+      return from > 1 ? t('score.loopRangeOpen', { from }) : t('score.loopHint')
+    },
+
+    trainerTempoLine() {
+      const { fromBpm, toBpm } = this.trainerSummary
+      return fromBpm === toBpm ? t('score.trainerTempoSame', { from: fromBpm }) : t('score.trainerTempo', { from: fromBpm, to: toBpm })
+    },
+
+    trainerRunLine(run) {
+      return RUN_KINDS.strict.label({ strict: run.verdict })
     },
 
     // A strict run is practice like any other, and until it was filed here it
@@ -641,7 +759,7 @@ export function midiApp() {
     // already timed at the tempo it was played at, and says whether it counts
     // as the piece played in full. A run nobody played to (the metronome
     // ticking on an empty keyboard) is not practice and is not recorded.
-    async recordStrictRun(result) {
+    async recordStrictRun(result, { settle = true } = {}) {
       if (!this.scoreUrl || !result.measures.length) return
       const { hit, offTempoEarly, offTempoLate, wrongNotes } = result.verdict
       if (hit + offTempoEarly + offTempoLate + wrongNotes === 0) return
@@ -649,9 +767,15 @@ export function midiApp() {
       practiceTracker.recordStrictRun(result)
       // One session per run: a session carries at most one playthrough, and
       // ending it here is what credits the practice time to the journal.
-      await endSessionAndSync()
+      await practiceTracker.endSession()
       startFreshSession(this.scoreUrl, 'strict')
-      await this.refreshReinforcementSuggestions()
+      if (settle) await this.settleStrictRuns()
+    },
+
+    // What follows the filing of a run, or of a loop's worth of them.
+    settleStrictRuns() {
+      triggerSync('session ended')
+      return this.refreshReinforcementSuggestions()
     },
 
     // Reinforcement is a flavor of training, so currentMode reports
@@ -673,8 +797,7 @@ export function midiApp() {
       }
       if (this.strictSelected) {
         this.strictSelected = false
-        this.strictStartMeasure = 0
-        musicxml.markStrictStartMeasure(null)
+        this.resetStrictRange()
       }
       const training = name === 'training'
       if (this.trainingMode !== training) {
@@ -772,6 +895,7 @@ export function midiApp() {
     resultTitle() {
       switch (this.resultMode) {
         case 'strict':         return t('score.resultTitleStrict')
+        case 'trainer':        return t('score.resultTitleTrainer')
         case 'training':       return t('score.resultTitleTraining')
         case 'reinforcement':  return t('score.resultTitleReinforcement')
         default:               return withHands(t('score.resultTitleScore'), this.resultHands)
@@ -995,7 +1119,7 @@ export function midiApp() {
       fingeringEditor.restoreNoteStates(savedStates, currentMeasureIndex)
       musicxml.updateMeasureCursor()
       // The click rectangles are rebuilt by the redraw, so the marker went with them.
-      if (this.strictSelected) musicxml.markStrictStartMeasure(this.strictStartMeasure)
+      if (this.strictSelected) musicxml.markStrictRange(this.strictStartMeasure, this.strictEndMeasure)
     },
 
     // renderScore() rebuilds the note model, which clears the played/active flags

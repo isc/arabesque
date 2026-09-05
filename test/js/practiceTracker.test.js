@@ -125,7 +125,7 @@ describe('practiceTracker', () => {
       const startedAt = new Date(runStartedAt).toISOString()
       return {
         verdict: VERDICT,
-        fromTheTop: true,
+        wholeScore: true,
         completed: true,
         measures: [
           { sourceMeasureIndex: 0, startedAt, durationMs: 2000, hands: 'both' },
@@ -158,7 +158,7 @@ describe('practiceTracker', () => {
     })
 
     it('does not file a run stopped mid-piece as a playthrough', async () => {
-      await playStrict({ ...strictRun(), fromTheTop: false, completed: false })
+      await playStrict({ ...strictRun(), wholeScore: false, completed: false })
 
       const [entry] = await tracker.getDailyLog(new Date())
       expect(entry.measuresWorked).toEqual([0, 1])

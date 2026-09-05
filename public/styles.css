@@ -787,7 +787,8 @@ button.pt-topbar__pill:disabled { opacity: 0.4; cursor: default; }
   align-self: stretch;
   margin: 0;
 }
-.pt-strict-play {
+.pt-strict-play,
+.pt-strict-loop {
   gap: 6px;
   padding: 0 14px;
   border: none;
@@ -799,8 +800,23 @@ button.pt-topbar__pill:disabled { opacity: 0.4; cursor: default; }
   white-space: nowrap;
   width: auto;
 }
-.pt-strict-play:hover { background: color-mix(in srgb, var(--pt-mode-strict-bg) 70%, var(--pt-mode-strict) 12%); }
+.pt-strict-play:hover,
+.pt-strict-loop:hover { background: color-mix(in srgb, var(--pt-mode-strict-bg) 70%, var(--pt-mode-strict) 12%); }
 .pt-strict-play.is-playing { background: var(--pt-mode-strict); color: var(--pt-text-inverse); }
+.pt-strict-loop[aria-pressed="true"] { background: color-mix(in srgb, var(--pt-mode-strict) 18%, transparent); }
+.pt-strict-controls .pt-strict-select {
+  height: 28px;
+  width: auto;
+  max-width: 24ch;
+  margin: 0;
+  padding: 0 24px 0 10px;
+  border: none;
+  border-radius: 0;
+  background-color: transparent;
+  color: var(--pt-mode-strict);
+  font-size: 0.85rem;
+  text-overflow: ellipsis;
+}
 .pt-strict-controls .pt-bpm-field {
   border: none;
   border-radius: 0;
@@ -1835,6 +1851,7 @@ svg g.vf-notehead.wrong-note path { animation: pt-wrong-note-flash 700ms; }
 .measure-click-area:hover { fill: rgba(124, 58, 237, 0.06); }
 .measure-click-area.selected { fill: rgba(124, 58, 237, 0.14); }
 .measure-click-area.strict-start { fill: color-mix(in srgb, var(--pt-mode-strict) 14%, transparent); stroke: var(--pt-mode-strict); stroke-width: 2; }
+.measure-click-area.strict-range { fill: color-mix(in srgb, var(--pt-mode-strict) 10%, transparent); }
 
 .repeat-indicator {
   stroke: var(--pt-mode-training);
