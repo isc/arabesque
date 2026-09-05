@@ -774,7 +774,8 @@ button.pt-topbar__pill:disabled { opacity: 0.4; cursor: default; }
   display: inline-flex;
   align-items: center;
   height: 34px;
-  background: var(--pt-mode-strict-bg);
+  flex: 0 0 auto;
+  background: var(--pt-bg-elevated);
   border: 1px solid color-mix(in srgb, var(--pt-mode-strict) 30%, transparent);
   border-radius: var(--pt-radius-md);
   overflow: hidden;
@@ -847,6 +848,17 @@ button.pt-topbar__pill:disabled { opacity: 0.4; cursor: default; }
 .pt-context__row { display: flex; align-items: center; gap: var(--pt-space-3); }
 .pt-context.pt-context--training { background: var(--pt-mode-training-bg); border-bottom-color: color-mix(in srgb, var(--pt-mode-training) 20%, transparent); color: var(--pt-mode-training); }
 .pt-context.pt-context--strict { background: var(--pt-mode-strict-bg); border-bottom-color: color-mix(in srgb, var(--pt-mode-strict) 20%, transparent); color: var(--pt-mode-strict); }
+/* The strict band carries its controls: text and count-in take what is
+   left of the line, and drop under the controls when it is too narrow. */
+.pt-context--strict { flex-wrap: wrap; }
+.pt-context--strict .pt-context__row { flex: 1 1 auto; min-width: 0; min-height: 34px; }
+/* On a phone the controls are wider than the screen: the loop's progression
+   picker takes a line of its own under the other three. */
+@media (max-width: 600px) {
+  .pt-context--strict .pt-strict-controls { flex-wrap: wrap; height: auto; max-width: 100%; }
+  .pt-context--strict .pt-strict-controls > * { height: 34px; }
+  .pt-context--strict .pt-strict-select { flex: 1 1 100%; border-left: none; border-top: 1px solid color-mix(in srgb, var(--pt-mode-strict) 20%, transparent); }
+}
 .pt-context label { color: inherit; font-weight: 500; }
 
 .pt-countin__beat {
