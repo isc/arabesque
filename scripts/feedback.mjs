@@ -13,6 +13,7 @@
 //   node scripts/feedback.mjs list --all           # dealt-with ones too
 //   node scripts/feedback.mjs list --limit 100     # default 50
 //   node scripts/feedback.mjs show <id>            # one entry, full context
+//   node scripts/feedback.mjs shot <id> [--out p]  # write its screenshot to a file
 //   node scripts/feedback.mjs treat <id> [<id>…]   # mark as dealt with
 //   node scripts/feedback.mjs treat --all          # every pending one
 //   node scripts/feedback.mjs untreat <id>         # put one back in the list
@@ -22,8 +23,8 @@
 //
 // ⚠ That token is account-wide, not project-scoped: never print it, never copy
 // it anywhere else. See ~/.claude/SUPABASE.md.
-import { readFileSync } from 'node:fs'
-import { homedir } from 'node:os'
+import { readFileSync, writeFileSync } from 'node:fs'
+import { homedir, tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { parseArgs } from 'node:util'
 
@@ -88,6 +89,9 @@ async function list({ all, limit }) {
     select id, to_char(created_at, 'YYYY-MM-DD HH24:MI') as at,
            extract(day from now() - created_at)::int as age_days,
            category, email, message, status,
+           -- Never the value itself: a few hundred kB of base64 per row would
+           -- swamp both the response and the terminal. "shot" fetches one.
+           screenshot is not null as has_shot,
            context->>'score' as score, context->>'app_version' as app_version
       from public.feedback
      ${all ? '' : "where status = 'new'"}
@@ -101,7 +105,7 @@ async function list({ all, limit }) {
   }
 
   for (const row of rows) {
-    const tags = [row.category, row.score, row.app_version].filter(Boolean).join(' · ')
+    const tags = [row.category, row.score, row.app_version, row.has_shot && '📷 shot'].filter(Boolean).join(' · ')
     const status = row.status === 'done' ? ' ✓' : ''
     console.log(
       `\n\x1b[1m${short(row.id)}\x1b[0m${status}  ${row.at} (${ago(row.age_days)})` +
@@ -117,7 +121,28 @@ async function list({ all, limit }) {
 async function show(prefix) {
   const [id] = await resolve([prefix])
   const [row] = await query(`select * from public.feedback where id = ${quote(id)}`)
-  console.log(JSON.stringify(row, null, 2))
+  // Still "full context": the wildcard keeps showing columns added later. Only
+  // the screenshot is held back, and here rather than in the SQL — printing a
+  // few hundred kB of base64 would bury the entry it belongs to.
+  const { screenshot, ...rest } = row
+  console.log(JSON.stringify(rest, null, 2))
+  if (screenshot) console.log(`\n📷 ${Math.round(screenshot.length / 1024)} kB — feedback.mjs shot ${short(id)}`)
+}
+
+// The screenshot, written where an image viewer can open it. Stored as a data
+// URL, so the mime type in it also picks the extension.
+async function shot(prefix, out) {
+  const [id] = await resolve([prefix])
+  const [row] = await query(`select screenshot from public.feedback where id = ${quote(id)}`)
+  if (!row.screenshot) die(`Feedback ${short(id)} has no screenshot.`)
+
+  const match = /^data:image\/(\w+);base64,(.*)$/s.exec(row.screenshot)
+  if (!match) die('Stored screenshot is not a base64 image data URL.')
+  const [, format, base64] = match
+
+  const path = out ?? join(tmpdir(), `feedback-${short(id)}.${format}`)
+  writeFileSync(path, Buffer.from(base64, 'base64'))
+  console.log(path)
 }
 
 // Resolving prefixes is what makes the short ids in the listing usable. An
@@ -171,7 +196,11 @@ let parsed
 try {
   parsed = parseArgs({
     allowPositionals: true,
-    options: { all: { type: 'boolean' }, limit: { type: 'string', default: '50' } },
+    options: {
+      all: { type: 'boolean' },
+      limit: { type: 'string', default: '50' },
+      out: { type: 'string' },
+    },
   })
 } catch (error) {
   die(error.message)
@@ -190,6 +219,10 @@ switch (command) {
     if (!ids[0]) die('Usage: feedback.mjs show <id>')
     await show(ids[0])
     break
+  case 'shot':
+    if (!ids[0]) die('Usage: feedback.mjs shot <id> [--out path]')
+    await shot(ids[0], values.out)
+    break
   case 'treat':
     await setStatus(ids, { to: 'done', from: 'new', all: values.all })
     break
@@ -197,5 +230,5 @@ switch (command) {
     await setStatus(ids, { to: 'new', from: 'done', all: values.all })
     break
   default:
-    die(`Unknown command "${command}". Try: list | show <id> | treat <id…> | untreat <id…>`)
+    die(`Unknown command "${command}". Try: list | show <id> | shot <id> | treat <id…> | untreat <id…>`)
 }
