@@ -107,6 +107,34 @@ class FingeringAnnotationTest < CapybaraTestBase
     assert_text 'Partition terminée'
   end
 
+  # Training — reinforcement included — is painted on the score itself: the
+  # purple measure highlight and the repeat dots above it. Entering a fingering
+  # on a note that has none redraws the score, and the redraw used to take the
+  # mode down with it, overlay and banked repetitions and all.
+  def test_adding_fingering_keeps_the_training_overlay
+    visit "/score.html?url=/test-fixtures/two-measures.xml"
+    wait_for_score_render
+
+    click_on 'Mode Entraînement'
+    assert_text 'Mode Entraînement Actif'
+
+    # Bank one clean repetition of measure 1, so the dots have something to lose
+    play_note('C4')
+    assert_selector 'svg circle.repeat-indicator.filled', count: 1
+
+    # The D4 of measure 2 has no fingering yet, so validating one re-renders
+    all('.vf-notehead')[1].click
+    assert_selector 'dialog#fingeringModal[open]'
+    click_button '3'
+    click_button '✓ Valider'
+    wait_for_score_render
+    assert_fingering '3'
+
+    assert_selector 'svg rect.measure-click-area.selected'
+    assert_selector 'svg circle.repeat-indicator', count: 3
+    assert_selector 'svg circle.repeat-indicator.filled', count: 1
+  end
+
   def test_fingering_on_pickup_measure_persists_correctly
     visit "/score.html?url=#{PICKUP_SCORE_URL}"
     wait_for_score_render

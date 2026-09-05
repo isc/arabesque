@@ -1,5 +1,12 @@
 2026-09-05
 
+- **Noter un doigté ne fait plus tomber le mode entraînement.** Le violet de
+  la mesure en cours et les points de répétition disparaissaient dès qu'on
+  validait un doigté sur une note qui n'en avait pas : la partition était
+  redessinée et le mode s'en allait avec elle, répétitions déjà acquises
+  comprises. Entraînement comme renforcement, le travail en cours traverse
+  maintenant l'annotation.
+
 - **Le mode strict travaille un passage en boucle.** Le bouton 🔁 Boucle,
   à côté du tempo, rejoue en boucle le passage délimité par deux clics sur
   la partition (ou la partition entière), avec un temps de pause entre deux
