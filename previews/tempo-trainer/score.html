@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="app-version" content="03b08e648fa9" />
+    <meta name="app-version" content="41fb4e3fde03" />
     <title data-i18n="score.pageTitle">Arabesque</title>
     <link rel="icon" href="favicon.svg" type="image/svg+xml" />
     <link rel="manifest" href="manifest.webmanifest" />
@@ -152,52 +152,6 @@
         >⏱ Mode strict</button>
       </div>
 
-      <!-- Strict-mode controls: pause/play + BPM. Only shown when strict is
-           the selected mode; tied visually to the segmented control so users
-           know these belong to strict. -->
-      <template x-if="currentMode === 'strict'">
-        <div class="pt-strict-controls">
-          <button
-            class="pt-strict-play"
-            :class="{ 'is-playing': isStrictPlaying }"
-            @click="toggleStrictPlaythrough"
-            :aria-label="isStrictPlaying ? $t('score.pause') : $t('score.start')"
-            x-text="isStrictPlaying ? $t('score.pauseBtn') : (strictStartMeasure > 0 ? $t('score.resumeMeasure', { n: strictStartMeasure + 1 }) : $t('score.startBtn'))"
-          ></button>
-          <label class="pt-bpm-field">
-            <span class="pt-sr-only" x-text="$t('score.tempoBpm')">Tempo en BPM</span>
-            <input
-              id="strict-bpm"
-              type="number"
-              min="20"
-              max="300"
-              step="1"
-              x-model.number="strictBpm"
-              :disabled="isStrictPlaying"
-              :aria-label="$t('score.tempoBpm')"
-            />
-            <span class="pt-bpm-field__suffix" x-text="$t('score.bpm')">BPM</span>
-          </label>
-          <button
-            class="pt-strict-loop"
-            :aria-pressed="loopEnabled"
-            :title="$t('score.loopTitle')"
-            @click="toggleLoop"
-            x-text="$t('score.loopBtn')"
-          >🔁 Boucle</button>
-          <select
-            x-show="loopEnabled"
-            class="pt-strict-select"
-            x-model="trainerMode"
-            :disabled="isStrictPlaying"
-            :aria-label="$t('score.trainerModeAria')"
-          >
-            <option value="graduated" x-text="trainerModeLabel('graduated')"></option>
-            <option value="random" x-text="trainerModeLabel('random')"></option>
-          </select>
-        </div>
-      </template>
-
       <div class="pt-hands">
         <label class="pt-hands__option">
           <input type="checkbox" x-model="rightHandActive" @change="updateActiveHands" />
@@ -226,21 +180,58 @@
         x-text="isPlaying ? $t('score.stop') : $t('score.listen')"
       ></button>
     </nav>
-    </div><!-- /.pt-stickybars -->
-
-    <!-- Mode-context band: shows mode-specific hints. Strict-mode controls
-         now live in the sticky modebar; the band only carries a passive
-         hint about clicking measures to set a start point. -->
-    <!-- One band for the whole of strict mode, its contents swapping: the hint
-         before a run, the count-in during it. Same element rather than two that
-         happen to alternate, so the score below never moves — and the count-in
-         is read against the first measure, which an overlay would cover. -->
+    <!-- Strict band: the mode's controls and what it says about the run.
+         Sticky with the bars above, so ⏸ stays within reach while the run
+         scrolls the score. -->
     <div class="pt-context pt-context--strict" x-show="currentMode === 'strict' && !!osmdInstance" x-cloak>
+      <!-- Everything strict mode is driven with lives here, next to what it
+           says about the run, so the modebar above stays the same in every
+           mode. -->
+      <div class="pt-strict-controls">
+        <button
+          class="pt-strict-play"
+          :class="{ 'is-playing': isStrictPlaying }"
+          @click="toggleStrictPlaythrough"
+          :aria-label="isStrictPlaying ? $t('score.pause') : $t('score.start')"
+          x-text="isStrictPlaying ? $t('score.pauseBtn') : $t('score.startBtn')"
+        ></button>
+        <label class="pt-bpm-field">
+          <span class="pt-sr-only" x-text="$t('score.tempoBpm')">Tempo en BPM</span>
+          <input
+            id="strict-bpm"
+            type="number"
+            min="20"
+            max="300"
+            step="1"
+            x-model.number="strictBpm"
+            :disabled="isStrictPlaying"
+            :aria-label="$t('score.tempoBpm')"
+          />
+          <span class="pt-bpm-field__suffix" x-text="$t('score.bpm')">BPM</span>
+        </label>
+        <button
+          class="pt-strict-loop"
+          :aria-pressed="loopEnabled"
+          :title="$t('score.loopTitle')"
+          @click="toggleLoop"
+          x-text="$t('score.loopBtn')"
+        >🔁 Boucle</button>
+        <select
+          x-show="loopEnabled"
+          class="pt-strict-select"
+          x-model="trainerMode"
+          :disabled="isStrictPlaying"
+          :aria-label="$t('score.trainerModeAria')"
+        >
+          <option value="graduated" x-text="trainerModeLabel('graduated')"></option>
+          <option value="random" x-text="trainerModeLabel('random')"></option>
+        </select>
+      </div>
+      <!-- The text and the count-in swap in the same slot, at the same
+           height, so pressing ▶ does not move the score the player is
+           reading the first measure of. -->
       <template x-if="!isStrictPlaying || (trainerStatus && countInBeat === 0)">
-        <span class="pt-context__row">
-          <strong x-text="$t(loopEnabled ? 'score.loopBtn' : 'score.strictBand')">⏱ Mode strict</strong>
-          <span x-text="strictBandText()">Cliquez sur une mesure pour démarrer la lecture à partir de ce point.</span>
-        </span>
+        <span class="pt-context__row" x-text="strictBandText()">Cliquez sur une mesure pour démarrer la lecture à partir de ce point.</span>
       </template>
       <template x-if="countInBeat > 0">
         <span class="pt-context__row pt-countin" aria-hidden="true">
@@ -251,6 +242,7 @@
         </span>
       </template>
     </div>
+    </div><!-- /.pt-stickybars -->
 
     <div class="pt-context pt-context--training" x-show="currentMode === 'training' && !reinforcementMode && !!osmdInstance" x-cloak>
       <strong x-text="$t('score.trainingBand')">🎯 Entraînement</strong>
