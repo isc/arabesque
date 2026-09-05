@@ -824,10 +824,31 @@ button.pt-topbar__pill:disabled { opacity: 0.4; cursor: default; }
   gap: var(--pt-space-3);
   font-size: 0.85rem;
   color: var(--pt-text-muted);
+  /* The band holds its height as its contents swap from the hint to the
+     count-in, so pressing ▶ does not shift the score the player is reading. */
+  min-height: var(--pt-space-10);
 }
+.pt-context__row { display: flex; align-items: center; gap: var(--pt-space-3); }
 .pt-context.pt-context--training { background: var(--pt-mode-training-bg); border-bottom-color: color-mix(in srgb, var(--pt-mode-training) 20%, transparent); color: var(--pt-mode-training); }
 .pt-context.pt-context--strict { background: var(--pt-mode-strict-bg); border-bottom-color: color-mix(in srgb, var(--pt-mode-strict) 20%, transparent); color: var(--pt-mode-strict); }
 .pt-context label { color: inherit; font-weight: 500; }
+
+.pt-countin__beat {
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  font-size: 1.35rem;
+  line-height: 1;
+  /* Every beat holds the width of the one that is lit, so the row does not
+     jitter sideways as the count advances. */
+  transform: scale(0.72);
+  opacity: 0.3;
+  transition: opacity var(--pt-transition-fast), transform var(--pt-transition-fast);
+}
+.pt-countin__beat.is-past { opacity: 0.55; }
+.pt-countin__beat.is-now { opacity: 1; transform: scale(1); }
+@media (prefers-reduced-motion: reduce) {
+  .pt-countin__beat { transition: none; }
+}
 .pt-context input[type="number"] {
   width: 80px;
   padding: 4px 8px;

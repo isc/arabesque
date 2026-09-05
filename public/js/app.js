@@ -88,6 +88,10 @@ export function midiApp() {
     osmdInstance: null,
     isRecording: false,
     isReplaying: false,
+    // Which beat of the count-in bar is sounding (0 = not counting), and how
+    // many the bar holds — the engine works that out from the time signature.
+    countInBeat: 0,
+    countInBeats: 0,
     replayEnded: false,
     isPlaying: false,
     isStrictPlaying: false,
@@ -578,8 +582,13 @@ export function midiApp() {
         allNotes: musicxml.getAllNotes(),
         osmdInstance: musicxml.getOsmdInstance(),
         startMeasureIndex: this.strictStartMeasure,
+        onCountIn: ({ beat, beats }) => {
+          this.countInBeat = beat
+          this.countInBeats = beats
+        },
         onComplete: (result) => {
           this.isStrictPlaying = false
+          this.countInBeat = 0
           this.strictResult = result
           // Not awaited here: the result modal is not going to wait on
           // IndexedDB, and the run is already fully described by `result`.

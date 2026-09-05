@@ -214,10 +214,26 @@
     <!-- Mode-context band: shows mode-specific hints. Strict-mode controls
          now live in the sticky modebar; the band only carries a passive
          hint about clicking measures to set a start point. -->
-    <div class="pt-context pt-context--strict" x-show="currentMode === 'strict' && !isStrictPlaying && !!osmdInstance" x-cloak>
-      <strong x-text="$t('score.strictBand')">⏱ Mode strict</strong>
-      <span x-show="strictStartMeasure === 0" x-text="$t('score.strictHint')">Cliquez sur une mesure pour démarrer la lecture à partir de ce point.</span>
-      <span x-show="strictStartMeasure > 0" x-text="$t('score.strictStartAt', { n: strictStartMeasure + 1 })"></span>
+    <!-- One band for the whole of strict mode, its contents swapping: the hint
+         before a run, the count-in during it. Same element rather than two that
+         happen to alternate, so the score below never moves — and the count-in
+         is read against the first measure, which an overlay would cover. -->
+    <div class="pt-context pt-context--strict" x-show="currentMode === 'strict' && !!osmdInstance" x-cloak>
+      <template x-if="!isStrictPlaying">
+        <span class="pt-context__row">
+          <strong x-text="$t('score.strictBand')">⏱ Mode strict</strong>
+          <span x-show="strictStartMeasure === 0" x-text="$t('score.strictHint')">Cliquez sur une mesure pour démarrer la lecture à partir de ce point.</span>
+          <span x-show="strictStartMeasure > 0" x-text="$t('score.strictStartAt', { n: strictStartMeasure + 1 })"></span>
+        </span>
+      </template>
+      <template x-if="countInBeat > 0">
+        <span class="pt-context__row pt-countin" aria-hidden="true">
+          <strong x-text="$t('score.countIn')">Départ</strong>
+          <template x-for="n in countInBeats" :key="n">
+            <span class="pt-countin__beat" :class="{ 'is-now': n === countInBeat, 'is-past': n < countInBeat }" x-text="n"></span>
+          </template>
+        </span>
+      </template>
     </div>
 
     <div class="pt-context pt-context--training" x-show="currentMode === 'training' && !reinforcementMode && !!osmdInstance" x-cloak>

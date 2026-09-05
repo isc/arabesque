@@ -1,3 +1,15 @@
+2026-09-05
+
+- **Le décompte du mode strict se voit.** Une mesure complète s'écoule entre
+  l'appui sur ▶ et la première note, et rien ne bougeait à l'écran pendant ce
+  temps-là : l'indication du bandeau disparaissait, la partition restait figée,
+  et qui n'entendait pas les clics — le clavier sous les doigts, le son sortant
+  de la tablette — croyait que rien n'avait démarré. Le bandeau affiche
+  maintenant les temps de la mesure de départ, 1 2 3 4 ou 1 2 3 selon la
+  métrique, celui en cours en évidence. Il prend la place que l'indication
+  libère, à hauteur identique : la partition ne bouge pas, et on continue de
+  lire la mesure qu'on s'apprête à jouer.
+
 2026-09-04
 
 - **Le clic du mode strict peut sortir dans le piano.** Il partait du haut-parleur

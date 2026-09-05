@@ -205,6 +205,7 @@ export default {
     reinforceMany: '🎯 Renforcer {n} mesures',
     stop: '⏹ Stop',
     listen: '▶ Écouter',
+    countIn: 'Départ',
     strictBand: '⏱ Mode strict',
     strictHint: 'Cliquez sur une mesure pour démarrer la lecture à partir de ce point.',
     strictStartAt: 'Départ à la mesure {n}.',
