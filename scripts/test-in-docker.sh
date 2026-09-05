@@ -11,11 +11,19 @@
 #
 # Commands go into a container that stays up between runs. Creating one per
 # command was most of the wall clock — about 2s of setup around a test whose
-# body takes 0.9s — where `docker exec` costs 0.10s. What is left is 0.3s of
-# Ruby and bundler and 1.5s of `require "test_helper"`: gem loading, which a
-# Ruby installed on the host would pay just the same. That is also where the
-# next second is, and it needs a long-lived container to preload into, so this
-# is the prerequisite for it rather than the end of the road.
+# body takes 0.9s — where `docker exec` costs 0.10s.
+#
+# What is left is 0.3s of Ruby and bundler and ~1.4s of `require "test_helper"`,
+# and it is worth knowing where that second and a half actually goes, because an
+# earlier version of this comment guessed wrong and sent someone down a blind
+# alley: only ~0.25s of it is loading gems. The rest, 0.7–1.0s, is the
+# `warm_up_browser` at the end of test_helper.rb — a Chrome launch and an OSMD
+# render, paid by every worker and every CI shard, including tests that never
+# open a score. bootsnap was measured against the gem-loading part and rejected:
+# 0.135s per process, ~0% of a full suite run, for a native dependency and a
+# stale-bytecode hazard on same-size edits within one second.
+#
+# None of that is Docker's doing, so a Ruby on the host would not avoid it.
 #
 # `docker compose` does all of this properly — config hashing, project naming,
 # up/exec/down. It is not used because it would add a file and move `--cpus`
