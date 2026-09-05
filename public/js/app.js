@@ -1118,38 +1118,24 @@ export function midiApp() {
 
     // Every redraw replaces the SVG, taking with it everything painted on it:
     // note colours, fingering handlers, the training cursor, the strict marker.
-    // `savedStates` is only needed when the redraw rebuilt the note model.
-    repaintScore(savedStates = null) {
+    // What the redraw cannot take is the session behind those marks — renderScore
+    // keeps it across a rebuild of the note model — so this only paints it back.
+    repaintScore() {
       const { currentMeasureIndex } = musicxml.getTrainingState()
       fingeringEditor.alignFingeringLabelsToNoteheads()
       this.setupFingeringHandlers()
-      fingeringEditor.restoreNoteStates(savedStates, currentMeasureIndex)
+      fingeringEditor.paintNoteStates(currentMeasureIndex)
       musicxml.updateMeasureCursor()
       // The click rectangles are rebuilt by the redraw, so the marker went with them.
       if (this.strictSelected) musicxml.markStrictRange(this.strictStartMeasure, this.strictEndMeasure)
     },
 
-    // renderScore() rebuilds the note model, which clears the played/active flags
-    // and the playback position — hence the snapshot around it.
+    // A full redraw: the note model is rebuilt from OSMD's sheet, which is how a
+    // fingering just injected into it reaches the page.
     rerenderScore() {
       const scrollY = window.scrollY
-      const { currentMeasureIndex } = musicxml.getTrainingState()
-      const playedSourceMeasures = musicxml.getPlayedSourceMeasures()
-
-      // Capture played/active state per playback position (not per fingeringKey):
-      // a repeated measure appears twice in the sequence and both occurrences share
-      // a fingeringKey, so a key-based snapshot would bleed the first pass's "played"
-      // state onto the repeat and make the matcher skip it. The re-extracted sequence
-      // has the same structure, so positional [measureIndex][noteIndex] restores cleanly.
-      const noteStates = musicxml.getAllNotes().map(({ notes }) =>
-        notes.map(({ played, active }) => ({ played, active })))
-
       musicxml.renderScore()
-
-      // Before repaintScore, which reads the cursor position back out.
-      musicxml.setCurrentMeasureIndex(currentMeasureIndex)
-      musicxml.setPlayedSourceMeasures(playedSourceMeasures)
-      this.repaintScore(noteStates)
+      this.repaintScore()
       window.scrollTo(0, scrollY)
     },
 
@@ -1170,9 +1156,8 @@ export function midiApp() {
       this.lastRelayoutWidth = width
 
       const scrollY = window.scrollY
-      // relayoutScore, not renderScore: re-extracting the note model would reset the
-      // training and reinforcement state, and clear the very flags we'd then have to
-      // snapshot to put back.
+      // relayoutScore, not renderScore: the sheet has not changed, only the width
+      // it is drawn to, so there is nothing to re-extract.
       musicxml.relayoutScore()
       this.repaintScore()
       window.scrollTo(0, scrollY)

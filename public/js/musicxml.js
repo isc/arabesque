@@ -7,6 +7,7 @@ import {
   firstPassMeasureIndexes,
   firstPassIndexOf,
   svgNoteheadFor,
+  carryOverNoteStates,
 } from './noteExtraction.js'
 import { scrollSystemIntoView } from './utils.js'
 import { arrayBufferToXml, isMusicXml } from './mxlLoader.js'
@@ -15,6 +16,10 @@ import { t } from './i18n.js'
 
 let osmdInstance = null
 let allNotes = []
+// Raised by a sheet coming in and lowered by the note-model rebuild that
+// follows it — the one rebuild that starts a session, where every later one
+// only redraws a score already up (see extractNotesFromScore).
+let sheetJustLoaded = false
 let noteDataByKey = new Map() // Map<fingeringKey, noteData> for O(1) lookups
 let playbackSequence = [] // Ordered list of source measure indices for playback (handles repeats)
 let currentMeasureIndex = 0
@@ -146,14 +151,6 @@ export function initMusicXML() {
       }
       for (let i = startIndex; i <= endIndex; i++) measureRect(i)?.classList.add('strict-range')
     },
-    setCurrentMeasureIndex: (index) => {
-      currentMeasureIndex = index
-    },
-    getPlayedSourceMeasures: () => new Set(playedSourceMeasures),
-    setPlayedSourceMeasures: (measures) => {
-      playedSourceMeasures.clear()
-      for (const m of measures) playedSourceMeasures.add(m)
-    },
     resetMeasureProgress: () => {
       for (const measureData of allNotes) {
         for (const noteData of measureData.notes) {
@@ -283,11 +280,10 @@ function scaleTitleBlock() {
 }
 
 // `reextract: false` re-draws at the container's current width without rebuilding
-// the note model. osmd.render() replaces every graphical object, but allNotes
-// holds *source* notes, which survive it — so played/active flags plus the
-// training and reinforcement state stay put, where extractNotesFromScore() would
-// reset them all. Either way the SVG elements are new, so the caller repaints the
-// marks (app.js does it in repaintScore).
+// the note model — nothing about the sheet changed, only the width it is laid out
+// to. Either way the session is kept (see extractNotesFromScore) and the SVG
+// elements are new, so the caller repaints the marks (app.js does it in
+// repaintScore).
 // `afterDraw` runs between the draw and the indexing, and is how the initial
 // load gets the score on screen sooner: the fresh SVG is in the DOM once
 // render() returns, but nothing is painted until the task ends, and indexing is
@@ -421,17 +417,34 @@ async function renderMusicXML(xmlContent) {
     stripPlaybackTempoMarks(osmd.Sheet.SourceMeasures)
     osmdInstance = osmd
     window.osmdInstance = osmd
+    sheetJustLoaded = true
   } catch (error) {
     console.error('Erreur lors du rendu MusicXML avec OSMD:', error)
   }
 }
 
+// Rebuilds the note model from the sheet OSMD holds — for a score just loaded,
+// and again whenever one already up is redrawn from a sheet that changed under
+// it (a fingering added or removed). Only the first starts a session: where the
+// player stands in the piece is not a property of the drawing, so the training
+// cursor, the repetitions banked, the reinforcement queue and the measures
+// already played survive a rebuild. Entering a fingering used to wipe all of
+// it, purple overlay and all. The per-note played/active flags are the one
+// thing that cannot simply stay put — they live on the noteData objects the
+// rebuild throws away — so they are carried over from the outgoing model,
+// which extractNotes() leaves untouched.
 function extractNotesFromScore() {
-  trainingMode = false
+  const outgoingNotes = sheetJustLoaded ? null : allNotes
+  sheetJustLoaded = false
 
   const result = extractNotes(osmdInstance)
   allNotes = result.allNotes
-  resetPlaybackState()
+  if (outgoingNotes) {
+    carryOverNoteStates(outgoingNotes, allNotes)
+  } else {
+    trainingMode = false
+    resetPlaybackState()
+  }
   playbackSequence = result.playbackSequence
   // Build fingeringKey -> noteData map for O(1) lookups.
   // Ornament expansions create multiple notes with the same fingeringKey but noteheadIndex=-1.
