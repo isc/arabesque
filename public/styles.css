@@ -805,18 +805,24 @@ button.pt-topbar__pill:disabled { opacity: 0.4; cursor: default; }
 .pt-strict-loop:hover { background: color-mix(in srgb, var(--pt-mode-strict-bg) 70%, var(--pt-mode-strict) 12%); }
 .pt-strict-play.is-playing { background: var(--pt-mode-strict); color: var(--pt-text-inverse); }
 .pt-strict-loop[aria-pressed="true"] { background: color-mix(in srgb, var(--pt-mode-strict) 18%, transparent); }
+/* Sized to its longest option, so a progression reads in full; focused
+   like the tempo field beside it, with a tint rather than the base ring. */
 .pt-strict-controls .pt-strict-select {
   height: 28px;
   width: auto;
-  max-width: 24ch;
   margin: 0;
-  padding: 0 24px 0 10px;
+  padding: 0 26px 0 10px;
   border: none;
   border-radius: 0;
   background-color: transparent;
+  box-shadow: none;
   color: var(--pt-mode-strict);
   font-size: 0.85rem;
-  text-overflow: ellipsis;
+}
+.pt-strict-controls .pt-strict-select:focus {
+  outline: none;
+  box-shadow: none;
+  background-color: color-mix(in srgb, var(--pt-mode-strict) 10%, transparent);
 }
 .pt-strict-controls .pt-bpm-field {
   border: none;
