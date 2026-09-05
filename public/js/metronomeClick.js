@@ -11,7 +11,10 @@
 // channel 10 is never played, and carry no drum kit at all, their percussion
 // being melodic GM2 programs. Nothing in Web MIDI can tell you that in advance,
 // so the feature could only ever have been a switch the player tried by ear.
-// See the AURES notes on feedback 15ae51f5 if it is ever revisited.
+// See the AURES notes on feedback 15ae51f5 if it is ever revisited. Moving the
+// other half the other way — the app sounding the player's own keys too, so
+// that everything arrives in the same headphones — was tried and withdrawn as
+// well; playback.js says why.
 let audioContext = null
 
 // Call on the gesture that starts a run: an AudioContext created outside a user
