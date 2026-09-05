@@ -9,7 +9,6 @@ import { initStorage } from './storage.js'
 import { loadMxlAsXml } from './mxlLoader.js'
 import { injectFingerings } from './fingeringInjector.js'
 import { initPlayback, getBPM } from './playback.js'
-import { initMetronomeClick } from './metronomeClick.js'
 import { initStrictPlaythrough } from './strictPlaythrough.js'
 import { headerMenu } from './headerMenu.js'
 import { initAutoSync, triggerSync } from './autoSync.js'
@@ -51,7 +50,6 @@ export function midiApp() {
   const storage = initStorage()
   const practiceTracker = initPracticeTracker(storage)
   const playback = initPlayback(midi.state)
-  initMetronomeClick(midi.state)
   const strictPlaythrough = initStrictPlaythrough()
   // The browser drops this on its own whenever the page is hidden; kept so the
   // page can tell whether it still holds one (see requestWakeLock).
