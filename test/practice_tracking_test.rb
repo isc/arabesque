@@ -51,6 +51,27 @@ class PracticeTrackingTest < CapybaraTestBase
     end
   end
 
+  def test_history_modal_plots_strict_runs_by_hit_rate
+    visit "/score.html?url=/test-fixtures/two-measures.xml"
+    assert_selector 'svg g.vf-stavenote', count: 2
+
+    seed_store('sessions', completed_playthroughs + strict_playthroughs)
+
+    click_on 'Historique'
+    assert_selector 'dialog[open]'
+
+    # One chart per kind of run: the free runs keep their times, the strict
+    # runs get their hit rate, capped where a hit rate stops.
+    assert_text 'Évolution du temps de jeu'
+    assert_text 'Évolution de la précision · mode strict'
+    within('.playthrough-chart[aria-label*="strict"]') do
+      assert_selector 'circle.chart-point', count: 2
+      assert_text '100 %'
+      assert_text '56 %'
+    end
+    assert_text '2× en entier (60 % à 100 BPM et 100 % à 120 BPM) · mode strict'
+  end
+
   def test_daily_log_shows_practiced_score
     # Play a score to generate practice data
     visit "/score.html?url=/test-fixtures/simple-score.xml"
@@ -76,26 +97,42 @@ class PracticeTrackingTest < CapybaraTestBase
 
   private
 
+  # Two strict runs on the same day, as the tracker files them: the run's
+  # measures as attempts, its verdict on the session.
+  def strict_playthroughs
+    day = Time.now.utc - (2 * 86_400)
+    total = 5
+    [[100, 3], [120, 5]].each_with_index.map do |(bpm, hit), index|
+      verdict = { bpm: bpm, total: total, hit: hit, offTempoEarly: 0, offTempoLate: 0, missed: total - hit, wrongNotes: 0 }
+      session_record("strict-test-#{index}", 'strict', day + (index * 600), 4_000, clean: hit == total, strict: verdict)
+    end
+  end
+
   # Three finished playthroughs of the two-measure fixture, oldest and longest
   # first, so the chart has a visible downward trend to draw.
   def completed_playthroughs
     now = Time.now.utc
     [[7, 8], [4, 7], [1, 6]].each_with_index.map do |(days_ago, duration_min), index|
-      started_at = now - (days_ago * 86_400)
-      completed_at = started_at + (duration_min * 60)
-      attempt = { startedAt: started_at.iso8601(3), durationMs: duration_min * 60_000,
-                  wrongNotes: 0, clean: true }
-      {
-        id: "chart-test-#{index}",
-        scoreId: '/test-fixtures/two-measures.xml',
-        mode: 'free',
-        startedAt: started_at.iso8601(3),
-        endedAt: completed_at.iso8601(3),
-        playthroughStartedAt: started_at.iso8601(3),
-        completedAt: completed_at.iso8601(3),
-        totalMeasures: 2,
-        measures: [{ sourceMeasureIndex: 0, attempts: [attempt] }]
-      }
+      session_record("chart-test-#{index}", 'free', now - (days_ago * 86_400), duration_min * 60_000)
     end
+  end
+
+  # A finished session of the two-measure fixture, played through in one
+  # attempt. `extra` lands on the session record as is.
+  def session_record(id, mode, started_at, duration_ms, clean: true, **extra)
+    completed_at = started_at + (duration_ms / 1000.0)
+    attempt = { startedAt: started_at.iso8601(3), durationMs: duration_ms, wrongNotes: 0, clean: clean, hands: 'both' }
+    {
+      id: id,
+      scoreId: '/test-fixtures/two-measures.xml',
+      mode: mode,
+      startedAt: started_at.iso8601(3),
+      endedAt: completed_at.iso8601(3),
+      playthroughStartedAt: started_at.iso8601(3),
+      completedAt: completed_at.iso8601(3),
+      totalMeasures: 2,
+      measures: [{ sourceMeasureIndex: 0, attempts: [attempt] }],
+      **extra
+    }
   end
 end

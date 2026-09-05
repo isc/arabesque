@@ -410,9 +410,9 @@
           <p class="pt-modal-note" x-text="$t('score.noHistory')">Aucun historique pour cette partition.</p>
         </template>
 
-        <template x-for="chart in playthroughCharts" :key="chart.hands">
+        <template x-for="chart in playthroughCharts" :key="chart.key">
           <div class="pt-modal-section">
-            <h4 x-text="chartTitle(chart.hands)">Évolution du temps de jeu</h4>
+            <h4 x-text="chartTitle(chart)">Évolution du temps de jeu</h4>
             <div x-html="chart.svg"></div>
           </div>
         </template>
@@ -445,7 +445,7 @@
                 <div class="pt-history-day__body">
                   <small x-show="day.fullPlaythroughs.length === 0 && day.measuresWorked.length > 0" x-text="$tn('score.measuresPlayed', day.measuresWorked.length)"></small>
                   <small x-show="day.measuresReinforced.length > 0" x-text="$tn('score.measuresReinforced', day.measuresReinforced.length)"></small>
-                  <template x-for="group in playthroughGroups(day.fullPlaythroughs)" :key="group.hands">
+                  <template x-for="group in playthroughGroups(day.fullPlaythroughs)" :key="group.key">
                     <small x-text="formatPlaythroughs(group)"></small>
                   </template>
                 </div>

@@ -122,6 +122,12 @@ export function withHands(text, hands) {
   return hands === TWO_HANDS ? text : `${text} · ${t(`hands.${hands}`)}`
 }
 
+// Captions a group of runs (see hands' playthroughGroups): "… · mode strict ·
+// main droite", each qualifier only when it isn't the default.
+export function withRunKind(text, { hands, strict }) {
+  return withHands(strict ? `${text} · ${t('score.strictRuns')}` : text, hands)
+}
+
 export function statusLabel(status) {
   return status ? t(`status.${status}`) : status
 }

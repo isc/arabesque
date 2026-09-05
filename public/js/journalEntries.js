@@ -15,7 +15,7 @@
 // The component behind it must expose scorePageUrl(), formatDuration() and the
 // journalEntryHelpers below.
 import { playthroughGroups } from './hands.js'
-import { withHands } from './utils.js'
+import { withRunKind } from './utils.js'
 import { tn } from './i18n.js'
 
 // Alpine expressions read the component's scope, not this module's, so the
@@ -23,11 +23,13 @@ import { tn } from './i18n.js'
 export const journalEntryHelpers = {
   playthroughGroups,
 
-  // "Joué 3× en entier · main droite" — one line per hand selection, so a day
-  // spent on the right hand alone doesn't read as the piece played whole.
+  // "Joué 3× en entier · main droite" — one line per hand selection and per
+  // kind of run, so a day spent on the right hand alone doesn't read as the
+  // piece played whole, and a run to the metronome isn't mistaken for a free
+  // one.
   playedFullLabel(group) {
     const n = group.playthroughs.length
-    return withHands(tn('journal.playedFull', n), group.hands)
+    return withRunKind(tn('journal.playedFull', n), group)
   },
 }
 
@@ -38,7 +40,7 @@ const ENTRIES_HTML = (rows) => `
       <a :href="scorePageUrl(entry.scoreId)" x-text="(entry.scoreTitle || $t('journal.untitled')) + ' · ' + entry.composer"></a>
       <small>
         <span x-text="formatDuration(entry.totalPracticeTimeMs)"></span>
-        <template x-for="group in playthroughGroups(entry.fullPlaythroughs)" :key="group.hands">
+        <template x-for="group in playthroughGroups(entry.fullPlaythroughs)" :key="group.key">
           <span> · <span x-text="playedFullLabel(group)"></span></span>
         </template>
         <span x-show="entry.fullPlaythroughs.length === 0"> · <span x-text="$tn('journal.measuresCount', entry.measuresWorked.length)"></span></span>
