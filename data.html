@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="app-version" content="8da2186d7078" />
+    <meta name="app-version" content="8568b42ab1be" />
     <title data-i18n="data.pageTitle">Arabesque · Données</title>
     <link rel="icon" href="favicon.svg" type="image/svg+xml" />
     <link rel="manifest" href="manifest.webmanifest" />
@@ -28,6 +28,46 @@
         <h1 x-text="$t('data.heading')">Données</h1>
       </div>
 
+      <!-- Profiles: who the data on this device belongs to -->
+      <article class="pt-card pt-stack" id="profiles">
+        <h2 x-text="$t('profiles.heading')">Profils</h2>
+        <p class="pt-hint" x-text="$t('profiles.intro')"></p>
+        <ul class="pt-profile-list">
+          <template x-for="p in profiles" :key="p.id">
+            <li class="pt-account-form pt-profile-row" :class="{ 'is-current': p.id === currentProfileId }">
+              <select :aria-label="$t('profiles.avatarLabel')" @change="patchProfile(p.id, { avatar: $event.target.value })">
+                <template x-for="a in avatars" :key="a">
+                  <option :value="a" :selected="a === p.avatar" x-text="a"></option>
+                </template>
+              </select>
+              <input type="text" maxlength="40" :value="profileName(p)" :aria-label="$t('profiles.nameLabel')" @change="patchProfile(p.id, { name: $event.target.value })" />
+              <span class="pt-profile-row__current" x-show="p.id === currentProfileId" x-text="$t('profiles.current')">Profil actif</span>
+              <button type="button" class="outline secondary" x-show="p.id !== currentProfileId" @click="activateProfile(p.id)" x-text="$t('profiles.activate')">Activer</button>
+              <button type="button" class="outline danger" x-show="canDeleteProfile(p.id)" @click="deletingProfileId = p.id" x-text="$t('profiles.delete')">Supprimer</button>
+            </li>
+          </template>
+        </ul>
+        <template x-if="deletingProfileId">
+          <div class="pt-stack">
+            <p role="alert" class="pt-feedback-error" x-text="$t('profiles.deleteWarning', { name: deletingProfileName })"></p>
+            <div class="pt-data-actions">
+              <button type="button" class="danger" @click="deleteProfile(deletingProfileId)" :aria-busy="deletingProfile" :disabled="deletingProfile" x-text="$t('profiles.deleteConfirm', { name: deletingProfileName })">Oui, supprimer</button>
+              <button type="button" class="outline secondary" @click="deletingProfileId = null" :disabled="deletingProfile" x-text="$t('common.cancel')">Annuler</button>
+            </div>
+          </div>
+        </template>
+        <form @submit.prevent="createProfile()" class="pt-account-form">
+          <select x-model="newProfile.avatar" :aria-label="$t('profiles.avatarLabel')">
+            <template x-for="a in avatars" :key="a">
+              <option :value="a" x-text="a"></option>
+            </template>
+          </select>
+          <input type="text" x-model="newProfile.name" maxlength="40" required :placeholder="$t('profiles.namePlaceholder')" :aria-label="$t('profiles.nameLabel')" />
+          <button type="submit" :disabled="!newProfile.name.trim()" x-text="$t('profiles.add')">Ajouter un profil</button>
+        </form>
+        <p class="pt-hint" x-text="$t('profiles.syncNote')"></p>
+      </article>
+
       <!-- Local backup -->
       <article class="pt-card pt-stack">
         <h2 x-text="$t('data.localHeading')">Sauvegarde dans un fichier</h2>
@@ -43,7 +83,12 @@
       <article class="pt-card pt-stack">
         <h2 x-text="$t('data.accountHeading')">Synchronisation entre appareils</h2>
 
-        <template x-if="!cloudConfigured">
+        <!-- Another profile: the account is not theirs to sign into. -->
+        <template x-if="!profileSyncs">
+          <p class="pt-hint" x-text="$t('profiles.accountElsewhere', { main: profileName(profileById(mainProfileId)), current: profileName(currentProfile) })"></p>
+        </template>
+
+        <template x-if="profileSyncs && !cloudConfigured">
           <p class="pt-hint" x-text="$t('data.cloudUnavailable')">La synchronisation cloud n'est pas configurée.</p>
         </template>
 

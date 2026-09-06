@@ -32,6 +32,17 @@ const HISTORY = [
     },
   },
   {
+    date: '2026-09-06',
+    items: {
+      fr: [
+        "Plusieurs profils sur le même appareil. Chacun a son journal, ses statuts et ses doigtés : ce que l'un joue n'entre pas dans l'historique de l'autre. Les profils se créent depuis la page Données (⚙️ → Données), avec un prénom et un avatar ; on en change d'un tap sur le prénom en haut de la bibliothèque, ou par ⚙️ → Profils. Seul le premier profil se synchronise avec le compte ; les autres restent sur l'appareil.",
+      ],
+      en: [
+        "Several profiles on the same device. Each has its own journal, statuses and fingerings: what one plays never lands in the other's history. Profiles are created from the Data page (⚙️ → Data), with a first name and an avatar; switch with a tap on the name at the top of the library, or through ⚙️ → Profiles. Only the first profile syncs with the account; the others stay on the device.",
+      ],
+    },
+  },
+  {
     date: '2026-09-05',
     items: {
       fr: [
