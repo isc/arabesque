@@ -1035,9 +1035,9 @@ button.pt-topbar__pill:disabled { opacity: 0.4; cursor: default; }
 }
 .pt-data-identity strong { overflow-wrap: anywhere; }
 
-/* Profiles (profiles.js): the tiles that switch, in the modal the ⚙️ menu
-   opens; the rows that edit, on the data page. The chip in the library header
-   is a plain .pt-topbar__pill. */
+/* Profiles (profiles.js): the tiles that switch, in the chooser the library's
+   profile chip opens (a plain .pt-topbar__pill); the rows that edit, on the
+   data page. */
 .pt-profile-tiles {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));

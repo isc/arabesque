@@ -5,7 +5,7 @@ import { formatDuration, formatDate, formatRelativeDate, statusLabel, scorePageU
 import { journalEntryHelpers } from './journalEntries.js'
 import { PERIODS, periodLabel, getPeriodForComposer } from './musicalPeriods.js'
 import { headerMenu } from './headerMenu.js'
-import { listProfiles } from './profiles.js'
+import { listProfiles, currentProfile, profileName, switchProfile } from './profiles.js'
 import { initAutoSync } from './autoSync.js'
 import { onDayChange } from './dayRollover.js'
 import { t, locale } from './i18n.js'
@@ -36,6 +36,29 @@ export function libraryApp() {
 
   return {
     ...headerMenu(),
+
+    // --- Profiles ---
+    // Who is playing, shown as the chip in the header and changed from the
+    // chooser it opens. Read once: the current profile cannot change within a
+    // page, switching navigates.
+    profiles: listProfiles(),
+    currentProfile: currentProfile(),
+    profileName,
+    showProfilesModal: false,
+    switchToProfile(id) {
+      if (id === this.currentProfile.id) {
+        this.showProfilesModal = false
+        return
+      }
+      switchProfile(id)
+      // A fresh start on that profile's data, from the library. Every module
+      // derived its storage names from the profile at import time, so a
+      // navigation is the only honest way to change it (profiles.js). Not a
+      // reload: assign() drops the query string, so the filters mirrored there
+      // do not carry over to the profile being switched to.
+      window.location.assign('library.html')
+    },
+
     scores: [],
     searchQuery: '',
     statusFilter: '',

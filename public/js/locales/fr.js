@@ -14,7 +14,6 @@ export default {
     support: '🛟 Assistance',
     privacy: '🔒 Confidentialité',
     install: '📲 Installer l’application',
-    profiles: '👥 Profils',
     language: 'Langue',
   },
   // Several people on one device (profiles.js).
