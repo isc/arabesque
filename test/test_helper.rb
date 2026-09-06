@@ -59,6 +59,32 @@ class CapybaraTestBase < Minitest::Test
   include Capybara::DSL
   include Capybara::Minitest::Assertions
 
+  # esm.sh is the one host the app fetches code from at runtime —
+  # @supabase/supabase-js (supabaseClient.js) and @tonejs/piano (playback.js).
+  # No browser test wants either: what they assert is the app's own behaviour,
+  # and reaching a CDN only lends the suite that CDN's latency and uptime.
+  #
+  # It is not only slowness. Loading @supabase/supabase-js has a side effect on
+  # the page — the client claims its storage key and drops any session it does
+  # not recognise. FeedbackFormTest writes a session by hand (no refresh_token,
+  # no expires_at: a page reading the address out of it needs neither), and
+  # supabase-js binned it about half a second into the page, taking the test's
+  # first assertion down whenever a shard needed longer than that to click
+  # through the ⚙️ menu. The sync that fetches the client is one library.js
+  # starts after the load event, so `visit` cannot wait for it and no ordering
+  # inside the test can avoid it.
+  #
+  # Blocked in the browser rather than intercepted in Ruby: setBlockedURLs costs
+  # nothing per request, where Ferrum's url_blacklist would put a CDP round-trip
+  # in front of every one of score.html's vendored files.
+  #
+  # before_setup, not setup: every test file writes its own setup and none of
+  # them calls super, so a setup here would simply be overridden.
+  def before_setup
+    super
+    page.driver.browser.page.command('Network.setBlockedURLs', urls: ['https://esm.sh/*'])
+  end
+
   def teardown
     Capybara.reset_sessions!
   end
