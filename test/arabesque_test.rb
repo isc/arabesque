@@ -662,6 +662,38 @@ class ArabesqueTest < CapybaraTestBase
     assert_no_text 'Cliquez sur une mesure pour écouter'
   end
 
+  # The listening ends with the mode being played in, and the rule has to sit on
+  # the mode rather than on the tab that usually changes it: 🎯 Renforcer moves
+  # into training mode without going through the tabs at all, and left the piece
+  # playing on under the new mode — the very state the rule exists to prevent.
+  def test_starting_reinforcement_ends_the_listening
+    visit '/score.html?url=/test-fixtures/repeat-endings.xml'
+    wait_for_score_render(4)
+
+    # A fumbled bar, so there is something to reinforce.
+    play_note('D4')
+    play_note('C4')
+    assert_text 'Renforcer 1 mesure'
+
+    # Held at its first bar before reinforcement is asked for: nothing is left
+    # scheduled, so the listening can only end for the reason under test rather
+    # than because the piece ran out while the assertions were being made.
+    with_clock_control do
+      trigger_click_on('▶ Écouter')
+      advance_clock(50) # Alpine shows an x-show element a tick later
+      assert_text 'Cliquez sur une mesure pour écouter à partir de là.'
+      trigger_click_on('⏸ Pause')
+    end
+    assert_text 'En pause à la mesure 1'
+
+    # The badge is a link, not a button, so click_on's button lookup misses it.
+    find('.pt-reinforce-badge').click
+
+    assert_text 'Mode Entraînement Actif'
+    assert_no_text 'En pause à la mesure 1'
+    assert_text '▶ Écouter'
+  end
+
   private
 
   # Polls rather than asserting once: the BPM field is debounced, so the value

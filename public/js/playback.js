@@ -1,5 +1,5 @@
 import { isTestEnv } from './utils.js'
-import { tsToSeconds, buildMeasureStartTimes, buildCursorTimeline, cursorStepsBeforeMeasure } from './playbackTiming.js'
+import { tsToSeconds, buildMeasureStartTimes, buildCursorTimeline, cursorStepsBeforeMeasure, measureIndexAt } from './playbackTiming.js'
 import { scrollSystemIntoView } from './utils.js'
 
 // The three states the transport can be in. Paused is not stopped: the piece is
@@ -17,7 +17,7 @@ let activeNotes = new Set()
 // One field rather than a playing flag beside a paused one: "playing and paused
 // at once" is then not something a mutation can leave behind.
 let transport = STOPPED
-let onPlaybackEnd = null
+let onTransportChange = null
 let activeOsmd = null
 let activeAllNotes = null
 // Where the running schedule started and where each of its measures falls from
@@ -60,7 +60,7 @@ export function initPlayback(externalMidiState = null) {
     seekToMeasure,
     setTempo,
     stop,
-    setOnPlaybackEnd: (fn) => { onPlaybackEnd = fn },
+    setOnTransportChange: (fn) => { onTransportChange = fn },
     get transport() { return transport },
     get currentMeasureIndex() { return currentMeasure() },
   }
@@ -311,15 +311,21 @@ function clearSchedule() {
 function currentMeasure() {
   if (transport !== PLAYING) return heldAtMeasure
   const elapsed = performance.now() - scheduleStartedAt
-  let i = 0
-  while (i + 1 < scheduleMeasureOffsetsMs.length && scheduleMeasureOffsetsMs[i + 1] <= elapsed) i++
-  return scheduleFirstMeasure + i
+  return scheduleFirstMeasure + Math.max(0, measureIndexAt(scheduleMeasureOffsetsMs, elapsed))
+}
+
+// The transport and the bar it is held at are what the page mirrors, and they
+// only ever move through here — so the page is told once, from the one place,
+// instead of every caller remembering to ask.
+function setTransport(next, measure = heldAtMeasure) {
+  transport = next
+  heldAtMeasure = measure
+  onTransportChange?.()
 }
 
 function stop() {
   clearSchedule()
-  transport = STOPPED
-  heldAtMeasure = 0
+  setTransport(STOPPED, 0)
   hideCursor()
 }
 
@@ -330,10 +336,10 @@ function stop() {
 // can be rebuilt from without re-deriving every note's remaining duration.
 function pause() {
   if (transport !== PLAYING) return
-  heldAtMeasure = currentMeasure()
+  const heldAt = currentMeasure()
   clearSchedule()
-  transport = PAUSED
-  showCursorAtMeasure(heldAtMeasure)
+  setTransport(PAUSED, heldAt)
+  showCursorAtMeasure(heldAt)
 }
 
 // Starts the piece, or picks it up where ⏸ left it. Stopping is stop()'s job:
@@ -353,7 +359,7 @@ async function play(allNotes, osmdInstance) {
 function seekToMeasure(measureIndex) {
   if (!activeAllNotes || !activeOsmd) return
   if (transport === PAUSED) {
-    heldAtMeasure = measureIndex
+    setTransport(PAUSED, measureIndex)
     showCursorAtMeasure(measureIndex)
     return
   }
@@ -399,7 +405,6 @@ function startPlayback(allNotes, osmdInstance, startMeasureIndex = 0) {
   scheduleStartedAt = performance.now()
   scheduleFirstMeasure = startMeasureIndex
   scheduleMeasureOffsetsMs = measureStartTimes.map((ts) => tsToSeconds(ts, bpm) * 1000)
-  heldAtMeasure = startMeasureIndex
   let maxEndMs = 0
 
   for (let i = 0; i < playNotes.length; i++) {
@@ -439,9 +444,6 @@ function startPlayback(allNotes, osmdInstance, startMeasureIndex = 0) {
     scheduledTimeouts.push(...scheduleCursorAdvances(osmdInstance.cursor, cursorSteps, { skipSteps: cursorSkipSteps }))
   }
 
-  transport = PLAYING
-  scheduledTimeouts.push(setTimeout(() => {
-    stop()
-    onPlaybackEnd?.()
-  }, maxEndMs + 500))
+  setTransport(PLAYING)
+  scheduledTimeouts.push(setTimeout(stop, maxEndMs + 500))
 }

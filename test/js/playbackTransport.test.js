@@ -157,13 +157,37 @@ describe('playback transport', () => {
 
   it('ends the listening when the last note has sounded', async () => {
     const pb = await load()
-    let ended = 0
-    pb.setOnPlaybackEnd(() => ended++)
+    const moves = []
+    pb.setOnTransportChange(() => moves.push(pb.transport))
     await pb.play(...score())
+    expect(moves).toEqual(['playing'])
 
     vi.advanceTimersByTime(9000)
 
-    expect(ended).toBe(1)
+    expect(moves).toEqual(['playing', 'stopped'])
     expect(pb.transport).toBe('stopped')
+  })
+
+  // The page mirrors the transport and the bar it is held at. It is told from
+  // the engine, once per move, rather than asking after every control it
+  // offers — a control added later cannot forget to ask.
+  it('says so whenever the transport or the held bar moves', async () => {
+    const pb = await load()
+    const moves = []
+    pb.setOnTransportChange(() => moves.push([pb.transport, pb.currentMeasureIndex]))
+
+    await pb.play(...score())
+    vi.advanceTimersByTime(2500)
+    pb.pause()
+    pb.seekToMeasure(3)
+    pb.setTempo(240)
+    pb.stop()
+
+    expect(moves).toEqual([
+      ['playing', 0],
+      ['paused', 1],
+      ['paused', 3],
+      ['stopped', 0],
+    ])
   })
 })
