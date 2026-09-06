@@ -67,6 +67,20 @@
     { "title": "Kinderszenen No. 12 - Kind im Einschlummern", "composer": "Schumann", "file": "kind-im-einschlummern-kinderszenen-no-12-child-falling-asleep.mxl" },
     { "title": "Minuet in D Minor BWV Anh. 132", "composer": "J.S. Bach", "file": "bach-minuet-in-d-minor-bwv-anh-132.mxl" },
     { "title": "Polonaise in G Minor BWV Anh. 125", "composer": "C.P.E. Bach", "file": "bach-polonaise-in-g-minor-bwv-anh-125.mxl" },
+    { "title": "Chansons", "composer": "Traditionnel", "parts": [
+      { "title": "Promenons-nous dans les bois", "file": "Chansons_01_promenons-nous-dans-les-bois.musicxml" },
+      { "title": "Sors, sors, escargot", "file": "Chansons_02_sors-sors-escargot.musicxml" },
+      { "title": "Au clair de la lune", "file": "Chansons_03_au-clair-de-la-lune.musicxml" },
+      { "title": "Dansons la Capucine", "file": "Chansons_04_dansons-la-capucine.musicxml" },
+      { "title": "Fais dodo", "file": "Chansons_05_fais-dodo.musicxml" },
+      { "title": "Ah ! vous dirai-je, maman", "file": "Chansons_06_ah-vous-dirai-je-maman.musicxml" },
+      { "title": "Joyeux anniversaire", "file": "Chansons_07_joyeux-anniversaire.musicxml" },
+      { "title": "Sur le pont d'Avignon", "file": "Chansons_08_sur-le-pont-d-avignon.musicxml" },
+      { "title": "Maman les p'tits bateaux", "file": "Chansons_09_maman-les-p-tits-bateaux.musicxml" },
+      { "title": "Savez-vous planter les choux ?", "file": "Chansons_10_savez-vous-planter-les-choux.musicxml" },
+      { "title": "J'ai du bon tabac", "file": "Chansons_11_j-ai-du-bon-tabac.musicxml" },
+      { "title": "Le roi Dagobert", "file": "Chansons_12_le-roi-dagobert.musicxml" }
+    ] },
     { "title": "Le Pianiste virtuose (1re partie)", "composer": "Hanon", "parts": [
       { "title": "Exercice 1", "file": "Hanon_Le_Pianiste_Virtuose_Ex_01.mxl" },
       { "title": "Exercice 2", "file": "Hanon_Le_Pianiste_Virtuose_Ex_02.mxl" },
