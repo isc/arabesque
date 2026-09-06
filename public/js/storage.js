@@ -1,6 +1,9 @@
 import { traced } from './perfTrace.js' // TEMP diagnostic
+import { scopedKey, MAIN_PROFILE_ID } from './profiles.js'
 
-const DB_NAME = 'arabesque'
+// Each profile has a database of its own, named from this (profiles.js). The
+// main profile's is the bare name — the one this device had before profiles.
+const DB_BASE_NAME = 'arabesque'
 // The name the database carried before the app was renamed. Its contents are
 // moved over on first open (see readLegacyDatabase) so nobody has to re-import
 // a backup.
@@ -66,14 +69,16 @@ async function readLegacyDatabase() {
   return data
 }
 
-async function openDatabase() {
-  const legacy = await readLegacyDatabase()
+async function openDatabase(name) {
+  // Only the main profile's database descends from the pre-rename one: a
+  // second profile starts empty by definition.
+  const legacy = name === DB_BASE_NAME ? await readLegacyDatabase() : null
   // Only a database we just created may be filled from the old one: if this
   // browser already has data under the new name, it is the newer of the two.
   let created = false
 
   const database = await new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, DB_VERSION)
+    const request = indexedDB.open(name, DB_VERSION)
 
     request.onerror = () => reject(request.error)
     request.onsuccess = () => resolve(request.result)
@@ -114,6 +119,14 @@ async function openDatabase() {
   return database
 }
 
+// Drops a profile's database, once the profile itself is gone (profiles.js
+// removeProfile). Never the main profile's: the id check there is what keeps
+// this from ever being asked.
+export function dropProfileStorage(profileId) {
+  if (profileId === MAIN_PROFILE_ID) throw new Error('The main profile keeps its storage')
+  return promisifyRequest(indexedDB.deleteDatabase(scopedKey(DB_BASE_NAME, profileId)))
+}
+
 export function initStorage() {
   // The open, held as the promise rather than as its result, so that a caller
   // arriving while it is still in flight joins it instead of starting one of
@@ -123,7 +136,7 @@ export function initStorage() {
   let dbReady = null
 
   function ensureDb() {
-    dbReady ??= openDatabase().catch((error) => {
+    dbReady ??= openDatabase(scopedKey(DB_BASE_NAME)).catch((error) => {
       dbReady = null
       throw error
     })

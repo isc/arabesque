@@ -13,6 +13,7 @@ import { initStrictPlaythrough } from './strictPlaythrough.js'
 import { createTempoPlan, createTempoTrainer, GRADUATED, BPM_STEP, STREAK } from './tempoTrainer.js'
 import { headerMenu } from './headerMenu.js'
 import { initAutoSync, triggerSync } from './autoSync.js'
+import { scopedKey } from './profiles.js'
 import { traced, mark } from './perfTrace.js' // TEMP diagnostic
 import { t, locale } from './i18n.js'
 
@@ -21,6 +22,7 @@ import { t, locale } from './i18n.js'
 const PLAYTHROUGH_LIST_FORMATTER = new Intl.ListFormat(locale(), { style: 'long', type: 'conjunction' })
 const CHART_DATE_FULL = new Intl.DateTimeFormat(locale())
 const CHART_DATE_AXIS = new Intl.DateTimeFormat(locale(), { day: 'numeric', month: 'short' })
+
 
 // The headline figure of a strict run: notes in tempo, as a percentage.
 function strictAccuracy({ hit, total }) {
@@ -121,10 +123,13 @@ export function midiApp() {
   //
   // Wrapped, like every other localStorage call here: a browser in private mode
   // throws on setItem, and a forgotten tempo is not worth losing the page over.
+  // Per profile: one player's 60 BPM is not another's (profiles.js).
+  const bpmKey = (name, scoreUrl) => scopedKey(`arabesque:${name}:${scoreUrl}`)
+
   function rememberBpm(name, scoreUrl, bpm) {
     if (!scoreUrl || !Number.isFinite(bpm) || bpm <= 0) return
     try {
-      localStorage.setItem(`arabesque:${name}:${scoreUrl}`, String(bpm))
+      localStorage.setItem(bpmKey(name, scoreUrl), String(bpm))
     } catch { /* storage unavailable */ }
   }
 
@@ -132,7 +137,7 @@ export function midiApp() {
     if (!scoreUrl) return fallback
     let stored = NaN
     try {
-      stored = Number(localStorage.getItem(`arabesque:${name}:${scoreUrl}`))
+      stored = Number(localStorage.getItem(bpmKey(name, scoreUrl)))
     } catch { /* storage unavailable */ }
     return Number.isFinite(stored) && stored > 0 ? stored : fallback
   }
@@ -1019,6 +1024,7 @@ export function midiApp() {
       if (this.menuOpen) return this.closeMenu()
       if (this.showChangelogModal) return (this.showChangelogModal = false)
       if (this.showFeedbackModal) return this.closeFeedback()
+      if (this.showProfilesModal) return (this.showProfilesModal = false)
       if (this.showResultModal) return this.closeResultModal()
       if (this.showHistoryModal) return (this.showHistoryModal = false)
       if (this.showMidiHelpModal) return (this.showMidiHelpModal = false)

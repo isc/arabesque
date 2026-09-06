@@ -8,6 +8,14 @@
   d'Avignon, J'ai du bon tabac, Le roi Dagobert et les autres, à retrouver
   dans la bibliothèque ou en jouant leurs premières notes.
 
+- **Plusieurs profils sur le même appareil.** Chacun a son journal, ses
+  statuts et ses doigtés : ce que l'un joue n'entre pas dans l'historique de
+  l'autre. Les profils se créent depuis la page Données (⚙️ → Données), avec
+  un prénom et un avatar ; on en change d'un tap sur le prénom en haut de la
+  bibliothèque, ou par ⚙️ → Profils. Seul le premier profil se synchronise
+  avec le compte ; les autres restent sur l'appareil, la sauvegarde dans un
+  fichier étant leur seule copie.
+
 2026-09-05
 
 - **Noter un doigté ne fait plus tomber le mode entraînement.** Le violet de

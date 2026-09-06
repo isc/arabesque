@@ -14,7 +14,32 @@ export default {
     support: '🛟 Support',
     privacy: '🔒 Privacy',
     install: '📲 Install the app',
+    profiles: '👥 Profiles',
     language: 'Language',
+  },
+  // Several people on one device (profiles.js).
+  profiles: {
+    title: '👥 Who is playing?',
+    defaultName: 'Me',
+    switchAria: 'Switch profile',
+    manage: 'Manage profiles',
+    heading: 'Profiles',
+    intro:
+      'Several people on the same device, each with their own journal, statuses and fingerings. The active profile is the one the library and this page show.',
+    current: 'Active profile',
+    activate: 'Switch to',
+    nameLabel: 'Name',
+    namePlaceholder: 'First name',
+    avatarLabel: 'Avatar',
+    add: 'Add a profile',
+    delete: 'Delete',
+    deleteWarning:
+      'Everything {name} played on this device will be erased: journal, statuses, fingerings. This profile is not synced, there is no copy elsewhere.',
+    deleteConfirm: 'Yes, delete {name}',
+    syncNote:
+      'Only the first profile syncs with the account below. The others stay on this device: the file backup is their only copy.',
+    accountElsewhere:
+      'Syncing across devices follows the first profile, {main}. {current}’s data stays on this device.',
   },
   // Which hands a run through the score was played with.
   hands: {

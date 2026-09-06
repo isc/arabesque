@@ -1,13 +1,15 @@
 import { initStorage } from './storage.js'
 import { TWO_HANDS, handsKey, playthroughHands } from './hands.js'
+import { scopedKey } from './profiles.js'
 
 // Where a session interrupted by a page teardown waits to be closed properly
-// (see stashPendingSession).
-const PENDING_SESSION_KEY = 'arabesque:pending-session'
+// (see stashPendingSession). The profile's own: the snapshot must be replayed
+// into the database the session came from, whoever opens the app next.
+const PENDING_SESSION_KEY = scopedKey('arabesque:pending-session')
 
 // Marks the one-off repair of sessions stranded before those snapshots existed
-// (see closeStrandedSessions).
-const STRANDED_REPAIR_KEY = 'arabesque:stranded-sessions-closed'
+// (see closeStrandedSessions). Per profile like the database it speaks of.
+const STRANDED_REPAIR_KEY = scopedKey('arabesque:stranded-sessions-closed')
 
 // How quiet a session must be before the repair treats it as abandoned rather
 // than in progress somewhere else. Well beyond any gap between two measures,

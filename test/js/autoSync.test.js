@@ -72,6 +72,17 @@ describe('autoSync', () => {
     expect(runSync).not.toHaveBeenCalled()
   })
 
+  it('does nothing on a profile other than the main one, signed in or not', async () => {
+    // The instance autoSync just loaded, so both see the same state.
+    const profiles = await import('../../public/js/profiles.js')
+    profiles.switchProfile(profiles.addProfile({ name: 'Charlie' }).id)
+    autoSync.initAutoSync(deps, { syncOnOpen: true })
+    autoSync.triggerSync('session ended')
+    expect(await autoSync.requestSync()).toBeNull()
+    expect(runSync).not.toHaveBeenCalled()
+    expect(getSession).not.toHaveBeenCalled()
+  })
+
   it('syncs on open when an account is signed in', async () => {
     autoSync.initAutoSync(deps, { syncOnOpen: true })
     await vi.waitFor(() => expect(runSync).toHaveBeenCalledTimes(1))

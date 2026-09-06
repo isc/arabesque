@@ -1,16 +1,42 @@
-// Data page: local backup (export/import) + account (passwordless sign-in,
-// and deleting the account again).
+// Data page: profiles, local backup (export/import) + account (passwordless
+// sign-in, and deleting the account again).
 //
-// This page is the home for everything data-related: the export/import that
-// used to live in the ⚙️ menu, and signing in by email — with the link or the
-// code it carries, see supabaseClient.js. Signing in is what turns cloud sync
-// on; this page is where that becomes true for the device.
-import { initStorage } from './storage.js'
+// This page is the home for everything data-related: who the data belongs to
+// on this device (profiles.js), the export/import that used to live in the ⚙️
+// menu, and signing in by email — with the link or the code it carries, see
+// supabaseClient.js. Signing in is what turns cloud sync on; this page is
+// where that becomes true for the device — for its main profile, the only one
+// that syncs.
+import { initStorage, dropProfileStorage } from './storage.js'
 import { initPracticeTracker } from './practiceTracker.js'
 import { lastSyncAt } from './sync.js'
 import { initAutoSync, requestSync } from './autoSync.js'
 import { deleteCurrentUser } from './account.js'
 import { t, locale } from './i18n.js'
+import {
+  AVATARS,
+  MAIN_PROFILE_ID,
+  listProfiles,
+  currentProfileId,
+  profileName,
+  freeAvatar,
+  addProfile,
+  updateProfile,
+  removeProfile,
+  switchProfile,
+} from './profiles.js'
+
+// The file name of a backup carries the profile it came from — except the
+// main profile's, which keeps the name it always had.
+function backupSlug(profile) {
+  if (profile.id === MAIN_PROFILE_ID) return ''
+  const slug = profile.name
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '')
+  return slug ? `${slug}-` : ''
+}
 
 export function dataApp() {
   const storage = initStorage()
@@ -23,6 +49,66 @@ export function dataApp() {
   let setPendingSignIn = () => {}
 
   return {
+    // --- Profiles ---
+    profiles: listProfiles(),
+    currentProfileId: currentProfileId(),
+    mainProfileId: MAIN_PROFILE_ID,
+    avatars: AVATARS,
+    profileName,
+    newProfile: { name: '', avatar: freeAvatar() },
+    // The profile whose deletion is being confirmed, or null.
+    deletingProfileId: null,
+    deletingProfile: false,
+
+    // Whether the current profile is the one the account holds (profiles.js,
+    // syncsToCloud): the account card is only theirs.
+    get profileSyncs() {
+      return this.currentProfileId === this.mainProfileId
+    },
+    get currentProfile() {
+      return this.profileById(this.currentProfileId)
+    },
+    get deletingProfileName() {
+      return profileName(this.profileById(this.deletingProfileId))
+    },
+    profileById(id) {
+      return this.profiles.find((p) => p.id === id)
+    },
+    activateProfile(id) {
+      switchProfile(id)
+      // Same page, other profile: every module read the profile at import
+      // time, so the page starts over (profiles.js).
+      window.location.reload()
+    },
+    patchProfile(id, patch) {
+      updateProfile(id, patch)
+      this.profiles = listProfiles()
+    },
+    createProfile() {
+      if (!this.newProfile.name.trim()) return
+      addProfile(this.newProfile)
+      this.profiles = listProfiles()
+      this.newProfile = { name: '', avatar: freeAvatar() }
+    },
+    // Not the main profile (profiles.js has the reason), and not the current
+    // one: its database is open on this page, and IndexedDB will not drop a
+    // database with a connection on it.
+    canDeleteProfile(id) {
+      return id !== this.mainProfileId && id !== this.currentProfileId
+    },
+    async deleteProfile(id) {
+      if (this.deletingProfile || !this.canDeleteProfile(id)) return
+      this.deletingProfile = true
+      try {
+        removeProfile(id)
+        await dropProfileStorage(id)
+      } finally {
+        this.deletingProfileId = null
+        this.deletingProfile = false
+        this.profiles = listProfiles()
+      }
+    },
+
     cloudConfigured: false,
     authReady: false,
     user: null, // the signed-in Supabase user, or null
@@ -52,6 +138,9 @@ export function dataApp() {
 
     async init() {
       await storage.init()
+      // Another profile's data is not the account's: no client, no sync, and
+      // the account card says where the account lives instead.
+      if (!this.profileSyncs) return
       try {
         const mod = await import('./supabaseClient.js')
         supabase = mod.supabase
@@ -219,7 +308,7 @@ export function dataApp() {
         const url = URL.createObjectURL(blob)
         const a = document.createElement('a')
         a.href = url
-        a.download = `arabesque-backup-${new Date().toISOString().split('T')[0]}.json`
+        a.download = `arabesque-backup-${backupSlug(this.currentProfile)}${new Date().toISOString().split('T')[0]}.json`
         document.body.appendChild(a)
         a.click()
         document.body.removeChild(a)
