@@ -12,7 +12,6 @@ import { initPlayback, getBPM } from './playback.js'
 import { initStrictPlaythrough } from './strictPlaythrough.js'
 import { createTempoPlan, createTempoTrainer, GRADUATED, BPM_STEP, STREAK } from './tempoTrainer.js'
 import { headerMenu } from './headerMenu.js'
-import { captureScore } from './screenshot.js'
 import { initAutoSync, triggerSync } from './autoSync.js'
 import { traced, mark } from './perfTrace.js' // TEMP diagnostic
 import { t, locale } from './i18n.js'
@@ -1015,7 +1014,7 @@ export function midiApp() {
     handleEscape() {
       if (this.menuOpen) return this.closeMenu()
       if (this.showChangelogModal) return (this.showChangelogModal = false)
-      if (this.showFeedbackModal) return (this.showFeedbackModal = false)
+      if (this.showFeedbackModal) return this.closeFeedback()
       if (this.showResultModal) return this.closeResultModal()
       if (this.showHistoryModal) return (this.showHistoryModal = false)
       if (this.showMidiHelpModal) return (this.showMidiHelpModal = false)
@@ -1094,12 +1093,6 @@ export function midiApp() {
     feedbackContext() {
       return { score: this.scoreTitle || null }
     },
-
-    // The other half of that: a picture of the score the modal is about to
-    // cover, so "the notes are wrong here" arrives with a "here". This is the
-    // only page that has one to give, which is why the shared menu asks rather
-    // than knows.
-    captureFeedbackShot: captureScore,
 
     formatDate,
     formatDuration,

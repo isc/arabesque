@@ -42,12 +42,13 @@ create table if not exists public.feedback (
   email      text,
   category   text,          -- 'bug' | 'idea' | 'score' | 'other' (free text; UI-constrained)
   context    jsonb,         -- app_version, locale, user_agent, viewport, anonymized stats
-  screenshot text,          -- data URL of the score on screen, opt-out (see below)
+  screenshot text,          -- data URL of the screen as sent, opt-out (see below)
   status     text not null default 'new'   -- constrained just below
 );
 
--- A picture of what the reporter was looking at, as a data URL (WebP, or JPEG
--- where WebP is not available) produced in the browser by public/js/screenshot.js.
+-- A picture of the viewport the reporter was looking at, as a data URL (WebP,
+-- or JPEG where WebP is not available), produced in the browser by
+-- public/js/screenshot.js.
 --
 -- Why a column and not Supabase Storage: uploading from the browser would mean
 -- a storage policy letting `anon` INSERT into storage.objects, which hands the

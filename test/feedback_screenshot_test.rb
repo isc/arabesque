@@ -1,90 +1,88 @@
 require_relative 'test_helper'
 
-# A report from the score page carries a picture of the score behind the modal
-# (feedback 1a270bb3). What the test has to pin down is not the pixels but the
-# contract around them: it is offered, it is visible before it is sent, it can
-# be declined, and its absence never blocks the report.
+# A report carries a picture of the screen behind the modal (feedback 1a270bb3).
+# What the test pins down is not the pixels but the contract around them: it is
+# offered on every page the feedback button reaches, it is visible before it is
+# sent, it can be declined, and it is a picture of the viewport rather than of
+# one widget in it.
 class FeedbackScreenshotTest < CapybaraTestBase
-  SCORE_URL = '/test-fixtures/simple-score.xml'
+  SCORE_URL = '/test-fixtures/simple-score.xml'.freeze
+  SHOT_LABEL = 'Joindre l’image de l’écran'.freeze
+  DATA_URL = %r{\Adata:image/(webp|jpeg);base64,}
 
   def setup
     page.driver.set_cookie('test-env', 'true')
   end
 
-  def test_score_page_attaches_a_visible_picture_of_the_score
+  def test_the_score_page_attaches_a_visible_picture_of_the_screen
     visit "/score.html?url=#{SCORE_URL}"
     wait_for_score_render
-    open_feedback
+    open_feedback_with_shot
 
-    assert_selector '.pt-feedback-shot'
-    assert_checked_field 'Joindre l’image de la partition affichée'
+    assert_checked_field SHOT_LABEL
     # Shown, not merely promised: the preview is the actual capture.
-    assert_selector '.pt-feedback-shot__preview'
-    assert_match %r{\Adata:image/(webp|jpeg);base64,}, find('.pt-feedback-shot__preview')[:src]
+    assert_match DATA_URL, find('.pt-feedback-shot__preview')[:src]
+    # And it is the whole screen: a picture of the score alone would not have
+    # the window's shape.
+    assert_in_delta viewport_aspect, capture_aspect, 0.02
   end
 
   def test_the_picture_travels_with_the_report_and_can_be_declined
     visit "/score.html?url=#{SCORE_URL}"
     wait_for_score_render
-    stub_feedback_endpoint
-    open_feedback
+    capture_submissions
 
-    fill_in 'Message', with: 'Ce do dièse est faux'
-    click_on 'Envoyer'
-    assert_text 'Merci'
-    assert_match %r{\Adata:image/(webp|jpeg);base64,}, sent_feedback['screenshot']
-    # Scoped: the dialog header's × carries the same label.
-    find('dialog[open] footer button', text: 'Fermer').click
+    open_feedback_with_shot
+    send_feedback 'Ce do dièse est faux'
 
     # Same report, box unticked: the words go, the picture stays.
-    open_feedback
-    uncheck 'Joindre l’image de la partition affichée'
+    open_feedback_with_shot
+    uncheck SHOT_LABEL
     refute_selector '.pt-feedback-shot__preview', visible: true
-    fill_in 'Message', with: 'Sans image cette fois'
-    click_on 'Envoyer'
-    assert_text 'Merci'
-    assert_nil sent_feedback['screenshot']
+    send_feedback 'Sans image cette fois'
+
+    with, without = sent_reports
+    assert_match DATA_URL, with['screenshot']
+    assert_nil without['screenshot']
   end
 
-  def test_a_page_with_no_score_still_sends_a_report
+  # The page the request itself was filed from, and the one a score-only capture
+  # could say nothing about.
+  def test_the_library_page_attaches_one_too
     visit '/library.html'
-    stub_feedback_endpoint
-    open_feedback
+    capture_submissions
 
-    refute_selector '.pt-feedback-shot'
-    fill_in 'Message', with: 'Une idée depuis la bibliothèque'
-    click_on 'Envoyer'
-    assert_text 'Merci'
-    assert_nil sent_feedback['screenshot']
+    open_feedback_with_shot
+    send_feedback 'Une idée depuis la bibliothèque'
+    assert_match DATA_URL, sent_reports.first['screenshot']
   end
 
   private
 
-  def open_feedback
-    open_menu
-    click_on '💬 Avis'
-    assert_selector 'dialog[open]', text: 'Votre avis'
+  def open_feedback_with_shot
+    open_feedback
+    assert_selector '.pt-feedback-shot__preview'
   end
 
-  # Intercept the POST rather than file real feedback: the publishable key in
-  # the repo writes to the live table, and a test suite is not a reporter.
-  def stub_feedback_endpoint
-    page.execute_script(<<~JS)
-      window.__sentFeedback = null;
-      const real = window.fetch;
-      window.fetch = (url, options) => {
-        if (String(url).includes('/rest/v1/feedback')) {
-          window.__sentFeedback = options.body;
-          return Promise.resolve(new Response('', { status: 201 }));
-        }
-        return real(url, options);
-      };
-    JS
+  def viewport_aspect
+    page.evaluate_script('document.documentElement.clientWidth / document.documentElement.clientHeight')
   end
 
-  def sent_feedback
-    body = page.evaluate_script('window.__sentFeedback')
-    refute_nil body, 'no feedback POST was made'
-    JSON.parse(body)
+  # Polled rather than read once: the preview element is in the DOM as soon as
+  # the capture resolves, but its intrinsic size only exists once decoded.
+  def capture_aspect
+    Timeout.timeout(Capybara.default_max_wait_time) do
+      loop do
+        ratio = page.evaluate_script(<<~JS)
+          (() => {
+            const img = document.querySelector('.pt-feedback-shot__preview')
+            return img && img.naturalHeight ? img.naturalWidth / img.naturalHeight : 0
+          })()
+        JS
+        return ratio if ratio.positive?
+
+        sleep 0.05
+      end
+    end
   end
 end

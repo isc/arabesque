@@ -1718,7 +1718,7 @@ dialog > article > footer button { margin: 0; }
 /* The picture that goes with a report is shown, not merely promised: the
    checkbox above it is then an informed choice rather than a leap of faith. */
 .pt-feedback-shot__preview {
-  /* Sized by the picture itself, and bounded — a screen of staves at full width
+  /* Sized by the picture itself, and bounded — a whole screen at full width
      pushes Envoyer out of the modal. Scaled down whole rather than cropped:
      what is shown has to be all of what is sent. */
   display: block;

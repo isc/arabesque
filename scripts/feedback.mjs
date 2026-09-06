@@ -120,13 +120,16 @@ async function list({ all, limit }) {
 
 async function show(prefix) {
   const [id] = await resolve([prefix])
-  const [row] = await query(`select * from public.feedback where id = ${quote(id)}`)
-  // Still "full context": the wildcard keeps showing columns added later. Only
-  // the screenshot is held back, and here rather than in the SQL — printing a
-  // few hundred kB of base64 would bury the entry it belongs to.
-  const { screenshot, ...rest } = row
-  console.log(JSON.stringify(rest, null, 2))
-  if (screenshot) console.log(`\n📷 ${Math.round(screenshot.length / 1024)} kB — feedback.mjs shot ${short(id)}`)
+  // Still "full context" — subtracting one key from the whole row keeps showing
+  // columns added later — but the screenshot is left behind in Postgres rather
+  // than pulled over the wire to be dropped here. Printed, its few hundred kB
+  // of base64 would bury the entry it belongs to; its size is the useful part.
+  const [row] = await query(`
+    select to_jsonb(f) - 'screenshot' as entry, length(f.screenshot) as shot_bytes
+      from public.feedback f where f.id = ${quote(id)}
+  `)
+  console.log(JSON.stringify(row.entry, null, 2))
+  if (row.shot_bytes) console.log(`\n📷 ${Math.round(row.shot_bytes / 1024)} kB — feedback.mjs shot ${short(id)}`)
 }
 
 // The screenshot, written where an image viewer can open it. Stored as a data
