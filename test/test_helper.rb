@@ -309,7 +309,9 @@ class CapybaraTestBase < Minitest::Test
   # budget inside an assertion that can only be satisfied once the render is
   # over anyway, then reports "no matches", which reads like a broken score.
   def wait_for_score_render(expected_notes = nil)
+    started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
     assert_selector '#score[data-render-complete]'
+    RenderProbe.log(Process.clock_gettime(Process::CLOCK_MONOTONIC) - started)
     assert_selector 'svg g.vf-stavenote', count: expected_notes if expected_notes
   end
 
@@ -381,3 +383,36 @@ class CapybaraTestBase < Minitest::Test
     [status, midi_note, velocity]
   end
 end
+
+# EXPERIMENT ONLY — never for merge. Reports how long each wait for
+# `#score[data-render-complete]` actually took on this runner, so the first one
+# in a fresh process (the cold start the warm-up used to absorb) can be read
+# against Capybara.default_max_wait_time and against the later, warm ones.
+module RenderProbe
+  @count = 0
+
+  def self.log(seconds)
+    @count += 1
+    warn format('PROBE render n=%d wait=%.2f budget=%d', @count, seconds,
+                Capybara.default_max_wait_time)
+  end
+end
+
+# `visit` is a separate clock (Ferrum's `timeout:`) and on score.html it is what
+# pulls the 1.8 MB of vendored JS, so time it too.
+module VisitProbe
+  @count = 0
+
+  def self.log(path, seconds)
+    @count += 1
+    warn format('PROBE visit n=%d took=%.2f path=%s', @count, seconds, path)
+  end
+
+  def visit(path = nil)
+    started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+    super
+  ensure
+    VisitProbe.log(path, Process.clock_gettime(Process::CLOCK_MONOTONIC) - started)
+  end
+end
+Capybara::Session.prepend(VisitProbe)
