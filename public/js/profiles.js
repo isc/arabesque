@@ -59,7 +59,9 @@ function readState() {
   } catch {
     /* no localStorage, or a value nothing here wrote */
   }
-  const listed = Array.isArray(stored?.profiles) ? stored.profiles : []
+  // Profiles stored before they carried a stamp get the oldest one there is:
+  // whatever any other device says about them is newer.
+  const listed = (Array.isArray(stored?.profiles) ? stored.profiles : []).map((p) => ({ updatedAt: 0, ...p }))
   const profiles = listed.some((p) => p.id === MAIN_PROFILE_ID) ? listed : [mainProfile(), ...listed]
   const current = profiles.some((p) => p.id === stored?.current) ? stored.current : MAIN_PROFILE_ID
   const removed = Array.isArray(stored?.removed) ? stored.removed : []
