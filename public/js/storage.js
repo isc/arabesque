@@ -135,20 +135,12 @@ export function initStorage() {
   // starts up. Dropped if the open fails, so a later call may try again.
   let dbReady = null
 
-<<<<<<< HEAD
   function ensureDb() {
-    dbReady ??= openDatabase().catch((error) => {
+    dbReady ??= openDatabase(scopedKey(DB_BASE_NAME)).catch((error) => {
       dbReady = null
       throw error
     })
     return dbReady
-=======
-  async function ensureDb() {
-    if (!db) {
-      db = await openDatabase(scopedKey(DB_BASE_NAME))
-    }
-    return db
->>>>>>> 13cce23 (Keep a practice history per person on a shared device)
   }
 
   async function dbGet(storeName, key) {
