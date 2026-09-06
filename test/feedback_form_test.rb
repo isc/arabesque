@@ -25,8 +25,10 @@ class FeedbackFormTest < CapybaraTestBase
   JS
 
   # Signed in for sync, as far as a page can tell without loading
-  # @supabase/supabase-js: the session the client persists. Written after load,
-  # so it reaches the form and not the sync triggers, which already ran.
+  # @supabase/supabase-js: the session the client persists, minus the fields
+  # only a real refresh needs. Nothing loads that client here — test_helper.rb
+  # blocks the CDN it comes from, and says why this session would not survive
+  # it.
   SIGN_IN = <<~JS.freeze
     localStorage.setItem(#{AUTH_KEY.inspect}, JSON.stringify({
       access_token: 'x', user: { email: 'player@example.com' },
