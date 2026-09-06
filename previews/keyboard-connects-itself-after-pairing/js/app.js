@@ -8,7 +8,7 @@ import { formatDuration, formatDate, applyStickyOffset, scorePageUrl, onIdle, on
 import { initStorage } from './storage.js'
 import { loadMxlAsXml } from './mxlLoader.js'
 import { injectFingerings } from './fingeringInjector.js'
-import { initPlayback, getBPM, echoNoteOn, echoNoteOff, echoPedal, warmUp } from './playback.js'
+import { initPlayback, getBPM } from './playback.js'
 import { initStrictPlaythrough } from './strictPlaythrough.js'
 import { createTempoPlan, createTempoTrainer, GRADUATED, BPM_STEP, STREAK } from './tempoTrainer.js'
 import { headerMenu } from './headerMenu.js'
@@ -252,13 +252,12 @@ export function midiApp() {
       const trackerReady = dbReady.then(() => practiceTracker.init())
       midiReady = midi.connectMIDI({ silent: true, autoSelectFirst: true })
         .then(() => this.syncMidiState())
-      warmUp()
       onIdle(() => this.loadCassettesList())
 
       const NAVIGATE_BACK_KEY = 108 // C8 - highest piano key (less jarring sound)
 
       midi.setCallbacks({
-        onNotePlayed: (noteName, midiNote, velocity) => {
+        onNotePlayed: (noteName, midiNote) => {
           if (midiNote === NAVIGATE_BACK_KEY) {
             // Go back rather than to the library so its filters (stored in
             // the URL) that led here are preserved. Fall back to the library
@@ -272,7 +271,6 @@ export function midiApp() {
             }
             return
           }
-          echoNoteOn(midiNote, velocity)
           if (strictPlaythrough.isPlaying) {
             strictPlaythrough.handleNoteOn(midiNote)
             return
@@ -280,11 +278,9 @@ export function midiApp() {
           musicxml.activateNote(midiNote)
         },
         onNoteReleased: (noteName, midiNote) => {
-          echoNoteOff(midiNote)
           if (strictPlaythrough.isPlaying) return
           musicxml.deactivateNote(midiNote)
         },
-        onPedal: echoPedal,
         // Without this the notes came through while the header still offered
         // to connect, and only pressing that button again refreshed it.
         onConnectionChange: () => this.syncMidiState(),
@@ -809,10 +805,14 @@ export function midiApp() {
       if (this.strictSelected) {
         this.strictSelected = false
         this.resetStrictRange()
-        // The last run's verdict stays on the score for the player to read,
-        // not for the next mode to play over.
-        strictPlaythrough.clearMarks()
       }
+      // A mode switch starts on a clean score: whatever is lit on it — a
+      // strict run's verdict, the notes a free or training run played —
+      // belongs to the run that lit it, and that run is over. The two halves
+      // are cleared by their own module; both no-op when there is nothing to
+      // clear.
+      strictPlaythrough.clearMarks()
+      musicxml.resetProgress()
       const training = name === 'training'
       if (this.trainingMode !== training) {
         this.trainingMode = training
@@ -1125,38 +1125,24 @@ export function midiApp() {
 
     // Every redraw replaces the SVG, taking with it everything painted on it:
     // note colours, fingering handlers, the training cursor, the strict marker.
-    // `savedStates` is only needed when the redraw rebuilt the note model.
-    repaintScore(savedStates = null) {
+    // What the redraw cannot take is the session behind those marks — renderScore
+    // keeps it across a rebuild of the note model — so this only paints it back.
+    repaintScore() {
       const { currentMeasureIndex } = musicxml.getTrainingState()
       fingeringEditor.alignFingeringLabelsToNoteheads()
       this.setupFingeringHandlers()
-      fingeringEditor.restoreNoteStates(savedStates, currentMeasureIndex)
+      fingeringEditor.paintNoteStates(currentMeasureIndex)
       musicxml.updateMeasureCursor()
       // The click rectangles are rebuilt by the redraw, so the marker went with them.
       if (this.strictSelected) musicxml.markStrictRange(this.strictStartMeasure, this.strictEndMeasure)
     },
 
-    // renderScore() rebuilds the note model, which clears the played/active flags
-    // and the playback position — hence the snapshot around it.
+    // A full redraw: the note model is rebuilt from OSMD's sheet, which is how a
+    // fingering just injected into it reaches the page.
     rerenderScore() {
       const scrollY = window.scrollY
-      const { currentMeasureIndex } = musicxml.getTrainingState()
-      const playedSourceMeasures = musicxml.getPlayedSourceMeasures()
-
-      // Capture played/active state per playback position (not per fingeringKey):
-      // a repeated measure appears twice in the sequence and both occurrences share
-      // a fingeringKey, so a key-based snapshot would bleed the first pass's "played"
-      // state onto the repeat and make the matcher skip it. The re-extracted sequence
-      // has the same structure, so positional [measureIndex][noteIndex] restores cleanly.
-      const noteStates = musicxml.getAllNotes().map(({ notes }) =>
-        notes.map(({ played, active }) => ({ played, active })))
-
       musicxml.renderScore()
-
-      // Before repaintScore, which reads the cursor position back out.
-      musicxml.setCurrentMeasureIndex(currentMeasureIndex)
-      musicxml.setPlayedSourceMeasures(playedSourceMeasures)
-      this.repaintScore(noteStates)
+      this.repaintScore()
       window.scrollTo(0, scrollY)
     },
 
@@ -1177,9 +1163,8 @@ export function midiApp() {
       this.lastRelayoutWidth = width
 
       const scrollY = window.scrollY
-      // relayoutScore, not renderScore: re-extracting the note model would reset the
-      // training and reinforcement state, and clear the very flags we'd then have to
-      // snapshot to put back.
+      // relayoutScore, not renderScore: the sheet has not changed, only the width
+      // it is drawn to, so there is nothing to re-extract.
       musicxml.relayoutScore()
       this.repaintScore()
       window.scrollTo(0, scrollY)

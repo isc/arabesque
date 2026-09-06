@@ -1,40 +1,45 @@
 // In-app changelog ("Nouveautés"), shown in a modal from the library page.
 //
 // Antechronological order (most recent first), grouped by publication date.
-// The bar is high: an entry must be worth the reader's time. Put **real
-// user-facing changes** here — a new feature, a notable behaviour change, a
-// fix to something the player would have noticed. Do NOT list per-score
-// notation fixes, refactors, CI, lint, or purely technical changes. When in
-// doubt, leave it out. Keep each item short and concrete.
+// Each entry's `items` is bilingual: `{ fr: [...], en: [...] }`, same count in
+// the same order; `headerMenu.js` (`changelogItems`) picks the array for the
+// active language.
 //
-// Each entry's `items` is bilingual: `{ fr: [...], en: [...] }`. Both languages
-// are required for new entries — write the French items, then a natural,
-// idiomatic English translation of each, in the same order and same count.
-// `headerMenu.js` (`changelogItems`) picks the array for the active language.
-//
-// See CLAUDE.md ("Changelog in-app") for the update rule.
+// DO NOT ADD AN ENTRY HERE BY HAND. A new entry is one file in `changelog.d/`
+// at the root of the repo: a file per change is a file that merges cleanly,
+// where a line added to the top of this array conflicts with every other pull
+// request opened the same day. `scripts/changelog.mjs` has the format, and
+// CLAUDE.md ("Changelog in-app") the rule and the bar an entry must clear.
 
-export const CHANGELOG = [
+// Written at deploy time from `changelog.d/` — see scripts/changelog.mjs.
+// Left empty in the repo: entries already published live in HISTORY below, and
+// a snapshot of the pending ones committed here would be exactly the conflict
+// the fragments exist to avoid.
+const PENDING = [{"date":"2026-09-06","items":{"fr":["Le clavier se connecte tout seul une fois appairé. Sur iPad, l'appairage Bluetooth se fait dans la fenêtre du système, hors de l'app : au retour, les notes passaient déjà, mais l'en-tête proposait toujours « Connecter clavier MIDI » et il fallait le redemander pour que l'app en convienne. Elle écoute maintenant l'arrivée du clavier — l'en-tête affiche son nom et la fenêtre d'aide se ferme d'elle-même. Un clavier débranché en cours de séance est signalé aussitôt, de la même façon."],"en":["The keyboard connects on its own once paired. On an iPad the Bluetooth pairing happens in the system sheet, outside the app: on the way back the notes were already coming through, but the header still offered \"Connect MIDI keyboard\" and you had to ask again before the app agreed. It now listens for the keyboard arriving — the header shows its name and the help sheet closes itself. A keyboard unplugged mid-session is reported just as promptly."]}}]
+
+// Everything already folded out of `changelog.d/`, newest first. Written by
+// `node scripts/changelog.mjs fold`, not by hand.
+const HISTORY = [
   {
     date: '2026-09-05',
     items: {
       fr: [
-        "Le clavier se connecte tout seul une fois appairé. Sur iPad, l'appairage Bluetooth se fait dans la fenêtre du système : au retour, l'app proposait toujours « Connecter clavier MIDI » et il fallait le redemander. Elle voit maintenant le clavier arriver — l'en-tête affiche son nom, et la fenêtre d'aide se ferme d'elle-même. Un clavier débranché en cours de séance est signalé aussitôt, de la même façon.",
-        "Le son peut sortir de l'app plutôt que du piano. Le métronome n'a pas d'instrument d'où sortir : il joue par l'appareil qui affiche la partition, donc au casque branché sur le piano on entendait tout sauf le clic. Une bascule dans le menu ⚙️ déplace l'autre moitié du côté de l'appareil — les notes jouées sont reprises par l'échantillonneur de l'app, et ▶ Écouter cesse d'être envoyé au piano. Le morceau, le jeu et le clic arrivent dans le même casque, en phase. À n'activer qu'avec le Local Control du piano coupé, sinon chaque note s'entend deux fois.",
+        "Noter un doigté ne fait plus tomber le mode entraînement. Le violet de la mesure en cours et les points de répétition disparaissaient dès qu'on validait un doigté sur une note qui n'en avait pas : la partition était redessinée et le mode s'en allait avec elle, répétitions déjà acquises comprises. Entraînement comme renforcement, le travail en cours traverse maintenant l'annotation.",
         "Le mode strict travaille un passage en boucle. Le bouton 🔁 Boucle, à côté du tempo, rejoue en boucle le passage délimité par deux clics sur la partition — ou la partition entière — avec un temps de pause entre deux passages. Le tempo évolue au fil des passages, de deux façons au choix : progressif, +5 BPM après trois passages propres d'affilée (et −5 après trois ratés, jamais sous le tempo de départ) ; ou tempos alternés, 70, 85, 100 et 110 % du tempo dans le désordre — moins confortable sur le moment, mais mieux retenu, et le tempo cible est abordé dès les premiers passages. ⏸ arrête la boucle et résume les passages joués, leur tempo et la meilleure série.",
         "Un passage strict compte comme joué en entier, notes manquées ou pas. Il fallait jusqu'ici n'en manquer aucune pour que le passage soit consigné comme joué en entier — sur un morceau de quatre cents notes au métronome, autant dire jamais, et le journal ne montrait rien de spécifique. Un passage joué du début à la fin est maintenant consigné avec son verdict, « 1× en entier (94 % à 55 BPM) · mode strict », qui est justement ce qu'on veut lire. Le statut du morceau, lui, continue de dépendre des mesures jouées proprement.",
         "La modale de fin de passage strict n'écrit plus le score en rouge. 94 % en rouge vif se lisait comme un échec. Le pourcentage est neutre sous 70 %, bleu jusqu'à 90 %, vert au-delà.",
         "Les passages en mode strict ont leur place dans l'historique. Un morceau joué en entier au métronome était consigné comme un passage libre : sa durée — celle du métronome, pas celle du joueur — entrait dans le classement des temps et dans la courbe d'évolution, sans que rien ne dise le tempo ni la précision. Le journal les distingue maintenant (« 2× en entier (92 % à 100 BPM et 100 % à 100 BPM) · mode strict »), l'historique de la partition leur donne leur propre courbe, celle de la précision, et le classement des temps de jeu libre ne compare plus que des passages libres.",
         "Le décompte du mode strict se voit. Une mesure complète s'écoule entre l'appui sur ▶ et la première note, et rien ne bougeait à l'écran pendant ce temps-là : qui n'entendait pas les clics croyait que rien n'avait démarré. Le bandeau affiche maintenant les temps de la mesure de départ — 1 2 3 4, ou 1 2 3 selon la métrique — celui en cours en évidence. Il prend la place que l'indication libère, à hauteur identique, donc la partition ne bouge pas et on continue de lire la mesure qu'on s'apprête à jouer.",
+        "Les doigtés s'annotent au doigt. Sur tablette, ouvrir la saisie d'un doigté demandait de toucher une tête de note large de trois millimètres : au doigt, la plupart des touchers tombaient à côté — et à côté, c'était la mesure qui prenait le toucher, donc le curseur sautait là au lieu d'ouvrir le pavé. Un toucher va maintenant à la tête de note la plus proche, à une douzaine de pixels près, et dans un accord serré c'est bien celle dont le doigt est le plus près qui l'emporte. À la souris, rien ne change : la visée reste au pixel près.",
       ],
       en: [
-        "The keyboard connects on its own once paired. On iPad, Bluetooth pairing happens in the system sheet: coming back, the app still offered \"Connect MIDI keyboard\" and you had to ask a second time. It now sees the keyboard arrive — the header shows its name, and the help window closes by itself. A keyboard unplugged mid-session is reported straight away, the same way.",
-        "The sound can come out of the app instead of the piano. The metronome has no instrument to come out of: it plays through the device showing the score, so with headphones plugged into the piano you heard everything except the click. A switch in the ⚙️ menu moves the other half to the device — the notes you play are echoed by the app's sampler, and ▶ Écouter stops being sent to the piano. The piece, your playing and the click then arrive in the same headphones, in phase. Only turn it on with the piano's Local Control switched off, or every note is heard twice.",
+        "Writing a fingering no longer takes training mode down with it. The purple of the bar under way and the repeat dots vanished the moment you validated a fingering on a note that had none: the score was redrawn and the mode went with it, repetitions already banked included. Training and reinforcement alike, the work under way now survives the annotation.",
         "Strict mode can loop a passage. The 🔁 Loop button next to the tempo replays the passage between two clicked bars — or the whole score — with a pause between runs. The tempo moves from run to run, one of two ways: graduated, +5 BPM after three clean runs in a row (and −5 after three failed ones, never below the starting tempo); or mixed tempi, 70, 85, 100 and 110% of the tempo in random order — less comfortable in the moment, better retained, and the target tempo is met from the first runs. ⏸ ends the loop and sums up the runs, their tempo and the best streak.",
         "A strict run counts as played in full, missed notes or not. Until now not a single note could be missed for the run to be filed as played in full — on a four-hundred-note piece to the metronome, that is never, and the journal showed nothing specific. A run played from the top to the end is now filed with its verdict, \"1× in full (94% at 55 BPM) · strict mode\", which is exactly what you want to read. The score's status still depends on the bars played cleanly.",
         "The end-of-run modal no longer writes the strict score in red. 94% in bright red read as a fail. The percentage is neutral below 70%, blue up to 90%, green beyond.",
         "Strict-mode runs have their place in the history. A piece played in full to the metronome was filed as a free run: its time — the metronome's, not the player's — entered the play-time ranking and the trend chart, with nothing to say what tempo it was played at or how accurately. The journal now tells them apart (\"2× in full (92% at 100 BPM and 100% at 100 BPM) · strict mode\"), a score's history gives them a chart of their own, the accuracy one, and the free play-time ranking only compares free runs.",
         "The strict-mode count-in can be seen. A whole bar goes by between pressing ▶ and the first note, and nothing moved on screen during it: anyone who could not hear the clicks thought nothing had started. The band now shows the beats of the count-in bar — 1 2 3 4, or 1 2 3 depending on the metre — with the one sounding picked out. It takes the slot the hint gives up, at the same height, so the score does not move and you keep reading the bar you are about to play.",
+        'Fingerings can be annotated with a finger. On a tablet, opening the fingering pad meant hitting a notehead three millimetres across: with a fingertip most taps landed beside it — and beside it was the bar, which took the tap, so the cursor jumped there instead of the pad opening. A tap now goes to the nearest notehead, within a dozen pixels, and inside a tight chord the one the finger is closest to wins. With a mouse nothing changes: aiming stays pixel-exact.',
       ],
     },
   },
@@ -553,3 +558,20 @@ export const CHANGELOG = [
     },
   },
 ]
+
+// One group per date, newest first, pending items ahead of published ones on a
+// date they share. Grouping here rather than in the generator lets `fold`
+// prepend a group without a same-date special case, and keeps the modal to one
+// heading per day either way.
+export function mergeChangelog(pending, history) {
+  const byDate = new Map()
+  for (const entry of [...pending, ...history]) {
+    const group = byDate.get(entry.date) ?? { date: entry.date, items: { fr: [], en: [] } }
+    group.items.fr.push(...entry.items.fr)
+    group.items.en.push(...entry.items.en)
+    byDate.set(entry.date, group)
+  }
+  return [...byDate.values()].sort((a, b) => b.date.localeCompare(a.date))
+}
+
+export const CHANGELOG = mergeChangelog(PENDING, HISTORY)
