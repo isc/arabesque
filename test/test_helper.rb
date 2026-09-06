@@ -381,32 +381,3 @@ class CapybaraTestBase < Minitest::Test
     [status, midi_note, velocity]
   end
 end
-
-# Pay the browser's cold start before the first assertion instead of inside it.
-#
-# Only ever the FIRST score test of a shard failed — "F................." twice
-# on CI, seventeen passes behind one failure — because that one test alone pays
-# a fresh Chrome, an empty HTTP cache for score.html's 1.8 MB of vendored JS, a
-# cold V8 compile of OSMD's 1.3 MB, and the first layout, all inside its own
-# wait budget. Every later test in the process inherits that work, which is why
-# raising the ceiling only moved the failure from one message to the next.
-#
-# Rendering one small fixture here spends that cost where no assertion is
-# watching: a slow warm-up makes the run longer, never red. Failures are
-# swallowed for the same reason — a warm-up that cannot run leaves the suite
-# exactly where it was, rather than taking every test file down with it.
-#
-# Runs once per process, which is once per worker (rake test:parallel) and once
-# per runner (rake test:shard); both spawn real processes, so each pays its own
-# cold start and each gets its own warm-up.
-def warm_up_browser
-  session = Capybara.current_session
-  session.visit('/score.html?url=/test-fixtures/two-measures.xml')
-  session.assert_selector('#score[data-render-complete]', wait: 120)
-rescue StandardError
-  nil
-ensure
-  Capybara.reset_sessions!
-end
-
-warm_up_browser
