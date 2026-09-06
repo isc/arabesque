@@ -1035,6 +1035,51 @@ button.pt-topbar__pill:disabled { opacity: 0.4; cursor: default; }
 }
 .pt-data-identity strong { overflow-wrap: anywhere; }
 
+/* Profiles (profiles.js): the tiles that switch, in the modal the ⚙️ menu
+   opens; the rows that edit, on the data page. The chip in the library header
+   is a plain .pt-topbar__pill. */
+.pt-profile-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: var(--pt-space-3);
+}
+/* Big enough for a child's finger, and for the avatar to be the thing you
+   recognise before you can read the name. */
+.pt-profile-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--pt-space-2);
+  margin: 0;
+  padding: var(--pt-space-4) var(--pt-space-2);
+  width: auto;
+  height: auto;
+  background: var(--pt-surface);
+  color: var(--pt-text);
+  border: 2px solid var(--pt-border);
+  border-radius: var(--pt-radius-lg);
+}
+.pt-profile-tile:hover { background: var(--pt-surface-2); border-color: var(--pt-border-strong); color: var(--pt-text); }
+.pt-profile-tile[aria-pressed="true"] { border-color: var(--pt-accent); background: var(--pt-accent-soft); }
+.pt-profile-tile__avatar { font-size: 2.5rem; line-height: 1; }
+.pt-profile-tile__name { font-weight: 600; overflow-wrap: anywhere; }
+/* A footer inside the scrolling body is out of reach of the
+   dialog > article > footer rule above, so its actions are laid out here. */
+.pt-modal-body > footer { display: flex; justify-content: flex-end; margin-top: var(--pt-space-4); }
+.pt-modal-body > footer [role="button"] { margin: 0; width: auto; }
+
+/* A row of the profile list is a .pt-account-form with a box around it. */
+.pt-profile-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--pt-space-2); }
+.pt-profile-row {
+  padding: var(--pt-space-2) var(--pt-space-3);
+  border: 1px solid var(--pt-border);
+  border-radius: var(--pt-radius-md);
+}
+.pt-profile-row.is-current { background: var(--pt-surface-2); }
+.pt-profile-row__current { color: var(--pt-text-muted); font-size: 0.85rem; white-space: nowrap; }
+/* The avatar picker: one emoji wide, wherever it sits. */
+.pt-account-form select { margin: 0; width: auto; flex: 0 0 auto; padding-right: 2rem; font-size: 1.25rem; }
+
 .pt-sync-ok { color: var(--pt-status-repertoire); font-weight: 500; }
 .pt-hint { color: var(--pt-text-muted); font-size: 0.9rem; }
 

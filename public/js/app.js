@@ -13,6 +13,7 @@ import { initStrictPlaythrough } from './strictPlaythrough.js'
 import { createTempoPlan, createTempoTrainer, GRADUATED, BPM_STEP, STREAK } from './tempoTrainer.js'
 import { headerMenu } from './headerMenu.js'
 import { initAutoSync, triggerSync } from './autoSync.js'
+import { scopedKey } from './profiles.js'
 import { traced, mark } from './perfTrace.js' // TEMP diagnostic
 import { t, locale } from './i18n.js'
 
@@ -21,6 +22,10 @@ import { t, locale } from './i18n.js'
 const PLAYTHROUGH_LIST_FORMATTER = new Intl.ListFormat(locale(), { style: 'long', type: 'conjunction' })
 const CHART_DATE_FULL = new Intl.DateTimeFormat(locale())
 const CHART_DATE_AXIS = new Intl.DateTimeFormat(locale(), { day: 'numeric', month: 'short' })
+
+// The strict tempo last chosen for a score, remembered per profile: one
+// player's 60 BPM is not another's.
+const strictBpmKey = (scoreUrl) => scopedKey(`arabesque:strictBpm:${scoreUrl}`)
 
 // The headline figure of a strict run: notes in tempo, as a percentage.
 function strictAccuracy({ hit, total }) {
@@ -1019,6 +1024,7 @@ export function midiApp() {
       if (this.menuOpen) return this.closeMenu()
       if (this.showChangelogModal) return (this.showChangelogModal = false)
       if (this.showFeedbackModal) return this.closeFeedback()
+      if (this.showProfilesModal) return (this.showProfilesModal = false)
       if (this.showResultModal) return this.closeResultModal()
       if (this.showHistoryModal) return (this.showHistoryModal = false)
       if (this.showMidiHelpModal) return (this.showMidiHelpModal = false)
