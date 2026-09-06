@@ -240,6 +240,12 @@ export function expandOrnamentTimings(notes) {
 // IDs so the caller can register them with its own teardown list. The cursor
 // starts visible at the first position; subsequent ticks advance it.
 export function scheduleCursorAdvances(cursor, cursorTimes, { centerOnCursor = false, skipSteps = 0 } = {}) {
+  // Hidden for the walk to the starting stop: OSMD's next() lays the cursor out
+  // and writes it to the DOM at every step while it is visible, so skipping to
+  // bar 131 of a Ballade cost 209ms of that instead of 39ms — and it is paid
+  // again on each ⏸, ▶, seek and tempo change. The loop is synchronous, so
+  // nothing is painted in between and the cursor never blinks.
+  cursor.hide()
   cursor.reset()
   for (let i = 0; i < skipSteps; i++) cursor.next()
   cursor.show()
@@ -375,7 +381,7 @@ function bpmFor(osmdInstance) {
 function showCursorAtMeasure(measureIndex) {
   const cursor = activeOsmd?.cursor
   if (!cursor) return
-  const skipSteps = cursorStepsBeforeMeasure(activeAllNotes, measureIndex, activeOsmd.Sheet.SourceMeasures, bpmFor(activeOsmd))
+  const skipSteps = cursorStepsBeforeMeasure(activeAllNotes, measureIndex)
   scheduleCursorAdvances(cursor, [], { skipSteps })
 }
 
@@ -385,7 +391,7 @@ function startPlayback(allNotes, osmdInstance, startMeasureIndex = 0) {
   const bpm = bpmFor(osmdInstance)
   const sourceMeasures = osmdInstance.Sheet.SourceMeasures
 
-  const cursorSkipSteps = cursorStepsBeforeMeasure(allNotes, startMeasureIndex, sourceMeasures, bpm)
+  const cursorSkipSteps = cursorStepsBeforeMeasure(allNotes, startMeasureIndex)
   const playNotes = allNotes.slice(startMeasureIndex)
   const measureStartTimes = buildMeasureStartTimes(playNotes, sourceMeasures)
   // Where this schedule's bar lines fall, for currentMeasure() to read the

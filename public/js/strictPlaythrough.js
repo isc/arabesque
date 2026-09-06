@@ -151,7 +151,7 @@ function start({
   runWholeScore = startMeasureIndex === 0 && lastMeasureIndex === allNotes.length - 1
   runBpm = bpm
   const sourceMeasures = osmdInstance.Sheet.SourceMeasures
-  const cursorSkipSteps = cursorStepsBeforeMeasure(allNotes, startMeasureIndex, sourceMeasures, bpm)
+  const cursorSkipSteps = cursorStepsBeforeMeasure(allNotes, startMeasureIndex)
   allNotes = allNotes.slice(startMeasureIndex, lastMeasureIndex + 1)
   const measureStartTimes = buildMeasureStartTimes(allNotes, sourceMeasures)
   const beatMs = 60_000 / bpm
