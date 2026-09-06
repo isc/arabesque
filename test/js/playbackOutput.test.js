@@ -85,7 +85,7 @@ describe('playback output', () => {
   it('builds one sampler however many times it is asked for while it loads', async () => {
     const pb = await load(null)
 
-    await Promise.all([pb.togglePlayback(...score()), pb.togglePlayback(...score())])
+    await Promise.all([pb.play(...score()), pb.play(...score())])
 
     expect(sampler.built).toBe(1)
   })
