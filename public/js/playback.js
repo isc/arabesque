@@ -1,6 +1,12 @@
 import { isTestEnv } from './utils.js'
-import { tsToSeconds, buildMeasureStartTimes, buildCursorTimeline, cursorStepsBeforeMeasure } from './playbackTiming.js'
+import { tsToSeconds, buildMeasureStartTimes, buildCursorTimeline, cursorStepsBeforeMeasure, measureIndexAt } from './playbackTiming.js'
 import { scrollSystemIntoView } from './utils.js'
+
+// The three states the transport can be in. Paused is not stopped: the piece is
+// still on the stand at the bar it was held at.
+const STOPPED = 'stopped'
+const PLAYING = 'playing'
+const PAUSED = 'paused'
 
 let piano = null
 // The sampler's load while it is still in flight (see ensurePianoLoaded).
@@ -8,10 +14,24 @@ let pianoLoading = null
 let midiState = null
 let scheduledTimeouts = []
 let activeNotes = new Set()
-let isPlaying = false
-let onPlaybackEnd = null
+// One field rather than a playing flag beside a paused one: "playing and paused
+// at once" is then not something a mutation can leave behind.
+let transport = STOPPED
+let onTransportChange = null
 let activeOsmd = null
 let activeAllNotes = null
+// Where the running schedule started and where each of its measures falls from
+// that instant — enough for ⏸, ▶ and a tempo change to say which bar is
+// sounding, without a timer per bar to keep a counter up to date.
+let scheduleStartedAt = 0
+let scheduleFirstMeasure = 0
+let scheduleMeasureOffsetsMs = []
+// The bar the piece is held at, and where ▶ picks it up. Only meaningful while
+// paused; stop() puts it back to the top.
+let heldAtMeasure = 0
+// The tempo to play at, in BPM. Null until the page sets one, so a score
+// listened to before anything is chosen goes at the tempo it is written at.
+let playbackBpm = null
 
 const GRACE_NOTE_DURATION_S = 0.08
 
@@ -35,11 +55,14 @@ const GRACE_NOTE_OFFSET_WN = 0.0001
 export function initPlayback(externalMidiState = null) {
   midiState = externalMidiState
   return {
-    togglePlayback,
+    play,
+    pause,
     seekToMeasure,
+    setTempo,
     stop,
-    setOnPlaybackEnd: (fn) => { onPlaybackEnd = fn },
-    get isPlaying() { return isPlaying },
+    setOnTransportChange: (fn) => { onTransportChange = fn },
+    get transport() { return transport },
+    get currentMeasureIndex() { return currentMeasure() },
   }
 }
 
@@ -94,7 +117,7 @@ function ensurePianoLoaded() {
   // between the click on ▶ Écouter and the button becoming ⏹ Stop — so a test
   // asserting that transition was really asserting that a CDN answered within
   // Capybara's 10s, which it does until the machine is busy. Everything the
-  // tests do check — scheduling, the cursor, isPlaying — runs without it, and
+  // tests do check — scheduling, the cursor, the transport — runs without it, and
   // sendMidi() already no-ops when there is neither an output nor a piano.
   if (isTestEnv()) return
   // The load is remembered, not just its result: `piano` is only assigned once
@@ -217,6 +240,12 @@ export function expandOrnamentTimings(notes) {
 // IDs so the caller can register them with its own teardown list. The cursor
 // starts visible at the first position; subsequent ticks advance it.
 export function scheduleCursorAdvances(cursor, cursorTimes, { centerOnCursor = false, skipSteps = 0 } = {}) {
+  // Hidden for the walk to the starting stop: OSMD's next() lays the cursor out
+  // and writes it to the DOM at every step while it is visible, so skipping to
+  // bar 131 of a Ballade cost 209ms of that instead of 39ms — and it is paid
+  // again on each ⏸, ▶, seek and tempo change. The loop is synchronous, so
+  // nothing is painted in between and the cursor never blinks.
+  cursor.hide()
   cursor.reset()
   for (let i = 0; i < skipSteps; i++) cursor.next()
   cursor.show()
@@ -275,37 +304,107 @@ function clearSchedule() {
   }
 }
 
+// Which bar is sounding, worked out from the clock rather than tracked: the
+// schedule already knows where every bar line falls, so the answer is a walk
+// over those offsets instead of a timer per bar kept alive to update a counter.
+// Held or stopped, the answer is the bar ▶ would start from.
+function currentMeasure() {
+  if (transport !== PLAYING) return heldAtMeasure
+  const elapsed = performance.now() - scheduleStartedAt
+  return scheduleFirstMeasure + Math.max(0, measureIndexAt(scheduleMeasureOffsetsMs, elapsed))
+}
+
+// The transport and the bar it is held at are what the page mirrors, and they
+// only ever move through here — so the page is told once, from the one place,
+// instead of every caller remembering to ask.
+function setTransport(next, measure = heldAtMeasure) {
+  transport = next
+  heldAtMeasure = measure
+  onTransportChange?.()
+}
+
 function stop() {
   clearSchedule()
-  isPlaying = false
+  setTransport(STOPPED, 0)
   hideCursor()
 }
 
-async function togglePlayback(allNotes, osmdInstance) {
-  if (isPlaying) { stop(); return }
-  await ensurePianoLoaded()
-  startPlayback(allNotes, osmdInstance, 0)
+// Holds the piece where it is: everything pending is cancelled, but the measure
+// it had reached and the cursor stay, so play() resumes from that bar. Resuming
+// from the bar line rather than from the exact instant is deliberate — it is
+// where a pianist picks a piece back up, and it is the one point the schedule
+// can be rebuilt from without re-deriving every note's remaining duration.
+function pause() {
+  if (transport !== PLAYING) return
+  const heldAt = currentMeasure()
+  clearSchedule()
+  setTransport(PAUSED, heldAt)
+  showCursorAtMeasure(heldAt)
 }
 
-// Jump live playback to a clicked measure: cancel the pending schedule and
-// reschedule from there. No-op when nothing is playing (a measure click then
-// falls through to its non-playback handler). The piano is already loaded, so
-// this runs synchronously from the click handler.
+// Starts the piece, or picks it up where ⏸ left it. Stopping is stop()'s job:
+// this is only ever the ▶ side, so a second ▶ while it plays changes nothing.
+async function play(allNotes, osmdInstance) {
+  if (transport === PLAYING) return
+  await ensurePianoLoaded()
+  startPlayback(allNotes, osmdInstance, heldAtMeasure)
+}
+
+// Where the piece is played from: live, a clicked measure is jumped to at once
+// (cancel the pending schedule, reschedule from there); paused, it becomes the
+// bar ▶ will resume at, and the cursor moves there to say so. No-op when
+// nothing is going on, so a measure click then falls through to its
+// non-playback handler. The piano is already loaded, so this runs synchronously
+// from the click handler.
 function seekToMeasure(measureIndex) {
-  if (!isPlaying || !activeAllNotes || !activeOsmd) return
+  if (!activeAllNotes || !activeOsmd) return
+  if (transport === PAUSED) {
+    setTransport(PAUSED, measureIndex)
+    showCursorAtMeasure(measureIndex)
+    return
+  }
+  if (transport !== PLAYING) return
   clearSchedule()
   startPlayback(activeAllNotes, activeOsmd, measureIndex)
+}
+
+// The tempo the piece is heard at, kept across pieces so it is chosen once.
+// Changing it mid-piece takes effect from the bar being played, so the player
+// hears the new tempo without being sent back to the top.
+function setTempo(bpm) {
+  if (!Number.isFinite(bpm) || bpm <= 0 || bpm === playbackBpm) return
+  const resumeAt = currentMeasure()
+  playbackBpm = bpm
+  if (transport === PLAYING) seekToMeasure(resumeAt)
+}
+
+function bpmFor(osmdInstance) {
+  return playbackBpm ?? getBPM(osmdInstance)
+}
+
+// Puts the cursor on a measure's first stop without scheduling anything —
+// scheduleCursorAdvances with an empty timeline is exactly that.
+function showCursorAtMeasure(measureIndex) {
+  const cursor = activeOsmd?.cursor
+  if (!cursor) return
+  const skipSteps = cursorStepsBeforeMeasure(activeAllNotes, measureIndex)
+  scheduleCursorAdvances(cursor, [], { skipSteps })
 }
 
 function startPlayback(allNotes, osmdInstance, startMeasureIndex = 0) {
   activeOsmd = osmdInstance
   activeAllNotes = allNotes
-  const bpm = getBPM(osmdInstance)
+  const bpm = bpmFor(osmdInstance)
   const sourceMeasures = osmdInstance.Sheet.SourceMeasures
 
-  const cursorSkipSteps = cursorStepsBeforeMeasure(allNotes, startMeasureIndex, sourceMeasures, bpm)
+  const cursorSkipSteps = cursorStepsBeforeMeasure(allNotes, startMeasureIndex)
   const playNotes = allNotes.slice(startMeasureIndex)
   const measureStartTimes = buildMeasureStartTimes(playNotes, sourceMeasures)
+  // Where this schedule's bar lines fall, for currentMeasure() to read the
+  // sounding bar off the clock.
+  scheduleStartedAt = performance.now()
+  scheduleFirstMeasure = startMeasureIndex
+  scheduleMeasureOffsetsMs = measureStartTimes.map((ts) => tsToSeconds(ts, bpm) * 1000)
   let maxEndMs = 0
 
   for (let i = 0; i < playNotes.length; i++) {
@@ -345,10 +444,6 @@ function startPlayback(allNotes, osmdInstance, startMeasureIndex = 0) {
     scheduledTimeouts.push(...scheduleCursorAdvances(osmdInstance.cursor, cursorSteps, { skipSteps: cursorSkipSteps }))
   }
 
-  isPlaying = true
-  scheduledTimeouts.push(setTimeout(() => {
-    isPlaying = false
-    hideCursor()
-    onPlaybackEnd?.()
-  }, maxEndMs + 500))
+  setTransport(PLAYING)
+  scheduledTimeouts.push(setTimeout(stop, maxEndMs + 500))
 }

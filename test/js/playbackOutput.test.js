@@ -44,7 +44,7 @@ async function load(midiState) {
 
 async function playOneNote(midiState) {
   const pb = await load(midiState)
-  await pb.togglePlayback(...score())
+  await pb.play(...score())
   vi.advanceTimersByTime(1)
 }
 
@@ -85,7 +85,7 @@ describe('playback output', () => {
   it('builds one sampler however many times it is asked for while it loads', async () => {
     const pb = await load(null)
 
-    await Promise.all([pb.togglePlayback(...score()), pb.togglePlayback(...score())])
+    await Promise.all([pb.play(...score()), pb.play(...score())])
 
     expect(sampler.built).toBe(1)
   })
