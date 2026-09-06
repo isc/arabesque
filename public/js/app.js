@@ -23,9 +23,6 @@ const PLAYTHROUGH_LIST_FORMATTER = new Intl.ListFormat(locale(), { style: 'long'
 const CHART_DATE_FULL = new Intl.DateTimeFormat(locale())
 const CHART_DATE_AXIS = new Intl.DateTimeFormat(locale(), { day: 'numeric', month: 'short' })
 
-// The strict tempo last chosen for a score, remembered per profile: one
-// player's 60 BPM is not another's.
-const strictBpmKey = (scoreUrl) => scopedKey(`arabesque:strictBpm:${scoreUrl}`)
 
 // The headline figure of a strict run: notes in tempo, as a percentage.
 function strictAccuracy({ hit, total }) {
@@ -126,10 +123,13 @@ export function midiApp() {
   //
   // Wrapped, like every other localStorage call here: a browser in private mode
   // throws on setItem, and a forgotten tempo is not worth losing the page over.
+  // Per profile: one player's 60 BPM is not another's (profiles.js).
+  const bpmKey = (name, scoreUrl) => scopedKey(`arabesque:${name}:${scoreUrl}`)
+
   function rememberBpm(name, scoreUrl, bpm) {
     if (!scoreUrl || !Number.isFinite(bpm) || bpm <= 0) return
     try {
-      localStorage.setItem(`arabesque:${name}:${scoreUrl}`, String(bpm))
+      localStorage.setItem(bpmKey(name, scoreUrl), String(bpm))
     } catch { /* storage unavailable */ }
   }
 
@@ -137,7 +137,7 @@ export function midiApp() {
     if (!scoreUrl) return fallback
     let stored = NaN
     try {
-      stored = Number(localStorage.getItem(`arabesque:${name}:${scoreUrl}`))
+      stored = Number(localStorage.getItem(bpmKey(name, scoreUrl)))
     } catch { /* storage unavailable */ }
     return Number.isFinite(stored) && stored > 0 ? stored : fallback
   }
