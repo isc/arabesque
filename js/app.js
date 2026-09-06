@@ -1014,7 +1014,7 @@ export function midiApp() {
     handleEscape() {
       if (this.menuOpen) return this.closeMenu()
       if (this.showChangelogModal) return (this.showChangelogModal = false)
-      if (this.showFeedbackModal) return (this.showFeedbackModal = false)
+      if (this.showFeedbackModal) return this.closeFeedback()
       if (this.showResultModal) return this.closeResultModal()
       if (this.showHistoryModal) return (this.showHistoryModal = false)
       if (this.showMidiHelpModal) return (this.showMidiHelpModal = false)

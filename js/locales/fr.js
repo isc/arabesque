@@ -108,6 +108,8 @@ export default {
     emailLabel: 'E-mail (facultatif)',
     emailPlaceholder: 'vous@exemple.com',
     emailHint: 'Seulement si vous souhaitez une réponse.',
+    screenshotLabel: 'Joindre l’image de l’écran',
+    screenshotAlt: 'Aperçu de l’image jointe',
     privacy: 'Votre message est envoyé avec un contexte technique (version de l’app, navigateur, taille d’écran, et selon la page le morceau ouvert ou vos totaux de pratique) pour m’aider à reproduire les problèmes. Rien d’autre, et aucun lien avec un compte.',
     send: 'Envoyer',
     thanks: 'Merci, c’est bien reçu ! 🙏',
@@ -375,7 +377,7 @@ export default {
       "Vous pouvez supprimer votre compte depuis la page Données. Le compte et toutes les données synchronisées sont alors effacés des serveurs, sans délai et sans avoir à le demander à qui que ce soit.",
     feedbackTitle: 'Les avis que vous envoyez',
     feedbackBody:
-      "Le formulaire d'avis transmet votre message, la catégorie choisie, et un contexte technique destiné à reproduire les problèmes : version de l'app, navigateur, taille d'écran, langue, et selon la page, le titre du morceau ouvert ou vos totaux de pratique. L'adresse e-mail est facultative et ne sert qu'à vous répondre. Un avis n'est jamais rattaché à un compte.",
+      "Le formulaire d'avis transmet votre message, la catégorie choisie, et un contexte technique destiné à reproduire les problèmes : version de l'app, navigateur, taille d'écran, langue, et selon la page, le titre du morceau ouvert ou vos totaux de pratique. Il joint aussi une image de l'écran tel que vous le voyiez, la fenêtre d'avis en moins : elle est montrée dans le formulaire avant l'envoi, et une case permet de la retirer. L'adresse e-mail est facultative et ne sert qu'à vous répondre. Un avis n'est jamais rattaché à un compte.",
     neverTitle: "Ce qu'Arabesque ne fait pas",
     neverBody:
       "Pas de publicité, pas de mesure d'audience, pas de traceur tiers, pas de cookie publicitaire, pas de profilage. Vos données ne sont ni vendues, ni louées, ni partagées à des fins commerciales. Le microphone et la caméra ne sont jamais utilisés ; le clavier MIDI ne sert qu'à savoir quelles notes vous jouez, et ce flux ne quitte pas votre appareil.",

@@ -89,13 +89,33 @@ export function headerMenu() {
     feedback: { message: '', email: '', category: '' },
     feedbackStatus: 'idle', // 'idle' | 'sending' | 'sent' | 'error'
     feedbackError: '',
+    // A picture of the screen the modal is covering, or null when the capture
+    // could not be made. Attached by default and shown in the form, so it is
+    // never a surprise — the checkbox opts out.
+    feedbackShot: null,
+    feedbackShotWanted: true,
 
-    openFeedback() {
+    async openFeedback() {
       this.feedback = { message: '', email: defaultFeedbackEmail(), category: '' }
       this.feedbackStatus = 'idle'
       this.feedbackError = ''
+      this.feedbackShot = null
+      this.feedbackShotWanted = true
       this.menuOpen = false
       this.showFeedbackModal = true
+      // Loaded and run only here: every page carries this menu, and next to
+      // none of them ever opens the form. Nothing waits on the result — null,
+      // from a capture that failed or a browser that could not make one, simply
+      // means the form offers no picture and the report goes as words alone.
+      const { captureViewport } = await import('./screenshot.js')
+      this.feedbackShot = await captureViewport()
+    },
+
+    // The picture goes when the dialog does: it is a few hundred kB of data URL
+    // on a component that outlives the form, and the next report makes its own.
+    closeFeedback() {
+      this.showFeedbackModal = false
+      this.feedbackShot = null
     },
 
     async sendFeedback() {
@@ -108,6 +128,7 @@ export function headerMenu() {
           message,
           email: this.feedback.email,
           category: this.feedback.category,
+          screenshot: this.feedbackShotWanted ? this.feedbackShot : null,
           context: { ...buildBaseContext(), ...(this.feedbackContext?.() ?? {}) },
         })
         this.feedbackStatus = 'sent'
@@ -182,14 +203,14 @@ const MODALS_HTML = `
   <article>
     <header>
       <p><strong x-text="$t('feedback.title')">💬 Votre avis</strong></p>
-      <button :aria-label="$t('common.close')" rel="prev" @click="showFeedbackModal = false"></button>
+      <button :aria-label="$t('common.close')" rel="prev" @click="closeFeedback()"></button>
     </header>
     <div class="pt-modal-body">
     <template x-if="feedbackStatus === 'sent'">
       <div>
         <p x-text="$t('feedback.thanks')">Merci, c'est bien reçu !</p>
         <footer>
-          <button type="button" @click="showFeedbackModal = false" x-text="$t('common.close')">Fermer</button>
+          <button type="button" @click="closeFeedback()" x-text="$t('common.close')">Fermer</button>
         </footer>
       </div>
     </template>
@@ -215,6 +236,15 @@ const MODALS_HTML = `
           <input type="email" x-model="feedback.email" maxlength="320" :disabled="feedbackStatus === 'sending'" :placeholder="$t('feedback.emailPlaceholder')" />
           <small x-text="$t('feedback.emailHint')"></small>
         </label>
+        <template x-if="feedbackShot">
+          <div class="pt-feedback-shot">
+            <label>
+              <input type="checkbox" x-model="feedbackShotWanted" :disabled="feedbackStatus === 'sending'" />
+              <span x-text="$t('feedback.screenshotLabel')">Joindre l'image de la partition affichée</span>
+            </label>
+            <img class="pt-feedback-shot__preview" x-show="feedbackShotWanted" :src="feedbackShot" :alt="$t('feedback.screenshotAlt')" />
+          </div>
+        </template>
         <small class="pt-feedback-privacy" x-text="$t('feedback.privacy')"></small>
         <p x-show="feedbackStatus === 'error'" role="alert" class="pt-feedback-error">
           <span x-text="$t('feedback.error')">L'envoi a échoué.</span>
