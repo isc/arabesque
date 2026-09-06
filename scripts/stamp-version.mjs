@@ -16,8 +16,9 @@
 //
 // 'dev' puts a checkout back the way it was. Fails loudly when a file is
 // missing its marker, so a new page cannot ship unstamped and silently opt out.
-import { readFileSync, writeFileSync, readdirSync } from 'node:fs'
+import { readFileSync, readdirSync } from 'node:fs'
 import { join, sep } from 'node:path'
+import { replaceOnce } from './replace-once.mjs'
 
 const PUBLIC_DIR = join(import.meta.dirname, '..', 'public')
 
@@ -58,16 +59,6 @@ export function shellAssets() {
     .filter((path) => path !== 'sw.js')
     .sort()
   return [...ENTRY_URLS, ...files]
-}
-
-function replaceOnce(file, pattern, replacement) {
-  const before = readFileSync(file, 'utf8')
-  const count = (before.match(new RegExp(pattern.source, pattern.flags + 'g')) ?? []).length
-  if (count !== 1) {
-    console.error(`${file}: expected exactly one ${pattern}, found ${count}`)
-    process.exit(1)
-  }
-  writeFileSync(file, before.replace(pattern, replacement))
 }
 
 function stamp(version) {

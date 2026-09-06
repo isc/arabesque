@@ -77,19 +77,46 @@ combined MuseScore export.
 
 ## Changelog in-app
 
-`public/js/changelog.js` feeds the "Nouveautés" modal on the library page. The
-bar is high: an entry must be worth the reader's time. Add **real user-facing
-changes** here — a new feature, a notable behaviour change, a fix the player
-would have noticed. Do NOT add per-score notation fixes, refactors, CI, lint, or
-purely technical changes. When in doubt, leave it out.
+The "Nouveautés" modal on the library page and the `CHANGELOG` file are two
+views of the same entries. The bar is high: an entry must be worth the reader's
+time. Add **real user-facing changes** — a new feature, a notable behaviour
+change, a fix the player would have noticed. Do NOT add per-score notation
+fixes, refactors, CI, lint, or purely technical changes. When in doubt, leave it
+out.
 
-Entries are **bilingual**: each entry's `items` is `{ fr: [...], en: [...] }`
-with the same count in the same order. New entries must include both languages
-(the modal shows the active UI language via `changelogItems()` in library.js).
+**IMPORTANT:** Never edit `public/js/changelog.js` or `CHANGELOG` by hand. One
+entry is **one new file** in `changelog.d/`, named `YYYY-MM-DD-a-short-slug.md`
+for the day it is meant to ship, holding the item in both languages:
 
-**IMPORTANT:** After shipping a significant feature, add a French entry at the
-top of `CHANGELOG` (antechronological order), grouping items under the
-publication date (`YYYY-MM-DD`). Keep each item short and concrete.
+```markdown
+# fr
+Une phrase de titre. Puis ce qu'il y avait avant, ce qui change, et ce que le
+joueur y gagne.
+
+# en
+A title sentence. Then what it was like before, what changes, and what the
+player gets out of it.
+```
+
+A file per change is a file git merges; a line at the top of those two files is
+a conflict with every other PR open that day. Both sections are required — one
+item per file is what keeps "same count, same order" true by construction — and
+`test/js/changelog.test.js` fails on a fragment that is malformed or missing its
+English half. Write the French once: `CHANGELOG` is rendered from it, opening
+sentence bolded.
+
+`scripts/changelog.mjs` does the rest. The Pages deploy and the branch previews
+run `build`, which assembles the pending fragments into the file the app imports
+on the checked-out copy, never committed back — entries reach production the
+moment the PR merges, and a PR's own preview shows its entry in the modal (a
+plain checkout does not: `PENDING` is empty there). `fold` is housekeeping, run
+when `changelog.d/` gets long: it moves the fragments into `CHANGELOG` and
+`changelog.js` and deletes them.
+
+The date in the file name is the day the entry is published, which is normally
+the day it is written. If the branch then sits for days, `git mv` the fragment
+to the ship date — an entry landing under a date already shown gets no "new"
+dot in the menu.
 
 ## User feedback
 

@@ -38,6 +38,12 @@ jobs:
           slug=$(echo "$raw" | tr -c 'a-zA-Z0-9-' '-' | tr -s '-' | sed 's/^-\|-$//g')
           echo "slug=$slug" >> "$GITHUB_OUTPUT"
 
+      # Like the deploy of main: the entries in changelog.d/ become the
+      # changelog the app imports, so a pull request adding one can be checked
+      # in the modal on its own preview.
+      - name: Assemble the changelog
+        run: node scripts/changelog.mjs build
+
       # Stamped with the PR's head SHA, like a deploy of main is with its
       # own: the preview is a build of its own, and the version check in
       # public/js/version.js tells it apart from the production one.
