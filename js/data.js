@@ -5,9 +5,8 @@
 // on this device (profiles.js), the export/import that used to live in the ⚙️
 // menu, and signing in by email — with the link or the code it carries, see
 // supabaseClient.js. Signing in is what turns cloud sync on; this page is
-// where that becomes true for the device — for its main profile, the only one
-// that syncs.
-import { initStorage, dropProfileStorage } from './storage.js'
+// where that becomes true for the device, every profile on it included.
+import { initStorage } from './storage.js'
 import { initPracticeTracker } from './practiceTracker.js'
 import { lastSyncAt } from './sync.js'
 import { initAutoSync, requestSync } from './autoSync.js'
@@ -52,19 +51,12 @@ export function dataApp() {
     // --- Profiles ---
     profiles: listProfiles(),
     currentProfileId: currentProfileId(),
-    mainProfileId: MAIN_PROFILE_ID,
     avatars: AVATARS,
     profileName,
     newProfile: { name: '', avatar: freeAvatar() },
     // The profile whose deletion is being confirmed, or null.
     deletingProfileId: null,
-    deletingProfile: false,
 
-    // Whether the current profile is the one the account holds (profiles.js,
-    // syncsToCloud): the account card is only theirs.
-    get profileSyncs() {
-      return this.currentProfileId === this.mainProfileId
-    },
     get currentProfile() {
       return this.profileById(this.currentProfileId)
     },
@@ -94,19 +86,17 @@ export function dataApp() {
     // one: its database is open on this page, and IndexedDB will not drop a
     // database with a connection on it.
     canDeleteProfile(id) {
-      return id !== this.mainProfileId && id !== this.currentProfileId
+      return id !== MAIN_PROFILE_ID && id !== this.currentProfileId
     },
-    async deleteProfile(id) {
-      if (this.deletingProfile || !this.canDeleteProfile(id)) return
-      this.deletingProfile = true
-      try {
-        removeProfile(id)
-        await dropProfileStorage(id)
-      } finally {
-        this.deletingProfileId = null
-        this.deletingProfile = false
-        this.profiles = listProfiles()
-      }
+    // The profile goes from the list at once; its database is dropped by the
+    // next page that opens one (storage.js), and its rows on the server by
+    // the next sync, which carries the tombstone to the other devices too.
+    deleteProfile(id) {
+      if (!this.canDeleteProfile(id)) return
+      removeProfile(id)
+      this.deletingProfileId = null
+      this.profiles = listProfiles()
+      requestSync().catch(() => {})
     },
 
     cloudConfigured: false,
@@ -138,9 +128,6 @@ export function dataApp() {
 
     async init() {
       await storage.init()
-      // Another profile's data is not the account's: no client, no sync, and
-      // the account card says where the account lives instead.
-      if (!this.profileSyncs) return
       try {
         const mod = await import('./supabaseClient.js')
         supabase = mod.supabase
@@ -168,7 +155,10 @@ export function dataApp() {
         // reports the outcome instead of syncing silently. The callback keeps
         // "Last synced" honest for the syncs that do fire on their own.
         initAutoSync({ storage, practiceTracker }, {
-          onSynced: () => { this.lastSync = lastSyncAt() },
+          onSynced: (summary) => {
+            this.lastSync = lastSyncAt()
+            if (summary.profilesChanged) this.profiles = listProfiles()
+          },
         })
         // Opening this page is a natural moment to sync. syncNow() is a no-op
         // when signed out.

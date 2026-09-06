@@ -34,12 +34,10 @@ export default {
     add: 'Add a profile',
     delete: 'Delete',
     deleteWarning:
-      'Everything {name} played on this device will be erased: journal, statuses, fingerings. This profile is not synced, there is no copy elsewhere.',
+      'Everything {name} played will be erased: journal, statuses, fingerings, on this device and on every other device signed in to the account.',
     deleteConfirm: 'Yes, delete {name}',
     syncNote:
-      'Only the first profile syncs with the account below. The others stay on this device: the file backup is their only copy.',
-    accountElsewhere:
-      'Syncing across devices follows the first profile, {main}. {current}’s data stays on this device.',
+      'Each profile syncs with the account below, separately: a profile made here shows up on the other devices signed in to the same account, journal included.',
   },
   // Which hands a run through the score was played with.
   hands: {

@@ -5,6 +5,7 @@ import { formatDuration, formatDate, formatRelativeDate, statusLabel, scorePageU
 import { journalEntryHelpers } from './journalEntries.js'
 import { PERIODS, periodLabel, getPeriodForComposer } from './musicalPeriods.js'
 import { headerMenu } from './headerMenu.js'
+import { listProfiles } from './profiles.js'
 import { initAutoSync } from './autoSync.js'
 import { onDayChange } from './dayRollover.js'
 import { t, locale } from './i18n.js'
@@ -152,6 +153,7 @@ export function libraryApp() {
         syncOnOpen: true,
         onSynced: (summary) => {
           if (summary.pulled) this.refreshPracticeViews()
+          if (summary.profilesChanged) this.profiles = listProfiles()
         },
       })
     },

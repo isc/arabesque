@@ -14,10 +14,13 @@
 // second profile sees no change at all — not even a write to localStorage:
 // the list is only stored once someone adds to it.
 //
-// It is also the only profile that syncs (syncsToCloud). The account is signed
-// in on the device, and a child's sessions must not be pushed under the
-// parent's account, nor the parent's history pulled into the child's journal.
-// Until the server knows about profiles, the others are local to the device.
+// Every profile syncs under the account signed in on the device, each on its
+// own: sessions and fingerings carry the profile's id on the server, and so
+// does the list of profiles itself (sync.js), so that a profile made on the
+// iPad shows up on the phone. A removed profile leaves a tombstone behind
+// (`removed`), which is what tells the other devices to drop it rather than
+// push it back. Every entry carries the stamp of its last change, live or
+// removed: the newest wins, and a tombstone wins a tie.
 //
 // Which profile is current is read at page load and never changes within a
 // page: switching writes the new id and navigates, so that every module that
@@ -28,7 +31,7 @@ import { t } from './i18n.js'
 const PROFILES_KEY = 'arabesque:profiles'
 export const MAIN_PROFILE_ID = 'main'
 // What a scoped storage name carries after its base (scopedKey).
-const SCOPE_SEPARATOR = '@'
+export const SCOPE_SEPARATOR = '@'
 
 // The avatars on offer. Emoji rather than pictures so a profile is one short
 // string wherever it goes. The first is the main profile's.
@@ -38,7 +41,7 @@ export const AVATARS = ['🎹', '🐻', '🦊', '🐱', '🐼', '🦁', '🐸', 
 // filled in by profileName in the current language, and stored only once it
 // is edited or a second profile is added.
 function mainProfile() {
-  return { id: MAIN_PROFILE_ID, name: '', avatar: AVATARS[0] }
+  return { id: MAIN_PROFILE_ID, name: '', avatar: AVATARS[0], updatedAt: 0 }
 }
 
 // The stored state, normalised: the main profile always first, the current
@@ -59,7 +62,8 @@ function readState() {
   const listed = Array.isArray(stored?.profiles) ? stored.profiles : []
   const profiles = listed.some((p) => p.id === MAIN_PROFILE_ID) ? listed : [mainProfile(), ...listed]
   const current = profiles.some((p) => p.id === stored?.current) ? stored.current : MAIN_PROFILE_ID
-  cached = { current, profiles }
+  const removed = Array.isArray(stored?.removed) ? stored.removed : []
+  cached = { current, profiles, removed }
   return cached
 }
 
@@ -98,21 +102,21 @@ export function freeAvatar() {
   return AVATARS.find((a) => !taken.has(a)) ?? AVATARS[0]
 }
 
-// Whether the current profile's data goes to the account signed in on this
-// device. See the header: only the main profile does, for now.
-export function syncsToCloud() {
-  return currentProfileId() === MAIN_PROFILE_ID
-}
-
 // A storage name (IndexedDB database, localStorage key) made the profile's
 // own. The main profile's names are the bare ones it always had.
 export function scopedKey(base, profileId = currentProfileId()) {
   return profileId === MAIN_PROFILE_ID ? base : `${base}${SCOPE_SEPARATOR}${profileId}`
 }
 
+// An id unlike any other device's: the same second on two iPads must not
+// make one profile out of two.
+function newId() {
+  return `p-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`
+}
+
 export function addProfile({ name, avatar = AVATARS[0] }) {
   const state = readState()
-  const profile = { id: `p-${Date.now().toString(36)}`, name: name.trim(), avatar }
+  const profile = { id: newId(), name: name.trim(), avatar, updatedAt: Date.now() }
   writeState({ ...state, profiles: [...state.profiles, profile] })
   return profile
 }
@@ -120,19 +124,24 @@ export function addProfile({ name, avatar = AVATARS[0] }) {
 export function updateProfile(id, patch) {
   const state = readState()
   if (typeof patch.name === 'string') patch = { ...patch, name: patch.name.trim() }
-  writeState({ ...state, profiles: state.profiles.map((p) => (p.id === id ? { ...p, ...patch } : p)) })
+  writeState({
+    ...state,
+    profiles: state.profiles.map((p) => (p.id === id ? { ...p, ...patch, updatedAt: Date.now() } : p)),
+  })
 }
 
-// Forgets the profile and the localStorage keys scoped to it. Its database is
-// storage.js's to drop (dropProfileStorage): this module knows the naming
-// rule, not the store. The main profile cannot go — it is where the account's
-// data lives, and the one every fallback lands on.
+// Forgets the profile and the localStorage keys scoped to it, and leaves a
+// tombstone for sync to carry to the other devices. Its database is dropped
+// by storage.js the next time one opens (pruneProfileStorage): this module
+// knows the naming rule, not the store. The main profile cannot go — it is
+// the one every fallback lands on.
 export function removeProfile(id) {
   if (id === MAIN_PROFILE_ID) throw new Error('The main profile cannot be removed')
   const state = readState()
   writeState({
     current: state.current === id ? MAIN_PROFILE_ID : state.current,
     profiles: state.profiles.filter((p) => p.id !== id),
+    removed: [...state.removed.filter((r) => r.id !== id), { id, updatedAt: Date.now() }],
   })
   try {
     const suffix = `${SCOPE_SEPARATOR}${id}`
@@ -150,4 +159,42 @@ export function switchProfile(id) {
   const state = readState()
   if (!state.profiles.some((p) => p.id === id)) return
   writeState({ ...state, current: id })
+}
+
+// --- What sync exchanges (sync.js) ---
+
+// A tombstone older than this has been seen by every device that will ever
+// sync again; keeping it would only make the list longer.
+const TOMBSTONE_TTL_MS = 90 * 24 * 60 * 60 * 1000
+
+const toRow = (e) => ({ id: e.id, name: e.deleted ? '' : e.name, avatar: e.deleted ? '' : e.avatar, updated_at: e.updatedAt, deleted: e.deleted })
+
+// Merges the server's rows with this device's, both ways. Per id the newest
+// entry wins, a tombstone winning a tie, so a profile this device never saw
+// is added, a newer name or avatar replaces the old, and a removal from
+// elsewhere removes here too. Returns the rows the server lacks or has older
+// (`toPush`) and whether anything changed here (`changed`).
+export function mergeProfiles(remoteRows) {
+  const state = readState()
+  const remote = new Map(remoteRows.map((r) => [r.id, { id: r.id, name: r.name, avatar: r.avatar, updatedAt: Number(r.updated_at), deleted: !!r.deleted }]))
+  const newer = (a, b) => !b || a.updatedAt > b.updatedAt || (a.updatedAt === b.updatedAt && a.deleted && !b.deleted)
+  const merged = new Map()
+  const offer = (entry) => {
+    if (newer(entry, merged.get(entry.id))) merged.set(entry.id, entry)
+  }
+  for (const p of state.profiles) offer({ ...p, deleted: false })
+  for (const r of state.removed) offer({ id: r.id, updatedAt: r.updatedAt, deleted: true })
+  for (const e of remote.values()) offer(e)
+
+  const entries = [...merged.values()]
+  const horizon = Date.now() - TOMBSTONE_TTL_MS
+  const next = {
+    current: state.current,
+    profiles: entries.filter((e) => !e.deleted).map(({ deleted, ...p }) => p),
+    removed: entries.filter((e) => e.deleted && e.updatedAt > horizon).map(({ id, updatedAt }) => ({ id, updatedAt })),
+  }
+  if (!next.profiles.some((p) => p.id === next.current)) next.current = MAIN_PROFILE_ID
+  const changed = JSON.stringify(next) !== JSON.stringify(state)
+  if (changed) writeState(next)
+  return { changed, toPush: entries.filter((e) => newer(e, remote.get(e.id))).map(toRow) }
 }
