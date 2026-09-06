@@ -16,6 +16,17 @@
 
 export const CHANGELOG = [
   {
+    date: '2026-09-06',
+    items: {
+      fr: [
+        "Douze chansons pour débutants. Une collection « Chansons » (Traditionnel) reprend les douze chansons qui closent la méthode de piano pour les 4-7 ans de Sophie Allerme, note pour note : mêmes tonalités, même position des mains autour du do central, mêmes doigtés. Promenons-nous dans les bois, Au clair de la lune, Fais dodo, Joyeux anniversaire, Sur le pont d'Avignon, J'ai du bon tabac, Le roi Dagobert et les autres, à retrouver dans la bibliothèque ou en jouant leurs premières notes.",
+      ],
+      en: [
+        "Twelve songs for beginners. A \"Chansons\" collection (Traditional) carries the twelve songs that close Sophie Allerme's piano method for 4-7 year olds, note for note: same keys, same hand position around middle C, same fingerings. Promenons-nous dans les bois, Au clair de la lune, Fais dodo, Happy Birthday, Sur le pont d'Avignon, J'ai du bon tabac, Le roi Dagobert and the others, in the library or by playing their first notes.",
+      ],
+    },
+  },
+  {
     date: '2026-09-05',
     items: {
       fr: [
