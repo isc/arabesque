@@ -1,6 +1,5 @@
 import { isTestEnv } from './utils.js'
-import { appSoundEnabled } from './appSound.js'
-import { tsToSeconds, buildMeasureStartTimes, buildCursorTimeline, cursorStepsBeforeMeasure } from './playbackTiming.js'
+import { tsToSeconds, buildMeasureStartTimes, buildCursorTimeline, cursorStepsBeforeMeasure, measureIndexAt } from './playbackTiming.js'
 import { scrollSystemIntoView } from './utils.js'
 
 // The three states the transport can be in. Paused is not stopped: the piece is
@@ -10,8 +9,7 @@ const PLAYING = 'playing'
 const PAUSED = 'paused'
 
 let piano = null
-// The sampler's load while it is still in flight, so every caller waits on the
-// one download (see ensurePianoLoaded).
+// The sampler's load while it is still in flight (see ensurePianoLoaded).
 let pianoLoading = null
 let midiState = null
 let scheduledTimeouts = []
@@ -19,7 +17,7 @@ let activeNotes = new Set()
 // One field rather than a playing flag beside a paused one: "playing and paused
 // at once" is then not something a mutation can leave behind.
 let transport = STOPPED
-let onPlaybackEnd = null
+let onTransportChange = null
 let activeOsmd = null
 let activeAllNotes = null
 // Where the running schedule started and where each of its measures falls from
@@ -62,16 +60,26 @@ export function initPlayback(externalMidiState = null) {
     seekToMeasure,
     setTempo,
     stop,
-    setOnPlaybackEnd: (fn) => { onPlaybackEnd = fn },
+    setOnTransportChange: (fn) => { onTransportChange = fn },
     get transport() { return transport },
     get currentMeasureIndex() { return currentMeasure() },
   }
 }
 
-// Where the score's own sound goes: the instrument by default, the app's
-// sampler when the player asked for it or when there is nothing to send to.
+// Where the score's own sound goes: the player's instrument when one is
+// connected, the app's sampler when there is nothing to send to.
+//
+// The app was briefly asked to make *all* of the sound instead (#308) — the
+// keys and pedal under the player's fingers echoed through this same sampler,
+// and playback taken off MIDI — so that the piece, the playing and the
+// metronome would all reach headphones plugged into the piano. Withdrawn: the
+// sampler is a one-velocity instrument and sounded like it under live playing,
+// and notes intermittently stuck, which is silence under the hands and worse
+// than the instrument it replaced. It looks like a small step from here, since
+// this sampler already answers ▶ Écouter whenever no instrument is connected.
+// It is not: sounding a scheduled score is not sounding a player.
 function playbackGoesToInstrument() {
-  return !!midiState?.midiOutput && !appSoundEnabled()
+  return !!midiState?.midiOutput
 }
 
 function sendMidi(midiBytes, pianoFn) {
@@ -104,7 +112,6 @@ function pedalUp() {
 }
 
 function ensurePianoLoaded() {
-  if (piano) return pianoLoading
   if (playbackGoesToInstrument()) return
   // Under test, play silently. The samples are a ~6s CDN download, and it sits
   // between the click on ▶ Écouter and the button becoming ⏹ Stop — so a test
@@ -114,10 +121,9 @@ function ensurePianoLoaded() {
   // sendMidi() already no-ops when there is neither an output nor a piano.
   if (isTestEnv()) return
   // The load is remembered, not just its result: `piano` is only assigned once
-  // the samples are in, so a second call while they are coming would build a
-  // whole second sampler — and echoNoteOn calls this on every note the player
-  // presses, which during the download is one sampler and one full sample set
-  // per key.
+  // the samples are in, so a second call while they are coming — ▶ Écouter
+  // pressed twice during the download — would build a whole second sampler and
+  // pull a whole second sample set.
   //
   // Imported here, not at the top of the module: @tonejs/piano pulls in Tone
   // (~400KB with its dependencies) and the score page's whole module graph hangs
@@ -132,45 +138,6 @@ function ensurePianoLoaded() {
     piano = loaded
   })()
   return pianoLoading
-}
-
-// Pulls the samples in before the first note when the app is making the sound,
-// so the player does not lose the start of their playing to a download.
-//
-// Gated on the setting alone, never on whether an instrument is connected: a
-// page calls this while connectMIDI is still in flight, so midiOutput is null
-// at that moment whatever is plugged in — testing it would load the samples for
-// everyone and undo the lazy import below.
-export function warmUp() {
-  if (!appSoundEnabled()) return
-  // Nobody awaits this: a CDN that never answers leaves the player without the
-  // app's sound, which the console should say and the page should survive.
-  ensurePianoLoaded()?.catch((e) => console.error('Sampler failed to load:', e))
-}
-
-// The keys and pedal the player works, sounded by the app rather than by the
-// instrument. See appSound.js for what that costs the player in exchange.
-//
-// Awaiting the load on the first note would swallow it and the several after
-// it, so a note that arrives while the samples are still coming is dropped
-// rather than queued — a late note is worse than a missing one under the hands.
-export function echoNoteOn(midiNumber, velocityByte) {
-  if (!appSoundEnabled()) return
-  ensurePianoLoaded()
-  piano?.keyDown({ midi: midiNumber, velocity: velocityByte / 127 })
-}
-
-// Releases are not gated on the setting: turning it off with keys down would
-// otherwise leave them ringing with nothing left to lift them, and releasing a
-// key the sampler never pressed costs nothing.
-export function echoNoteOff(midiNumber) {
-  piano?.keyUp({ midi: midiNumber })
-}
-
-export function echoPedal(down) {
-  if (!appSoundEnabled() && down) return
-  if (down) piano?.pedalDown()
-  else piano?.pedalUp()
 }
 
 export function getBPM(osmdInstance) {
@@ -273,6 +240,12 @@ export function expandOrnamentTimings(notes) {
 // IDs so the caller can register them with its own teardown list. The cursor
 // starts visible at the first position; subsequent ticks advance it.
 export function scheduleCursorAdvances(cursor, cursorTimes, { centerOnCursor = false, skipSteps = 0 } = {}) {
+  // Hidden for the walk to the starting stop: OSMD's next() lays the cursor out
+  // and writes it to the DOM at every step while it is visible, so skipping to
+  // bar 131 of a Ballade cost 209ms of that instead of 39ms — and it is paid
+  // again on each ⏸, ▶, seek and tempo change. The loop is synchronous, so
+  // nothing is painted in between and the cursor never blinks.
+  cursor.hide()
   cursor.reset()
   for (let i = 0; i < skipSteps; i++) cursor.next()
   cursor.show()
@@ -338,15 +311,21 @@ function clearSchedule() {
 function currentMeasure() {
   if (transport !== PLAYING) return heldAtMeasure
   const elapsed = performance.now() - scheduleStartedAt
-  let i = 0
-  while (i + 1 < scheduleMeasureOffsetsMs.length && scheduleMeasureOffsetsMs[i + 1] <= elapsed) i++
-  return scheduleFirstMeasure + i
+  return scheduleFirstMeasure + Math.max(0, measureIndexAt(scheduleMeasureOffsetsMs, elapsed))
+}
+
+// The transport and the bar it is held at are what the page mirrors, and they
+// only ever move through here — so the page is told once, from the one place,
+// instead of every caller remembering to ask.
+function setTransport(next, measure = heldAtMeasure) {
+  transport = next
+  heldAtMeasure = measure
+  onTransportChange?.()
 }
 
 function stop() {
   clearSchedule()
-  transport = STOPPED
-  heldAtMeasure = 0
+  setTransport(STOPPED, 0)
   hideCursor()
 }
 
@@ -357,10 +336,10 @@ function stop() {
 // can be rebuilt from without re-deriving every note's remaining duration.
 function pause() {
   if (transport !== PLAYING) return
-  heldAtMeasure = currentMeasure()
+  const heldAt = currentMeasure()
   clearSchedule()
-  transport = PAUSED
-  showCursorAtMeasure(heldAtMeasure)
+  setTransport(PAUSED, heldAt)
+  showCursorAtMeasure(heldAt)
 }
 
 // Starts the piece, or picks it up where ⏸ left it. Stopping is stop()'s job:
@@ -380,7 +359,7 @@ async function play(allNotes, osmdInstance) {
 function seekToMeasure(measureIndex) {
   if (!activeAllNotes || !activeOsmd) return
   if (transport === PAUSED) {
-    heldAtMeasure = measureIndex
+    setTransport(PAUSED, measureIndex)
     showCursorAtMeasure(measureIndex)
     return
   }
@@ -408,7 +387,7 @@ function bpmFor(osmdInstance) {
 function showCursorAtMeasure(measureIndex) {
   const cursor = activeOsmd?.cursor
   if (!cursor) return
-  const skipSteps = cursorStepsBeforeMeasure(activeAllNotes, measureIndex, activeOsmd.Sheet.SourceMeasures, bpmFor(activeOsmd))
+  const skipSteps = cursorStepsBeforeMeasure(activeAllNotes, measureIndex)
   scheduleCursorAdvances(cursor, [], { skipSteps })
 }
 
@@ -418,7 +397,7 @@ function startPlayback(allNotes, osmdInstance, startMeasureIndex = 0) {
   const bpm = bpmFor(osmdInstance)
   const sourceMeasures = osmdInstance.Sheet.SourceMeasures
 
-  const cursorSkipSteps = cursorStepsBeforeMeasure(allNotes, startMeasureIndex, sourceMeasures, bpm)
+  const cursorSkipSteps = cursorStepsBeforeMeasure(allNotes, startMeasureIndex)
   const playNotes = allNotes.slice(startMeasureIndex)
   const measureStartTimes = buildMeasureStartTimes(playNotes, sourceMeasures)
   // Where this schedule's bar lines fall, for currentMeasure() to read the
@@ -426,7 +405,6 @@ function startPlayback(allNotes, osmdInstance, startMeasureIndex = 0) {
   scheduleStartedAt = performance.now()
   scheduleFirstMeasure = startMeasureIndex
   scheduleMeasureOffsetsMs = measureStartTimes.map((ts) => tsToSeconds(ts, bpm) * 1000)
-  heldAtMeasure = startMeasureIndex
   let maxEndMs = 0
 
   for (let i = 0; i < playNotes.length; i++) {
@@ -466,9 +444,6 @@ function startPlayback(allNotes, osmdInstance, startMeasureIndex = 0) {
     scheduledTimeouts.push(...scheduleCursorAdvances(osmdInstance.cursor, cursorSteps, { skipSteps: cursorSkipSteps }))
   }
 
-  transport = PLAYING
-  scheduledTimeouts.push(setTimeout(() => {
-    stop()
-    onPlaybackEnd?.()
-  }, maxEndMs + 500))
+  setTransport(PLAYING)
+  scheduledTimeouts.push(setTimeout(stop, maxEndMs + 500))
 }

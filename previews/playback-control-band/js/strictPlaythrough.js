@@ -4,6 +4,7 @@ import {
   buildMeasureStartTimes,
   buildCursorTimeline,
   cursorStepsBeforeMeasure,
+  measureIndexAt,
   measureDurationTs,
 } from './playbackTiming.js'
 import { handsKey } from './hands.js'
@@ -151,7 +152,7 @@ function start({
   runWholeScore = startMeasureIndex === 0 && lastMeasureIndex === allNotes.length - 1
   runBpm = bpm
   const sourceMeasures = osmdInstance.Sheet.SourceMeasures
-  const cursorSkipSteps = cursorStepsBeforeMeasure(allNotes, startMeasureIndex, sourceMeasures, bpm)
+  const cursorSkipSteps = cursorStepsBeforeMeasure(allNotes, startMeasureIndex)
   allNotes = allNotes.slice(startMeasureIndex, lastMeasureIndex + 1)
   const measureStartTimes = buildMeasureStartTimes(allNotes, sourceMeasures)
   const beatMs = 60_000 / bpm
@@ -308,12 +309,8 @@ function handleNoteOn(midiNumber) {
 // The measure being played through at `ms` from the start of the run, or null
 // while the count-in is still going.
 function runAt(ms) {
-  let current = null
-  for (const run of measureRuns) {
-    if (ms < run.startMs) break
-    current = run
-  }
-  return current
+  const i = measureIndexAt(measureRuns, ms, (run) => run.startMs)
+  return i < 0 ? null : measureRuns[i]
 }
 
 // The run, measure by measure, in the shape the practice tracker files an

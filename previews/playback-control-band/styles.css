@@ -633,12 +633,10 @@ button.pt-topbar__pill:disabled { opacity: 0.4; cursor: default; }
    them overflow the outer container. */
 .pt-modebar > .pt-segmented,
 .pt-modebar > .pt-hands,
-.pt-modebar > .pt-bpm-field,
 .pt-modebar > .pt-action-button { height: 34px; align-items: center; box-sizing: border-box; }
 .pt-modebar > .pt-action-button { display: inline-flex; padding-block: 0; }
 .pt-modebar .pt-segmented button { height: 28px; padding-block: 0; line-height: 28px; }
 .pt-modebar .pt-hands__option { height: 28px; padding-block: 0; line-height: 28px; }
-.pt-modebar .pt-bpm-field input[type="number"] { height: 28px; padding-block: 0; line-height: 28px; }
 /* The reinforce badge stays inline-block (no flex) so the screen-reader
    text stays a single line — Capybara matches "Renforcer N mesure" without
    newlines splitting it across flex items. Sized via line-height to match
@@ -808,7 +806,7 @@ button.pt-topbar__pill:disabled { opacity: 0.4; cursor: default; }
    close by; hovered and focused like the buttons beside it, with their
    tint rather than the base ring. The selector outweighs the base layer's
    select:not([multiple], [size]), which sets the chevron's padding. */
-.pt-context .pt-band-controls .pt-band-select {
+.pt-band-controls .pt-band-select {
   height: 28px;
   width: auto;
   margin: 0;
@@ -821,8 +819,8 @@ button.pt-topbar__pill:disabled { opacity: 0.4; cursor: default; }
   color: var(--pt-band);
   font-size: 0.85rem;
 }
-.pt-context .pt-band-controls .pt-band-select:hover,
-.pt-context .pt-band-controls .pt-band-select:focus {
+.pt-band-controls .pt-band-select:hover,
+.pt-band-controls .pt-band-select:focus {
   outline: none;
   box-shadow: none;
   background-color: color-mix(in srgb, var(--pt-band-bg) 70%, var(--pt-band) 12%);
@@ -834,7 +832,16 @@ button.pt-topbar__pill:disabled { opacity: 0.4; cursor: default; }
   padding: 0 10px;
   color: inherit;
 }
-.pt-band-controls .pt-bpm-field input[type="number"] { color: var(--pt-band); height: 28px; line-height: 28px; }
+.pt-band-controls .pt-bpm-field input[type="number"] {
+  width: 80px;
+  padding: 4px 8px;
+  border: 1px solid color-mix(in srgb, currentColor 25%, transparent);
+  border-radius: var(--pt-radius-sm);
+  background: var(--pt-bg-elevated);
+  color: var(--pt-band);
+  height: 28px;
+  line-height: 28px;
+}
 .pt-band-controls .pt-bpm-field__suffix { color: color-mix(in srgb, var(--pt-band) 75%, transparent); }
 
 /* =============================================================================
@@ -842,13 +849,15 @@ button.pt-topbar__pill:disabled { opacity: 0.4; cursor: default; }
    ========================================================================== */
 
 /* The band takes its colour from the --pt-band pair each modifier below names,
-   and falls back to the neutral chrome for a band that names none. Everything
-   in it — the band itself and the control cluster it carries — is tinted from
-   that one pair, so a new band is a line of colour rather than an edit to every
-   rule here. */
+   the neutral chrome standing in for a band that names none. Everything in it —
+   the band itself and the control cluster it carries — is tinted from that one
+   pair, so a new band is a line of colour rather than an edit to every rule
+   here. */
 .pt-context {
-  background: var(--pt-band-bg, var(--pt-bg-elevated));
-  border-bottom: 1px solid color-mix(in srgb, var(--pt-band, var(--pt-border)) 20%, transparent);
+  --pt-band: var(--pt-text-muted);
+  --pt-band-bg: var(--pt-bg-elevated);
+  background: var(--pt-band-bg);
+  border-bottom: 1px solid color-mix(in srgb, var(--pt-band) 20%, transparent);
   padding: var(--pt-space-2) var(--pt-space-4);
   display: flex;
   align-items: center;
@@ -857,13 +866,12 @@ button.pt-topbar__pill:disabled { opacity: 0.4; cursor: default; }
   flex-wrap: wrap;
   gap: var(--pt-space-3);
   font-size: 0.85rem;
-  color: var(--pt-band, var(--pt-text-muted));
+  color: var(--pt-band);
   /* The band holds its height as its contents swap from the hint to the
      count-in, so pressing ▶ does not shift the score the player is reading. */
   min-height: var(--pt-space-10);
 }
-.pt-context__row { display: flex; align-items: center; gap: var(--pt-space-3); }
-.pt-context:has(.pt-band-controls) .pt-context__row { flex: 1 1 auto; min-width: 0; min-height: 34px; }
+.pt-context__row { display: flex; align-items: center; gap: var(--pt-space-3); flex: 1 1 auto; min-width: 0; min-height: 34px; }
 /* Playback is not a mode, so it takes the app's accent rather than a mode colour. */
 .pt-context--training { --pt-band: var(--pt-mode-training); --pt-band-bg: var(--pt-mode-training-bg); }
 .pt-context--strict { --pt-band: var(--pt-mode-strict); --pt-band-bg: var(--pt-mode-strict-bg); }
@@ -871,9 +879,11 @@ button.pt-topbar__pill:disabled { opacity: 0.4; cursor: default; }
 /* On a phone the controls are wider than the screen: the loop's progression
    picker takes a line of its own under the other three. */
 @media (max-width: 600px) {
-  .pt-context .pt-band-controls { flex-wrap: wrap; height: auto; max-width: 100%; }
-  .pt-context .pt-band-controls > * { height: 34px; }
-  .pt-context .pt-band-select { flex: 1 1 100%; border-left: none; border-top: 1px solid color-mix(in srgb, var(--pt-band) 20%, transparent); }
+  .pt-band-controls { flex-wrap: wrap; height: auto; max-width: 100%; }
+  .pt-band-controls > * { height: 34px; }
+  /* Same two classes as the rule above it, so the border it puts back
+     outweighs that rule's `border: none` by coming later. */
+  .pt-band-controls .pt-band-select { flex: 1 1 100%; border-left: none; border-top: 1px solid color-mix(in srgb, var(--pt-band) 20%, transparent); }
 }
 .pt-context label { color: inherit; font-weight: 500; }
 
@@ -893,19 +903,6 @@ button.pt-topbar__pill:disabled { opacity: 0.4; cursor: default; }
 @media (prefers-reduced-motion: reduce) {
   .pt-countin__beat { transition: none; }
 }
-.pt-context input[type="number"] {
-  width: 80px;
-  padding: 4px 8px;
-  border: 1px solid color-mix(in srgb, currentColor 25%, transparent);
-  background: var(--pt-bg-elevated);
-  border-radius: var(--pt-radius-sm);
-  font-family: var(--pt-font-mono);
-  font-size: 0.85rem;
-  color: var(--pt-text);
-  margin: 0;
-  height: auto;
-}
-
 /* =============================================================================
    Popover (settings menu)
    ========================================================================== */
@@ -1890,9 +1887,13 @@ svg g.vf-notehead.wrong-note path { animation: pt-wrong-note-flash 700ms; }
 /* The repetition under way is already lost: a wrong note spoiled it. */
 .repeat-indicator.spoiled { stroke: var(--pt-note-missed); }
 
-/* Clickable noteheads for fingering annotation */
+/* Clickable noteheads for fingering annotation. The hover tint is for a real
+   pointer only: a finger has no hover, and the tap that opens the fingering pad
+   would otherwise leave the note faded until something else is touched. */
 #score svg .vf-notehead { cursor: pointer; }
-#score svg .vf-notehead:hover path { fill-opacity: 0.7; }
+@media (hover: hover) {
+  #score svg .vf-notehead:hover path { fill-opacity: 0.7; }
+}
 
 /* Measure numbers — lighter to distinguish from fingerings */
 #score svg g.measure-number text { fill: #999999; }
