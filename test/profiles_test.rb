@@ -40,9 +40,11 @@ class ProfilesTest < CapybaraTestBase
     assert_empty JSON.parse(File.read(exported))['sessions']
     File.delete(exported)
 
-    # Back on the first profile, the history is where it was.
+    # Back on the first profile, the history is where it was. The account card
+    # is the first profile's again — checked by the hint leaving rather than
+    # the sign-in form arriving, which waits on a CDN the test must not.
     click_button 'Activer'
-    assert_button 'Recevoir un lien de connexion', disabled: :all
+    assert_no_text 'La synchronisation entre appareils suit le premier profil'
     accept_alert { click_button '📤 Exporter sauvegarde' }
     exported = wait_for_download('arabesque-backup-2*.json')
     assert_equal JSON.parse(File.read(FIXTURE))['sessions'].length,
