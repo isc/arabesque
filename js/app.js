@@ -114,6 +114,29 @@ export function midiApp() {
     practiceTracker.startSession(scoreUrl, metadata.title, metadata.composer, mode, metadata.totalMeasures)
   }
 
+  // Both tempi — the one strict runs are played at and the one the piece is
+  // listened to at — are the player's choice for that score, and are kept per
+  // score so it survives a reload. An empty or half-typed field is not a
+  // choice, so it is not remembered.
+  //
+  // Wrapped, like every other localStorage call here: a browser in private mode
+  // throws on setItem, and a forgotten tempo is not worth losing the page over.
+  function rememberBpm(name, scoreUrl, bpm) {
+    if (!scoreUrl || !Number.isFinite(bpm) || bpm <= 0) return
+    try {
+      localStorage.setItem(`arabesque:${name}:${scoreUrl}`, String(bpm))
+    } catch { /* storage unavailable */ }
+  }
+
+  function savedBpm(name, scoreUrl, fallback) {
+    if (!scoreUrl) return fallback
+    let stored = NaN
+    try {
+      stored = Number(localStorage.getItem(`arabesque:${name}:${scoreUrl}`))
+    } catch { /* storage unavailable */ }
+    return Number.isFinite(stored) && stored > 0 ? stored : fallback
+  }
+
   return {
     ...headerMenu(),
     bluetoothConnected: false,
@@ -126,7 +149,18 @@ export function midiApp() {
     countInBeat: 0,
     countInBeats: 0,
     replayEnded: false,
-    isPlaying: false,
+    // The engine's transport, mirrored: 'stopped' | 'playing' | 'paused'. ⏸
+    // holds the piece without ending it, so the playback band has to outlive the
+    // playing — "listening" below covers both, and is what the band and the ⏹ in
+    // the modebar go by.
+    playbackTransport: 'stopped',
+    // Null until a score is loaded: the tempo it is heard at is the player's
+    // for that score, and afterScoreLoad resolves it. Assigning it there is
+    // also what pushes it to the engine (see the watch in init), so a default
+    // here would be a second answer to a question the score has already been
+    // asked.
+    playbackBpm: null,
+    playbackMeasure: 0,
     isStrictPlaying: false,
     // Strict mode is now decoupled from playback: selecting the tab arms
     // strict mode, the ▶/⏸ control next to it starts/stops the engine.
@@ -215,7 +249,10 @@ export function midiApp() {
     fingeringKeydownHandler: null,
 
     async init() {
-      playback.setOnPlaybackEnd(() => { this.isPlaying = false })
+      // The engine says when the transport moves — ⏸, ▶, a seek, a tempo
+      // change rebuilding the schedule, the last note — and the page mirrors it
+      // from here, once, rather than from every control that can move it.
+      playback.setOnTransportChange(() => this.syncPlaybackState())
 
       // The sticky-bar offset feeds both scrollToMeasure (JS) and
       // scroll-margin-top (CSS, via --pt-sticky-offset). Recompute on
@@ -232,12 +269,22 @@ export function midiApp() {
       // about to appear. osmdInstance is updated via afterScoreLoad()
       // directly because $watch would deep-compare via JSON.stringify and
       // OSMD has circular references (note ↔ voiceEntry).
-      this.$watch('currentMode', () => this.$nextTick(applyStickyOffset))
+      this.$watch('currentMode', () => {
+        // A mode is chosen to play in, and a piece playing itself competes with
+        // the player's hands — so the listening ends with the switch. On the
+        // transition rather than in setMode(): currentMode is derived, and
+        // startReinforcementMode() moves it by setting trainingMode itself.
+        this.stopListening()
+        this.$nextTick(applyStickyOffset)
+      })
       this.$watch('reinforcementMode', () => this.$nextTick(applyStickyOffset))
-      this.$watch('strictBpm', (v) => {
-        if (this.scoreUrl && Number.isFinite(v) && v > 0) {
-          localStorage.setItem(`arabesque:strictBpm:${this.scoreUrl}`, String(v))
-        }
+      // The playback band appears and disappears with the listening, and it is
+      // as tall as the strict one — so the sticky offset has to follow it too.
+      this.$watch('isListening', () => this.$nextTick(applyStickyOffset))
+      this.$watch('strictBpm', (v) => rememberBpm('strictBpm', this.scoreUrl, v))
+      this.$watch('playbackBpm', (v) => {
+        rememberBpm('playbackBpm', this.scoreUrl, v)
+        playback.setTempo(v)
       })
 
       // Startup errands, none of which has to finish before a score can be
@@ -332,13 +379,14 @@ export function midiApp() {
           startFreshSession(this.scoreUrl, 'free')
         },
         onMeasureClicked: (measureIndex) => {
-          // While listening, a measure click seeks playback there instead of
-          // forcing a listen-from-the-top.
-          if (this.isPlaying) {
+          // A bar clicked while listening seeks playback there instead of
+          // forcing a listen-from-the-top — live it jumps at once, paused it
+          // picks where ▶ will start.
+          if (this.barClickOwner === 'playback') {
             playback.seekToMeasure(measureIndex)
             return true
           }
-          if (!this.strictSelected) return false
+          if (this.barClickOwner !== 'strict') return false
           this.pickStrictMeasure(measureIndex)
           return true
         },
@@ -583,8 +631,11 @@ export function midiApp() {
       })
       fingeringEditor.alignFingeringLabelsToNoteheads()
       this.lastRelayoutWidth = document.getElementById('score').clientWidth
-      const savedBpm = this.scoreUrl ? Number(localStorage.getItem(`arabesque:strictBpm:${this.scoreUrl}`)) : NaN
-      this.strictBpm = Number.isFinite(savedBpm) && savedBpm > 0 ? savedBpm : Math.round(getBPM(this.osmdInstance))
+      // The tempo the piece is written at is where both fields start, until the
+      // player has said otherwise for this score.
+      const written = Math.round(getBPM(this.osmdInstance))
+      this.strictBpm = savedBpm('strictBpm', this.scoreUrl, written)
+      this.playbackBpm = savedBpm('playbackBpm', this.scoreUrl, written)
       // Modebar / context band become visible only after the score loads, so
       // recompute the sticky offset now (cf. note in init()).
       applyStickyOffset()
@@ -610,10 +661,66 @@ export function midiApp() {
       }
     },
 
+    get isPlaying() {
+      return this.playbackTransport === 'playing'
+    },
+
+    // Playing or held at a bar by ⏸ — either way the piece is on the stand and
+    // the playback band is up. Only ⏹ (or the last note) puts it away.
+    get isListening() {
+      return this.playbackTransport !== 'stopped'
+    },
+
+    // The engine owns the transport; the page only mirrors what it says,
+    // whenever it says it has moved (see the registration in init).
+    syncPlaybackState() {
+      this.playbackTransport = playback.transport
+      this.playbackMeasure = playback.currentMeasureIndex
+    },
+
+    // A click on a bar belongs to one of the two things that can want it.
+    // Listening wins: the piece being heard is steered bar by bar, and strict
+    // mode's passage can be picked once it is over. Both bands ask this, so
+    // only the one that would get the click offers it.
+    get barClickOwner() {
+      if (this.isListening) return 'playback'
+      if (this.strictSelected) return 'strict'
+      return null
+    },
+
+    // Puts the piece on the stand, from the top or from where ⏸ left it. Both
+    // ▶ Écouter and the band's own ▶ come through here.
+    startListening() {
+      return playback.play(musicxml.getAllNotes(), musicxml.getOsmdInstance())
+    },
+
+    // Puts the piece away. The one way the listening ends by hand, so ⏹, a mode
+    // change and the start of a strict run all say it the same way.
+    stopListening() {
+      if (!this.isListening) return
+      playback.stop()
+    },
+
     async togglePlayback() {
+      if (this.isListening) {
+        this.stopListening()
+        return
+      }
       if (this.isStrictPlaying) this.toggleStrictPlaythrough()
-      await playback.togglePlayback(musicxml.getAllNotes(), musicxml.getOsmdInstance())
-      this.isPlaying = playback.isPlaying
+      await this.startListening()
+    },
+
+    // ⏸ / ▶ in the playback band: holds the piece at the bar it has reached,
+    // and picks it up from that same bar.
+    async togglePlaybackPause() {
+      if (this.isPlaying) playback.pause()
+      else await this.startListening()
+    },
+
+    // What the playback band says: where the piece is held, or how to move it.
+    playbackBandText() {
+      if (this.playbackTransport === 'paused') return t('score.playbackPausedAt', { n: this.playbackMeasure + 1 })
+      return t('score.playbackHint')
     },
 
     toggleStrictPlaythrough() {
@@ -625,8 +732,7 @@ export function midiApp() {
         return
       }
 
-      if (this.isPlaying) playback.stop()
-      this.isPlaying = false
+      this.stopListening()
 
       strictPlaythrough.setActiveHands(this.activeHands)
       this.isStrictPlaying = true
@@ -744,10 +850,20 @@ export function midiApp() {
         return parts.join(' · ')
       }
       const from = this.strictStartMeasure + 1
-      if (!this.loopEnabled) return from > 1 ? t('score.strictStartAt', { n: from }) : t('score.strictHint')
-      if (this.strictRangeArmed) return t('score.loopHintEnd', { n: from })
+      // What clicking a bar does is only worth saying while the click is
+      // strict mode's: listening takes it over, and the playback band says so
+      // for itself. Where the passage stands is still worth saying either way.
+      const clickIsStrict = this.barClickOwner === 'strict'
+      if (!this.loopEnabled) {
+        if (from > 1) return t('score.strictStartAt', { n: from })
+        return clickIsStrict ? t('score.strictHint') : ''
+      }
+      if (this.strictRangeArmed) {
+        return clickIsStrict ? t('score.loopHintEnd', { n: from }) : t('score.strictStartAt', { n: from })
+      }
       if (this.strictEndMeasure != null) return t('score.loopRange', { from, to: this.strictEndMeasure + 1 })
-      return from > 1 ? t('score.loopRangeOpen', { from }) : t('score.loopHint')
+      if (from > 1) return t('score.loopRangeOpen', { from })
+      return clickIsStrict ? t('score.loopHint') : ''
     },
 
     trainerTempoLine() {
@@ -1154,7 +1270,7 @@ export function midiApp() {
       // the score SVG plus the cursor's iterator position; a redraw would strand
       // both on detached nodes. Leave the layout as it is until the run is over
       // rather than break it mid-performance.
-      if (this.isStrictPlaying || this.isPlaying) return
+      if (this.isStrictPlaying || this.isListening) return
       // OSMD lays out against the container width alone, so a height-only change
       // would redraw to a pixel-identical score. Worth skipping: on mobile the URL
       // bar collapsing fires resize, and free mode scrolls the score as you play.
