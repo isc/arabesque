@@ -16,12 +16,15 @@
 # What is left is 0.3s of Ruby and bundler and ~1.4s of `require "test_helper"`,
 # and it is worth knowing where that second and a half actually goes, because an
 # earlier version of this comment guessed wrong and sent someone down a blind
-# alley: only ~0.25s of it is loading gems. The rest, 0.7–1.0s, is the
+# alley: only ~0.25s of it is loading gems. The rest, 0.7–1.0s, was the
 # `warm_up_browser` at the end of test_helper.rb — a Chrome launch and an OSMD
 # render, paid by every worker and every CI shard, including tests that never
-# open a score. bootsnap was measured against the gem-loading part and rejected:
-# 0.135s per process, ~0% of a full suite run, for a native dependency and a
-# stale-bytecode hazard on same-size edits within one second.
+# open a score. A command like the third one above no longer pays it: the
+# warm-up now runs on CI and under `rake test:parallel` only, and `CI=1` in
+# front of this script is how you ask for it back. bootsnap was measured
+# against the gem-loading part and rejected: 0.135s per process, ~0% of a full
+# suite run, for a native dependency and a stale-bytecode hazard on same-size
+# edits within one second.
 #
 # None of that is Docker's doing, so a Ruby on the host would not avoid it.
 #
@@ -111,10 +114,15 @@ tty_flag=()
 [ -t 0 ] && tty_flag=(-it)
 
 # TEST_WORKERS is documented in CLAUDE.md and never used to reach the container
-# at all. Env goes here rather than into the spec above: passing it at exec time
-# is what keeps it from forking a second container per value.
+# at all; CI=1 is how you ask for the browser warm-up a local single-file run
+# skips (test/test_helper.rb says why), so both have to cross into the
+# container or setting them here would do nothing at all. Env goes here rather
+# than into the spec above: passing it at exec time is what keeps it from
+# forking a second container per value.
 run() {
-  docker exec "${tty_flag[@]}" ${TEST_WORKERS:+-e TEST_WORKERS="$TEST_WORKERS"} "$container" "$@"
+  docker exec "${tty_flag[@]}" \
+    ${TEST_WORKERS:+-e TEST_WORKERS="$TEST_WORKERS"} ${CI:+-e CI="$CI"} \
+    "$container" "$@"
 }
 
 if [ $# -eq 0 ]; then

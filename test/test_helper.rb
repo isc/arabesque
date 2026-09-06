@@ -425,6 +425,23 @@ end
 # Runs once per process, which is once per worker (rake test:parallel) and once
 # per runner (rake test:shard); both spawn real processes, so each pays its own
 # cold start and each gets its own warm-up.
+#
+# Not on a single-process local run, though. Measured at 0.94s against a 5.8s
+# run of one browser test file (5 interleaved pairs of ornaments_test.rb), so
+# it is genuinely additive — the first real test does not claim it back — and
+# it is a sixth of every iteration of an edit-test loop. It stays on where it
+# earns that: CI, the only place the flake has ever been seen and where one
+# costs a red build rather than a rerun, and rake test:parallel, which sets
+# WARM_UP_BROWSER because eight Chromes starting at once is the local run most
+# like CI and the one most exposed to a cold start — and where the warm-up is
+# paid once in wall clock (0.8s of 22s) rather than once per iteration.
+#
+# Two things this costs, both deliberate. A local single-file run is now less
+# faithful to CI, which is precisely the property scripts/test-in-docker.sh
+# exists to protect: an exception to that principle, not an oversight. And if
+# the cold start ever does bite locally it will look like the first browser
+# test of the process failing for no reason — that is this decision, and
+# `CI=1 ruby -Itest test/whatever_test.rb` puts the warm-up back.
 def warm_up_browser
   session = Capybara.current_session
   session.visit('/score.html?url=/test-fixtures/two-measures.xml')
@@ -435,4 +452,4 @@ ensure
   Capybara.reset_sessions!
 end
 
-warm_up_browser
+warm_up_browser if ENV['CI'] || ENV['WARM_UP_BROWSER']
