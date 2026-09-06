@@ -44,6 +44,34 @@ Commands go into a container that stays up between runs, one per checkout; the
 script header says why and what it costs. `--stop` drops them all, including
 ones left behind by worktrees that no longer exist.
 
+**IMPORTANT:** A new browser test is not done when it passes. Run it **at least
+five times** — and once through the whole suite, where eight workers contend —
+before believing it. One green run is the single most common way a flake reaches
+`main` from here, because the run that proves the feature is also the run that
+is trusted.
+
+Two that got through on one green run, both worth recognising again:
+
+- A test asserted on an element Alpine had not revealed yet. Alpine hides with
+  `x-show` immediately but *reveals* from a `setTimeout` of its own, and inside
+  `with_clock_control` that timer is virtual time like any other — so with the
+  clock parked the element stayed `display: none` while Capybara waited on the
+  wall clock. It passed whenever the CDP pause command landed late enough for
+  the 0ms timer to slip through, which on an idle machine is most of the time.
+  `advance_clock` after the click is the fix; `advance_clock(1)` is not enough,
+  the helper's own tolerance satisfies it before the budget lands.
+- A test planted a `localStorage` session and read it back three interactions
+  later. `visit` returns at the load event, but the page keeps initialising —
+  and half a second in, supabase-js claimed its key and deleted a session it
+  did not recognise. Comfortably inside the window locally, outside it on a
+  loaded shard. Anything the app writes on its own is a clock the test is
+  racing: block it (`test_helper.rb` blocks esm.sh for exactly this) or wait
+  for the state you need rather than assuming `visit` means "settled".
+
+Both passed alone and failed under load, which is the signature: if a test only
+ever fails on CI, suspect a race with something the page does after `visit`,
+not the runner being slow.
+
 PR titles and descriptions must be in English.
 
 ## Branch previews
