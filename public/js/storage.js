@@ -1,5 +1,5 @@
 import { traced } from './perfTrace.js' // TEMP diagnostic
-import { scopedKey, MAIN_PROFILE_ID } from './profiles.js'
+import { scopedKey, listProfiles, SCOPE_SEPARATOR } from './profiles.js'
 
 // Each profile has a database of its own, named from this (profiles.js). The
 // main profile's is the bare name — the one this device had before profiles.
@@ -119,12 +119,19 @@ async function openDatabase(name) {
   return database
 }
 
-// Drops a profile's database, once the profile itself is gone (profiles.js
-// removeProfile). Never the main profile's: the id check there is what keeps
-// this from ever being asked.
-export function dropProfileStorage(profileId) {
-  if (profileId === MAIN_PROFILE_ID) throw new Error('The main profile keeps its storage')
-  return promisifyRequest(indexedDB.deleteDatabase(scopedKey(DB_BASE_NAME, profileId)))
+// Drops the databases of profiles this device no longer lists — removed here,
+// or removed elsewhere and learnt by sync. Done on the way in rather than at
+// removal time: a profile removed while its own page is open cannot drop the
+// database that page holds, and the next open can. Only ever another
+// profile's database, never the one being opened: the current profile is
+// always listed. Best effort, and nobody waits for it: a browser without
+// indexedDB.databases() keeps the orphans, which cost nothing.
+async function pruneProfileStorage() {
+  if (!indexedDB.databases) return
+  const known = new Set(listProfiles().map((p) => scopedKey(DB_BASE_NAME, p.id)))
+  for (const { name } of await indexedDB.databases()) {
+    if (name?.startsWith(DB_BASE_NAME + SCOPE_SEPARATOR) && !known.has(name)) indexedDB.deleteDatabase(name)
+  }
 }
 
 export function initStorage() {
@@ -136,10 +143,15 @@ export function initStorage() {
   let dbReady = null
 
   function ensureDb() {
-    dbReady ??= openDatabase(scopedKey(DB_BASE_NAME)).catch((error) => {
-      dbReady = null
-      throw error
-    })
+    dbReady ??= openDatabase(scopedKey(DB_BASE_NAME))
+      .then((db) => {
+        pruneProfileStorage().catch(() => {})
+        return db
+      })
+      .catch((error) => {
+        dbReady = null
+        throw error
+      })
     return dbReady
   }
 

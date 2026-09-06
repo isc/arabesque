@@ -29,9 +29,8 @@ describe('profiles', () => {
   })
 
   it('is the main profile alone until someone adds to it, without writing anything', () => {
-    expect(profiles.listProfiles()).toEqual([{ id: MAIN, name: '', avatar: profiles.AVATARS[0] }])
+    expect(profiles.listProfiles()).toEqual([{ id: MAIN, name: '', avatar: profiles.AVATARS[0], updatedAt: 0 }])
     expect(profiles.currentProfileId()).toBe(MAIN)
-    expect(profiles.syncsToCloud()).toBe(true)
     expect(localStorage.getItem(PROFILES_KEY)).toBeNull()
   })
 
@@ -48,7 +47,6 @@ describe('profiles', () => {
     profiles.switchProfile(charlie.id)
     expect(profiles.currentProfile()).toEqual(charlie)
     expect(profiles.scopedKey('arabesque')).toBe(`arabesque@${charlie.id}`)
-    expect(profiles.syncsToCloud()).toBe(false)
   })
 
   it('offers each new profile an avatar nobody wears', () => {
@@ -80,7 +78,7 @@ describe('profiles', () => {
 
   it('renames the main profile like any other, trimming the name', () => {
     profiles.updateProfile(MAIN, { name: ' Ivan ', avatar: '🎈' })
-    expect(profiles.currentProfile()).toEqual({ id: MAIN, name: 'Ivan', avatar: '🎈' })
+    expect(profiles.currentProfile()).toMatchObject({ id: MAIN, name: 'Ivan', avatar: '🎈' })
   })
 
   it('removes a profile with the keys scoped to it, landing back on the main one', () => {
@@ -100,5 +98,64 @@ describe('profiles', () => {
   it('never removes the main profile', () => {
     expect(() => profiles.removeProfile(MAIN)).toThrow()
     expect(profiles.listProfiles()).toHaveLength(1)
+  })
+
+  describe('what sync exchanges', () => {
+    it('offers the server every profile it lacks, a removed one as a tombstone', () => {
+      const charlie = profiles.addProfile({ name: 'Charlie', avatar: '🐻' })
+      let { toPush, changed } = profiles.mergeProfiles([])
+      expect(changed).toBe(false)
+      expect(toPush.map((r) => r.id)).toEqual([MAIN, charlie.id])
+      expect(toPush[1]).toEqual({ id: charlie.id, name: 'Charlie', avatar: '🐻', updated_at: charlie.updatedAt, deleted: false })
+
+      profiles.removeProfile(charlie.id)
+      ;({ toPush } = profiles.mergeProfiles([{ id: charlie.id, name: 'Charlie', avatar: '🐻', updated_at: charlie.updatedAt, deleted: false }]))
+      const tomb = toPush.find((r) => r.id === charlie.id)
+      expect(tomb).toMatchObject({ deleted: true, name: '', avatar: '' })
+      expect(tomb.updated_at).toBeGreaterThanOrEqual(charlie.updatedAt)
+    })
+
+    it('sends nothing the server already has as new', () => {
+      const charlie = profiles.addProfile({ name: 'Charlie', avatar: '🐻' })
+      const rows = profiles.mergeProfiles([]).toPush
+      expect(profiles.mergeProfiles(rows).toPush).toEqual([])
+      expect(profiles.listProfiles()[1].id).toBe(charlie.id)
+    })
+
+    it('adds a profile another device made', () => {
+      const { changed, toPush } = profiles.mergeProfiles([{ id: 'p-phone', name: 'Léa', avatar: '🦊', updated_at: 100, deleted: false }])
+      expect(changed).toBe(true)
+      expect(toPush.map((r) => r.id)).toEqual([MAIN])
+      expect(profiles.listProfiles().map((p) => p.name)).toEqual(['', 'Léa'])
+    })
+
+    it('lets the newer name win, whichever side has it', () => {
+      const charlie = profiles.addProfile({ name: 'Charlie', avatar: '🐻' })
+      profiles.mergeProfiles([{ id: charlie.id, name: 'Charly', avatar: '🐻', updated_at: charlie.updatedAt - 1, deleted: false }])
+      expect(profiles.listProfiles()[1].name).toBe('Charlie')
+      profiles.mergeProfiles([{ id: charlie.id, name: 'Charly', avatar: '🐻', updated_at: charlie.updatedAt + 1, deleted: false }])
+      expect(profiles.listProfiles()[1].name).toBe('Charly')
+    })
+
+    it('drops a profile removed elsewhere, and does not take it back', () => {
+      const charlie = profiles.addProfile({ name: 'Charlie' })
+      profiles.switchProfile(charlie.id)
+      const tomb = { id: charlie.id, name: '', avatar: '', updated_at: charlie.updatedAt + 5, deleted: true }
+      profiles.mergeProfiles([tomb])
+      expect(profiles.listProfiles().map((p) => p.id)).toEqual([MAIN])
+      expect(profiles.currentProfileId()).toBe(MAIN)
+      // The tombstone is now this device's too, and a stale live row loses to it.
+      const { toPush } = profiles.mergeProfiles([{ ...tomb, deleted: false }])
+      expect(toPush.find((r) => r.id === charlie.id)).toMatchObject({ deleted: true, updated_at: charlie.updatedAt + 5 })
+    })
+
+    it('keeps a local removal over a server row with the same stamp', () => {
+      const charlie = profiles.addProfile({ name: 'Charlie' })
+      profiles.removeProfile(charlie.id)
+      const stamp = profiles.mergeProfiles([]).toPush.find((r) => r.id === charlie.id).updated_at
+      const { changed } = profiles.mergeProfiles([{ id: charlie.id, name: 'Charlie', avatar: '🎹', updated_at: stamp, deleted: false }])
+      expect(changed).toBe(false)
+      expect(profiles.listProfiles().map((p) => p.id)).toEqual([MAIN])
+    })
   })
 })
