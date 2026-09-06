@@ -1,3 +1,4 @@
+require 'json'
 require 'time'
 require 'capybara'
 require 'capybara/dsl'
@@ -94,6 +95,45 @@ class CapybaraTestBase < Minitest::Test
   def open_menu
     find('.pt-changelog-btn').click
     assert_selector '.pt-popover', visible: true
+  end
+
+  # Nothing in the suite may reach the real feedback table, so that one POST is
+  # answered locally and its body kept for the assertions. Every other request
+  # the page makes goes through untouched.
+  CAPTURE_SUBMISSIONS = <<~JS.freeze
+    window.__sent = []
+    const realFetch = window.fetch.bind(window)
+    window.fetch = (input, init) => {
+      const url = String(input?.url ?? input)
+      if (!url.includes('/rest/v1/feedback')) return realFetch(input, init)
+      window.__sent.push(JSON.parse(init.body))
+      return Promise.resolve({ ok: true, status: 201, text: () => Promise.resolve('') })
+    }
+  JS
+
+  def capture_submissions
+    page.execute_script(CAPTURE_SUBMISSIONS)
+  end
+
+  def open_feedback
+    open_menu
+    click_on '💬 Avis'
+    assert_selector 'dialog[open] textarea'
+  end
+
+  def send_feedback(message)
+    fill_in 'Message', with: message
+    click_button 'Envoyer'
+    assert_text 'Merci'
+    # The footer button, not the header's ✕ — both are labelled "Fermer".
+    find('dialog footer button', text: 'Fermer').click
+  end
+
+  # Through JSON: a bare null coming back from the driver is indistinguishable
+  # from a key that was never there, and "nothing attached" is what some of
+  # these assertions are about.
+  def sent_reports
+    JSON.parse(page.evaluate_script('JSON.stringify(window.__sent)'))
   end
 
   def wait_for_download(pattern, timeout: Capybara.default_max_wait_time)
