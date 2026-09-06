@@ -1414,6 +1414,11 @@ table tbody td:nth-child(2) a:hover { color: var(--pt-accent); }
   background: color-mix(in srgb, var(--pt-mode-reinforcement) 18%, var(--pt-bg-elevated));
 }
 
+/* The panel under the filtered list: what earns the status above the one being
+   filtered on. A .pt-card sitting after the table, so it scrolls away with the
+   last row instead of holding a strip of the pane. */
+.pt-criteria { margin-top: var(--pt-space-4); }
+
 /* Journal sidebar */
 /* Layout from .pt-row-between, label from .pt-eyebrow; baseline alignment is
    what this one adds, so the link sits on the heading's baseline. */
@@ -1852,9 +1857,11 @@ dialog > article > footer button { margin: 0; }
   margin-bottom: var(--pt-space-2);
   font-weight: 600;
 }
-.pt-changelog-entry ul { margin: 0; padding-left: 1.1rem; }
+.pt-changelog-entry ul,
+.pt-criteria ul { margin: 0; padding-left: 1.1rem; }
 .pt-changelog-entry li { margin-bottom: var(--pt-space-2); }
-.pt-changelog-entry li:last-child { margin-bottom: 0; }
+.pt-changelog-entry li:last-child,
+.pt-criteria li:last-child { margin-bottom: 0; }
 
 .pt-strict-breakdown { list-style: none; padding: 0; margin: var(--pt-space-3) 0; color: var(--pt-text-muted); font-size: 0.9rem; }
 

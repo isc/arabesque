@@ -50,6 +50,16 @@ export default {
     perfectionnement: 'Refining',
     repertoire: 'Repertoire',
   },
+  // What it takes to reach the next status, shown under the filtered library
+  // list. The numbers come from STATUS_THRESHOLDS (practiceTracker.js).
+  criteria: {
+    heading: 'To reach {status}',
+    cleanMeasures: '{percent}% of the measures played clean at least {n} times',
+    cleanMeasuresAll: 'Every measure played clean at least {n} times',
+    completedOne: 'The piece played through in full at least once',
+    completed: 'The piece played through in full at least {n} times',
+    practiceDays: 'Practised on at least {n} different days',
+  },
   period: {
     baroque: 'Baroque',
     classique: 'Classical',
