@@ -273,9 +273,20 @@
     </div>
     </div><!-- /.pt-stickybars -->
 
+    <!-- Training band: the same shape as the strict one — its controls, then
+         what the mode has to say — so 🔁 picks a passage in both the same way. -->
     <div class="pt-context pt-context--training" x-show="currentMode === 'training' && !reinforcementMode && !!osmdInstance" x-cloak>
       <strong x-text="$t('score.trainingBand')">🎯 Entraînement</strong>
-      <span x-text="$t('score.trainingHint')">Chaque mesure doit être jouée 3× sans erreur.</span>
+      <div class="pt-band-controls">
+        <button
+          class="pt-band-button"
+          :aria-pressed="trainingLoop"
+          :title="$t('score.trainingLoopTitle')"
+          @click="toggleTrainingLoop"
+          x-text="$t('score.loopBtn')"
+        >🔁 Boucle</button>
+      </div>
+      <span class="pt-context__row" x-text="trainingBandText()">Chaque mesure doit être jouée 3× sans erreur.</span>
     </div>
 
     <main class="container pt-score-main">
@@ -382,7 +393,11 @@
                   </div>
                 </template>
               </div>
-              <p x-show="resultMode === 'training'" class="pt-modal-note" x-text="$t('score.trainingDone')">
+              <p
+                x-show="resultMode === 'training'"
+                class="pt-modal-note"
+                x-text="trainingDoneText()"
+              >
                 Vous avez complété toutes les mesures du morceau.
               </p>
             </div>

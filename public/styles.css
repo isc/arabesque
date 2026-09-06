@@ -1932,8 +1932,12 @@ svg g.vf-notehead.wrong-note path { animation: pt-wrong-note-flash 700ms; }
   cursor: pointer;
   rx: 4;
 }
-.measure-click-area:hover { fill: rgba(124, 58, 237, 0.06); }
-.measure-click-area.selected { fill: rgba(124, 58, 237, 0.14); }
+.measure-click-area:hover { fill: color-mix(in srgb, var(--pt-mode-training) 6%, transparent); }
+/* The rest of the training passage, behind the measure under the cursor —
+   listed first so `.selected` picks the stronger fill on the measure carrying
+   both. Same two-tone reading as strict-range / strict-start below. */
+.measure-click-area.training-range { fill: color-mix(in srgb, var(--pt-mode-training) 8%, transparent); }
+.measure-click-area.selected { fill: color-mix(in srgb, var(--pt-mode-training) 14%, transparent); }
 .measure-click-area.strict-start { fill: color-mix(in srgb, var(--pt-mode-strict) 14%, transparent); stroke: var(--pt-mode-strict); stroke-width: 2; }
 .measure-click-area.strict-range { fill: color-mix(in srgb, var(--pt-mode-strict) 10%, transparent); }
 
