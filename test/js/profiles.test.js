@@ -68,6 +68,14 @@ describe('profiles', () => {
     expect(profiles.currentProfile().name).toBe('Ivan')
   })
 
+  it('stamps a profile stored before stamps existed, so it can be sent', async () => {
+    localStorage.setItem(PROFILES_KEY, JSON.stringify({ current: MAIN, profiles: [{ id: MAIN, name: 'Ivan', avatar: '🎹' }, { id: 'p-old', name: 'Charlie', avatar: '🐻' }] }))
+    vi.resetModules()
+    profiles = await import('../../public/js/profiles.js')
+    const rows = profiles.mergeProfiles([]).toPush
+    expect(rows.map((r) => r.updated_at)).toEqual([0, 0])
+  })
+
   it('starts over from a stored value it cannot read', async () => {
     localStorage.setItem(PROFILES_KEY, '{not json')
     vi.resetModules()
