@@ -1,19 +1,3 @@
-// Restore played/active state captured positionally as savedStates[measureIndex][noteIndex].
-// Restoring by playback position (rather than by fingeringKey) keeps the two occurrences of
-// a repeated measure independent: they share a fingeringKey, so a key-based restore would
-// bleed the first pass's "played" state onto the repeat and make the matcher skip it.
-export function applyPositionalNoteStates(allNotes, savedStates) {
-  for (let i = 0; i < allNotes.length && i < savedStates.length; i++) {
-    const measureStates = savedStates[i]
-    if (!measureStates) continue
-    allNotes[i].notes.forEach((noteData, j) => {
-      if (!measureStates[j]) return
-      noteData.played = measureStates[j].played
-      noteData.active = measureStates[j].active
-    })
-  }
-}
-
 // Of two occurrences of the same note, which one belongs to the "current pass"? The latest
 // occurrence at or before the cursor; or, if neither has been reached yet, the earliest upcoming.
 function isCurrentPassOccurrence(index, otherIndex, currentMeasureIndex) {
@@ -132,14 +116,12 @@ export function initFingeringEditor({ getOsmdInstance, getAllNotes, getNoteDataB
     })
   }
 
-  // Restore played/active state captured positionally as savedStates[measureIndex][noteIndex],
-  // then update each rendered notehead to reflect the current pass's occurrence.
-  // Repaints played/active marks onto a freshly rendered SVG. `savedStates` is the
-  // positional snapshot taken around a redraw that rebuilt the note model; pass null
-  // when the model survived it and the live flags are already correct.
-  function restoreNoteStates(savedStates, currentMeasureIndex) {
+  // Repaints the played/active marks onto a freshly rendered SVG, each notehead
+  // taking the current pass's occurrence of its note. Only the SVG they were
+  // painted on is gone: the flags are the note model's, and musicxml.js keeps
+  // them across a rebuild of it.
+  function paintNoteStates(currentMeasureIndex) {
     const allNotes = getAllNotes()
-    if (savedStates) applyPositionalNoteStates(allNotes, savedStates)
     for (const noteData of chooseCurrentPassOccurrences(allNotes, currentMeasureIndex).values()) {
       // Callers always run this against a just-rendered SVG, so an unmarked note has
       // nothing to clear — skipping it avoids a GNote + querySelectorAll lookup for
@@ -390,7 +372,7 @@ export function initFingeringEditor({ getOsmdInstance, getAllNotes, getNoteDataB
 
   return {
     setupFingeringClickHandlers,
-    restoreNoteStates,
+    paintNoteStates,
     updateFingeringSVG,
     addFingeringToDataModel,
     removeFingeringFromDataModel,
