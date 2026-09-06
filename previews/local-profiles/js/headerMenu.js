@@ -15,11 +15,10 @@
 // non-identifying context merged into a report (practice stats on the library,
 // current score on the score page).
 import { CHANGELOG } from './changelog.js'
-import { feedbackEnabled, buildBaseContext, submitFeedback } from './feedback.js'
+import { feedbackEnabled, buildBaseContext, submitFeedback, defaultFeedbackEmail } from './feedback.js'
 import { getLang, locale } from './i18n.js'
 import { listProfiles, currentProfile, profileName, switchProfile } from './profiles.js'
 import { INSTALL_AVAILABLE_EVENT, installAvailable, promptInstall } from './installPrompt.js'
-import { appSoundEnabled, setAppSoundEnabled } from './appSound.js'
 
 const CHANGELOG_SEEN_KEY = 'arabesque:changelog-seen'
 const CHANGELOG_DATE_FORMATTER = new Intl.DateTimeFormat(locale(), {
@@ -54,13 +53,6 @@ export function headerMenu() {
       this.closeMenu()
       promptInstall()
     },
-
-    // --- Where the sound comes out ---
-    // A preference for the app rather than for a page, so it sits here next to
-    // the language even though only the score page makes a sound. What it does
-    // and what it needs from the instrument is in appSound.js.
-    appSound: appSoundEnabled(),
-    setAppSoundEnabled,
 
     // --- Profiles ---
     // Who is playing, chosen from the modal below (profiles.js). Read once:
@@ -121,13 +113,33 @@ export function headerMenu() {
     feedback: { message: '', email: '', category: '' },
     feedbackStatus: 'idle', // 'idle' | 'sending' | 'sent' | 'error'
     feedbackError: '',
+    // A picture of the screen the modal is covering, or null when the capture
+    // could not be made. Attached by default and shown in the form, so it is
+    // never a surprise — the checkbox opts out.
+    feedbackShot: null,
+    feedbackShotWanted: true,
 
-    openFeedback() {
-      this.feedback = { message: '', email: '', category: '' }
+    async openFeedback() {
+      this.feedback = { message: '', email: defaultFeedbackEmail(), category: '' }
       this.feedbackStatus = 'idle'
       this.feedbackError = ''
+      this.feedbackShot = null
+      this.feedbackShotWanted = true
       this.menuOpen = false
       this.showFeedbackModal = true
+      // Loaded and run only here: every page carries this menu, and next to
+      // none of them ever opens the form. Nothing waits on the result — null,
+      // from a capture that failed or a browser that could not make one, simply
+      // means the form offers no picture and the report goes as words alone.
+      const { captureViewport } = await import('./screenshot.js')
+      this.feedbackShot = await captureViewport()
+    },
+
+    // The picture goes when the dialog does: it is a few hundred kB of data URL
+    // on a component that outlives the form, and the next report makes its own.
+    closeFeedback() {
+      this.showFeedbackModal = false
+      this.feedbackShot = null
     },
 
     async sendFeedback() {
@@ -140,6 +152,7 @@ export function headerMenu() {
           message,
           email: this.feedback.email,
           category: this.feedback.category,
+          screenshot: this.feedbackShotWanted ? this.feedbackShot : null,
           context: { ...buildBaseContext(), ...(this.feedbackContext?.() ?? {}) },
         })
         this.feedbackStatus = 'sent'
@@ -176,15 +189,6 @@ const TRIGGER_HTML = `
       <a href="data.html" class="pt-menu-item" @click="closeMenu()" x-text="$t('menu.data')">🗂 Données</a>
       <a href="support.html" class="pt-menu-item" @click="closeMenu()" x-text="$t('menu.support')">🛟 Assistance</a>
       <a href="privacy.html" class="pt-menu-item" @click="closeMenu()" x-text="$t('menu.privacy')">🔒 Confidentialité</a>
-    </div>
-    <hr />
-    <div class="pt-popover__section">
-      <h4 x-text="$t('menu.sound')">Son</h4>
-      <label>
-        <input type="checkbox" x-model="appSound" @change="setAppSoundEnabled(appSound)" />
-        <span x-text="$t('menu.appSound')">🎧 Jouer le son dans l'app</span>
-      </label>
-      <small x-text="$t('menu.appSoundHint')">Le morceau, votre jeu et le métronome sortent du même endroit. Coupez le Local Control du piano, sinon chaque note s'entend deux fois.</small>
     </div>
     <hr />
     <div class="pt-popover__section">
@@ -245,14 +249,14 @@ const MODALS_HTML = `
   <article>
     <header>
       <p><strong x-text="$t('feedback.title')">💬 Votre avis</strong></p>
-      <button :aria-label="$t('common.close')" rel="prev" @click="showFeedbackModal = false"></button>
+      <button :aria-label="$t('common.close')" rel="prev" @click="closeFeedback()"></button>
     </header>
     <div class="pt-modal-body">
     <template x-if="feedbackStatus === 'sent'">
       <div>
         <p x-text="$t('feedback.thanks')">Merci, c'est bien reçu !</p>
         <footer>
-          <button type="button" @click="showFeedbackModal = false" x-text="$t('common.close')">Fermer</button>
+          <button type="button" @click="closeFeedback()" x-text="$t('common.close')">Fermer</button>
         </footer>
       </div>
     </template>
@@ -278,6 +282,15 @@ const MODALS_HTML = `
           <input type="email" x-model="feedback.email" maxlength="320" :disabled="feedbackStatus === 'sending'" :placeholder="$t('feedback.emailPlaceholder')" />
           <small x-text="$t('feedback.emailHint')"></small>
         </label>
+        <template x-if="feedbackShot">
+          <div class="pt-feedback-shot">
+            <label>
+              <input type="checkbox" x-model="feedbackShotWanted" :disabled="feedbackStatus === 'sending'" />
+              <span x-text="$t('feedback.screenshotLabel')">Joindre l'image de la partition affichée</span>
+            </label>
+            <img class="pt-feedback-shot__preview" x-show="feedbackShotWanted" :src="feedbackShot" :alt="$t('feedback.screenshotAlt')" />
+          </div>
+        </template>
         <small class="pt-feedback-privacy" x-text="$t('feedback.privacy')"></small>
         <p x-show="feedbackStatus === 'error'" role="alert" class="pt-feedback-error">
           <span x-text="$t('feedback.error')">L'envoi a échoué.</span>
