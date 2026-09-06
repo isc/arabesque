@@ -288,15 +288,16 @@ export function midiApp() {
       })
 
       // Startup errands, none of which has to finish before a score can be
-      // drawn — they used to run one after another in front of the load. What
-      // the render actually needs is the database open, to read the fingerings;
-      // practiceTracker.init() goes on to flush a stashed session and scan for
-      // stranded ones, which is housekeeping that grows with the user's history
-      // and is only depended on when a new session starts (see loadScoreFromURL).
-      // The MIDI handshake and the cassette endpoint — a round trip that 404s
-      // outright on static hosting — are nobody's prerequisite at all.
-      const dbReady = storage.init()
-      const trackerReady = dbReady.then(() => practiceTracker.init())
+      // drawn — they used to run one after another in front of the load.
+      // practiceTracker.init() opens the database on its way, which is all the
+      // render needs of it and it reads that itself (see
+      // renderScoreWithFingerings); the rest — flushing a stashed session,
+      // scanning for stranded ones — is housekeeping that grows with the user's
+      // history and is only depended on when a new session starts (see
+      // loadScoreFromURL). The MIDI handshake and the cassette endpoint — a
+      // round trip that 404s outright on static hosting — are nobody's
+      // prerequisite at all.
+      const trackerReady = practiceTracker.init()
       midiReady = midi.connectMIDI({ silent: true, autoSelectFirst: true })
         .then(() => this.syncMidiState())
       onIdle(() => this.loadCassettesList())
@@ -403,7 +404,10 @@ export function midiApp() {
         },
       })
 
-      await dbReady
+      // Nothing is awaited in front of the load: the spinner the head script
+      // raised is lowered only by the render or by reportScoreLoadFailure, so
+      // whatever is waited on here can leave the page loading with nothing to
+      // say. The database open sat here and did exactly that.
       const scoreUrl = new URLSearchParams(window.location.search).get('url')
       if (scoreUrl) await this.loadScoreFromURL(scoreUrl, trackerReady)
 

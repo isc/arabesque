@@ -200,6 +200,20 @@ class CapybaraTestBase < Minitest::Test
     cdp&.command('Emulation.setVirtualTimePolicy', policy: 'advance')
   end
 
+  # Leave every IndexedDB open request unanswered on the page visited next, the
+  # way a machine under load can for seconds at a time and an unavailable
+  # IndexedDB does for good.
+  #
+  # Not Ferrum's evaluate_on_new_document: that keeps its scripts on the
+  # browser, so every later page in the worker process would inherit the stall.
+  # A page-level script dies with the page teardown in reset_sessions!.
+  def stall_indexeddb
+    page.driver.browser.page.command(
+      'Page.addScriptToEvaluateOnNewDocument',
+      source: 'indexedDB.open = () => ({})'
+    )
+  end
+
   # Click a button by its label without going through the browser's real input
   # pipeline.
   #
