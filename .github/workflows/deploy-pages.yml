@@ -29,6 +29,13 @@ jobs:
         with:
           node-version: '22'
 
+      # Entries added since the last fold live one per file in changelog.d/,
+      # so that concurrent pull requests do not fight over the top of
+      # public/js/changelog.js. This assembles them into the file the app
+      # imports, on the checkout, never committed back — scripts/changelog.mjs.
+      - name: Assemble the changelog
+        run: node scripts/changelog.mjs build
+
       # Keeps each page's HTML and its JS recognisably one build: see
       # public/js/version.js.
       - name: Stamp the build version

@@ -1,20 +1,25 @@
 // In-app changelog ("Nouveautés"), shown in a modal from the library page.
 //
 // Antechronological order (most recent first), grouped by publication date.
-// The bar is high: an entry must be worth the reader's time. Put **real
-// user-facing changes** here — a new feature, a notable behaviour change, a
-// fix to something the player would have noticed. Do NOT list per-score
-// notation fixes, refactors, CI, lint, or purely technical changes. When in
-// doubt, leave it out. Keep each item short and concrete.
+// Each entry's `items` is bilingual: `{ fr: [...], en: [...] }`, same count in
+// the same order; `headerMenu.js` (`changelogItems`) picks the array for the
+// active language.
 //
-// Each entry's `items` is bilingual: `{ fr: [...], en: [...] }`. Both languages
-// are required for new entries — write the French items, then a natural,
-// idiomatic English translation of each, in the same order and same count.
-// `headerMenu.js` (`changelogItems`) picks the array for the active language.
-//
-// See CLAUDE.md ("Changelog in-app") for the update rule.
+// DO NOT ADD AN ENTRY HERE BY HAND. A new entry is one file in `changelog.d/`
+// at the root of the repo: a file per change is a file that merges cleanly,
+// where a line added to the top of this array conflicts with every other pull
+// request opened the same day. `scripts/changelog.mjs` has the format, and
+// CLAUDE.md ("Changelog in-app") the rule and the bar an entry must clear.
 
-export const CHANGELOG = [
+// Written at deploy time from `changelog.d/` — see scripts/changelog.mjs.
+// Left empty in the repo: entries already published live in HISTORY below, and
+// a snapshot of the pending ones committed here would be exactly the conflict
+// the fragments exist to avoid.
+const PENDING = []
+
+// Everything already folded out of `changelog.d/`, newest first. Written by
+// `node scripts/changelog.mjs fold`, not by hand.
+const HISTORY = [
   {
     date: '2026-09-05',
     items: {
@@ -553,3 +558,20 @@ export const CHANGELOG = [
     },
   },
 ]
+
+// One group per date, newest first, pending items ahead of published ones on a
+// date they share. Grouping here rather than in the generator lets `fold`
+// prepend a group without a same-date special case, and keeps the modal to one
+// heading per day either way.
+export function mergeChangelog(pending, history) {
+  const byDate = new Map()
+  for (const entry of [...pending, ...history]) {
+    const group = byDate.get(entry.date) ?? { date: entry.date, items: { fr: [], en: [] } }
+    group.items.fr.push(...entry.items.fr)
+    group.items.en.push(...entry.items.en)
+    byDate.set(entry.date, group)
+  }
+  return [...byDate.values()].sort((a, b) => b.date.localeCompare(a.date))
+}
+
+export const CHANGELOG = mergeChangelog(PENDING, HISTORY)
