@@ -51,8 +51,8 @@
           <div class="pt-stack">
             <p role="alert" class="pt-feedback-error" x-text="$t('profiles.deleteWarning', { name: deletingProfileName })"></p>
             <div class="pt-data-actions">
-              <button type="button" class="danger" @click="deleteProfile(deletingProfileId)" :aria-busy="deletingProfile" :disabled="deletingProfile" x-text="$t('profiles.deleteConfirm', { name: deletingProfileName })">Oui, supprimer</button>
-              <button type="button" class="outline secondary" @click="deletingProfileId = null" :disabled="deletingProfile" x-text="$t('common.cancel')">Annuler</button>
+              <button type="button" class="danger" @click="deleteProfile(deletingProfileId)"  x-text="$t('profiles.deleteConfirm', { name: deletingProfileName })">Oui, supprimer</button>
+              <button type="button" class="outline secondary" @click="deletingProfileId = null" x-text="$t('common.cancel')">Annuler</button>
             </div>
           </div>
         </template>
@@ -83,12 +83,7 @@
       <article class="pt-card pt-stack">
         <h2 x-text="$t('data.accountHeading')">Synchronisation entre appareils</h2>
 
-        <!-- Another profile: the account is not theirs to sign into. -->
-        <template x-if="!profileSyncs">
-          <p class="pt-hint" x-text="$t('profiles.accountElsewhere', { main: profileName(profileById(mainProfileId)), current: profileName(currentProfile) })"></p>
-        </template>
-
-        <template x-if="profileSyncs && !cloudConfigured">
+        <template x-if="!cloudConfigured">
           <p class="pt-hint" x-text="$t('data.cloudUnavailable')">La synchronisation cloud n'est pas configurée.</p>
         </template>
 

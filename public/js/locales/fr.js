@@ -34,12 +34,10 @@ export default {
     add: 'Ajouter un profil',
     delete: 'Supprimer',
     deleteWarning:
-      'Tout ce que {name} a joué sur cet appareil sera effacé : journal, statuts, doigtés. Ce profil n’est pas synchronisé, il n’y a pas de copie ailleurs.',
+      'Tout ce que {name} a joué sera effacé : journal, statuts, doigtés, sur cet appareil comme sur les autres appareils connectés au compte.',
     deleteConfirm: 'Oui, supprimer {name}',
     syncNote:
-      'Seul le premier profil se synchronise avec le compte ci-dessous. Les autres restent sur cet appareil : la sauvegarde dans un fichier est leur seule copie.',
-    accountElsewhere:
-      'La synchronisation entre appareils suit le premier profil, {main}. Les données de {current} restent sur cet appareil.',
+      'Chaque profil se synchronise avec le compte ci-dessous, chacun de son côté : un profil créé ici apparaît sur les autres appareils connectés au même compte, avec son journal.',
   },
   // Which hands a run through the score was played with.
   hands: {

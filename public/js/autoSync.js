@@ -5,17 +5,14 @@
 // data opens. There is no separate switch — signing in has no other purpose,
 // so wanting an account and not wanting sync isn't a state worth offering.
 //
-// It follows the profile too: only the main profile's data is the account's
-// (profiles.js, syncsToCloud). On another profile nothing here fires, so a
-// child's sessions never travel under the parent's account and the parent's
-// history never lands in the child's journal.
+// It syncs the profile the page is on (profiles.js): the account is the
+// device's, every profile on the device is under it, each with its own rows.
 //
 // Every trigger here is best-effort: silent when nobody is signed in or when
 // the network fails. The data page stays the one place that reports a sync's
 // outcome.
 import { lastSyncAt, runSync } from './sync.js'
 import { signedInOnThisDevice } from './supabaseConfig.js'
-import { syncsToCloud } from './profiles.js'
 import { onIdle, onForeground } from './utils.js'
 
 // How long each trigger waits behind the previous sync. A tab coming back or a
@@ -53,13 +50,7 @@ export function initAutoSync(
   // Fetching @supabase/supabase-js lazily is what keeps it off pages of signed
   // out users — but paying for the CDN waterfall at the end of a playthrough
   // would put it right on the result screen. Warm it while idle instead.
-  if (syncsHere()) onIdle(() => import('./supabaseClient.js').catch(() => {}))
-}
-
-// Whether this page has anything to sync at all: an account on the device,
-// and the profile whose data that account holds.
-function syncsHere() {
-  return signedInOnThisDevice() && syncsToCloud()
+  if (signedInOnThisDevice()) onIdle(() => import('./supabaseClient.js').catch(() => {}))
 }
 
 // Time since the last sync *attempt*, in-memory or persisted by a previous page
@@ -82,12 +73,11 @@ async function signedInClient() {
 // Syncs now, past the throttle and without consulting the mirrored flag — it
 // asks the session itself. Collapses concurrent callers onto the same
 // round-trip. Resolves to the runSync summary, or null when nobody is
-// signed in or the profile does not sync; rejects on a sync error so a
-// caller with UI can report it.
+// signed in; rejects on a sync error so a caller with UI can report it.
 export function requestSync() {
   if (inFlight) return inFlight
   inFlight = (async () => {
-    const client = syncsToCloud() ? await signedInClient() : null
+    const client = await signedInClient()
     if (!client) return null
     const summary = await runSync({ ...client, ...deps })
     onSynced?.(summary)
@@ -102,7 +92,7 @@ export function requestSync() {
 // Fire-and-forget sync for an automatic trigger: no-op unless an account is
 // signed in and the previous sync is old enough, and never rejects.
 export function triggerSync(reason) {
-  if (!syncsHere() || inFlight) return
+  if (!signedInOnThisDevice() || inFlight) return
   if (msSinceLastSync() < (MIN_INTERVAL_MS[reason] ?? DEFAULT_MIN_INTERVAL_MS)) return
   requestSync().catch((err) => console.warn(`Automatic sync (${reason}) failed:`, err))
 }
