@@ -37,3 +37,16 @@ export function signedInOnThisDevice() {
     return false // no localStorage: treat as signed out
   }
 }
+
+// The address that account signed in with, or null — read from the same stored
+// session, and out of the same module, for the same reason as above: the
+// feedback form is on every page, and no page may load @supabase/supabase-js
+// just to learn what to put in a field. A session in a shape we don't know is
+// simply no answer, never a throw on a page that only wanted a default.
+export function signedInEmail() {
+  try {
+    return JSON.parse(localStorage.getItem(AUTH_STORAGE_KEY))?.user?.email ?? null
+  } catch {
+    return null
+  }
+}

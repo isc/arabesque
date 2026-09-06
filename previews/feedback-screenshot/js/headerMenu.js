@@ -11,15 +11,13 @@
 // markup-in-HTML convention, forced by the no-build-step constraint. If a
 // bundler is ever added, this should become a proper partial/component.
 //
-// Page-specific seams (kept out of here): feedbackContext() — extra,
+// Page-specific seam (kept out of here): feedbackContext() — extra,
 // non-identifying context merged into a report (practice stats on the library,
-// current score on the score page) — and captureFeedbackShot(), which returns a
-// picture of what the modal is covering on the pages that can make one.
+// current score on the score page).
 import { CHANGELOG } from './changelog.js'
-import { feedbackEnabled, buildBaseContext, submitFeedback } from './feedback.js'
+import { feedbackEnabled, buildBaseContext, submitFeedback, defaultFeedbackEmail } from './feedback.js'
 import { getLang, locale } from './i18n.js'
 import { INSTALL_AVAILABLE_EVENT, installAvailable, promptInstall } from './installPrompt.js'
-import { appSoundEnabled, setAppSoundEnabled } from './appSound.js'
 
 const CHANGELOG_SEEN_KEY = 'arabesque:changelog-seen'
 const CHANGELOG_DATE_FORMATTER = new Intl.DateTimeFormat(locale(), {
@@ -54,13 +52,6 @@ export function headerMenu() {
       this.closeMenu()
       promptInstall()
     },
-
-    // --- Where the sound comes out ---
-    // A preference for the app rather than for a page, so it sits here next to
-    // the language even though only the score page makes a sound. What it does
-    // and what it needs from the instrument is in appSound.js.
-    appSound: appSoundEnabled(),
-    setAppSoundEnabled,
 
     // --- Changelog ("Nouveautés") ---
     changelog: CHANGELOG,
@@ -98,29 +89,33 @@ export function headerMenu() {
     feedback: { message: '', email: '', category: '' },
     feedbackStatus: 'idle', // 'idle' | 'sending' | 'sent' | 'error'
     feedbackError: '',
-    // A picture of what the modal is covering, or null where the page cannot
-    // make one. Attached by default and shown in the form, so it is never a
-    // surprise — the checkbox opts out.
+    // A picture of the screen the modal is covering, or null when the capture
+    // could not be made. Attached by default and shown in the form, so it is
+    // never a surprise — the checkbox opts out.
     feedbackShot: null,
     feedbackShotWanted: true,
 
-    openFeedback() {
-      this.feedback = { message: '', email: '', category: '' }
+    async openFeedback() {
+      this.feedback = { message: '', email: defaultFeedbackEmail(), category: '' }
       this.feedbackStatus = 'idle'
       this.feedbackError = ''
       this.feedbackShot = null
       this.feedbackShotWanted = true
-      // The other page-specific seam: only a page showing something worth
-      // picturing supplies captureFeedbackShot() (the score page does, from
-      // screenshot.js). Started before the dialog goes up, so the picture is of
-      // the scroll position the reporter was looking at, and resolving to null
-      // where the capture found nothing or failed — the form then never offers
-      // it, and the report goes as words alone.
-      this.captureFeedbackShot?.().then((shot) => {
-        this.feedbackShot = shot
-      })
       this.menuOpen = false
       this.showFeedbackModal = true
+      // Loaded and run only here: every page carries this menu, and next to
+      // none of them ever opens the form. Nothing waits on the result — null,
+      // from a capture that failed or a browser that could not make one, simply
+      // means the form offers no picture and the report goes as words alone.
+      const { captureViewport } = await import('./screenshot.js')
+      this.feedbackShot = await captureViewport()
+    },
+
+    // The picture goes when the dialog does: it is a few hundred kB of data URL
+    // on a component that outlives the form, and the next report makes its own.
+    closeFeedback() {
+      this.showFeedbackModal = false
+      this.feedbackShot = null
     },
 
     async sendFeedback() {
@@ -172,15 +167,6 @@ const TRIGGER_HTML = `
     </div>
     <hr />
     <div class="pt-popover__section">
-      <h4 x-text="$t('menu.sound')">Son</h4>
-      <label>
-        <input type="checkbox" x-model="appSound" @change="setAppSoundEnabled(appSound)" />
-        <span x-text="$t('menu.appSound')">🎧 Jouer le son dans l'app</span>
-      </label>
-      <small x-text="$t('menu.appSoundHint')">Le morceau, votre jeu et le métronome sortent du même endroit. Coupez le Local Control du piano, sinon chaque note s'entend deux fois.</small>
-    </div>
-    <hr />
-    <div class="pt-popover__section">
       <h4 x-text="$t('menu.language')">Langue</h4>
       <div class="pt-langswitch" role="group" aria-label="Language">
         <button type="button" data-set-lang="fr">FR</button>
@@ -217,14 +203,14 @@ const MODALS_HTML = `
   <article>
     <header>
       <p><strong x-text="$t('feedback.title')">💬 Votre avis</strong></p>
-      <button :aria-label="$t('common.close')" rel="prev" @click="showFeedbackModal = false"></button>
+      <button :aria-label="$t('common.close')" rel="prev" @click="closeFeedback()"></button>
     </header>
     <div class="pt-modal-body">
     <template x-if="feedbackStatus === 'sent'">
       <div>
         <p x-text="$t('feedback.thanks')">Merci, c'est bien reçu !</p>
         <footer>
-          <button type="button" @click="showFeedbackModal = false" x-text="$t('common.close')">Fermer</button>
+          <button type="button" @click="closeFeedback()" x-text="$t('common.close')">Fermer</button>
         </footer>
       </div>
     </template>

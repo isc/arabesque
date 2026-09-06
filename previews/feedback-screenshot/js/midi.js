@@ -3,8 +3,6 @@ import mockMIDI from './midi_mock.js'
 import { t } from './i18n.js'
 
 const NOTE_ON = 144
-const CONTROL_CHANGE = 176
-const SUSTAIN_CC = 64
 const NOTE_OFF = 128
 const NOTE_NAMES = 'C C# D D# E F F# G G# A A# B'.split(' ')
 
@@ -35,7 +33,11 @@ let state = {
 let callbacks = {
   onNotePlayed: null,
   onNoteReleased: null,
-  onPedal: null,
+  // A port coming or going on its own, without connectMIDI() being called. The
+  // page mirrors this state in its own UI, and nothing else tells it: on iOS
+  // the keyboard is paired in the system sheet, so the connection always
+  // happens outside the button that asked for it.
+  onConnectionChange: null,
 }
 
 export function initMidi() {
@@ -129,9 +131,7 @@ function onPortStateChange(port) {
 
   if (port.state === 'disconnected') {
     if (port === state.midiInput) {
-      state.midiConnected = false
-      state.midiInput = null
-      console.log('MIDI input disconnected')
+      setConnectedInput(null)
     } else if (port === state.midiOutput) {
       state.midiOutput = null
       console.log('MIDI output disconnected')
@@ -153,12 +153,17 @@ function selectMIDIOutput(output) {
 }
 
 function selectMIDIInput(input) {
-  state.midiInput = input
-
   input.onmidimessage = (event) => parseMidiMessage(event.data)
+  setConnectedInput(input)
+}
 
-  state.midiConnected = true
-  console.log('MIDI connected:', input.name)
+// The one place the connection state moves, so it can't move without the page
+// hearing about it. `null` for "no keyboard any more".
+function setConnectedInput(input) {
+  state.midiInput = input
+  state.midiConnected = !!input
+  console.log(input ? `MIDI connected: ${input.name}` : 'MIDI input disconnected')
+  callbacks.onConnectionChange?.()
 }
 
 async function connectMIDIMock() {
@@ -166,9 +171,7 @@ async function connectMIDIMock() {
   mockMIDI.connect((data) => {
     parseMidiMessage(data)
   })
-  state.midiInput = { name: 'Mock MIDI Keyboard' }
-  state.midiConnected = true
-  console.log('Mock MIDI connected')
+  setConnectedInput({ name: 'Mock MIDI Keyboard' })
 }
 
 // Parse standard MIDI messages (from Web MIDI API)
@@ -189,14 +192,9 @@ function parseMidiMessage(data, isReplay = false) {
   if (statusType === NOTE_ON && velocity > 0 && note < 128) {
     const noteNameStr = noteName(note)
     if (callbacks.onNotePlayed) {
-      callbacks.onNotePlayed(noteNameStr, note, velocity)
+      callbacks.onNotePlayed(noteNameStr, note)
     }
     if (LOG_NOTES) console.log(`Note ON ${isReplay ? 'replayed' : 'detected'}:`, noteNameStr)
-  }
-  // Sustain, the other half of what a pianist plays. Only of interest to a
-  // listener that is making the sound itself; the instrument applies its own.
-  if (statusType === CONTROL_CHANGE && note === SUSTAIN_CC) {
-    callbacks.onPedal?.(velocity >= 64)
   }
   if (statusType === NOTE_OFF || (statusType === NOTE_ON && velocity === 0)) {
     const noteNameStr = noteName(note)
