@@ -14,9 +14,6 @@ export default {
     support: '🛟 Assistance',
     privacy: '🔒 Confidentialité',
     install: '📲 Installer l’application',
-    sound: 'Son',
-    appSound: '🎧 Jouer le son dans l’app',
-    appSoundHint: 'Le morceau, votre jeu et le métronome sortent du même endroit. Coupez le Local Control du piano, sinon chaque note s’entend deux fois.',
     language: 'Langue',
   },
   // Which hands a run through the score was played with.

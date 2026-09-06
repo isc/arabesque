@@ -3,8 +3,6 @@ import mockMIDI from './midi_mock.js'
 import { t } from './i18n.js'
 
 const NOTE_ON = 144
-const CONTROL_CHANGE = 176
-const SUSTAIN_CC = 64
 const NOTE_OFF = 128
 const NOTE_NAMES = 'C C# D D# E F F# G G# A A# B'.split(' ')
 
@@ -35,7 +33,6 @@ let state = {
 let callbacks = {
   onNotePlayed: null,
   onNoteReleased: null,
-  onPedal: null,
 }
 
 export function initMidi() {
@@ -189,14 +186,9 @@ function parseMidiMessage(data, isReplay = false) {
   if (statusType === NOTE_ON && velocity > 0 && note < 128) {
     const noteNameStr = noteName(note)
     if (callbacks.onNotePlayed) {
-      callbacks.onNotePlayed(noteNameStr, note, velocity)
+      callbacks.onNotePlayed(noteNameStr, note)
     }
     if (LOG_NOTES) console.log(`Note ON ${isReplay ? 'replayed' : 'detected'}:`, noteNameStr)
-  }
-  // Sustain, the other half of what a pianist plays. Only of interest to a
-  // listener that is making the sound itself; the instrument applies its own.
-  if (statusType === CONTROL_CHANGE && note === SUSTAIN_CC) {
-    callbacks.onPedal?.(velocity >= 64)
   }
   if (statusType === NOTE_OFF || (statusType === NOTE_ON && velocity === 0)) {
     const noteNameStr = noteName(note)

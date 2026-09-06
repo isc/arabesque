@@ -8,7 +8,7 @@ import { formatDuration, formatDate, applyStickyOffset, scorePageUrl, onIdle, on
 import { initStorage } from './storage.js'
 import { loadMxlAsXml } from './mxlLoader.js'
 import { injectFingerings } from './fingeringInjector.js'
-import { initPlayback, getBPM, echoNoteOn, echoNoteOff, echoPedal, warmUp } from './playback.js'
+import { initPlayback, getBPM } from './playback.js'
 import { initStrictPlaythrough } from './strictPlaythrough.js'
 import { createTempoPlan, createTempoTrainer, GRADUATED, BPM_STEP, STREAK } from './tempoTrainer.js'
 import { headerMenu } from './headerMenu.js'
@@ -252,13 +252,12 @@ export function midiApp() {
       const trackerReady = dbReady.then(() => practiceTracker.init())
       midiReady = midi.connectMIDI({ silent: true, autoSelectFirst: true })
         .then(() => this.syncMidiState())
-      warmUp()
       onIdle(() => this.loadCassettesList())
 
       const NAVIGATE_BACK_KEY = 108 // C8 - highest piano key (less jarring sound)
 
       midi.setCallbacks({
-        onNotePlayed: (noteName, midiNote, velocity) => {
+        onNotePlayed: (noteName, midiNote) => {
           if (midiNote === NAVIGATE_BACK_KEY) {
             // Go back rather than to the library so its filters (stored in
             // the URL) that led here are preserved. Fall back to the library
@@ -272,7 +271,6 @@ export function midiApp() {
             }
             return
           }
-          echoNoteOn(midiNote, velocity)
           if (strictPlaythrough.isPlaying) {
             strictPlaythrough.handleNoteOn(midiNote)
             return
@@ -280,11 +278,9 @@ export function midiApp() {
           musicxml.activateNote(midiNote)
         },
         onNoteReleased: (noteName, midiNote) => {
-          echoNoteOff(midiNote)
           if (strictPlaythrough.isPlaying) return
           musicxml.deactivateNote(midiNote)
         },
-        onPedal: echoPedal,
       })
 
       musicxml.setCallbacks({
@@ -802,10 +798,14 @@ export function midiApp() {
       if (this.strictSelected) {
         this.strictSelected = false
         this.resetStrictRange()
-        // The last run's verdict stays on the score for the player to read,
-        // not for the next mode to play over.
-        strictPlaythrough.clearMarks()
       }
+      // A mode switch starts on a clean score: whatever is lit on it — a
+      // strict run's verdict, the notes a free or training run played —
+      // belongs to the run that lit it, and that run is over. The two halves
+      // are cleared by their own module; both no-op when there is nothing to
+      // clear.
+      strictPlaythrough.clearMarks()
+      musicxml.resetProgress()
       const training = name === 'training'
       if (this.trainingMode !== training) {
         this.trainingMode = training
