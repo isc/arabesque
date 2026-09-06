@@ -115,29 +115,35 @@ async function openDatabase() {
 }
 
 export function initStorage() {
-  let db = null
+  // The open, held as the promise rather than as its result, so that a caller
+  // arriving while it is still in flight joins it instead of starting one of
+  // its own — legacy migration and deleteDatabase included. They do arrive
+  // together: the score page reads its fingerings while the practice tracker
+  // starts up. Dropped if the open fails, so a later call may try again.
+  let dbReady = null
 
-  async function ensureDb() {
-    if (!db) {
-      db = await openDatabase()
-    }
-    return db
+  function ensureDb() {
+    dbReady ??= openDatabase().catch((error) => {
+      dbReady = null
+      throw error
+    })
+    return dbReady
   }
 
   async function dbGet(storeName, key) {
-    await ensureDb()
+    const db = await ensureDb()
     const store = db.transaction(storeName, 'readonly').objectStore(storeName)
     return promisifyRequest(store.get(key))
   }
 
   async function dbGetAll(storeName) {
-    await ensureDb()
+    const db = await ensureDb()
     const store = db.transaction(storeName, 'readonly').objectStore(storeName)
     return promisifyRequest(store.getAll())
   }
 
   async function dbPut(storeName, data) {
-    await ensureDb()
+    const db = await ensureDb()
     const store = db.transaction(storeName, 'readwrite').objectStore(storeName)
     // TEMP: put() structure-clones the value synchronously on the main thread,
     // and the session object grows with every measure played. Wrapping put()
@@ -193,7 +199,7 @@ export function initStorage() {
     },
 
     async getSessions(scoreId = null, dateRange = null) {
-      await ensureDb()
+      const db = await ensureDb()
       return new Promise((resolve, reject) => {
         const transaction = db.transaction([SESSIONS_STORE], 'readonly')
         const store = transaction.objectStore(SESSIONS_STORE)
@@ -262,7 +268,7 @@ export function initStorage() {
         throw new Error('Invalid backup data format')
       }
 
-      await ensureDb()
+      const db = await ensureDb()
 
       const stores = [SESSIONS_STORE, AGGREGATES_STORE, FINGERINGS_STORE]
       const transaction = db.transaction(stores, 'readwrite')
@@ -286,7 +292,7 @@ export function initStorage() {
     // Wipe only the aggregates store. Aggregates are derived from sessions, so
     // cloud sync rebuilds them from scratch after pulling new sessions.
     async clearAggregates() {
-      await ensureDb()
+      const db = await ensureDb()
       const transaction = db.transaction([AGGREGATES_STORE], 'readwrite')
       transaction.objectStore(AGGREGATES_STORE).clear()
       await promisifyTransaction(transaction)
