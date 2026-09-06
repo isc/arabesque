@@ -27,6 +27,11 @@ still loses a test to timing now and then. For the same reason CI does not run
 workers inside a runner; it uses `rake test:shard` (`SHARD_INDEX`/`SHARD_COUNT`)
 to give each slice a runner of its own.
 
+A single-file run skips the browser warm-up that CI and `test:parallel` still
+do at the end of `test/test_helper.rb` — about 1s of a 6s run. If the *first*
+browser test of such a run fails for no visible reason, that is the cold start
+the warm-up exists to absorb: rerun with `CI=1` to put it back.
+
 No Ruby or Chrome on the machine? `scripts/test-in-docker.sh` runs any of the
 above in a container built from `test/Dockerfile`, on the same Ruby as CI:
 ```bash
