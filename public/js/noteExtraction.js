@@ -629,3 +629,19 @@ export function extractNotesFromScore(osmdInstance) {
 
   return { allNotes, playbackSequence }
 }
+
+// Carry played/active over from a note model onto its rebuild, note by note in playback
+// position. By position rather than by fingeringKey: the two occurrences of a repeated
+// measure share a key, so a key-based carry-over would bleed the first pass's "played"
+// state onto the repeat and make the matcher skip it. Both models come from the same
+// sheet, so they have the same shape.
+export function carryOverNoteStates(from, to) {
+  for (let i = 0; i < to.length && i < from.length; i++) {
+    const fromNotes = from[i].notes
+    to[i].notes.forEach((noteData, j) => {
+      if (!fromNotes[j]) return
+      noteData.played = fromNotes[j].played
+      noteData.active = fromNotes[j].active
+    })
+  }
+}
