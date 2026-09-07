@@ -29,8 +29,32 @@ class FingeringAnnotationTest < CapybaraTestBase
     end
 
     # The chord is C4-E4-G4, named in French and with the octave the rest of the
-    # world numbers by (middle C is 4, where OSMD's own Pitch says 1).
-    assert_equal %w[do4 mi4 sol4], names.sort
+    # world numbers by (middle C is 4, where OSMD's own Pitch says 1). It is
+    # written on the treble staff, so every head of it is the right hand's.
+    assert_equal ['do4 · main droite', 'mi4 · main droite', 'sol4 · main droite'], names.sort
+  end
+
+  # Which hand the note belongs to is the other half of "did I click the one I
+  # meant". It is the staff the note is written on: this fixture puts its
+  # octave-3 notes on the bass staff and everything above on the treble.
+  def test_the_fingering_modal_names_the_hand_the_note_is_written_for
+    visit "/score.html?url=#{TWO_VOICE_SCORE_URL}"
+    wait_for_score_render
+
+    names = all('svg g.vf-notehead', minimum: 2).map do |notehead|
+      notehead.click
+      assert_selector 'dialog#fingeringModal[open]'
+      name = find('[data-testid="fingering-note"]').text
+      click_on 'Close'
+      assert_no_selector 'dialog#fingeringModal[open]'
+      name
+    end
+
+    bass, treble = names.partition { |name| name.start_with?(*%w[do3 ré3 mi3 fa3 sol3 la3 si3]) }
+    refute_empty bass
+    refute_empty treble
+    assert(bass.all? { |name| name.end_with?(' · main gauche') }, "attendu main gauche : #{bass}")
+    assert(treble.all? { |name| name.end_with?(' · main droite') }, "attendu main droite : #{treble}")
   end
 
   def test_add_fingering_and_persist_after_reload

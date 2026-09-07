@@ -1,5 +1,6 @@
 import { NOTE_NAMES } from './midi.js'
 import { t } from './i18n.js'
+import { withHands } from './utils.js'
 
 // Ornament types from OSMD
 const OrnamentEnum = {
@@ -98,11 +99,18 @@ const ACCIDENTAL_SIGNS = {
 // the "la♯" the staff never says. The octave is what separates the candidates
 // when the doubt is real: a broken chord passing the same letter through two
 // registers.
-export function noteLabel({ note, midiNumber }) {
+//
+// The hand follows, in the vocabulary and with the separator runs are already
+// captioned with (utils' withHands). It is the staff the note is written on,
+// which is the hand that plays it everywhere but a deliberate cross-hand
+// passage — where the staff is what the player reads anyway.
+export function noteLabel(noteData) {
+  const { note, midiNumber } = noteData
   const pitch = note?.pitch
   const letter = t('score.noteLetters').split(' ')[getDiatonicIndex(pitch?.fundamentalNote)]
   if (!letter) return ''
-  return `${letter}${ACCIDENTAL_SIGNS[pitch.accidental] ?? ''}${octaveOfMidi(midiNumber)}`
+  const spelled = `${letter}${ACCIDENTAL_SIGNS[pitch.accidental] ?? ''}${octaveOfMidi(midiNumber)}`
+  return withHands(spelled, handOfNote(noteData))
 }
 
 // Check if an accidental is explicitly specified (not undefined or NONE)
@@ -524,9 +532,14 @@ export function isOrnamentOrGrace(noteData) {
   )
 }
 
-// Staff 0 = right hand, Staff 1+ = left hand.
+// Staff 0 = right hand, Staff 1+ = left hand. The one place that rule is
+// written: what a hand selection plays reads it, and so does what names a note.
+export function handOfNote({ staffIndex }) {
+  return staffIndex === 0 ? 'right' : 'left'
+}
+
 export function isNoteActiveForHands(noteData, activeHands) {
-  return noteData.staffIndex === 0 ? activeHands.right : activeHands.left
+  return activeHands[handOfNote(noteData)]
 }
 
 // The first measure at or after `from` that the active hands actually play,
