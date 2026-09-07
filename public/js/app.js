@@ -5,6 +5,7 @@ import { initCassettes } from './cassettes.js'
 import { initPracticeTracker } from './practiceTracker.js'
 import { playthroughGroups, TWO_HANDS } from './hands.js'
 import { formatDuration, formatDate, applyStickyOffset, scorePageUrl, onIdle, onForeground, withHands, withRunKind } from './utils.js'
+import { noteLabel } from './noteExtraction.js'
 import { initStorage } from './storage.js'
 import { loadMxlAsXml } from './mxlLoader.js'
 import { injectFingerings } from './fingeringInjector.js'
@@ -250,6 +251,7 @@ export function midiApp() {
     fingeringEnabled: false,
     showFingeringModal: false,
     selectedNoteKey: null,
+    selectedNoteLabel: '',
     fingeringSequence: '',
     fingeringKeydownHandler: null,
 
@@ -1194,6 +1196,9 @@ export function midiApp() {
 
     openFingeringModal(noteData) {
       this.selectedNoteKey = noteData.fingeringKey
+      // A click resolves to one notehead, chord or not, so the pad's title names
+      // a single note.
+      this.selectedNoteLabel = noteLabel(noteData)
       this.fingeringSequence = ''
       this.showFingeringModal = true
 
