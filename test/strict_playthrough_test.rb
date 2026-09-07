@@ -201,6 +201,27 @@ class StrictPlaythroughTest < CapybaraTestBase
     assert_text 'meilleure série : 1 propres'
   end
 
+  # The square marking where a run starts used to stay on the score for the
+  # whole run, still sitting on a measure the player had passed bars ago —
+  # feedback 945d80b4. It marks where the *next* run begins, so it comes off
+  # when one starts, and comes back with the start point a run stopped short
+  # keeps.
+  def test_the_start_marker_leaves_while_the_run_is_under_way
+    load_score('two-measures.xml', 2)
+    start_strict_mode
+
+    click_measure(2)
+    assert_selector 'svg rect.measure-click-area.strict-start'
+
+    with_clock_control do
+      trigger_click_on('▶ Démarrer')
+      assert_no_selector 'svg rect.measure-click-area.strict-start'
+
+      trigger_click_on('⏸ Pause')
+      assert_selector 'svg rect.measure-click-area.strict-start'
+    end
+  end
+
   # A count-in is a whole bar in which nothing else on screen moves. Reported as
   # feedback 659acd4e by a player who never noticed there was one — the clicks
   # come out of the device, and she was at the piano.

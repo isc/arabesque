@@ -171,7 +171,11 @@ export function midiApp() {
     // Strict mode is now decoupled from playback: selecting the tab arms
     // strict mode, the ▶/⏸ control next to it starts/stops the engine.
     strictSelected: false,
-    strictStartMeasure: 0,
+    // Where a run starts, or null while nobody has picked a measure — the same
+    // convention `strictEndMeasure` uses, and what tells the marker on the
+    // score apart from a run from the top, which needs none. A run reads it as
+    // `?? 0`: no pick means the top.
+    strictStartMeasure: null,
     strictBpm: 120,
     strictResult: null,
     // The tempo trainer: strict runs of a passage in a loop, the tempo moving
@@ -765,6 +769,7 @@ export function midiApp() {
 
       strictPlaythrough.setActiveHands(this.activeHands)
       this.isStrictPlaying = true
+      this.paintStrictRange()
 
       if (this.loopEnabled) this.startTempoTrainer()
       else this.startStrictRun(this.strictBpm).then((result) => this.finishSingleRun(result))
@@ -781,7 +786,9 @@ export function midiApp() {
           bpm,
           allNotes: musicxml.getAllNotes(),
           osmdInstance: musicxml.getOsmdInstance(),
-          startMeasureIndex: this.strictStartMeasure,
+          // No pick means from the top — and index 0 is also what tells the
+          // engine the run covers the whole score, so the journal sees it.
+          startMeasureIndex: this.strictStartMeasure ?? 0,
           endMeasureIndex: this.strictEndMeasure,
           onCountIn: ({ beat, beats }) => {
             this.countInBeat = beat
@@ -801,6 +808,7 @@ export function midiApp() {
 
     finishSingleRun(result) {
       this.isStrictPlaying = false
+      this.paintStrictRange()
       this.strictResult = result.verdict
       if (result.aborted) return
       // A clean finish resets the start point so the next ▶ replays from
@@ -825,6 +833,7 @@ export function midiApp() {
       const summary = await trainer.start()
       trainer = null
       this.isStrictPlaying = false
+      this.paintStrictRange()
       this.trainerStatus = null
       this.trainerSummary = { ...summary, runs: plan.runs }
       this.openResultModal('trainer')
@@ -858,13 +867,27 @@ export function midiApp() {
       this.strictStartMeasure = start
       this.strictEndMeasure = end
       this.strictRangeArmed = armed
-      musicxml.markStrictRange(start, end)
+      this.paintStrictRange()
     },
 
     // Back to a run from the top, with no marker on the score.
     resetStrictRange() {
-      this.setStrictRange(0, null)
-      musicxml.markStrictRange(null)
+      this.setStrictRange(null, null)
+    },
+
+    // The marker says where the *next* run starts. Once one is under way the
+    // cursor says where the music is, and a square still sitting on a measure
+    // the player passed bars ago only misleads (feedback 945d80b4) — so it
+    // comes off for the length of the run and comes back, with the start point
+    // a run stopped short keeps.
+    //
+    // Called at every move of the three values it reads. Clicking a measure
+    // mid-run therefore paints twice: setStrictRange runs while the stop it
+    // asked for is still on its way down, so the marker only lands on the
+    // repaint that the end of the run triggers.
+    paintStrictRange() {
+      const show = this.strictSelected && !this.isStrictPlaying
+      musicxml.markStrictRange(show ? this.strictStartMeasure : null, this.strictEndMeasure)
     },
 
     // 🔁 in the training band, strict mode's loop button in its own: it arms
@@ -956,7 +979,7 @@ export function midiApp() {
         if (this.trainerMode === GRADUATED) parts.push(t('score.loopStreak', { n: cleanStreak, streak: STREAK }))
         return parts.join(' · ')
       }
-      const from = this.strictStartMeasure + 1
+      const from = (this.strictStartMeasure ?? 0) + 1
       // What clicking a bar does is only worth saying while the click is
       // strict mode's: listening takes it over, and the playback band says so
       // for itself. Where the passage stands is still worth saying either way.
@@ -1364,7 +1387,7 @@ export function midiApp() {
       fingeringEditor.paintNoteStates(currentMeasureIndex)
       musicxml.updateMeasureCursor()
       // The click rectangles are rebuilt by the redraw, so the marker went with them.
-      if (this.strictSelected) musicxml.markStrictRange(this.strictStartMeasure, this.strictEndMeasure)
+      this.paintStrictRange()
     },
 
     // A full redraw: the note model is rebuilt from OSMD's sheet, which is how a
