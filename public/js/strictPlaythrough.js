@@ -10,13 +10,14 @@ import {
 import { handsKey } from './hands.js'
 import { prepareClick, playClick } from './metronomeClick.js'
 import {
-  isOrnamentOrGrace,
+  isRequiredInput,
   isNoteActiveForHands,
   sourceMeasuresToResetOnEntry,
   svgNoteheadFor,
 } from './noteExtraction.js'
 import {
   findMatchingEvent,
+  isToleratedNote,
   classifyMatch,
   EVENT_STATUS,
   CLASSIFICATION,
@@ -40,6 +41,8 @@ let timeouts = []
 let isRunning = false
 let activeOsmd = null
 let pendingEvents = []
+// Ornament and grace pitches, with the span each is allowed over (toleratedSpan).
+let toleratedNotes = []
 let stats = null
 let onCompleteCb = null
 let onProgressCb = null
@@ -112,10 +115,18 @@ function planRepeatResets(allNotes, runs) {
   return plans
 }
 
-function shouldExpectInput(noteData) {
-  if (isOrnamentOrGrace(noteData)) return false
-  if (noteData.isTieContinuation) return false
-  return isNoteActiveForHands(noteData, activeHands)
+// How long a decorative note's pitch stays acceptable. An ornament's pitches are
+// tolerated for the whole written value of the note they decorate, so a trill
+// may alternate to the end of it; a grace note is a single strike ahead of the
+// beat and gets the off-tempo window alone. Both are padded by that window on
+// either side, the same slack a required note is matched with.
+function toleratedSpan(noteData, timeMs, bpm, offTempoWindow) {
+  const heldTs = noteData.isGrace ? 0 : (noteData.note?.Length?.RealValue ?? 0)
+  return {
+    midiNumber: noteData.midiNumber,
+    fromMs: timeMs - offTempoWindow,
+    untilMs: timeMs + tsToSeconds(heldTs, bpm) * 1000 + offTempoWindow,
+  }
 }
 
 function start({
@@ -160,6 +171,7 @@ function start({
   const countInMs = resolvedCountInBeats * beatMs
 
   pendingEvents = []
+  toleratedNotes = []
   markedNoteheads = []
   measureRuns = allNotes.map((measureData, i) => ({
     sourceMeasureIndex: measureData.sourceMeasureIndex,
@@ -169,8 +181,9 @@ function start({
   }))
   const cursorTimes = buildCursorTimeline(allNotes, measureStartTimes, bpm, countInMs)
 
-  // Single pass: look up each notehead once, clear residual strict-mode
-  // classes from prior runs, push expected inputs into pendingEvents.
+  // Single pass: look up each notehead once, clear residual strict-mode classes
+  // from prior runs, and sort each note into what the run expects
+  // (pendingEvents) or merely allows (toleratedNotes).
   for (let i = 0; i < allNotes.length; i++) {
     const measureData = allNotes[i]
     const measureOffset = measureStartTimes[i] - measureData.measureIndex
@@ -180,10 +193,21 @@ function start({
       noteheadEl?.classList.remove(...STRICT_CLASSES)
       if (noteheadEl) markedNoteheads.push(noteheadEl)
 
-      if (!shouldExpectInput(noteData)) continue
+      if (!isNoteActiveForHands(noteData, activeHands)) continue
 
       const ts = measureOffset + noteData.timestamp
       const noteTimeMs = countInMs + tsToSeconds(ts, bpm) * 1000
+
+      if (!isRequiredInput(noteData)) {
+        // The trill sentinel stands for the alternation rather than for a pitch,
+        // and the expanded trill already contributes both of its notes.
+        if (!noteData.isTrillEnd) {
+          toleratedNotes.push(toleratedSpan(noteData, noteTimeMs, bpm, offTempoWindow))
+        }
+        continue
+      }
+      // A pitch already sounding under a tie is not struck again.
+      if (noteData.isTieContinuation) continue
 
       pendingEvents.push({
         timeMs: noteTimeMs,
@@ -198,6 +222,7 @@ function start({
   }
 
   pendingEvents.sort((a, b) => a.timeMs - b.timeMs)
+  toleratedNotes.sort((a, b) => a.fromMs - b.fromMs)
   stats = {
     total: pendingEvents.length,
     hit: 0,
@@ -280,6 +305,8 @@ function handleNoteOn(midiNumber) {
   const now = performance.now() - startedAtPerf
   const match = findMatchingEvent(pendingEvents, midiNumber, now, currentOffTempoWindowMs)
   if (!match) {
+    // Decoration around a note the score did ask for: not a hit, not a fault.
+    if (isToleratedNote(toleratedNotes, midiNumber, now)) return true
     stats.wrongNotes++
     // Charged to the measure being played through. Anything struck during the
     // count-in belongs to no measure and is only counted in the run's stats.
@@ -366,6 +393,7 @@ function teardown() {
   }
   activeOsmd = null
   pendingEvents = []
+  toleratedNotes = []
   measureRuns = []
 }
 

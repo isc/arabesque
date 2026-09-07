@@ -206,6 +206,12 @@ export function expandOrnamentNotes(measureNotes, fifths = 0) {
     const parentDurationWN = noteData.note?.Length?.RealValue ?? 0
     const turnDelay = delayed ? Math.max(0, parentDurationWN - DELAYED_TURN_FILL_WN) : 0
 
+    // The note the score actually writes, sounded on the beat: last of the
+    // sequence, first of a delayed turn. It carries the notehead, so a delayed
+    // turn's head now lights on the held principal rather than at the end of the
+    // gruppetto -- the head draws that pitch, and it has been played.
+    const principalIndex = delayed ? 0 : sequence.length - 1
+
     for (let i = 0; i < sequence.length; i++) {
       const midiNumber = sequence[i]
       const noteNameStd = NOTE_NAMES[midiNumber % 12]
@@ -233,8 +239,9 @@ export function expandOrnamentNotes(measureNotes, fifths = 0) {
         // is held before the turn proper. 0 for on-beat turns, mordents and trills.
         _turnDelay: turnDelay,
         [flag]: true,
-        // Only the last note should highlight the original notehead
-        noteheadIndex: i === sequence.length - 1 ? noteData.noteheadIndex : -1,
+        isOrnamentPrincipal: i === principalIndex,
+        // Only the principal highlights the original notehead
+        noteheadIndex: i === principalIndex ? noteData.noteheadIndex : -1,
       })
     }
 
@@ -521,8 +528,9 @@ function extractNotesFromSourceMeasures(sourceMeasures) {
   return { notesByMeasure, pedalEventsByMeasure, cursorStopsByMeasure }
 }
 
-// Extract notes from the score and build the playback sequence
-export function isOrnamentOrGrace(noteData) {
+// Every note that decorates another rather than being written as one: grace
+// notes, the notes an ornament expands into, and the trill sentinel.
+function isOrnamentOrGrace(noteData) {
   return Boolean(
     noteData.isGrace ||
     noteData.isTrillNote ||
@@ -530,6 +538,14 @@ export function isOrnamentOrGrace(noteData) {
     noteData.isMordentNote ||
     noteData.isTrillEnd
   )
+}
+
+// What the player is actually asked to strike. An ornament is written as one
+// note and realized as several, and the score never spells that realization
+// out, so it is represented by its principal alone -- the notes around it are
+// neither required nor wrong.
+export function isRequiredInput(noteData) {
+  return !isOrnamentOrGrace(noteData) || noteData.isOrnamentPrincipal === true
 }
 
 // Staff 0 = right hand, Staff 1+ = left hand. The one place that rule is

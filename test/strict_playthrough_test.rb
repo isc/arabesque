@@ -251,6 +251,29 @@ class StrictPlaythroughTest < CapybaraTestBase
     end
   end
 
+  # Reported as feedback 91bf6839, on the Minuet in G: "en mode strict les
+  # ornements ne sont jamais validés". An ornament is expanded into the notes it
+  # is realized with, and strict mode expected none of them — so an ornamented
+  # note had no event at all: never lit, never validated, and counted as a wrong
+  # note when the player struck it. Its principal is now what the run asks for.
+  def test_an_ornamented_note_validates_on_its_principal_alone
+    play_mordent_run(%w[C5], %w[E5])
+
+    within('dialog.pt-result-dialog') { click_on 'Fermer' }
+    assert_selector 'svg g.vf-notehead.played-note', count: 3
+  end
+
+  # The other half of the same report: playing the ornament out — which is what
+  # the symbol asks for — must not be punished either. Its notes are tolerated
+  # for as long as the note they decorate lasts.
+  def test_playing_the_ornament_out_costs_nothing
+    # Mordent on C5 in C major: principal, diatonic lower, principal. Inverted
+    # mordent on E5: principal, diatonic upper, principal.
+    play_mordent_run(%w[C5 B4 C5], %w[E5 F5 E5])
+
+    assert_no_text 'hors tempo'
+  end
+
   private
 
   def score_top
@@ -263,6 +286,37 @@ class StrictPlaythroughTest < CapybaraTestBase
   def start_strict_mode(bpm: 120)
     click_on '⏱ Mode strict'
     fill_in 'Tempo en BPM', with: bpm.to_s
+  end
+
+  # One run of mordent-ornament.xml — C5 (mordent), E5 (inverted mordent), G5,
+  # a quarter, a quarter and a half — striking `first` and `second` for the two
+  # ornamented notes. Full marks either way: only the principal is asked for,
+  # and whatever the player puts around it is tolerated. Ends on the modal.
+  def play_mordent_run(first, second)
+    load_score('mordent-ornament.xml', 3)
+    start_strict_mode
+
+    with_clock_control do
+      trigger_click_on('▶ Démarrer')
+
+      advance_clock(2000)
+      # The ornamented note is expected like any other, which is what was missing.
+      assert_selector 'svg g.vf-notehead.expected-note', count: 1, wait: 4
+      play_notes(first)
+
+      advance_clock(500)
+      play_notes(second)
+
+      advance_clock(500)
+      play_note('G5')
+
+      advance_clock(1000)
+      assert_text 'Playthrough strict terminé', wait: 2
+    end
+
+    assert_text '100%'
+    assert_text '3 sur 3'
+    assert_no_text 'fausses notes'
   end
 
   # One flawless run of chord.xml at the tempo start_strict_mode set, from

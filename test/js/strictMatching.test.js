@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { findMatchingEvent, classifyMatch } from '../../public/js/strictMatching.js'
+import { findMatchingEvent, isToleratedNote, classifyMatch } from '../../public/js/strictMatching.js'
 
 const OFFTEMPO_WINDOW = 450
 const TOLERANCE = 150
@@ -68,6 +68,48 @@ describe('findMatchingEvent', () => {
   it('does not match a recently-missed event', () => {
     const events = [event(1000, 60, 'missed')]
     expect(findMatchingEvent(events, 60, 1100, OFFTEMPO_WINDOW)).toBeNull()
+  })
+})
+
+// What the run allows without expecting: the notes an ornament is realized
+// with, and grace notes. The score writes one note and leaves the decoration to
+// the player, so striking those pitches around the beat is neither a hit nor a
+// wrong note.
+describe('isToleratedNote', () => {
+  // A mordent on C5 over a half note at 120 BPM: its lower neighbour B4 stays
+  // acceptable for the note's whole written value, plus the window either side.
+  const mordent = [
+    { midiNumber: 72, fromMs: 550, untilMs: 2450 },
+    { midiNumber: 71, fromMs: 550, untilMs: 2450 },
+  ]
+
+  it('tolerates an ornament pitch struck on the beat', () => {
+    expect(isToleratedNote(mordent, 71, 1000)).toBe(true)
+  })
+
+  it('tolerates it to the end of the note it decorates', () => {
+    expect(isToleratedNote(mordent, 71, 2400)).toBe(true)
+  })
+
+  it('does not tolerate it once that note is over', () => {
+    expect(isToleratedNote(mordent, 71, 2500)).toBe(false)
+  })
+
+  it('does not tolerate it before the ornament comes round', () => {
+    expect(isToleratedNote(mordent, 71, 400)).toBe(false)
+  })
+
+  it('does not tolerate a pitch the ornament never sounds', () => {
+    expect(isToleratedNote(mordent, 70, 1000)).toBe(false)
+  })
+
+  it('tolerates nothing when the score has no ornament', () => {
+    expect(isToleratedNote([], 71, 1000)).toBe(false)
+  })
+
+  it('reaches an ornament later in the piece', () => {
+    const later = [...mordent, { midiNumber: 64, fromMs: 4550, untilMs: 5450 }]
+    expect(isToleratedNote(later, 64, 5000)).toBe(true)
   })
 })
 

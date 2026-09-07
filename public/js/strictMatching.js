@@ -37,6 +37,19 @@ export function findMatchingEvent(events, midiNumber, now, offTempoWindow) {
   return best ? { event: best, delta: now - best.timeMs } : null
 }
 
+// Whether `midiNumber` is one the player may strike at `now` without it being a
+// wrong note: a note of an ornament's realization, or a grace note. Each entry
+// is { midiNumber, fromMs, untilMs } — the span its pitch is tolerated over —
+// and the list is sorted by fromMs, so the scan stops at the first entry that
+// has not opened yet.
+export function isToleratedNote(tolerated, midiNumber, now) {
+  for (const note of tolerated) {
+    if (note.fromMs > now) break
+    if (note.midiNumber === midiNumber && now <= note.untilMs) return true
+  }
+  return false
+}
+
 export function classifyMatch(delta, tolerance) {
   if (Math.abs(delta) <= tolerance) return CLASSIFICATION.HIT
   return delta < 0 ? CLASSIFICATION.OFFTEMPO_EARLY : CLASSIFICATION.OFFTEMPO_LATE
