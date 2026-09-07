@@ -44,7 +44,7 @@
           <div class="pt-page-header__actions">
             <!-- Who is playing. Only once there is a choice: alone on the
                  device, nobody needs telling it is them. -->
-            <button type="button" class="pt-topbar__pill pt-profile-chip" x-show="profiles.length > 1" x-cloak :aria-label="$t('profiles.switchAria')" @click="openProfiles()">
+            <button type="button" class="pt-topbar__pill pt-profile-chip" x-show="profiles.length > 1" x-cloak :aria-label="$t('profiles.switchAria')" @click="showProfilesModal = true">
               <span x-text="currentProfile.avatar" aria-hidden="true"></span>
               <span x-text="profileName(currentProfile)"></span>
             </button>
@@ -225,6 +225,30 @@
       </div>
       <!-- The ⚙️ menu + changelog/feedback modals are injected by
            mountHeaderMenu() (js/headerMenu.js), shared with the score page. -->
+
+      <!-- Who is playing, opened by the chip in the header above. Only the
+           library has it: switching lands here anyway. -->
+      <dialog :open="showProfilesModal">
+        <article>
+          <header>
+            <p><strong x-text="$t('profiles.title')">👥 Qui joue ?</strong></p>
+            <button :aria-label="$t('common.close')" rel="prev" @click="showProfilesModal = false"></button>
+          </header>
+          <div class="pt-modal-body">
+            <div class="pt-profile-tiles">
+              <template x-for="p in profiles" :key="p.id">
+                <button type="button" class="pt-profile-tile" :aria-pressed="p.id === currentProfile.id" @click="switchToProfile(p.id)">
+                  <span class="pt-profile-tile__avatar" x-text="p.avatar" aria-hidden="true"></span>
+                  <span class="pt-profile-tile__name" x-text="profileName(p)"></span>
+                </button>
+              </template>
+            </div>
+            <footer>
+              <a href="data.html#profiles" role="button" class="outline secondary" x-text="$t('profiles.manage')">Gérer les profils</a>
+            </footer>
+          </div>
+        </article>
+      </dialog>
     </main>
   </body>
 </html>
