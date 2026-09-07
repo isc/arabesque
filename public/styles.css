@@ -1449,7 +1449,10 @@ table tbody td:nth-child(2) a:hover { color: var(--pt-accent); }
 /* The panel under the filtered list: what earns the status above the one being
    filtered on. A .pt-card sitting after the table, so it scrolls away with the
    last row instead of holding a strip of the pane. */
-.pt-criteria { margin-top: var(--pt-space-4); }
+/* Both sit under the list: the criteria panel, and the one that shows when the
+   filters leave nothing. flex-start keeps the latter's button hugging its label. */
+.pt-criteria, .pt-library-empty { margin-top: var(--pt-space-4); }
+.pt-library-empty { align-items: flex-start; }
 
 /* Journal sidebar */
 /* Layout from .pt-row-between, label from .pt-eyebrow; baseline alignment is

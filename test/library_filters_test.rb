@@ -125,6 +125,46 @@ class LibraryFiltersTest < CapybaraTestBase
     assert_selector '.pt-criteria', text: /pour passer en répertoire/i
   end
 
+  def test_a_focus_chip_that_no_status_row_could_match_is_disabled
+    # Only the Nocturne Op. 9 is close to the répertoire, and it is in
+    # Perfectionnement: no Déchiffrage row can ever be in both sets.
+    find('button.pt-filter-pill[data-status="dechiffrage"]').click
+
+    assert_selector 'button.pt-focus__chip[data-focus="near-mastery"][disabled]', text: '0'
+    # The chips that still have rows keep working.
+    assert_no_selector 'button.pt-focus__chip[data-focus="stale"][disabled]'
+  end
+
+  def test_status_pills_count_against_the_active_focus
+    find('button.pt-focus__chip[data-focus="near-mastery"]').click
+
+    assert_selector 'button.pt-filter-pill[data-status="dechiffrage"][disabled]', text: '0'
+    assert_selector 'button.pt-filter-pill[data-status="perfectionnement"]', text: '1'
+    # "Tous" clears the status filter, so it counts what the focus chip leaves.
+    assert_selector 'button.pt-filter-pill[aria-pressed="true"]', text: /Tous\s+1/
+  end
+
+  def test_period_options_the_composer_rules_out_are_disabled
+    click_link 'Chopin', match: :first
+
+    period = find('select[aria-label="Filtrer par période musicale"]')
+    assert period.find('option[value="baroque"]', visible: :all).disabled?
+    refute period.find('option[value="romantique"]', visible: :all).disabled?
+  end
+
+  def test_a_dead_combination_restored_from_a_url_offers_a_way_out
+    visit '/library.html?status=dechiffrage&focus=near-mastery'
+
+    assert_selector '.pt-library-empty'
+    assert_no_selector 'tbody tr'
+
+    click_button 'Réinitialiser les filtres'
+
+    assert_selector 'tbody tr', minimum: 4
+    assert_no_selector '.pt-library-empty'
+    refute_match(/status=|focus=/, page.current_url)
+  end
+
   private
 
   def inject_aggregates
@@ -146,6 +186,9 @@ class LibraryFiltersTest < CapybaraTestBase
         lastPlayedAt: '2026-02-15T10:00:00.000Z',
         totalPracticeTimeMs: 1_800_000,
         practiceDays: ['2026-02-13', '2026-02-14', '2026-02-15'],
+        # Every measure played clean often enough: the one score the
+        # "⭐ Proches du répertoire" chip has to offer.
+        measures: (1..4).to_h { |i| [i.to_s, { totalAttempts: 5, cleanAttempts: 5, errorRate: 0 }] },
       },
       {
         scoreId: 'scores/Waltz_in_A_MinorChopin.mxl',

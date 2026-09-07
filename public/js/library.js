@@ -19,10 +19,29 @@ const STATUS_RANK = Object.fromEntries(STATUS_ORDER.map((s, i) => [s, i]))
 const DAYS_TO_SHOW = 14
 const STALE_DAYS = 7
 const STALE_MS = STALE_DAYS * 24 * 60 * 60 * 1000
-// The dropdown/pill filters, as opposed to the search box: each is mirrored
-// into the URL, and each counts towards the badge on the narrow-screen
-// "Filtrer" button. Adding a filter here wires up both.
-const FILTER_KEYS = ['statusFilter', 'composerFilter', 'periodFilter', 'focusFilter']
+// The focus chips, in the order they are offered — the library's own list, so
+// they read like STATUS_ORDER/statusLabel and PERIODS/periodLabel next door.
+const FOCUS_LABEL_KEYS = {
+  reinforce: 'focus.reinforce',
+  'near-mastery': 'focus.nearMastery',
+  stale: 'focus.stale',
+}
+const FOCUS_VALUES = Object.keys(FOCUS_LABEL_KEYS)
+const focusLabel = (value) => t(FOCUS_LABEL_KEYS[value], { n: STALE_DAYS })
+// The dropdown/pill filters, as opposed to the search box: what each one keeps.
+// One entry wires up everything they share — narrowing the list, the badge on
+// the narrow-screen "Filtrer" button, the URL, and the count every *other*
+// filter's options are measured against (see facetOptions).
+const FILTER_MATCHERS = {
+  statusFilter:   (app, score, value) => app.getStatusFor(score) === value,
+  composerFilter: (app, score, value) => score.composer === value,
+  periodFilter:   (app, score, value) => getPeriodForComposer(score.composer) === value,
+  focusFilter:    (app, score, value) => app.matchesFocus(score, value),
+}
+const FILTER_KEYS = Object.keys(FILTER_MATCHERS)
+// `statusFilter` travels as ?status=, and so on: the query string is read by
+// people, and shared.
+const urlParam = (key) => key.replace(/Filter$/, '')
 
 export function libraryApp() {
   const midi = initMidi()
@@ -159,10 +178,7 @@ export function libraryApp() {
       // gives the template x-for a chance to flush before x-model rebinds.
       await this.$nextTick()
       const params = new URLSearchParams(window.location.search)
-      this.statusFilter = params.get('status') || ''
-      this.composerFilter = params.get('composer') || ''
-      this.periodFilter = params.get('period') || ''
-      this.focusFilter = params.get('focus') || ''
+      for (const key of FILTER_KEYS) this[key] = params.get(urlParam(key)) || ''
       this.searchQuery = params.get('q') || ''
       // Synchronously, rather than leaving it to the $watch above: that flushes
       // on a microtask, which is a frame of the wrong pane on first paint.
@@ -269,21 +285,28 @@ export function libraryApp() {
       clearTimeout(searchResetTimer)
     },
 
+    get searchResults() {
+      if (!this.searchQuery) return this.scores
+      const regexes = this.searchQuery.toLowerCase().trim().split(/\s+/).filter(Boolean).map((w) => new RegExp(`\\b${w}`))
+      return this.scores.filter((score) => {
+        const text = `${score.title} ${score.composer}`.toLowerCase()
+        return regexes.every((r) => r.test(text))
+      })
+    },
+
+    // What is left of the library once the search box and every filter but
+    // `except` have had their say. With nothing excepted this is the list
+    // itself; excepting one filter gives the set its own options are counted
+    // against, so a pill's number is what clicking it would show.
+    candidates(except = null) {
+      return this.searchResults.filter((score) => FILTER_KEYS.every(
+        (key) => key === except || !this[key] || FILTER_MATCHERS[key](this, score, this[key]),
+      ))
+    },
+
     get filteredScores() {
-      let results = this.scores
-      if (this.searchQuery) {
-        const regexes = this.searchQuery.toLowerCase().trim().split(/\s+/).filter(Boolean).map((w) => new RegExp(`\\b${w}`))
-        results = results.filter((score) => {
-          const text = `${score.title} ${score.composer}`.toLowerCase()
-          return regexes.every((r) => r.test(text))
-        })
-      }
-      if (this.statusFilter)   results = results.filter((s) => this.getStatusFor(s) === this.statusFilter)
-      if (this.composerFilter) results = results.filter((s) => s.composer === this.composerFilter)
-      if (this.periodFilter)   results = results.filter((s) => getPeriodForComposer(s.composer) === this.periodFilter)
-      if (this.focusFilter)    results = results.filter((s) => this.matchesFocus(s, this.focusFilter))
       const dir = this.sortDir === 'asc' ? 1 : -1
-      return results.toSorted((a, b) => {
+      return this.candidates().toSorted((a, b) => {
         const va = this.sortKey(a), vb = this.sortKey(b)
         if (this.sortBy === 'status') return ((STATUS_RANK[va] ?? -1) - (STATUS_RANK[vb] ?? -1)) * dir
         if (typeof va === 'number') return (va - vb) * dir
@@ -349,6 +372,14 @@ export function libraryApp() {
       return this.sortDir === 'asc' ? ' ▲' : ' ▼'
     },
 
+    // The way out when the filters and the search leave nothing on screen. The
+    // search box goes with them: it narrows the list the same way, and leaving
+    // it on would keep the list empty.
+    clearFilters() {
+      for (const key of FILTER_KEYS) this[key] = ''
+      this.searchQuery = ''
+    },
+
     // Clicking the same value clears the filter — natural toggle for pills.
     setStatusFilter(status)     { this.statusFilter   = (this.statusFilter   === status)   ? '' : status },
     setComposerFilter(composer) { this.composerFilter = (this.composerFilter === composer) ? '' : composer },
@@ -356,41 +387,47 @@ export function libraryApp() {
 
     syncUrl() {
       const params = new URLSearchParams()
-      if (this.statusFilter)   params.set('status', this.statusFilter)
-      if (this.composerFilter) params.set('composer', this.composerFilter)
-      if (this.periodFilter)   params.set('period', this.periodFilter)
-      if (this.focusFilter)    params.set('focus', this.focusFilter)
+      for (const key of FILTER_KEYS) {
+        if (this[key]) params.set(urlParam(key), this[key])
+      }
       if (this.searchQuery)    params.set('q', this.searchQuery)
       const qs = params.toString()
       const url = qs ? `?${qs}` : window.location.pathname
       window.history.replaceState(null, '', url)
     },
 
+    // The options of one filter, each measured against the *other* filters:
+    // "Déchiffrage 0" then means "none, with what you have already picked",
+    // and the option is disabled rather than left as a dead end — a filtered
+    // library used to advertise counts from the whole library and then answer
+    // with an empty table. The active option is never disabled: it has to stay
+    // clickable to be turned off, and a URL can restore a dead combination.
+    // `values` is what the library itself can offer, so an option nothing could
+    // ever match is not listed at all rather than listed and forever disabled.
+    facetOptions(key, values, label = (value) => value) {
+      const match = FILTER_MATCHERS[key]
+      const shown = this.candidates(key)
+      return values.map((value) => {
+        const count = shown.filter((s) => match(this, s, value)).length
+        return { value, label: label(value), count, disabled: count === 0 && this[key] !== value }
+      })
+    },
+
+    // Only the statuses some score has reached: on a library never played, the
+    // three pills would be three zeroes.
     get statusOptions() {
-      const counts = { dechiffrage: 0, perfectionnement: 0, repertoire: 0 }
-      for (const score of this.scores) {
-        const status = this.getStatusFor(score)
-        if (status && counts[status] !== undefined) counts[status]++
-      }
-      return STATUS_ORDER.map((value) => ({ value, label: statusLabel(value), count: counts[value] }))
+      const reached = new Set(this.scores.map((s) => this.getStatusFor(s)))
+      return this.facetOptions('statusFilter', STATUS_ORDER.filter((v) => reached.has(v)), statusLabel)
     },
 
     get composerOptions() {
       const set = new Set(this.scores.map((s) => s.composer).filter(Boolean))
-      return [...set].sort((a, b) => a.localeCompare(b, locale()))
+      return this.facetOptions('composerFilter', [...set].sort((a, b) => a.localeCompare(b, locale())))
     },
 
-    // Surface only periods that actually have scores in the library, so the
-    // dropdown doesn't list dead-end options.
     get periodOptions() {
-      const counts = {}
-      for (const score of this.scores) {
-        const p = getPeriodForComposer(score.composer)
-        if (p) counts[p] = (counts[p] || 0) + 1
-      }
-      return PERIODS
-        .filter((value) => counts[value] > 0)
-        .map((value) => ({ value, label: periodLabel(value), count: counts[value] }))
+      const present = new Set(this.scores.map((s) => getPeriodForComposer(s.composer)))
+      return this.facetOptions('periodFilter', PERIODS.filter((v) => present.has(v)), periodLabel)
     },
 
     // Each focus chip filters the table to an actionable subset — the user
@@ -413,18 +450,12 @@ export function libraryApp() {
       return false
     },
 
+    // A chip no score in the library answers is not shown at all — unlike the
+    // statuses, a score can be in several of these at once, so which ones are
+    // on offer takes a pass of its own.
     get focusOptions() {
-      const counts = { reinforce: 0, 'near-mastery': 0, stale: 0 }
-      for (const score of this.scores) {
-        for (const k of Object.keys(counts)) {
-          if (this.matchesFocus(score, k)) counts[k]++
-        }
-      }
-      return [
-        { value: 'reinforce',    label: t('focus.reinforce'),                 count: counts.reinforce },
-        { value: 'near-mastery', label: t('focus.nearMastery'),               count: counts['near-mastery'] },
-        { value: 'stale',        label: t('focus.stale', { n: STALE_DAYS }),  count: counts.stale },
-      ].filter((opt) => opt.count > 0)
+      const offered = FOCUS_VALUES.filter((v) => this.scores.some((s) => this.matchesFocus(s, v)))
+      return this.facetOptions('focusFilter', offered, focusLabel)
     },
 
     // Under the filtered list: what the pieces on screen still have to clear to

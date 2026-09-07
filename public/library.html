@@ -101,18 +101,20 @@
         </div>
 
         <div class="pt-filters" x-show="scores.length > 0">
+          <!-- "Tous" clears the status filter, so it counts what the other
+               filters leave, not the size of the library. -->
           <button
             class="pt-filter-pill"
             :aria-pressed="!statusFilter"
             @click="statusFilter = ''"
-          ><span x-text="$t('library.filterAll')">Tous</span> <span class="pt-filter-pill__count" x-text="scores.length"></span></button>
+          ><span x-text="$t('library.filterAll')">Tous</span> <span class="pt-filter-pill__count" x-text="candidates('statusFilter').length"></span></button>
           <template x-for="opt in statusOptions" :key="opt.value">
             <button
               class="pt-filter-pill"
               :data-status="opt.value"
               :aria-pressed="statusFilter === opt.value"
+              :disabled="opt.disabled"
               @click="statusFilter = (statusFilter === opt.value ? '' : opt.value)"
-              x-show="opt.count > 0"
             >
               <span x-text="opt.label"></span>
               <span class="pt-filter-pill__count" x-text="opt.count"></span>
@@ -120,14 +122,14 @@
           </template>
           <select class="pt-select" x-model="composerFilter" :aria-label="$t('library.composerFilterAria')" x-show="composerOptions.length > 1">
             <option value="" x-text="$t('library.allComposers')">Tous compositeurs</option>
-            <template x-for="c in composerOptions" :key="c">
-              <option :value="c" x-text="c"></option>
+            <template x-for="c in composerOptions" :key="c.value">
+              <option :value="c.value" :disabled="c.disabled" x-text="c.label"></option>
             </template>
           </select>
           <select class="pt-select" x-model="periodFilter" :aria-label="$t('library.periodFilterAria')" x-show="periodOptions.length > 1">
             <option value="" x-text="$t('library.allPeriods')">Toutes périodes</option>
             <template x-for="p in periodOptions" :key="p.value">
-              <option :value="p.value" x-text="`${p.label} (${p.count})`"></option>
+              <option :value="p.value" :disabled="p.disabled" x-text="`${p.label} (${p.count})`"></option>
             </template>
           </select>
         </div>
@@ -139,6 +141,7 @@
               class="pt-focus__chip"
               :data-focus="opt.value"
               :aria-pressed="focusFilter === opt.value"
+              :disabled="opt.disabled"
               @click="setFocusFilter(opt.value)"
             >
               <span x-text="opt.label"></span>
@@ -221,6 +224,16 @@
               </template>
             </tbody>
           </table>
+
+          <!-- Clicking cannot empty the list — each filter disables the options
+               that would — but a bookmarked URL or a search that matches nothing
+               still can, and an empty table on its own explains nothing. -->
+          <template x-if="scores.length > 0 && candidates().length === 0">
+            <aside class="pt-card pt-stack pt-library-empty">
+              <p class="pt-hint" x-text="$t('library.noMatch')">Aucune partition ne correspond à ces filtres.</p>
+              <button type="button" class="outline secondary" @click="clearFilters()" x-text="$t('library.clearFilters')">Réinitialiser les filtres</button>
+            </aside>
+          </template>
 
           <!-- Filtering by a status is asking what that status is: the panel
                answers with the bar for the one above, straight from the rules
