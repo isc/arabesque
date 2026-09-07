@@ -165,3 +165,16 @@ export function formatDate(date) {
   if (diffDays === 1) return t('date.yesterday')
   return formatVerboseDate(compareDate)
 }
+
+// Where a bar clicked lands when a passage is being picked by its two ends. The
+// first click says where the passage starts and arms the second; a click at or
+// after it then says where it ends. Anything else — a click before the start,
+// or one made with nothing armed — starts the pick over.
+//
+// Strict mode's loop and training mode's passage are picked with exactly this
+// gesture, so it is written once: `armed` is only ever raised while the mode
+// offers an end to pick, which is what `loop` carries into the next click.
+export function pickPassageMeasure({ measureIndex, start, armed, loop }) {
+  if (armed && measureIndex >= start) return { start, end: measureIndex, armed: false }
+  return { start: measureIndex, end: null, armed: loop }
+}
