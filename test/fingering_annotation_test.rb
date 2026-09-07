@@ -11,17 +11,26 @@ class FingeringAnnotationTest < CapybaraTestBase
     page.driver.set_cookie('test-env', 'true')
   end
 
-  def test_clicking_chord_notes_opens_fingering_modal
+  # Every head of a chord opens the pad on its own note. The pad used to say
+  # nothing about which one, so on a dense score the player could not tell
+  # whether the note they meant was the note they hit; its title names it now, in
+  # the language the app is in.
+  def test_clicking_chord_notes_opens_the_fingering_modal_on_the_note_clicked
     visit "/score.html?url=#{CHORD_SCORE_URL}"
     wait_for_score_render
-    noteheads = all('svg g.vf-notehead', minimum: 3)
 
-    # Verify clicking each notehead in the chord opens the fingering modal
-    noteheads.each do |notehead|
+    names = all('svg g.vf-notehead', minimum: 3).map do |notehead|
       notehead.click
       assert_selector 'dialog#fingeringModal[open]'
+      name = find('[data-testid="fingering-note"]').text
       click_on 'Close'
+      assert_no_selector 'dialog#fingeringModal[open]'
+      name
     end
+
+    # The chord is C4-E4-G4, named in French and with the octave the rest of the
+    # world numbers by (middle C is 4, where OSMD's own Pitch says 1).
+    assert_equal %w[do4 mi4 sol4], names.sort
   end
 
   def test_add_fingering_and_persist_after_reload

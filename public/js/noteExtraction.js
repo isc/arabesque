@@ -1,4 +1,5 @@
 import { NOTE_NAMES } from './midi.js'
+import { t } from './i18n.js'
 
 // Ornament types from OSMD
 const OrnamentEnum = {
@@ -29,6 +30,11 @@ const DIATONIC_NOTES = [0, 2, 4, 5, 7, 9, 11] // C, D, E, F, G, A, B
 function getDiatonicIndex(fundamentalNote) {
   return DIATONIC_NOTES.indexOf(fundamentalNote)
 }
+
+// The octave numbering everything the player sees goes by: middle C (MIDI 60)
+// is C4. OSMD's own Pitch.Octave counts three octaves lower, which is why note
+// names here are always built from the MIDI number.
+const octaveOfMidi = (midiNumber) => Math.floor(midiNumber / 12) - 1
 
 // Diatonic indices affected by flats/sharps in the circle of fifths
 // Flat order:  B(6), E(2), A(5), D(1), G(4), C(0), F(3)
@@ -74,6 +80,29 @@ function getDiatonicOffset(pitch, direction, fifths = 0) {
   }
 
   return adjacentHalfTone - currentHalfTone
+}
+
+// The sign that goes with a letter. NONE and NATURAL get none: a ♮ says "not the
+// sharp you saw earlier", a question the staff has already answered.
+const ACCIDENTAL_SIGNS = {
+  [AccidentalEnum.SHARP]: '♯',
+  [AccidentalEnum.FLAT]: '♭',
+  [AccidentalEnum.DOUBLESHARP]: '𝄪',
+  [AccidentalEnum.DOUBLEFLAT]: '𝄫',
+}
+
+// Names a note for the player, in their language: "sol♯4", "C4". Unlike the
+// noteName each note already carries — a MIDI name, always sharps and always
+// ASCII, which the matcher and the logs go by — this is the note as the score
+// spells it, so the B flat of an invention stays "si♭" instead of turning into
+// the "la♯" the staff never says. The octave is what separates the candidates
+// when the doubt is real: a broken chord passing the same letter through two
+// registers.
+export function noteLabel({ note, midiNumber }) {
+  const pitch = note?.pitch
+  const letter = t('score.noteLetters').split(' ')[getDiatonicIndex(pitch?.fundamentalNote)]
+  if (!letter) return ''
+  return `${letter}${ACCIDENTAL_SIGNS[pitch.accidental] ?? ''}${octaveOfMidi(midiNumber)}`
 }
 
 // Check if an accidental is explicitly specified (not undefined or NONE)
@@ -172,7 +201,7 @@ export function expandOrnamentNotes(measureNotes, fifths = 0) {
     for (let i = 0; i < sequence.length; i++) {
       const midiNumber = sequence[i]
       const noteNameStd = NOTE_NAMES[midiNumber % 12]
-      const octaveStd = Math.floor(midiNumber / 12) - 1
+      const octaveStd = octaveOfMidi(midiNumber)
 
       // Delayed turn: the principal (i === 0) stays on the beat (offset 0) and the
       // turn proper is pushed out by turnDelay. Otherwise notes follow immediately.
@@ -302,7 +331,7 @@ function buildPlaybackSequence(sourceMeasures) {
 function pitchToMidiFromSourceNote(pitch) {
   const midiNote = pitch.halfTone + 12
   const noteNameStd = NOTE_NAMES[midiNote % 12]
-  const octaveStd = Math.floor(midiNote / 12) - 1
+  const octaveStd = octaveOfMidi(midiNote)
   return { noteName: `${noteNameStd}${octaveStd}`, midiNote: midiNote }
 }
 
