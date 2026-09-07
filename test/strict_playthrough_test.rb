@@ -171,7 +171,7 @@ class StrictPlaythroughTest < CapybaraTestBase
     click_measure(1)
     assert_text 'cliquez sur la dernière mesure du passage'
     click_measure(1)
-    assert_text 'Boucle des mesures 1 à 1.'
+    assert_text 'Boucle de la mesure 1.'
 
     with_clock_control do
       trigger_click_on('▶ Démarrer')

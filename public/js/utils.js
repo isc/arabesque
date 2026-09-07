@@ -1,4 +1,4 @@
-import { t, locale } from './i18n.js'
+import { t, tn, locale } from './i18n.js'
 import { TWO_HANDS } from './hands.js'
 
 // Built once: the active locale is fixed for the page lifetime (switching
@@ -126,6 +126,14 @@ export function withHands(text, hands) {
 // main droite", each qualifier only when it isn't the default.
 export function withRunKind(text, { hands, strict }) {
   return withHands(strict ? `${text} · ${t('score.strictRuns')}` : text, hands)
+}
+
+// The strict band's passage line, from the first and last bar of the loop. A
+// one-bar passage is a range only on paper: "boucle des mesures 6 à 6" is how
+// a computer counts, not how a pianist says it (feedback 506f2060). The number
+// of bars picks the wording, so each language says the single one its own way.
+export function loopRangeText(from, to) {
+  return tn('score.loopRange', to - from + 1, { from, to })
 }
 
 export function statusLabel(status) {

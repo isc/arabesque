@@ -250,6 +250,7 @@ export default {
     trainerRandom: 'Mixed tempi (70–110%)',
     loopHint: 'Click the first, then the last bar of the passage to work on.',
     loopRange: 'Looping bars {from} to {to}.',
+    loopRangeOne: 'Looping bar {from}.',
     loopRangeOpen: 'Looping from bar {from} to the end.',
     loopHintEnd: 'Starting at bar {n} — click the last bar of the passage.',
     loopRun: 'run {n}',
