@@ -10,6 +10,8 @@ import {
   renderMarkdownItem,
   foldIntoMarkdown,
   PENDING_LINE,
+  MAX_ITEM_LENGTH,
+  LANGS,
 } from '../../scripts/changelog.mjs'
 
 const ROOT = join(import.meta.dirname, '..', '..')
@@ -44,6 +46,20 @@ describe('a changelog fragment', () => {
 
   it('refuses an empty section', () => {
     expect(() => parseFragment('2026-09-06-a-slug.md', fragment('Bonjour.', '  '))).toThrow(/"# en" section is empty/)
+  })
+
+  // The bar a reader complained about: entries had grown into paragraphs
+  // justifying the implementation, and the modal became unreadable.
+  it('refuses a section longer than a title sentence and one or two more', () => {
+    const long = 'a'.repeat(MAX_ITEM_LENGTH + 1)
+    expect(() => parseFragment('2026-09-06-a-slug.md', fragment(long, 'One.'))).toThrow(
+      new RegExp(`is ${MAX_ITEM_LENGTH + 1} characters, over the ${MAX_ITEM_LENGTH}`),
+    )
+  })
+
+  it('accepts a section right at the limit', () => {
+    const exact = 'a'.repeat(MAX_ITEM_LENGTH)
+    expect(parseFragment('2026-09-06-a-slug.md', fragment(exact, 'One.')).fr).toBe(exact)
   })
 
   it('refuses a section that is neither French nor English', () => {
@@ -111,10 +127,56 @@ describe('the changelog the app imports', () => {
     }
   })
 
+  // What `parseFragment` enforces for a fragment, held over the entries that
+  // are already folded in: shortening them once is worth nothing if the next
+  // hand-written line brings the paragraphs back.
+  it('keeps every item to what a modal can be read in', () => {
+    for (const entry of CHANGELOG) {
+      for (const lang of LANGS) {
+        for (const item of entry.items[lang]) {
+          expect(item.length, `${entry.date} ${lang}: ${item.slice(0, 60)}…`).toBeLessThanOrEqual(MAX_ITEM_LENGTH)
+        }
+      }
+    }
+  })
+
   it('is antechronological, one entry per date', () => {
     const dates = CHANGELOG.map((entry) => entry.date)
     expect(dates).toEqual([...new Set(dates)])
     expect(dates).toEqual([...dates].sort().reverse())
+  })
+})
+
+// CHANGELOG's bullets, one string per item, `**` dropped. Normally `fold`
+// writes them from fragments that already passed the cap, but the file is
+// hand-edited often enough — this change included — to be worth its own gate.
+const changelogBullets = (md) => {
+  const items = []
+  for (const line of md.split('\n')) {
+    if (line.startsWith('- ')) items.push(line.slice(2))
+    else if (items.length && line.startsWith('  ')) items[items.length - 1] += ` ${line.trim()}`
+  }
+  return items.map((item) => item.replaceAll('**', ''))
+}
+
+describe('the CHANGELOG file', () => {
+  const bullets = changelogBullets(readFileSync(join(ROOT, 'CHANGELOG'), 'utf8'))
+
+  it('parses into the bullets it is made of', () => {
+    expect(bullets.length).toBeGreaterThan(20)
+  })
+
+  it('keeps every bullet to the length an entry gets', () => {
+    for (const bullet of bullets) {
+      expect(bullet.length, `${bullet.slice(0, 60)}…`).toBeLessThanOrEqual(MAX_ITEM_LENGTH)
+    }
+  })
+
+  // The limit is written twice on purpose — once where it is enforced, once
+  // where the writer reads it — so the two are held together here rather than
+  // left to drift.
+  it('is the limit CLAUDE.md tells writers to keep to', () => {
+    expect(readFileSync(join(ROOT, 'CLAUDE.md'), 'utf8')).toContain(`${MAX_ITEM_LENGTH} characters per section`)
   })
 })
 

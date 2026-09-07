@@ -1,246 +1,167 @@
 2026-09-06
 
-- **Douze chansons pour débutants.** Une collection « Chansons »
-  (Traditionnel) reprend les douze chansons qui closent la méthode de piano
-  pour les 4-7 ans de Sophie Allerme, note pour note : mêmes tonalités, même
-  position des mains autour du do central, mêmes doigtés. Promenons-nous dans
-  les bois, Au clair de la lune, Fais dodo, Joyeux anniversaire, Sur le pont
-  d'Avignon, J'ai du bon tabac, Le roi Dagobert et les autres, à retrouver
-  dans la bibliothèque ou en jouant leurs premières notes.
+- **Douze chansons pour débutants.** Une collection « Chansons » reprend note
+  pour note les douze chansons qui closent la méthode de piano pour les 4-7
+  ans de Sophie Allerme : mêmes tonalités, mêmes doigtés, mains autour du do
+  central.
 
 - **Plusieurs profils sur le même appareil.** Chacun a son journal, ses
   statuts et ses doigtés : ce que l'un joue n'entre pas dans l'historique de
-  l'autre. Les profils se créent depuis la page Données (⚙️ → Données), avec
-  un prénom et un avatar ; on en change d'un tap sur le prénom en haut de la
-  bibliothèque, ou par ⚙️ → Profils. Seul le premier profil se synchronise
-  avec le compte ; les autres restent sur l'appareil, la sauvegarde dans un
-  fichier étant leur seule copie.
+  l'autre. On les crée dans ⚙️ → Données, et on en change d'un tap sur le
+  prénom en haut de la bibliothèque.
 
 2026-09-05
 
-- **Noter un doigté ne fait plus tomber le mode entraînement.** Le violet de
-  la mesure en cours et les points de répétition disparaissaient dès qu'on
-  validait un doigté sur une note qui n'en avait pas : la partition était
-  redessinée et le mode s'en allait avec elle, répétitions déjà acquises
-  comprises. Entraînement comme renforcement, le travail en cours traverse
-  maintenant l'annotation.
+- **Noter un doigté ne fait plus tomber le mode entraînement.** Valider un
+  doigté redessinait la partition, et le mode s'en allait avec elle,
+  répétitions déjà acquises comprises. Entraînement comme renforcement, le
+  travail en cours traverse maintenant l'annotation.
 
-- **Le mode strict travaille un passage en boucle.** Le bouton 🔁 Boucle,
-  à côté du tempo, rejoue en boucle le passage délimité par deux clics sur
-  la partition (ou la partition entière), avec un temps de pause entre deux
-  passages. Le tempo évolue au fil des passages, de deux façons au choix :
-  progressif, +5 BPM après trois passages propres d'affilée (et −5 après
-  trois ratés, jamais sous le tempo de départ) ; ou tempos alternés, 70, 85,
-  100 et 110 % du tempo dans le désordre, jamais deux fois le même — moins
-  confortable sur le moment, mais mieux retenu, et le tempo cible est
-  abordé dès les premiers passages au lieu d'attendre la fin d'une longue
-  montée. Le bandeau affiche le tempo, le numéro du passage et la série en
-  cours ; ⏸ arrête la boucle et résume les passages joués, leur tempo et la
-  meilleure série. Chaque passage est consigné dans le journal comme un
-  passage strict.
+- **Le mode strict travaille un passage en boucle.** Le bouton 🔁 Boucle
+  rejoue le passage délimité par deux clics sur la partition, avec une pause
+  entre deux passages, et fait évoluer le tempo : +5 BPM après trois passages
+  propres, ou 70, 85, 100 et 110 % du tempo dans le désordre. ⏸ arrête et
+  résume les passages joués.
 
-- **Un passage strict compte comme joué en entier, notes manquées ou pas.**
-  Il fallait jusqu'ici n'en manquer aucune pour que le passage soit consigné
-  comme joué en entier : sur un morceau de quatre cents notes au métronome,
-  autant dire jamais, et le journal ne montrait rien de spécifique. Un
-  passage joué du début à la fin est maintenant consigné avec son verdict —
-  « 1× en entier (94 % à 55 BPM) · mode strict » — qui est justement ce qu'on
-  veut lire. Le statut du morceau, lui, continue de dépendre des mesures
-  jouées proprement.
+- **Un passage strict compte comme joué en entier, notes manquées ou pas.** Il
+  fallait jusqu'ici n'en manquer aucune — au métronome, autant dire jamais. Un
+  passage joué du début à la fin est maintenant consigné avec son verdict :
+  « 1× en entier (94 % à 55 BPM) · mode strict ».
 
 - **La modale de fin de passage strict n'écrit plus le score en rouge.** 94 %
   en rouge vif se lisait comme un échec. Le pourcentage est neutre sous 70 %,
   bleu jusqu'à 90 %, vert au-delà.
 
-- **Les passages en mode strict ont leur place dans l'historique.** Un morceau
-  joué en entier au métronome était consigné comme un passage libre : sa durée
-  — celle du métronome, pas celle du joueur — entrait dans le classement des
-  temps et dans la courbe d'évolution, et rien ne disait qu'il avait été joué
-  en mode strict, ni à quel tempo, ni avec quelle précision. Le journal les
-  distingue maintenant (« 2× en entier (92 % à 100 BPM et 100 % à 100 BPM) ·
-  mode strict »), l'historique de la partition leur donne leur propre courbe,
-  celle de la précision, et le classement des temps de jeu libre ne compare
-  que des passages libres.
+- **Les passages en mode strict ont leur place dans l'historique.** Ils
+  étaient consignés comme des passages libres, leur durée — celle du
+  métronome — faussant le classement des temps. Le journal les distingue
+  maintenant, avec leur tempo et leur précision, et leur donne leur propre
+  courbe.
 
-- **Le décompte du mode strict se voit.** Une mesure complète s'écoule entre
-  l'appui sur ▶ et la première note, et rien ne bougeait à l'écran pendant ce
-  temps-là : l'indication du bandeau disparaissait, la partition restait figée,
-  et qui n'entendait pas les clics — le clavier sous les doigts, le son sortant
-  de la tablette — croyait que rien n'avait démarré. Le bandeau affiche
-  maintenant les temps de la mesure de départ, 1 2 3 4 ou 1 2 3 selon la
-  métrique, celui en cours en évidence. Il prend la place que l'indication
-  libère, à hauteur identique : la partition ne bouge pas, et on continue de
-  lire la mesure qu'on s'apprête à jouer.
+- **Le décompte du mode strict se voit.** Une mesure entière s'écoule entre
+  l'appui sur ▶ et la première note, et rien ne bougeait à l'écran : qui
+  n'entendait pas les clics croyait que rien n'avait démarré. Le bandeau
+  affiche maintenant les temps de la mesure de départ, celui en cours en
+  évidence.
 
-- **Les doigtés s'annotent au doigt.** Sur tablette, ouvrir la saisie d'un
-  doigté demandait de toucher une tête de note large de trois millimètres : à
-  la souris on visait sans y penser, au doigt la plupart des touchers tombaient
-  à côté — et à côté, c'était le rectangle de la mesure qui prenait le toucher,
-  donc le curseur sautait là au lieu d'ouvrir le pavé. Un toucher va maintenant
-  à la tête de note la plus proche, à une douzaine de pixels près, et dans un
-  accord serré c'est celle dont le doigt est le plus près qui l'emporte. À la
-  souris, rien ne change : la visée reste au pixel près, et l'espace vide d'une
-  mesure y déplace toujours le curseur.
+- **Les doigtés s'annotent au doigt.** Sur tablette, il fallait toucher une
+  tête de note large de trois millimètres, et un toucher à côté déplaçait le
+  curseur au lieu d'ouvrir le pavé. Un toucher va maintenant à la tête de note
+  la plus proche ; à la souris, la visée reste au pixel près.
 
 2026-09-03
 
-- **L'écoute ne couvre plus le jeu.** Le moteur de lecture envoyait toutes ses
-  notes à vélocité 89 — un forte —, alors qu'on travaille autour de 70 : le
-  morceau joué par l'app sortait du clavier bien plus fort que sa propre main.
-  Les notes partent maintenant à vélocité 64, un cran sous un toucher normal.
-  C'est bien la vélocité qui baisse, pas le volume de l'instrument (CC 7) :
-  aucun réglage à remettre en place à l'arrêt, au saut de mesure ou à la
-  fermeture de l'onglet, donc aucun risque de laisser le piano baissé pour le
-  joueur.
+- **▶ Écouter ne fait plus sursauter.** L'app appuyait les touches à une
+  nuance forte, bien au-dessus de ce qu'on joue soi-même : le morceau sortait
+  de l'instrument plus fort que sa propre main. Elle joue maintenant un cran
+  en dessous d'un toucher normal, sans jamais toucher au volume de
+  l'instrument.
 
-- **Les partitions ne sont plus criblées de chiffres.** L'Arabesque portait 52
-  nombres isolés au-dessus des portées, et cinq autres partitions en comptaient
-  une soixantaine à elles toutes : les changements de tempo que MuseScore écrit
-  pour sa propre lecture automatique, exportés en toutes lettres à côté des
-  indications réelles. OSMD prend tout mot accompagné d'un `<sound tempo>` pour
-  une indication de tempo et les gravait donc sur la page, où ils n'ont rien à
-  dire à un pianiste. Ils sont retirés de la partition avant la mise en page ;
-  les indications réelles (Andantino con moto, rit., a tempo) restent.
+- **Les partitions ne sont plus criblées de chiffres.** Une cinquantaine de
+  nombres isolés flottaient au-dessus des portées de l'Arabesque, et cinq
+  autres partitions en portaient : des changements de tempo écrits pour la
+  lecture automatique du logiciel de saisie. Les indications réelles restent
+  en place.
 
 - **Le mode strict compte comme du travail.** Un morceau joué en entier au
   métronome ne laissait aucune trace : ni temps de pratique, ni mesures
-  travaillées, ni « joué en entier » dans le journal — les notes vont au moteur
-  du mode strict, jamais au curseur de la partition qui alimente le suivi.
-  Chaque passage est maintenant enregistré mesure par mesure, avec ses notes
-  manquées et ses fausses notes, et un passage du début à la fin sans note
-  manquée compte comme un jeu complet.
+  travaillées. Chaque passage est maintenant enregistré mesure par mesure.
 
 2026-09-02
 
-- **Une fausse note se voit.** En mode entraînement, un point ne se remplit que
-  si la mesure est jouée sans faute, mais la faute elle-même n'était matérialisée
-  nulle part : un doigt qui effleure la touche voisine comptait comme une note en
-  trop, et les trois points restaient bloqués sans explication. La note attendue
-  s'allume en rouge au moment de l'erreur, et le point de la répétition en cours
-  passe en rouge — on sait immédiatement qu'elle ne comptera pas.
+- **Une fausse note se voit.** En mode entraînement, un point ne se remplit
+  que si la mesure est jouée sans faute, mais rien ne signalait la faute : les
+  trois points restaient bloqués sans qu'on comprenne pourquoi. La note
+  attendue s'allume maintenant en rouge, et le point de la répétition en cours
+  aussi.
 
 2026-08-31
 
-- **Deux onglets sur téléphone : Journal et Partitions.** Filtres, puis journal
-  de pratique, puis liste filtrée : l'ordre n'avait pas de sens, les filtres
-  flottaient au-dessus d'un journal qu'ils ne touchent pas. Chaque onglet est
-  une vue cohérente, la barre de filtres et de tri est passée avec la liste, et
-  le journal ouvre en premier — c'est ce qu'on vient consulter sur un téléphone,
-  et il n'y a plus 2000 px de cartes avant la première partition. Une recherche
-  bascule sur Partitions, comme un lien portant un filtre. Sur grand écran rien
-  ne change : le journal et la liste restent côte à côte.
+- **Sur téléphone, la bibliothèque se lit en deux onglets : Journal et
+  Partitions.** Les filtres sont maintenant avec la liste qu'ils filtrent, et
+  le journal s'ouvre en premier sans qu'il faille passer deux semaines de
+  cartes pour atteindre les partitions. Sur grand écran, rien ne change.
 
 - **Les titres de partitions s'alignent sur le journal.** Ils commençaient 8 px
   plus à gauche que les lignes du journal, juste en dessous.
 
 2026-08-30
 
-- **La bibliothèque tient sur un téléphone.** Le tableau des partitions faisait
-  628 px quel que soit l'écran : la page entière scrollait de côté et les titres
-  se cassaient sur trois lignes. Sous 700 px chaque ligne devient une carte —
-  titre sur sa ligne, puis compositeur, statut et temps de pratique —, les
-  filtres se replient derrière un bouton « Filtrer » qui compte ceux encore
-  actifs, et un menu déroulant reprend le tri que les en-têtes de colonnes
-  assuraient. Les filtres coûtaient 348 px avant le moindre contenu.
+- **La bibliothèque et le journal de pratique tiennent enfin sur un
+  téléphone.** Le tableau des partitions débordait de l'écran et les titres se
+  cassaient sur trois lignes. Chaque partition est maintenant une ligne à elle
+  seule, les filtres se replient derrière un bouton, et un menu déroulant
+  assure le tri.
 
 - **La barre du haut d'une partition ne déborde plus.** Ses actions ne
   rétrécissent pas, et retour + titre + clavier MIDI + historique + ⚙️ font plus
   large qu'un téléphone : le ⚙️ était dessiné hors de l'écran. Elles passent
   maintenant sur une ligne à elles.
 
-- **Le titre gravé s'adapte à la largeur.** OSMD le dessine à une taille fixée
-  dans ses propres unités : 40 px aussi bien sur un écran de 1280 px que sur un
-  de 390 px, soit un tiers de la largeur, au-dessus de 148 px d'en-tête avant la
-  première portée. Il suit désormais la largeur du conteneur, avec un plancher
-  par ligne — au facteur qui ramène le titre à 20 px, le compositeur tombait à
-  10 px.
+- **Le titre gravé s'adapte à la largeur.** Il était dessiné à taille fixe :
+  40 px sur un écran de 390 px comme sur un de 1280, soit un tiers de la
+  largeur d'un téléphone. Il suit désormais la largeur du conteneur, avec un
+  plancher par ligne.
 
 - **Le sélecteur de fichier de sauvegarde ne fait plus scroller la page de
   côté.** Masqué visuellement, il gardait quand même toute la largeur.
 
 2026-08-28
 
-- **Reprendre depuis la première mesure repart vraiment de zéro.** Les mesures
-  déjà jouées restaient acquises à travers le clic de reprise, alors que le
-  chronomètre du passage, lui, repartait : deux mesures jouées après la reprise
-  pouvaient suffire à déclarer la partition terminée, avec le temps de ces deux
-  mesures — donc en tête du classement. Reprendre au départ du passage remet
-  les deux à zéro. Un saut en arrière au milieu du morceau garde son crédit,
-  c'est tout l'intérêt d'y retourner. Le départ du passage n'est pas toujours
-  la mesure 1 : une main décochée, il commence après les mesures que cette main
-  laisse à l'autre.
+- **Reprendre à une mesure ne saute plus la reprise.** Dans un morceau à
+  reprise — les exercices de Hanon —, cliquer sur une mesure repartait en
+  réalité de la deuxième passe, et l'app annonçait la partition terminée sans
+  que la reprise ait été jouée. Le clic repart maintenant de la première
+  passe.
 
-- **Reprendre à une mesure ne saute plus la reprise.** Une mesure gravée une
-  fois mais jouée deux fois recevait une zone de clic par passe, empilées au
-  même endroit : le clic allait à celle du dessus, donc à la dernière passe.
-  Dans un Hanon, cliquer sur la première mesure repartait de la reprise, et la
-  partition était annoncée terminée une passe trop tôt. Il n'y a plus qu'une
-  zone par mesure gravée, celle de sa première passe.
+- **Reprendre le morceau depuis sa première mesure repart vraiment de zéro.**
+  Les mesures déjà jouées restaient acquises alors que le chronomètre
+  repartait : deux mesures suffisaient à déclarer la partition terminée, avec
+  un temps absurde en tête du classement. Un saut en arrière garde le crédit
+  du reste.
 
 2026-08-27
 
-- **Une main seule n'est pas le morceau joué en entier.** Depuis qu'un passage
-  peut se terminer en n'ayant coché qu'une main, il apparaissait comme une
-  lecture complète, indistinguable des deux mains. Chaque tentative de mesure
-  retient maintenant les mains actives, et un passage n'est « en entier » que
-  s'il a été joué à deux mains d'un bout à l'autre. Les autres sont comptés à
-  part : leur propre ligne dans l'historique de la partition et dans le journal,
-  leur propre courbe d'évolution, leur propre compteur en bibliothèque, et ils
-  ne comptent ni dans les lectures complètes de l'année ni dans le passage au
-  répertoire. Le classement de fin de passage ne met en concurrence que des
-  passages joués des mêmes mains — sinon une main droite battait au chrono tous
-  les temps à deux mains.
+- **Jouer d'une seule main ne compte plus comme le morceau joué en entier.**
+  Un passage main droite seule reste enregistré et chronométré, mais à part :
+  sa propre ligne dans le journal, sa propre courbe, et un classement qui ne
+  compare que des passages joués des mêmes mains.
 
 - **Une partition absente du cache le dit.** Hors ligne, ouvrir une partition
   jamais consultée laissait la page sur son indicateur de chargement
   indéfiniment. Elle affiche maintenant ce qui se passe et propose de revenir à
-  la bibliothèque — et l'indicateur lui-même tourne à nouveau : son animation
-  vivait dans une image SVG, donc sur le thread principal, saturé précisément
-  pendant l'affichage d'une partition.
+  la bibliothèque ; l'indicateur, lui, tourne à nouveau.
 
-- **L'app fonctionne sans réseau.** Un service worker met en cache tout ce qu'il
-  faut pour ouvrir la bibliothèque et jouer — le HTML, les scripts, les
-  bibliothèques d'affichage, le catalogue — et garde les partitions au fur et à
-  mesure que vous les ouvrez, dans un cache qui survit aux mises à jour. Un iPad
-  sur un pupitre sans wifi ouvre l'app et sa partition du moment. Au passage, le
-  démarrage à froid n'attend plus le téléchargement de 1,8 Mo de bibliothèques.
-  Côté iOS, ça demandait d'inscrire la webview aux app-bound domains (voir
-  `ios/README.md`).
+- **L'app fonctionne sans réseau.** Tout ce qu'il faut pour ouvrir la
+  bibliothèque et jouer est gardé sur l'appareil, et chaque partition ouverte
+  y reste : un iPad sans wifi travaille normalement. Au passage, l'app démarre
+  nettement plus vite.
 
 2026-08-26
 
-- **Une main seule traverse les mesures de l'autre.** Le curseur n'avançait
-  qu'en validant une note : une mesure sans rien pour la main active était sans
-  issue — mesure 25 du prélude n° 2 de Bach, un silence à la main droite, où il
-  fallait recocher la main gauche pour continuer. Ces mesures sont maintenant
-  franchies et comptées comme faites, donc une lecture d'une seule main se
-  termine normalement.
+- **Travailler une main seule ne bute plus sur les mesures que l'autre main
+  tient toute seule : le curseur les traverse.** Dans le prélude n° 2 de Bach,
+  la mesure 25 est un silence à la main droite ; elle compte maintenant comme
+  faite, donc une lecture d'une seule main va jusqu'au bout.
 
-- **« Aujourd'hui » suit le jour.** Le journal de pratique et le calendrier
-  d'assiduité étaient construits une fois pour toutes à l'ouverture de la page :
-  sur l'iPad, où l'app est mise en veille et réveillée pendant des semaines sans
-  jamais être rechargée, la case « aujourd'hui » gardait le lendemain matin le
-  travail de la veille. Les deux pages se redessinent maintenant quand le jour
-  change — au retour dans l'app, à minuit, ou quand l'horloge saute d'un fuseau
-  à l'autre.
+- **« Aujourd'hui » suit le jour.** Le journal et le calendrier d'assiduité
+  étaient construits une fois pour toutes à l'ouverture de la page : sur un
+  iPad jamais rechargé, la case « aujourd'hui » gardait le lendemain le travail
+  de la veille. Les deux se redessinent maintenant quand le jour change.
 
 - **Fin des versions mélangées.** Le HTML d'une page et ses modules JS sont mis
-  en cache séparément, et une navigation arrière ressert le document sans le
-  revalider : sur l'iPad, le raccourci « touche la plus aigüe » ramenait une
-  bibliothèque d'avant le déploiement, dont le journal de pratique affichait des
-  clés de traduction brutes (`library.playedFull`) parce que les traductions,
-  elles, étaient à jour. Les deux côtés portent désormais le même tampon de
-  version, posé au déploiement ; quand ils divergent, la page se recharge une
-  fois d'elle-même.
+  en cache séparément, et une navigation arrière pouvait ramener une
+  bibliothèque d'avant le déploiement. Les deux côtés portent désormais le même
+  tampon de version ; quand ils divergent, la page se recharge une fois
+  d'elle-même.
 
 2026-08-24
 
-- **Page « Assiduité »** : l'année entière en cases, une par jour, façon
-  graphique de contributions — plus la journée a été longue, plus la case est
-  foncée. Jours joués, temps total, lectures complètes, série en cours et
-  meilleure série ; les flèches remontent aux années précédentes, et cliquer
-  une case rouvre le détail de ce jour-là. Accessible depuis le menu ⚙️ et
-  depuis l'en-tête du journal de pratique.
+- **Une page « Assiduité » montre l'année entière, une case par jour** : plus
+  vous avez joué ce jour-là, plus la case est foncée. On y lit d'un coup d'œil
+  les semaines tenues et les trous, la série en cours et la meilleure série ;
+  cliquer une case rappelle ce qui a été travaillé.
+
 - **Suppression de compte.** La page Données permet d'effacer son compte et
   toutes les données de pratique synchronisées, en deux temps. Les données de
   l'appareil restent en place — la sauvegarde dans un fichier sert à les
@@ -258,48 +179,35 @@
 
 2026-08-22
 
-- **Affichage initial de la page partition.** Plus de clignotement : la carte
-  d'onboarding, la barre de modes et le titre de repli s'affichaient tant
-  qu'Alpine n'avait pas démarré, puis étaient remplacés. Un drapeau posé pendant
-  le parsing du HTML décide de l'état d'ouverture (indicateur de chargement ou
-  onboarding), `x-cloak` couvre le reste, et le titre est lu dès qu'OSMD a parsé
-  la partition.
-- Sur le chemin critique : le téléchargement de la partition part du `<head>`,
-  Tone.js (~400 Ko) passe en import dynamique dans « Écouter », les scripts
-  vendor passent en `defer`, MIDI et cassettes ne bloquent plus le rendu, et
-  OSMD reçoit le Document déjà parsé au lieu d'une chaîne à reparser. Le premier
-  paint passe de 3,3 s à 0,4 s et la partition s'affiche ~1,5 s plus tôt (CPU
-  4× ralenti, 5 Mb/s).
+- **Affichage initial de la page partition.** La carte d'onboarding, la barre
+  de modes et le titre de repli s'affichaient tant qu'Alpine n'avait pas
+  démarré, puis étaient remplacés. La page montre maintenant un indicateur de
+  chargement, puis le morceau.
+
+- **Sur le chemin critique** : le téléchargement de la partition part du
+  `<head>`, Tone.js (~400 Ko) passe en import dynamique dans « Écouter », et
+  OSMD reçoit le Document déjà parsé. Le premier paint passe de 3,3 s à 0,4 s
+  et la partition s'affiche ~1,5 s plus tôt.
 
 2026-08-14
 
 - **OpenSheetMusicDisplay 2.1.2**, en version stock : le correctif d'ordre des
   doigtés multi-voix qu'on portait à la main est passé upstream (PR #1685), et
-  la 2.0.0 sur laquelle notre bundle était bâti n'avait plus rien d'autre en
-  propre. Fin du build maison. Au passage, le rendu accélère nettement — la
-  Ballade op. 23 se redessine en ~0,7 s contre ~2,0 s — et OSMD apporte ses
-  correctifs de liaisons (arcs aplatis), de liaisons de tenue enharmoniques
-  (Gb→F#), d'alignement des voix à durées pointées et de crash sur `octave-shift`
-  non terminé.
+  la 2.0.0 n'avait plus rien d'autre en propre. Fin du build maison, et le
+  rendu accélère nettement — la Ballade op. 23 se redessine en ~0,7 s contre
+  ~2,0 s.
 
-- La case **« Synchronisation automatique »** disparaît : être connecté suffit à
-  synchroniser, se déconnecter est l'interrupteur. La case venait de la phase où
-  la synchro ne partait qu'à l'ouverture de la page Données ; une fois les
-  déclencheurs ambiants en place, elle ne pouvait plus produire qu'un compte
-  connecté qui ne fait rien — l'état qui avait laissé un an d'historique en
-  local. Le drapeau reste en interne, écrit à la connexion, pour que les pages
-  partition et bibliothèque sachent s'abstenir sans charger le client Supabase.
+- **Plus de case « Synchronisation automatique » : être connecté suffit.** Vos
+  données se synchronisent, et se déconnecter est ce qui arrête tout. La case
+  ne servait plus qu'à laisser croire qu'un compte était actif alors qu'il ne
+  faisait rien.
 
 2026-08-13
 
-- **Connexion par code** en plus du lien magique. Un lien connecte le navigateur
-  qui l'ouvre : dans l'app iOS, dont la WKWebView a son propre stockage, le lien
-  s'ouvre dans Safari et la session n'atteint jamais l'app — la synchro y était
-  donc inutilisable, et c'est la seule configuration qui donne le MIDI sur iPad.
-  L'e-mail porte maintenant un code à 8 chiffres, saisi dans l'app. La demande
-  en cours est mémorisée, pour survivre à l'aller-retour vers l'app Mail.
-  Correctif purement web : il atteint l'app iOS sans nouveau build TestFlight,
-  puisqu'elle charge le site déployé.
+- **Connexion par code : l'e-mail contient désormais un code à 8 chiffres en
+  plus du lien.** Le lien connecte le navigateur qui l'ouvre, ce qui ne marche
+  ni dans l'app iPad ni depuis un autre appareil ; le code, lui, fonctionne
+  partout.
 
 - Journal de pratique sur **14 jours** au lieu de 8, en une seule lecture de la
   base (contre une par jour affiché).
@@ -310,16 +218,11 @@
 
 2026-08-12
 
-- La **synchronisation automatique** est enfin automatique. Le réglage ne
+- **La synchronisation automatique est enfin automatique.** Le réglage ne
   déclenchait une synchro qu'à l'ouverture de la page Données ; elle part
-  maintenant à la fin de chaque session de travail (morceau terminé, séance
-  d'entraînement ou de renforcement), au retour sur l'onglet, et à l'ouverture
-  de la bibliothèque — qui se rafraîchit toute seule si des données sont
-  arrivées d'un autre appareil. Garde-fous : une synchro à la fois, une par
-  minute au maximum pour les déclencheurs passifs, et le client Supabase n'est
-  chargé (et préchargé hors du chemin critique) que si la synchro est activée.
-  Au passage, une synchro ne retélécharge plus tous les doigtés à chaque fois,
-  seulement ceux qui ont réellement changé.
+  maintenant à la fin de chaque session de travail, au retour sur l'onglet et à
+  l'ouverture de la bibliothèque. Garde-fous : une synchro à la fois, une par
+  minute au maximum.
 
 2026-08-11
 
@@ -330,11 +233,10 @@
 
 2026-08-04
 
-- Renommage : l'application s'appelle désormais **Arabesque**. Le nom est
-  changé partout dans l'interface, dans le wrapper iOS (nom affiché, cible
-  Xcode, bundle ID `com.arabesque.Arabesque`) et dans le nom des fichiers de
-  sauvegarde exportés. Rien n'est touché côté données : la base IndexedDB
-  garde son nom, donc l'historique de pratique et les doigtés sont conservés.
+- **Renommage : l'application s'appelle désormais Arabesque.** Le nom change
+  partout dans l'interface, dans le wrapper iOS et dans les fichiers de
+  sauvegarde exportés. Rien n'est touché côté données : l'historique de
+  pratique et les doigtés sont conservés.
 
 2026-07-04
 

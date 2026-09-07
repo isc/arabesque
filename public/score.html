@@ -547,7 +547,10 @@
     <dialog id="fingeringModal" :open="showFingeringModal" @keydown.escape.prevent="closeFingeringModal()">
       <article>
         <header>
-          <p><strong data-i18n="score.fingeringTitle">Doigté</strong></p>
+          <p>
+            <strong data-i18n="score.fingeringTitle">Doigté</strong>
+            <small class="pt-modal-note pt-modal-note--inline" x-text="selectedNoteLabel" data-testid="fingering-note"></small>
+          </p>
           <button aria-label="Close" rel="prev" @click="closeFingeringModal()"></button>
         </header>
 

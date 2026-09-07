@@ -1035,9 +1035,9 @@ button.pt-topbar__pill:disabled { opacity: 0.4; cursor: default; }
 }
 .pt-data-identity strong { overflow-wrap: anywhere; }
 
-/* Profiles (profiles.js): the tiles that switch, in the modal the ⚙️ menu
-   opens; the rows that edit, on the data page. The chip in the library header
-   is a plain .pt-topbar__pill. */
+/* Profiles (profiles.js): the tiles that switch, in the chooser the library's
+   profile chip opens (a plain .pt-topbar__pill); the rows that edit, on the
+   data page. */
 .pt-profile-tiles {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
@@ -1064,9 +1064,11 @@ button.pt-topbar__pill:disabled { opacity: 0.4; cursor: default; }
 .pt-profile-tile__avatar { font-size: 2.5rem; line-height: 1; }
 .pt-profile-tile__name { font-weight: 600; overflow-wrap: anywhere; }
 /* A footer inside the scrolling body is out of reach of the
-   dialog > article > footer rule above, so its actions are laid out here. */
-.pt-modal-body > footer { display: flex; justify-content: flex-end; margin-top: var(--pt-space-4); }
-.pt-modal-body > footer [role="button"] { margin: 0; width: auto; }
+   dialog > article > footer rule above, so its actions are laid out here.
+   At any depth, not just a direct child: such a footer often sits inside the
+   <form> it submits or the <div> an x-if branch wraps it in. */
+.pt-modal-body footer { display: flex; justify-content: flex-end; margin-top: var(--pt-space-4); }
+.pt-modal-body footer [role="button"] { margin: 0; width: auto; }
 
 /* A row of the profile list is a .pt-account-form with a box around it. */
 .pt-profile-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--pt-space-2); }
@@ -1413,6 +1415,11 @@ table tbody td:nth-child(2) a:hover { color: var(--pt-accent); }
 .pt-focus__chip[aria-pressed="true"] .pt-focus__count {
   background: color-mix(in srgb, var(--pt-mode-reinforcement) 18%, var(--pt-bg-elevated));
 }
+
+/* The panel under the filtered list: what earns the status above the one being
+   filtered on. A .pt-card sitting after the table, so it scrolls away with the
+   last row instead of holding a strip of the pane. */
+.pt-criteria { margin-top: var(--pt-space-4); }
 
 /* Journal sidebar */
 /* Layout from .pt-row-between, label from .pt-eyebrow; baseline alignment is
@@ -1852,9 +1859,11 @@ dialog > article > footer button { margin: 0; }
   margin-bottom: var(--pt-space-2);
   font-weight: 600;
 }
-.pt-changelog-entry ul { margin: 0; padding-left: 1.1rem; }
+.pt-changelog-entry ul,
+.pt-criteria ul { margin: 0; padding-left: 1.1rem; }
 .pt-changelog-entry li { margin-bottom: var(--pt-space-2); }
-.pt-changelog-entry li:last-child { margin-bottom: 0; }
+.pt-changelog-entry li:last-child,
+.pt-criteria li:last-child { margin-bottom: 0; }
 
 .pt-strict-breakdown { list-style: none; padding: 0; margin: var(--pt-space-3) 0; color: var(--pt-text-muted); font-size: 0.9rem; }
 

@@ -1,14 +1,14 @@
 import { initMidi } from './midi.js'
-import { initPracticeTracker } from './practiceTracker.js'
+import { initPracticeTracker, STATUS_THRESHOLDS } from './practiceTracker.js'
 import { initStorage } from './storage.js'
 import { formatDuration, formatDate, formatRelativeDate, statusLabel, scorePageUrl } from './utils.js'
 import { journalEntryHelpers } from './journalEntries.js'
 import { PERIODS, periodLabel, getPeriodForComposer } from './musicalPeriods.js'
 import { headerMenu } from './headerMenu.js'
-import { listProfiles } from './profiles.js'
+import { listProfiles, currentProfile, profileName, switchProfile } from './profiles.js'
 import { initAutoSync } from './autoSync.js'
 import { onDayChange } from './dayRollover.js'
-import { t, locale } from './i18n.js'
+import { t, tn, locale } from './i18n.js'
 
 const MIN_MATCH = 5
 const STATUS_ORDER = ['dechiffrage', 'perfectionnement', 'repertoire']
@@ -36,6 +36,29 @@ export function libraryApp() {
 
   return {
     ...headerMenu(),
+
+    // --- Profiles ---
+    // Who is playing, shown as the chip in the header and changed from the
+    // chooser it opens. Read once: the current profile cannot change within a
+    // page, switching navigates.
+    profiles: listProfiles(),
+    currentProfile: currentProfile(),
+    profileName,
+    showProfilesModal: false,
+    switchToProfile(id) {
+      if (id === this.currentProfile.id) {
+        this.showProfilesModal = false
+        return
+      }
+      switchProfile(id)
+      // A fresh start on that profile's data, from the library. Every module
+      // derived its storage names from the profile at import time, so a
+      // navigation is the only honest way to change it (profiles.js). Not a
+      // reload: assign() drops the query string, so the filters mirrored there
+      // do not carry over to the profile being switched to.
+      window.location.assign('library.html')
+    },
+
     scores: [],
     searchQuery: '',
     statusFilter: '',
@@ -381,7 +404,7 @@ export function libraryApp() {
       }
       if (focus === 'near-mastery') {
         if (agg.status !== 'perfectionnement' || measures.length === 0) return false
-        const clean = measures.filter((m) => (m.cleanAttempts || 0) >= 3).length
+        const clean = measures.filter((m) => (m.cleanAttempts || 0) >= STATUS_THRESHOLDS.perfectionnement.cleanAttempts).length
         return clean / measures.length >= 0.8
       }
       if (focus === 'stale') {
@@ -402,6 +425,33 @@ export function libraryApp() {
         { value: 'near-mastery', label: t('focus.nearMastery'),               count: counts['near-mastery'] },
         { value: 'stale',        label: t('focus.stale', { n: STALE_DAYS }),  count: counts.stale },
       ].filter((opt) => opt.count > 0)
+    },
+
+    // Under the filtered list: what the pieces on screen still have to clear to
+    // earn the status above theirs. Narrowing to a status is asking what that
+    // status means, and the answer was nowhere in the app. The numbers come
+    // from STATUS_THRESHOLDS, the same object computeScoreStatus() judges by.
+    // Null when the filter names no next status — nothing selected, or
+    // Répertoire, which is the top.
+    get statusCriteria() {
+      // "Proches du répertoire" is a subset of Perfectionnement, so it asks the
+      // same question about the same next step.
+      const from = this.focusFilter === 'near-mastery' ? 'perfectionnement' : this.statusFilter
+      // With no filter `from` is '', so STATUS_RANK[from] is undefined and the
+      // index NaN — the lookup yields undefined and the getter returns null.
+      const target = STATUS_ORDER[STATUS_RANK[from] + 1]
+      if (!target) return null
+
+      const { cleanAttempts, measureRatio, practiceDays, timesCompleted } = STATUS_THRESHOLDS[target]
+      const items = [
+        measureRatio === 1
+          ? t('criteria.cleanMeasuresAll', { n: cleanAttempts })
+          : t('criteria.cleanMeasures', { percent: Math.round(measureRatio * 100), n: cleanAttempts }),
+        tn('criteria.completed', timesCompleted),
+      ]
+      if (practiceDays) items.push(t('criteria.practiceDays', { n: practiceDays }))
+
+      return { heading: t('criteria.heading', { status: statusLabel(target) }), items }
     },
 
     // A collection ("recueil", e.g. les 20 exercices de Hanon) is a single
