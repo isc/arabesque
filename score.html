@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="app-version" content="d11d8e41dfa1" />
+    <meta name="app-version" content="850b373d0a65" />
     <title data-i18n="score.pageTitle">Arabesque</title>
     <link rel="icon" href="favicon.svg" type="image/svg+xml" />
     <link rel="manifest" href="manifest.webmanifest" />
@@ -532,7 +532,10 @@
     <dialog id="fingeringModal" :open="showFingeringModal" @keydown.escape.prevent="closeFingeringModal()">
       <article>
         <header>
-          <p><strong data-i18n="score.fingeringTitle">Doigté</strong></p>
+          <p>
+            <strong data-i18n="score.fingeringTitle">Doigté</strong>
+            <small class="pt-modal-note pt-modal-note--inline" x-text="selectedNoteLabel" data-testid="fingering-note"></small>
+          </p>
           <button aria-label="Close" rel="prev" @click="closeFingeringModal()"></button>
         </header>
 

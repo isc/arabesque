@@ -14,7 +14,6 @@ export default {
     support: '🛟 Support',
     privacy: '🔒 Privacy',
     install: '📲 Install the app',
-    profiles: '👥 Profiles',
     language: 'Language',
   },
   // Several people on one device (profiles.js).
@@ -292,6 +291,9 @@ export default {
     noMidiBrowsers: '(Chrome, Edge, or Opera).',
     fingeringTitle: 'Fingering',
     fingeringValidate: '✓ Confirm',
+    // The seven letters, from C to B — the only part of a note's name that is
+    // language's business; the ♯ and ♭ that go with them are music's own signs.
+    noteLetters: 'C D E F G A B',
     midiHelpTitle: 'Connecting a MIDI keyboard',
     midiHelpIntro: 'No MIDI device detected. Here is how to connect your keyboard:',
     macTwoCases: 'Depending on your piano, two cases:',
