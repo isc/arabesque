@@ -118,13 +118,24 @@ for the day it is meant to ship, holding the item in both languages:
 
 ```markdown
 # fr
-Une phrase de titre. Puis ce qu'il y avait avant, ce qui change, et ce que le
-joueur y gagne.
+Le décompte du mode strict se voit. Le bandeau affiche les temps de la mesure
+de départ, celui en cours en évidence.
 
 # en
-A title sentence. Then what it was like before, what changes, and what the
-player gets out of it.
+The strict-mode count-in can be seen. The band shows the beats of the count-in
+bar, the one sounding picked out.
 ```
+
+**IMPORTANT:** That length is the point of the example, not an accident. An
+entry is read in a modal, one of forty, by someone who wants to know what
+changed — **a title sentence, then one or two sentences, and never more than
+320 characters per section**. Cut the justification, the implementation, the
+pixel counts, the second example, and every clause that says the title again in
+other words. Over the limit means the entry is doing the work of a commit
+message: keep the title and the one sentence a player would act on, and let the
+rest live in the PR. `parseFragment` refuses a section over that limit and
+`test/js/changelog.test.js` holds the published entries to the same bar, so it
+fails the pull request rather than reaching the modal.
 
 A file per change is a file git merges; a line at the top of those two files is
 a conflict with every other PR open that day. Both sections are required — one

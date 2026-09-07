@@ -24,10 +24,10 @@ const HISTORY = [
     date: '2026-09-06',
     items: {
       fr: [
-        "Douze chansons pour débutants. Une collection « Chansons » (Traditionnel) reprend les douze chansons qui closent la méthode de piano pour les 4-7 ans de Sophie Allerme, note pour note : mêmes tonalités, même position des mains autour du do central, mêmes doigtés. Promenons-nous dans les bois, Au clair de la lune, Fais dodo, Joyeux anniversaire, Sur le pont d'Avignon, J'ai du bon tabac, Le roi Dagobert et les autres, à retrouver dans la bibliothèque ou en jouant leurs premières notes.",
+        "Douze chansons pour débutants. Une collection « Chansons » reprend note pour note les douze chansons qui closent la méthode de piano pour les 4-7 ans de Sophie Allerme : mêmes tonalités, mêmes doigtés, mains autour du do central.",
       ],
       en: [
-        "Twelve songs for beginners. A \"Chansons\" collection (Traditional) carries the twelve songs that close Sophie Allerme's piano method for 4-7 year olds, note for note: same keys, same hand position around middle C, same fingerings. Promenons-nous dans les bois, Au clair de la lune, Fais dodo, Happy Birthday, Sur le pont d'Avignon, J'ai du bon tabac, Le roi Dagobert and the others, in the library or by playing their first notes.",
+        "Twelve songs for beginners. A \"Chansons\" collection carries, note for note, the twelve songs that close Sophie Allerme's piano method for 4-7 year olds: same keys, same fingerings, hands around middle C.",
       ],
     },
   },
@@ -35,10 +35,10 @@ const HISTORY = [
     date: '2026-09-06',
     items: {
       fr: [
-        "Plusieurs profils sur le même appareil. Chacun a son journal, ses statuts et ses doigtés : ce que l'un joue n'entre pas dans l'historique de l'autre. Les profils se créent depuis la page Données (⚙️ → Données), avec un prénom et un avatar ; on en change d'un tap sur le prénom en haut de la bibliothèque, ou par ⚙️ → Profils. Seul le premier profil se synchronise avec le compte ; les autres restent sur l'appareil.",
+        "Plusieurs profils sur le même appareil. Chacun a son journal, ses statuts et ses doigtés : ce que l'un joue n'entre pas dans l'historique de l'autre. On les crée dans ⚙️ → Données, et on en change d'un tap sur le prénom en haut de la bibliothèque.",
       ],
       en: [
-        "Several profiles on the same device. Each has its own journal, statuses and fingerings: what one plays never lands in the other's history. Profiles are created from the Data page (⚙️ → Data), with a first name and an avatar; switch with a tap on the name at the top of the library, or through ⚙️ → Profiles. Only the first profile syncs with the account; the others stay on the device.",
+        "Several profiles on the same device. Each has its own journal, statuses and fingerings: what one plays never lands in the other's history. Create them in ⚙️ → Data, and switch with a tap on the name at the top of the library.",
       ],
     },
   },
@@ -46,22 +46,22 @@ const HISTORY = [
     date: '2026-09-05',
     items: {
       fr: [
-        "Noter un doigté ne fait plus tomber le mode entraînement. Le violet de la mesure en cours et les points de répétition disparaissaient dès qu'on validait un doigté sur une note qui n'en avait pas : la partition était redessinée et le mode s'en allait avec elle, répétitions déjà acquises comprises. Entraînement comme renforcement, le travail en cours traverse maintenant l'annotation.",
-        "Le mode strict travaille un passage en boucle. Le bouton 🔁 Boucle, à côté du tempo, rejoue en boucle le passage délimité par deux clics sur la partition — ou la partition entière — avec un temps de pause entre deux passages. Le tempo évolue au fil des passages, de deux façons au choix : progressif, +5 BPM après trois passages propres d'affilée (et −5 après trois ratés, jamais sous le tempo de départ) ; ou tempos alternés, 70, 85, 100 et 110 % du tempo dans le désordre — moins confortable sur le moment, mais mieux retenu, et le tempo cible est abordé dès les premiers passages. ⏸ arrête la boucle et résume les passages joués, leur tempo et la meilleure série.",
-        "Un passage strict compte comme joué en entier, notes manquées ou pas. Il fallait jusqu'ici n'en manquer aucune pour que le passage soit consigné comme joué en entier — sur un morceau de quatre cents notes au métronome, autant dire jamais, et le journal ne montrait rien de spécifique. Un passage joué du début à la fin est maintenant consigné avec son verdict, « 1× en entier (94 % à 55 BPM) · mode strict », qui est justement ce qu'on veut lire. Le statut du morceau, lui, continue de dépendre des mesures jouées proprement.",
+        "Noter un doigté ne fait plus tomber le mode entraînement. Valider un doigté redessinait la partition, et le mode s'en allait avec elle, répétitions déjà acquises comprises. Entraînement comme renforcement, le travail en cours traverse maintenant l'annotation.",
+        "Le mode strict travaille un passage en boucle. Le bouton 🔁 Boucle rejoue le passage délimité par deux clics sur la partition, avec une pause entre deux passages, et fait évoluer le tempo : +5 BPM après trois passages propres, ou 70, 85, 100 et 110 % du tempo dans le désordre. ⏸ arrête et résume les passages joués.",
+        "Un passage strict compte comme joué en entier, notes manquées ou pas. Il fallait jusqu'ici n'en manquer aucune — au métronome, autant dire jamais. Un passage joué du début à la fin est maintenant consigné avec son verdict : « 1× en entier (94 % à 55 BPM) · mode strict ».",
         "La modale de fin de passage strict n'écrit plus le score en rouge. 94 % en rouge vif se lisait comme un échec. Le pourcentage est neutre sous 70 %, bleu jusqu'à 90 %, vert au-delà.",
-        "Les passages en mode strict ont leur place dans l'historique. Un morceau joué en entier au métronome était consigné comme un passage libre : sa durée — celle du métronome, pas celle du joueur — entrait dans le classement des temps et dans la courbe d'évolution, sans que rien ne dise le tempo ni la précision. Le journal les distingue maintenant (« 2× en entier (92 % à 100 BPM et 100 % à 100 BPM) · mode strict »), l'historique de la partition leur donne leur propre courbe, celle de la précision, et le classement des temps de jeu libre ne compare plus que des passages libres.",
-        "Le décompte du mode strict se voit. Une mesure complète s'écoule entre l'appui sur ▶ et la première note, et rien ne bougeait à l'écran pendant ce temps-là : qui n'entendait pas les clics croyait que rien n'avait démarré. Le bandeau affiche maintenant les temps de la mesure de départ — 1 2 3 4, ou 1 2 3 selon la métrique — celui en cours en évidence. Il prend la place que l'indication libère, à hauteur identique, donc la partition ne bouge pas et on continue de lire la mesure qu'on s'apprête à jouer.",
-        "Les doigtés s'annotent au doigt. Sur tablette, ouvrir la saisie d'un doigté demandait de toucher une tête de note large de trois millimètres : au doigt, la plupart des touchers tombaient à côté — et à côté, c'était la mesure qui prenait le toucher, donc le curseur sautait là au lieu d'ouvrir le pavé. Un toucher va maintenant à la tête de note la plus proche, à une douzaine de pixels près, et dans un accord serré c'est bien celle dont le doigt est le plus près qui l'emporte. À la souris, rien ne change : la visée reste au pixel près.",
+        "Les passages en mode strict ont leur place dans l'historique. Ils étaient consignés comme des passages libres, leur durée — celle du métronome — faussant le classement des temps. Le journal les distingue maintenant, avec leur tempo et leur précision, et leur donne leur propre courbe.",
+        "Le décompte du mode strict se voit. Une mesure entière s'écoule entre l'appui sur ▶ et la première note, et rien ne bougeait à l'écran : qui n'entendait pas les clics croyait que rien n'avait démarré. Le bandeau affiche maintenant les temps de la mesure de départ, celui en cours en évidence.",
+        "Les doigtés s'annotent au doigt. Sur tablette, il fallait toucher une tête de note large de trois millimètres, et un toucher à côté déplaçait le curseur au lieu d'ouvrir le pavé. Un toucher va maintenant à la tête de note la plus proche ; à la souris, la visée reste au pixel près.",
       ],
       en: [
-        "Writing a fingering no longer takes training mode down with it. The purple of the bar under way and the repeat dots vanished the moment you validated a fingering on a note that had none: the score was redrawn and the mode went with it, repetitions already banked included. Training and reinforcement alike, the work under way now survives the annotation.",
-        "Strict mode can loop a passage. The 🔁 Loop button next to the tempo replays the passage between two clicked bars — or the whole score — with a pause between runs. The tempo moves from run to run, one of two ways: graduated, +5 BPM after three clean runs in a row (and −5 after three failed ones, never below the starting tempo); or mixed tempi, 70, 85, 100 and 110% of the tempo in random order — less comfortable in the moment, better retained, and the target tempo is met from the first runs. ⏸ ends the loop and sums up the runs, their tempo and the best streak.",
-        "A strict run counts as played in full, missed notes or not. Until now not a single note could be missed for the run to be filed as played in full — on a four-hundred-note piece to the metronome, that is never, and the journal showed nothing specific. A run played from the top to the end is now filed with its verdict, \"1× in full (94% at 55 BPM) · strict mode\", which is exactly what you want to read. The score's status still depends on the bars played cleanly.",
+        "Writing a fingering no longer takes training mode down with it. Validating a fingering redrew the score, and the mode went with it, repetitions already banked included. Training and reinforcement alike, the work under way now survives the annotation.",
+        "Strict mode can loop a passage. The 🔁 Loop button replays the passage between two clicked bars, with a pause between runs, and moves the tempo along: +5 BPM after three clean runs, or 70, 85, 100 and 110% of the tempo in random order. ⏸ ends the loop and sums up the runs.",
+        "A strict run counts as played in full, missed notes or not. Until now not one note could be missed — to the metronome, that is never. A run played from the top to the end is now filed with its verdict: \"1× in full (94% at 55 BPM) · strict mode\".",
         "The end-of-run modal no longer writes the strict score in red. 94% in bright red read as a fail. The percentage is neutral below 70%, blue up to 90%, green beyond.",
-        "Strict-mode runs have their place in the history. A piece played in full to the metronome was filed as a free run: its time — the metronome's, not the player's — entered the play-time ranking and the trend chart, with nothing to say what tempo it was played at or how accurately. The journal now tells them apart (\"2× in full (92% at 100 BPM and 100% at 100 BPM) · strict mode\"), a score's history gives them a chart of their own, the accuracy one, and the free play-time ranking only compares free runs.",
-        "The strict-mode count-in can be seen. A whole bar goes by between pressing ▶ and the first note, and nothing moved on screen during it: anyone who could not hear the clicks thought nothing had started. The band now shows the beats of the count-in bar — 1 2 3 4, or 1 2 3 depending on the metre — with the one sounding picked out. It takes the slot the hint gives up, at the same height, so the score does not move and you keep reading the bar you are about to play.",
-        'Fingerings can be annotated with a finger. On a tablet, opening the fingering pad meant hitting a notehead three millimetres across: with a fingertip most taps landed beside it — and beside it was the bar, which took the tap, so the cursor jumped there instead of the pad opening. A tap now goes to the nearest notehead, within a dozen pixels, and inside a tight chord the one the finger is closest to wins. With a mouse nothing changes: aiming stays pixel-exact.',
+        "Strict-mode runs have their place in the history. They were filed as free runs, their time — the metronome's — skewing the play-time ranking. The journal now tells them apart, with their tempo and their accuracy, and gives them a chart of their own.",
+        "The strict-mode count-in can be seen. A whole bar goes by between pressing ▶ and the first note, and nothing moved on screen: anyone who could not hear the clicks thought nothing had started. The band now shows the beats of the count-in bar, the one sounding picked out.",
+        'Fingerings can be annotated with a finger. On a tablet you had to hit a notehead three millimetres across, and a tap beside it moved the cursor instead of opening the pad. A tap now goes to the nearest notehead; with a mouse, aiming stays pixel-exact.',
       ],
     },
   },
@@ -69,14 +69,14 @@ const HISTORY = [
     date: '2026-09-03',
     items: {
       fr: [
-        "▶ Écouter ne fait plus sursauter. L'app appuyait les touches du clavier à une nuance forte, bien au-dessus de ce qu'on joue soi-même en travaillant : le morceau sortait de l'instrument beaucoup plus fort que sa propre main. Elle joue maintenant un cran en dessous d'un toucher normal. Le volume de l'instrument, lui, n'est jamais touché : dès qu'on se remet à jouer, c'est son propre toucher qui décide, comme avant.",
-        "Les partitions ne sont plus criblées de chiffres. Une cinquantaine de nombres isolés flottaient au-dessus des portées de l'Arabesque, et il y en avait dans cinq autres partitions : des changements de tempo écrits pour la lecture automatique du logiciel de saisie, qui n'ont rien à dire à un pianiste. Ils quittent la page. Les indications réelles — Andantino con moto, rit., a tempo — restent en place.",
-        "Le mode strict compte comme du travail. Un morceau joué en entier au métronome ne laissait aucune trace : ni temps de pratique, ni mesures travaillées, ni « joué en entier » dans le journal. Chaque passage est maintenant enregistré, mesure par mesure, et un morceau joué du début à la fin sans note manquée compte comme un jeu complet.",
+        "▶ Écouter ne fait plus sursauter. L'app appuyait les touches à une nuance forte, bien au-dessus de ce qu'on joue soi-même : le morceau sortait de l'instrument plus fort que sa propre main. Elle joue maintenant un cran en dessous d'un toucher normal, sans jamais toucher au volume de l'instrument.",
+        "Les partitions ne sont plus criblées de chiffres. Une cinquantaine de nombres isolés flottaient au-dessus des portées de l'Arabesque, et cinq autres partitions en portaient : des changements de tempo écrits pour la lecture automatique du logiciel de saisie. Les indications réelles restent en place.",
+        "Le mode strict compte comme du travail. Un morceau joué en entier au métronome ne laissait aucune trace : ni temps de pratique, ni mesures travaillées. Chaque passage est maintenant enregistré mesure par mesure.",
       ],
       en: [
-        "▶ Écouter no longer makes you jump. The app pressed the keys at a forte, well above what you play yourself while practising, so the piece came out of the instrument far louder than your own hand. It now plays a step below a normal touch. The instrument's own volume is never touched: the moment you go back to playing, your touch decides, as before.",
-        'Scores are no longer littered with numbers. Some fifty lone numbers floated above the staves of the Arabesque, and five other scores carried them too: tempo changes written for the playback of the software they were typeset in, with nothing to say to a pianist. They leave the page. The real markings — Andantino con moto, rit., a tempo — stay where they are.',
-        'Strict mode now counts as practice. A piece played end to end with the metronome left no trace at all: no practice time, no bars worked, no "played in full" in the journal. Every run is now recorded bar by bar, and a run from the top with no missed note counts as the piece played in full.',
+        "▶ Écouter no longer makes you jump. The app pressed the keys at a forte, well above what you play yourself: the piece came out of the instrument louder than your own hand. It now plays a step below a normal touch, without ever touching the instrument's own volume.",
+        'Scores are no longer littered with numbers. Some fifty lone numbers floated above the staves of the Arabesque, and five other scores carried them: tempo changes written for the playback of the software they were typeset in. The real markings stay where they are.',
+        'Strict mode now counts as practice. A piece played end to end with the metronome left no trace at all: no practice time, no bars worked. Every run is now recorded bar by bar.',
       ],
     },
   },
@@ -84,10 +84,10 @@ const HISTORY = [
     date: '2026-09-02',
     items: {
       fr: [
-        "Une fausse note se voit. En mode entraînement, un point ne se remplit que si la mesure est jouée sans faute — mais rien ne signalait la faute, et un doigt qui effleure la touche voisine suffisait à bloquer les trois points sans qu'on comprenne pourquoi. La note attendue s'allume maintenant en rouge au moment de l'erreur, et le point de la répétition en cours passe en rouge : on sait tout de suite qu'elle ne comptera pas.",
+        "Une fausse note se voit. En mode entraînement, un point ne se remplit que si la mesure est jouée sans faute, mais rien ne signalait la faute : les trois points restaient bloqués sans qu'on comprenne pourquoi. La note attendue s'allume maintenant en rouge, et le point de la répétition en cours aussi.",
       ],
       en: [
-        "A wrong note now shows. In training mode a dot only fills when the bar is played without a mistake — but nothing marked the mistake, and a finger brushing the next key was enough to stall all three dots with no explanation. The note you owed now lights up red as it happens, and the dot for the repetition under way turns red: you know straight away that it won't count.",
+        "A wrong note now shows. In training mode a dot only fills when the bar is played without a mistake, but nothing marked the mistake: all three dots stalled with no explanation. The note you owed now lights up red, and so does the dot for the repetition under way.",
       ],
     },
   },
@@ -95,10 +95,10 @@ const HISTORY = [
     date: '2026-08-31',
     items: {
       fr: [
-        "Sur téléphone, la bibliothèque se lit en deux onglets : Journal et Partitions. L'ordre d'avant n'avait pas de sens — les filtres, puis le journal de pratique, puis la liste filtrée. Les filtres sont maintenant avec la liste qu'ils filtrent, et le journal s'ouvre en premier sans qu'il faille passer deux semaines de cartes pour atteindre les partitions. Chercher une partition bascule sur l'onglet Partitions. Sur grand écran rien ne change : le journal et la liste restent côte à côte.",
+        "Sur téléphone, la bibliothèque se lit en deux onglets : Journal et Partitions. Les filtres sont maintenant avec la liste qu'ils filtrent, et le journal s'ouvre en premier sans qu'il faille passer deux semaines de cartes pour atteindre les partitions. Sur grand écran, rien ne change.",
       ],
       en: [
-        "On a phone the library reads as two tabs: Journal and Scores. The old order made no sense — filters, then the practice journal, then the filtered list. The filters now sit with the list they filter, and the journal opens first without two weeks of cards standing between you and the scores. Searching switches to the Scores tab. Nothing changes on a wide screen: journal and list stay side by side.",
+        "On a phone the library reads as two tabs: Journal and Scores. The filters now sit with the list they filter, and the journal opens first without two weeks of cards standing between you and the scores. Nothing changes on a wide screen.",
       ],
     },
   },
@@ -106,13 +106,13 @@ const HISTORY = [
     date: '2026-08-30',
     items: {
       fr: [
-        "La bibliothèque et le journal de pratique tiennent enfin sur un téléphone. Le tableau des partitions débordait de l'écran : la page entière glissait de côté et les titres se cassaient sur trois lignes. Chaque partition est maintenant une ligne à elle seule — titre, puis compositeur, statut et temps de pratique en dessous —, les filtres se replient derrière un bouton, et un menu déroulant remplace les en-têtes de colonnes pour le tri.",
-        "Sur la page d'une partition, le bouton ⚙️ n'est plus hors écran sur un téléphone : la barre du haut passe à la ligne au lieu de dépasser.",
+        "La bibliothèque et le journal de pratique tiennent enfin sur un téléphone. Le tableau des partitions débordait de l'écran et les titres se cassaient sur trois lignes. Chaque partition est maintenant une ligne à elle seule, les filtres se replient derrière un bouton, et un menu déroulant assure le tri.",
+        "Le bouton ⚙️ n'est plus hors écran sur un téléphone. La barre du haut d'une partition passe à la ligne au lieu de dépasser.",
         "Le titre gravé au-dessus de la partition s'adapte à la largeur de l'écran. Il était dessiné à taille fixe, donc il occupait le tiers d'un écran de téléphone et repoussait la musique vers le bas.",
       ],
       en: [
-        'The library and the practice journal finally fit on a phone. The score table ran off the screen: the whole page slid sideways and titles broke over three lines. Each score is now a row of its own — title, then composer, status and practice time underneath — the filters fold behind a button, and a dropdown replaces the column headers for sorting.',
-        'On a score page, the ⚙️ button is no longer off-screen on a phone: the top bar wraps instead of overflowing.',
+        'The library and the practice journal finally fit on a phone. The score table ran off the screen and titles broke over three lines. Each score is now a row of its own, the filters fold behind a button, and a dropdown handles the sorting.',
+        'The ⚙️ button is no longer off-screen on a phone. The top bar of a score page wraps instead of overflowing.',
         'The title engraved above the score now scales with the screen. It was drawn at a fixed size, so it took a third of a phone screen and pushed the music down.',
       ],
     },
@@ -121,12 +121,12 @@ const HISTORY = [
     date: '2026-08-28',
     items: {
       fr: [
-        "Reprendre à une mesure ne saute plus la reprise. Dans un morceau à reprise — les exercices de Hanon, par exemple —, cliquer sur une mesure repartait en réalité de la deuxième passe : arrivé au bout, l'app annonçait la partition terminée alors que la reprise n'avait pas été jouée. Le clic repart maintenant de la première passe, et tout ce qui suit se joue, reprise comprise.",
-        "Reprendre le morceau depuis sa première mesure repart vraiment de zéro. Les mesures déjà jouées restaient acquises alors que le chronomètre du passage repartait : deux mesures jouées ensuite pouvaient suffire à déclarer la partition terminée, avec le temps écoulé depuis la reprise — un record absurde en tête du classement. Un saut en arrière au milieu du morceau, lui, garde le crédit du reste.",
+        "Reprendre à une mesure ne saute plus la reprise. Dans un morceau à reprise — les exercices de Hanon —, cliquer sur une mesure repartait en réalité de la deuxième passe, et l'app annonçait la partition terminée sans que la reprise ait été jouée. Le clic repart maintenant de la première passe.",
+        "Reprendre le morceau depuis sa première mesure repart vraiment de zéro. Les mesures déjà jouées restaient acquises alors que le chronomètre repartait : deux mesures suffisaient à déclarer la partition terminée, avec un temps absurde en tête du classement. Un saut en arrière garde le crédit du reste.",
       ],
       en: [
-        'Restarting at a bar no longer skips the repeat. In a piece with a repeat — a Hanon exercise, say — clicking a bar actually restarted on the second pass: at the end, the app announced the score finished though the repeat had never been played. A click now restarts on the first pass, and everything after it is played, repeat included.',
-        'Picking the piece up again from its first bar really does start over. The bars already played stayed to the run\'s credit while its clock restarted, so a couple of bars played after that could declare the score finished — timed from the restart, which put an absurd record at the top of the ranking. Jumping back mid-piece to work a passage still keeps the rest to your credit.',
+        'Restarting at a bar no longer skips the repeat. In a piece with a repeat — a Hanon exercise — clicking a bar actually restarted on the second pass, and the app announced the score finished though the repeat was never played. A click now restarts on the first pass.',
+        'Picking the piece up again from its first bar really does start over. The bars already played stayed to the run\'s credit while its clock restarted, so a couple of bars could declare the score finished, with an absurd time topping the ranking. Jumping back mid-piece still keeps the rest.',
       ],
     },
   },
@@ -134,12 +134,12 @@ const HISTORY = [
     date: '2026-08-27',
     items: {
       fr: [
-        "Jouer d'une seule main ne compte plus comme le morceau joué en entier. Un passage main droite seule reste enregistré, chronométré et affiché, mais à part : sa propre ligne dans l'historique et dans le journal, sa propre courbe de progression, et le classement de fin de passage ne le compare qu'aux passages joués des mêmes mains.",
-        "L'app fonctionne sans réseau. Tout ce qu'il faut pour ouvrir la bibliothèque et jouer est gardé sur l'appareil, et chaque partition que vous ouvrez y reste — un iPad sur un pupitre sans wifi ouvre l'app et travaille normalement. La synchronisation, elle, attend le retour du réseau. Au passage, l'app démarre nettement plus vite.",
+        "Jouer d'une seule main ne compte plus comme le morceau joué en entier. Un passage main droite seule reste enregistré et chronométré, mais à part : sa propre ligne dans le journal, sa propre courbe, et un classement qui ne compare que des passages joués des mêmes mains.",
+        "L'app fonctionne sans réseau. Tout ce qu'il faut pour ouvrir la bibliothèque et jouer est gardé sur l'appareil, et chaque partition ouverte y reste : un iPad sans wifi travaille normalement. Au passage, l'app démarre nettement plus vite.",
       ],
       en: [
-        'Playing with one hand no longer counts as the piece played in full. A right-hand-only run is still recorded, timed and shown, but apart: its own line in the history and in the journal, its own progress chart, and the end-of-run ranking only compares it with runs played with the same hands.',
-        'The app works without a network. Everything needed to open the library and play is kept on the device, and every score you open stays there — an iPad on a music stand with no wifi opens the app and works as usual. Syncing waits for the network to come back. It also makes the app start noticeably faster.',
+        'Playing with one hand no longer counts as the piece played in full. A right-hand-only run is still recorded and timed, but apart: its own line in the journal, its own chart, and a ranking that only compares runs played with the same hands.',
+        'The app works without a network. Everything needed to open the library and play is kept on the device, and every score you open stays there: an iPad with no wifi works as usual. It also makes the app start noticeably faster.',
       ],
     },
   },
@@ -147,10 +147,10 @@ const HISTORY = [
     date: '2026-08-26',
     items: {
       fr: [
-        "Travailler une main seule ne bute plus sur les mesures que l'autre main tient toute seule : le curseur les traverse. Dans le prélude n° 2 de Bach, la mesure 25 est un silence à la main droite — il fallait jusqu'ici recocher la main gauche pour continuer. Ces mesures comptent aussi comme faites, donc une lecture d'une seule main va bien jusqu'au bout.",
+        "Travailler une main seule ne bute plus sur les mesures que l'autre main tient toute seule : le curseur les traverse. Dans le prélude n° 2 de Bach, la mesure 25 est un silence à la main droite ; elle compte maintenant comme faite, donc une lecture d'une seule main va jusqu'au bout.",
       ],
       en: [
-        'Working one hand alone no longer stops at the bars the other hand holds by itself: the cursor crosses them. In Bach\'s Prelude No. 2, bar 25 rests in the right hand — until now you had to tick the left hand back on to get past it. Those bars count as done too, so a one-hand playthrough runs all the way to the end.',
+        'Working one hand alone no longer stops at the bars the other hand holds by itself: the cursor crosses them. In Bach\'s Prelude No. 2, bar 25 rests in the right hand; it now counts as done, so a one-hand playthrough runs all the way to the end.',
       ],
     },
   },
@@ -158,11 +158,11 @@ const HISTORY = [
     date: '2026-08-24',
     items: {
       fr: [
-        'Une page « Assiduité » montre l’année entière, une case par jour : plus vous avez joué longtemps ce jour-là, plus la case est foncée. On y lit d’un coup d’œil les semaines tenues et les trous, avec les jours joués, le temps total, les lectures complètes, la série en cours et la meilleure série. Cliquer une case rappelle ce qui a été travaillé ce jour-là.',
+        'Une page « Assiduité » montre l’année entière, une case par jour : plus vous avez joué ce jour-là, plus la case est foncée. On y lit d’un coup d’œil les semaines tenues et les trous, la série en cours et la meilleure série ; cliquer une case rappelle ce qui a été travaillé.',
         'La page Données permet de supprimer son compte : le compte et toutes les données synchronisées sont effacés de nos serveurs, en deux temps pour éviter le clic malheureux. Les données de cet appareil, elles, restent en place — la sauvegarde dans un fichier, juste au-dessus, sert à les emporter.',
       ],
       en: [
-        'A "Consistency" page shows the whole year, one square per day: the longer you played that day, the darker the square. The weeks you kept up and the gaps you left read at a glance, along with days played, total time, full playthroughs, current streak and longest streak. Clicking a square recalls what you worked on that day.',
+        'A "Consistency" page shows the whole year, one square per day: the longer you played that day, the darker the square. The weeks you kept up and the gaps read at a glance, along with your current and longest streak; clicking a square recalls what you worked on.',
         'The Data page can now delete your account: the account and everything synced under it are erased from our servers, in two steps so no stray tap can do it. This device keeps its own data — the file backup just above is there to take it with you.',
       ],
     },
@@ -199,7 +199,7 @@ const HISTORY = [
     date: '2026-08-14',
     items: {
       fr: [
-        "Plus de case « Synchronisation automatique » : être connecté suffit. Vos données se synchronisent, et se déconnecter est ce qui arrête tout. La case datait d'une époque où la synchro ne partait qu'à l'ouverture de la page Données ; elle ne servait plus qu'à laisser croire qu'un compte était actif alors qu'il ne faisait rien.",
+        "Plus de case « Synchronisation automatique » : être connecté suffit. Vos données se synchronisent, et se déconnecter est ce qui arrête tout. La case ne servait plus qu'à laisser croire qu'un compte était actif alors qu'il ne faisait rien.",
         "Les grandes partitions s'affichent nettement plus vite — la Ballade op. 23 se redessine en trois fois moins de temps. C'est aussi sensible à chaque redimensionnement de la fenêtre, qui relance le rendu.",
       ],
       en: [
@@ -212,10 +212,10 @@ const HISTORY = [
     date: '2026-08-13',
     items: {
       fr: [
-        "Connexion par code : l'e-mail contient désormais un code à 8 chiffres en plus du lien. Le lien connecte le navigateur qui l'ouvre, ce qui ne marche pas dans l'app iPad ni quand vous lisez vos mails sur un autre appareil ; le code, lui, fonctionne partout. La demande reste ouverte si vous quittez l'app pour aller chercher le code.",
+        "Connexion par code : l'e-mail contient désormais un code à 8 chiffres en plus du lien. Le lien connecte le navigateur qui l'ouvre, ce qui ne marche ni dans l'app iPad ni depuis un autre appareil ; le code, lui, fonctionne partout.",
       ],
       en: [
-        'Sign in with a code: the email now carries an 8-digit code alongside the link. A link signs in whichever browser opens it, which fails in the iPad app and when you read your mail on another device; the code works everywhere. The request stays open if you leave the app to fetch the code.',
+        'Sign in with a code: the email now carries an 8-digit code alongside the link. A link signs in whichever browser opens it, which works neither in the iPad app nor from another device; the code works everywhere.',
       ],
     },
   },
@@ -291,10 +291,10 @@ const HISTORY = [
     date: '2026-06-12',
     items: {
       fr: [
-        "Les 20 premiers exercices du Pianiste virtuose de Hanon rejoignent la bibliothèque, regroupés en une seule entrée. Sur la partition, un sélecteur permet de passer d'un exercice à l'autre ; chaque exercice garde son propre historique de pratique, et jouer les premières notes d'un exercice depuis la bibliothèque l'ouvre directement.",
+        "Les 20 premiers exercices du Pianiste virtuose de Hanon rejoignent la bibliothèque, en une seule entrée. Un sélecteur passe d'un exercice à l'autre, et chaque exercice garde son propre historique de pratique.",
       ],
       en: [
-        "The first 20 exercises from Hanon's The Virtuoso Pianist join the library, grouped under a single entry. On the score, a selector lets you move from one exercise to the next; each exercise keeps its own practice history, and playing an exercise's opening notes from the library opens it directly.",
+        "The first 20 exercises from Hanon's The Virtuoso Pianist join the library, under a single entry. A selector moves from one exercise to the next, and each keeps its own practice history.",
       ],
     },
   },
