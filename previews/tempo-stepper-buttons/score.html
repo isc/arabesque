@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="app-version" content="6b4a66f5aa03" />
+    <meta name="app-version" content="0beef0e2cbad" />
     <title data-i18n="score.pageTitle">Arabesque</title>
     <link rel="icon" href="favicon.svg" type="image/svg+xml" />
     <link rel="manifest" href="manifest.webmanifest" />
@@ -207,8 +207,9 @@
             :aria-label="$t('score.tempoDown')"
             @click="stepBpmField('strictBpm', -1)"
             @pointerdown="startBpmHold('strictBpm', -1)"
-            @pointerleave="cancelBpmHold('strictBpm')"
-            @pointercancel="cancelBpmHold('strictBpm')"
+            @pointerup="endBpmHold('strictBpm')"
+            @pointerleave="endBpmHold('strictBpm')"
+            @pointercancel="endBpmHold('strictBpm')"
           >−</button>
           <label class="pt-sr-only" for="strict-bpm" x-text="$t('score.tempoBpm')">Tempo en BPM</label>
           <input
@@ -229,8 +230,9 @@
             :aria-label="$t('score.tempoUp')"
             @click="stepBpmField('strictBpm', 1)"
             @pointerdown="startBpmHold('strictBpm', 1)"
-            @pointerleave="cancelBpmHold('strictBpm')"
-            @pointercancel="cancelBpmHold('strictBpm')"
+            @pointerup="endBpmHold('strictBpm')"
+            @pointerleave="endBpmHold('strictBpm')"
+            @pointercancel="endBpmHold('strictBpm')"
           >+</button>
         </div>
         <button
@@ -286,8 +288,9 @@
             :aria-label="$t('score.playbackTempoDown')"
             @click="stepBpmField('playbackBpm', -1)"
             @pointerdown="startBpmHold('playbackBpm', -1)"
-            @pointerleave="cancelBpmHold('playbackBpm')"
-            @pointercancel="cancelBpmHold('playbackBpm')"
+            @pointerup="endBpmHold('playbackBpm')"
+            @pointerleave="endBpmHold('playbackBpm')"
+            @pointercancel="endBpmHold('playbackBpm')"
           >−</button>
           <label class="pt-sr-only" for="playback-bpm" x-text="$t('score.playbackTempoBpm')">Tempo de lecture en BPM</label>
           <input
@@ -306,8 +309,9 @@
             :aria-label="$t('score.playbackTempoUp')"
             @click="stepBpmField('playbackBpm', 1)"
             @pointerdown="startBpmHold('playbackBpm', 1)"
-            @pointerleave="cancelBpmHold('playbackBpm')"
-            @pointercancel="cancelBpmHold('playbackBpm')"
+            @pointerup="endBpmHold('playbackBpm')"
+            @pointerleave="endBpmHold('playbackBpm')"
+            @pointercancel="endBpmHold('playbackBpm')"
           >+</button>
         </div>
       </div>
