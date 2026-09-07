@@ -1064,9 +1064,11 @@ button.pt-topbar__pill:disabled { opacity: 0.4; cursor: default; }
 .pt-profile-tile__avatar { font-size: 2.5rem; line-height: 1; }
 .pt-profile-tile__name { font-weight: 600; overflow-wrap: anywhere; }
 /* A footer inside the scrolling body is out of reach of the
-   dialog > article > footer rule above, so its actions are laid out here. */
-.pt-modal-body > footer { display: flex; justify-content: flex-end; margin-top: var(--pt-space-4); }
-.pt-modal-body > footer [role="button"] { margin: 0; width: auto; }
+   dialog > article > footer rule above, so its actions are laid out here.
+   At any depth, not just a direct child: such a footer often sits inside the
+   <form> it submits or the <div> an x-if branch wraps it in. */
+.pt-modal-body footer { display: flex; justify-content: flex-end; margin-top: var(--pt-space-4); }
+.pt-modal-body footer [role="button"] { margin: 0; width: auto; }
 
 /* A row of the profile list is a .pt-account-form with a box around it. */
 .pt-profile-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--pt-space-2); }
