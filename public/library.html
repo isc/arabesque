@@ -221,6 +221,20 @@
               </template>
             </tbody>
           </table>
+
+          <!-- Filtering by a status is asking what that status is: the panel
+               answers with the bar for the one above, straight from the rules
+               the app grades by. -->
+          <template x-if="statusCriteria">
+            <aside class="pt-card pt-criteria">
+              <h2 class="pt-eyebrow" x-text="statusCriteria.heading"></h2>
+              <ul class="pt-hint">
+                <template x-for="item in statusCriteria.items" :key="item">
+                  <li x-text="item"></li>
+                </template>
+              </ul>
+            </aside>
+          </template>
         </div>
       </div>
       <!-- The ⚙️ menu + changelog/feedback modals are injected by

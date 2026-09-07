@@ -83,6 +83,37 @@ class LibraryFiltersTest < CapybaraTestBase
     composers.each { |c| assert_match(/Bach|Pachelbel|Petzold|Handel/, c) }
   end
 
+  # The numbers asserted here are STATUS_THRESHOLDS (practiceTracker.js), which
+  # is also what computeScoreStatus() grades by — if the rules move, this test
+  # is where the two are checked to have moved together.
+  def test_status_filter_spells_out_what_the_next_status_takes
+    assert_no_selector '.pt-criteria'
+
+    find('button.pt-filter-pill[data-status="dechiffrage"]').click
+    # text-transform uppercases the heading on screen, which is what Capybara reads.
+    assert_selector '.pt-criteria', text: /pour passer en perfectionnement/i
+    assert_selector '.pt-criteria li', text: '50 % des mesures jouées proprement au moins 3 fois'
+    assert_selector '.pt-criteria li', text: 'La partition jouée en entier au moins une fois'
+
+    find('button.pt-filter-pill[data-status="perfectionnement"]').click
+    assert_selector '.pt-criteria', text: /pour passer en répertoire/i
+    assert_selector '.pt-criteria li', text: 'Toutes les mesures jouées proprement au moins 10 fois'
+    assert_selector '.pt-criteria li', text: 'La partition jouée en entier au moins 10 fois'
+    assert_selector '.pt-criteria li', text: 'Travaillée sur au moins 3 jours différents'
+
+    # Nothing sits above Répertoire, so there is nothing to explain.
+    find('button.pt-filter-pill[data-status="repertoire"]').click
+    assert_no_selector '.pt-criteria'
+  end
+
+  # "Proches du répertoire" is a slice of Perfectionnement, so it asks the same
+  # question — reached from the URL, since the chip needs measure-level data.
+  def test_near_repertoire_focus_explains_the_repertoire_bar
+    visit '/library.html?focus=near-mastery'
+
+    assert_selector '.pt-criteria', text: /pour passer en répertoire/i
+  end
+
   private
 
   def inject_aggregates

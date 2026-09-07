@@ -47,6 +47,17 @@ const REINFORCEMENT_CLEAN_STREAK = 3
 // Sessions a measure must span before its error rate can be called stagnant.
 const STAGNATION_MIN_SESSIONS = 3
 
+// What a score has to clear to earn each status, read by computeScoreStatus()
+// below and by the library, which spells the same numbers out to the player
+// under a filtered list. Written down once so the two can't drift apart.
+// `measureRatio` is the share of the score's measures that must each have been
+// played clean `cleanAttempts` times; `practiceDays` and `timesCompleted` are
+// counted over the score's whole history, playthroughs in full only.
+export const STATUS_THRESHOLDS = {
+  perfectionnement: { cleanAttempts: 3, measureRatio: 0.5, timesCompleted: 1 },
+  repertoire: { cleanAttempts: 10, measureRatio: 1, practiceDays: 3, timesCompleted: 10 },
+}
+
 function median(values) {
   if (values.length === 0) return 0
   const sorted = [...values].sort((a, b) => a - b)
@@ -729,23 +740,16 @@ export function initPracticeTracker(storageInstance = null) {
     const measureValues = Object.values(aggregate.measures)
     if (measureValues.length === 0) return 'dechiffrage'
 
-    const measuresWithEnoughClean = measureValues.filter((m) => m.cleanAttempts >= 3).length
-    const measuresWithMasteryClean = measureValues.filter((m) => m.cleanAttempts >= 10).length
+    const cleanRatio = (times) =>
+      measureValues.filter((m) => m.cleanAttempts >= times).length / measureValues.length
 
-    const totalMeasures = measureValues.length
-    const enoughCleanRatio = measuresWithEnoughClean / totalMeasures
-    const masteryCleanRatio = measuresWithMasteryClean / totalMeasures
+    const meets = ({ cleanAttempts, measureRatio, practiceDays = 0, timesCompleted }) =>
+      cleanRatio(cleanAttempts) >= measureRatio &&
+      (aggregate.practiceDays || []).length >= practiceDays &&
+      (aggregate.timesCompleted || 0) >= timesCompleted
 
-    const repertoireReady =
-      masteryCleanRatio === 1 &&
-      (aggregate.practiceDays || []).length >= 3 &&
-      (aggregate.timesCompleted || 0) >= 10
-    if (repertoireReady) return 'repertoire'
-
-    if (enoughCleanRatio >= 0.5 && aggregate.timesCompleted > 0) {
-      return 'perfectionnement'
-    }
-
+    if (meets(STATUS_THRESHOLDS.repertoire)) return 'repertoire'
+    if (meets(STATUS_THRESHOLDS.perfectionnement)) return 'perfectionnement'
     return 'dechiffrage'
   }
 
