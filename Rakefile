@@ -27,9 +27,16 @@ module TestSharding
   module_function
 
   # "Class#method" for every test, in file order.
+  #
+  # Read as UTF-8 rather than in whatever the locale says: `File.read` otherwise
+  # tags the string with Encoding.default_external, which is US-ASCII whenever
+  # LANG and LC_ALL are unset — as they are in a bare login shell, a cron job or
+  # a container without them. The test files hold accented comments, so the
+  # first scan over one raised `invalid byte sequence in US-ASCII` and took the
+  # whole task down before a single test ran.
   def ids
     TEST_FILES.flat_map do |file|
-      source = File.read(file)
+      source = File.read(file, encoding: 'UTF-8')
       klass = source[/^class\s+([\w:]+)/, 1]
       source.scan(/^\s*def\s+(test_\w+)/).flatten.map { |name| "#{klass}##{name}" }
     end
@@ -130,7 +137,11 @@ namespace :test do
     failed = false
 
     results.each do |index, log, size, status|
-      output = File.read(log)
+      # UTF-8 for the same reason, and it bites at the worst moment here: a
+      # passing shard's log is plain ASCII, so only a failure whose message
+      # carries one of the app's accented strings would hit it — the run that
+      # most needs its output printed is the one that would crash instead.
+      output = File.read(log, encoding: 'UTF-8')
       counts = TestSharding.tally(output)
       counts&.each { |key, value| totals[key] += value }
 

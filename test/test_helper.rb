@@ -97,6 +97,26 @@ class CapybaraTestBase < Minitest::Test
     assert_selector '.pt-popover', visible: true
   end
 
+  # Empty a filled field from the keyboard, for the tests that need the page to
+  # react to the clearing the way it reacts to a player — Capybara's `fill_in`
+  # with an empty string sets the value from the driver, which leaves x-model
+  # none the wiser.
+  #
+  # One backspace per character, and not the obvious select-all-then-delete,
+  # because no select-all chord survives the trip through the driver on both
+  # platforms. ctrl+A is select-all on Linux but the readline "go to start of
+  # line" on macOS, where it selects nothing and the backspace after it eats a
+  # single character — a green CI and a field left holding all but its last
+  # letter on the machine the test was written on. Reaching for ⌘ instead does
+  # not save it: select-all on macOS is a browser-level command, not something
+  # the page performs, so a ⌘A synthesised through CDP selects nothing either
+  # and truncates by one just the same (⌘⇧← likewise). Counting characters is
+  # dull and works everywhere; please leave it dull.
+  def clear_field(locator)
+    field = find_field(locator)
+    field.send_keys(:end, *([:backspace] * field.value.length))
+  end
+
   # Nothing in the suite may reach the real feedback table, so that one POST is
   # answered locally and its body kept for the assertions. Every other request
   # the page makes goes through untouched.
