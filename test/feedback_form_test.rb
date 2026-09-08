@@ -35,8 +35,9 @@ class FeedbackFormTest < CapybaraTestBase
 
     # Sending anonymously has to stay possible — and stay chosen. Cleared from
     # the keyboard, the way a player does it: setting the value from the driver
-    # leaves x-model none the wiser.
-    find_field(EMAIL_FIELD).send_keys([:control, 'a'], :backspace)
+    # leaves x-model none the wiser. clear_field says why it types rather than
+    # selecting all.
+    clear_field EMAIL_FIELD
     send_feedback 'Sans adresse.'
     assert_equal [nil], sent_emails
 
