@@ -1,11 +1,11 @@
 # fr
-Les filtres de la bibliothèque ne se contredisent plus. Leurs compteurs
-annonçaient toute la bibliothèque et une combinaison comme « Déchiffrage » et
-« Proches du répertoire » répondait par une liste vide : chaque option compte
-maintenant ce qui reste avec les filtres déjà posés, et celles à 0 sont grisées.
+Les filtres de la bibliothèque ne se contredisent plus. « Déchiffrage » puis
+« Proches du répertoire » répondait par une liste vide : le filtre sur lequel on
+clique s'applique désormais toujours, en relâchant celui qui l'en empêchait, et
+chaque compteur annonce ce que le clic va afficher.
 
 # en
-The library filters no longer contradict each other. Their counts described the
-whole library, and a pair like "Sight-reading" and "Close to the repertoire"
-answered with an empty list: each option now counts what is left alongside the
-filters already set, and the ones at 0 are greyed out.
+The library filters no longer contradict each other. "Sight-reading" then "Close
+to the repertoire" answered with an empty list: the filter you click now always
+applies, releasing whichever one stood in its way, and every count says what the
+click will show.
