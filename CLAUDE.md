@@ -180,6 +180,26 @@ Each new feedback also emails ivan.schneider@hey.com, so there is nothing to pol
 `supabase/feedback.sql` is the canonical DDL — the project has no migration
 system, so a schema change is applied by hand **and** written there.
 
+## Supabase auth config
+
+`supabase/auth.md` is the canonical record of how the sign-in email is sent and
+what it says — the SMTP block, the code's length and lifetime, the rate limit,
+and the template itself. **Never PATCH one of those settings by hand:** the
+Management API groups them, and naming one member of a group silently clears the
+rest. That is not theoretical — it wiped SMTP and put the magic link back into
+production on 2026-09-08. Go through the applier, which only sends whole groups
+and checks that nothing else moved:
+
+```bash
+node scripts/apply-auth-config.mjs          # show what differs, change nothing
+node scripts/apply-auth-config.mjs --apply  # push supabase/auth.md
+```
+
+`test/js/authConfig.test.js` guards the file's invariants offline (no token, so
+it runs in CI): the template carries a code and never a link, the settings table
+names exactly what the applier sends, and the sender matches `feedback.sql`.
+`auth.md` also lists the four ways sign-in email has broken silently.
+
 ## Playwright Browser Testing
 
 Use the **Playwright CLI** (`@playwright/cli`, already a devDependency — binary at

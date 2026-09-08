@@ -23,49 +23,15 @@
 //
 // ⚠ That token is account-wide, not project-scoped: never print it, never copy
 // it anywhere else. See ~/.claude/SUPABASE.md.
-import { readFileSync, writeFileSync } from 'node:fs'
-import { homedir, tmpdir } from 'node:os'
+import { writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { parseArgs } from 'node:util'
+// The token lookup and the API's error shape are handled in one place, shared
+// with scripts/apply-auth-config.mjs.
+import { die, query } from './lib/supabase.mjs'
 
-const PROJECT_REF = 'mtihhulokbhhvkomlmmk'
-const TOKEN_PATH = join(homedir(), '.supabase', 'access-token')
 const ID_PREFIX = /^[0-9a-f]{4,36}$/i // uuid, or enough of its start to be useful
-
-let cachedToken
-function token() {
-  if (cachedToken) return cachedToken
-  cachedToken = process.env.SUPABASE_ACCESS_TOKEN?.trim()
-  if (cachedToken) return cachedToken
-  try {
-    cachedToken = readFileSync(TOKEN_PATH, 'utf8').trim()
-  } catch {
-    die(
-      `no Supabase token in $SUPABASE_ACCESS_TOKEN nor at ${TOKEN_PATH}\n` +
-        'Create one at https://supabase.com/dashboard/account/tokens, then:\n' +
-        `  install -m 600 /dev/null ${TOKEN_PATH} && $EDITOR ${TOKEN_PATH}`,
-    )
-  }
-  return cachedToken
-}
-
-function die(message) {
-  console.error(message)
-  process.exit(1)
-}
-
-// Every statement goes through here, so the API's error shape is turned into a
-// message worth reading in exactly one place.
-async function query(sql) {
-  const res = await fetch(`https://api.supabase.com/v1/projects/${PROJECT_REF}/database/query`, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${token()}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ query: sql }),
-  })
-  const body = await res.json().catch(() => null)
-  if (!res.ok) die(`Supabase API ${res.status}: ${body?.message ?? JSON.stringify(body)}`)
-  return body
-}
 
 // The API takes SQL as a string, so anything interpolated is quoted here. Only
 // ever used for id prefixes, which are checked against ID_PREFIX first — belt
