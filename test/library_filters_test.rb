@@ -43,6 +43,17 @@ class LibraryFiltersTest < CapybaraTestBase
     assert_includes titles, 'Nocturne No. 20 in C# Minor'
     assert_includes titles, 'Prelude Op. 28 No. 4 in E Minor'
     refute_includes titles, 'Waltz in A Minor'
+    # Half a minute of playing is under the practice floor, so the Ballade has
+    # no status at all — not even the rung its stored aggregate still claims.
+    refute_includes titles, 'Ballade No. 1 in G minor Op. 23'
+  end
+
+  # A piece opened, tried for half a minute and left behind is not being
+  # sight-read, and wears no badge — including one graded before the floor
+  # existed, which the library re-grades on its way to the screen.
+  def test_barely_practised_score_wears_no_status_badge
+    assert_selector 'tbody .pt-pill--dechiffrage', count: 2
+    find('tbody tr', text: 'Ballade No. 1 in G minor Op. 23').assert_no_selector '.pt-pill'
   end
 
   def test_filters_persist_via_url_params
@@ -144,6 +155,17 @@ class LibraryFiltersTest < CapybaraTestBase
         lastPlayedAt: '2026-03-10T10:00:00.000Z',
         totalPracticeTimeMs: 3_600_000,
         practiceDays: ['2026-03-08', '2026-03-09', '2026-03-10'],
+      },
+      # Half a minute of playing, and a status stored before the practice floor
+      # existed: the library grades it again on the way to the screen.
+      {
+        scoreId: 'scores/Chopin_-_Ballade_no._1_in_G_minor_Op._23.mxl',
+        scoreTitle: 'Ballade No. 1 in G minor Op. 23',
+        composer: 'Chopin',
+        status: 'dechiffrage',
+        lastPlayedAt: '2026-03-16T10:00:00.000Z',
+        totalPracticeTimeMs: 30_000,
+        practiceDays: ['2026-03-16'],
       },
       {
         scoreId: 'scores/Nocturne_No._20_in_C_sharp_Minor.mxl',

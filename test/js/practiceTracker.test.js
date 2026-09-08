@@ -4,6 +4,7 @@ import {
   initPracticeTracker,
   computePlaythroughDuration,
   computeSessionDuration,
+  MIN_PRACTICE_MS_FOR_STATUS,
 } from '../../public/js/practiceTracker.js'
 import { playthroughHands, playthroughGroups } from '../../public/js/hands.js'
 import { initStorage } from '../../public/js/storage.js'
@@ -267,12 +268,11 @@ describe('practiceTracker', () => {
     it('stays dechiffrage if thresholds met but score never completed', async () => {
       tracker.startSession('/scores/test.xml', 'Test', 'Composer', 'training')
 
-      for (let i = 0; i < 3; i++) {
-        tracker.startMeasureAttempt(0)
-        tracker.endMeasureAttempt(true)
-      }
-      tracker.startMeasureAttempt(1)
-      tracker.endMeasureAttempt(true)
+      // Timed attempts: with instant ones the score would fall under the
+      // practice floor, and the assertion would be about the floor rather than
+      // about the missing playthrough.
+      for (let i = 0; i < 3; i++) await playMeasure(0, 20_000)
+      await playMeasure(1, 20_000)
 
       // No markScoreCompleted()
       await tracker.endSession()
@@ -312,6 +312,40 @@ describe('practiceTracker', () => {
       expect(stats.status).toBe('repertoire')
     })
 
+    // The floor under the badge: a piece opened and barely touched is not
+    // being sight-read, and wears nothing at all.
+    describe('the practice floor', () => {
+      // One measure attempt lasting exactly `ms` — a single interval is under
+      // every aberration threshold, so the aggregate banks it to the millisecond.
+      async function practiseFor(ms) {
+        tracker.startSession('/scores/test.xml', 'Test', 'Composer', 'training')
+        await playMeasure(0, ms)
+        await tracker.endSession()
+        return tracker.getScoreStats('/scores/test.xml')
+      }
+
+      it('leaves a score one millisecond short of the minimum unlabelled', async () => {
+        const stats = await practiseFor(MIN_PRACTICE_MS_FOR_STATUS - 1)
+
+        expect(stats.totalPracticeTimeMs).toBe(MIN_PRACTICE_MS_FOR_STATUS - 1)
+        expect(stats.status).toBeNull()
+      })
+
+      it('awards dechiffrage exactly at the minimum', async () => {
+        const stats = await practiseFor(MIN_PRACTICE_MS_FOR_STATUS)
+
+        expect(stats.totalPracticeTimeMs).toBe(MIN_PRACTICE_MS_FOR_STATUS)
+        expect(stats.status).toBe('dechiffrage')
+      })
+
+      it('adds short sessions up rather than judging them one by one', async () => {
+        await practiseFor(MIN_PRACTICE_MS_FOR_STATUS / 2)
+        expect((await tracker.getScoreStats('/scores/test.xml')).status).toBeNull()
+
+        expect((await practiseFor(MIN_PRACTICE_MS_FOR_STATUS / 2)).status).toBe('dechiffrage')
+      })
+    })
+
     it('stays perfectionnement when only one session has played the piece (mastery alone is not enough)', async () => {
       tracker.startSession('/scores/test.xml', 'Test', 'Composer', 'free')
 
@@ -335,11 +369,13 @@ describe('practiceTracker', () => {
     const RIGHT = { right: true, left: false }
     const LEFT = { right: false, left: true }
 
-    // A run through a two-bar score, one hand selection per bar.
+    // A run through a two-bar score, one hand selection per bar. Each bar takes
+    // long enough for the run to clear the practice floor under the statuses,
+    // so what a run is worth is judged on the hands that played it.
     async function playThrough(...handsPerMeasure) {
       tracker.startSession('/scores/test.xml', 'Test', 'Composer', 'free', 2)
       for (const [index, hands] of handsPerMeasure.entries()) {
-        await playMeasure(index, 0, hands)
+        await playMeasure(index, 40_000, hands)
       }
       tracker.markScoreCompleted()
       return tracker.endSession()
