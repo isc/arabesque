@@ -855,7 +855,11 @@ button.pt-topbar__pill:disabled { opacity: 0.4; cursor: default; }
   align-items: center;
   justify-content: center;
   flex: 0 0 auto;
+  /* A square the height of the band, so both buttons are the same box and the
+     glyph is centred in it — sized on the glyph, − and + land at different
+     heights and neither lines up with the field. */
   width: 40px;
+  height: 34px;
   padding: 0;
   border-radius: var(--pt-radius-sm);
   font-size: 1.15rem;
