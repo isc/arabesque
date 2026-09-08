@@ -17,6 +17,7 @@ import {
 } from './noteExtraction.js'
 import {
   findMatchingEvent,
+  faultAbsorbingEvent,
   expectedEvent,
   advanceEvent,
   isGraceStrike,
@@ -320,6 +321,10 @@ function handleNoteOn(midiNumber) {
   if (!match) {
     // A grace note leaning on the beat: not a hit, not a fault.
     if (isGraceStrike(graceNotes, midiNumber, now, currentOffTempoWindowMs)) return true
+    // More of an ornament that has already answered for itself.
+    const ornament = faultAbsorbingEvent(pendingEvents, midiNumber, now)
+    if (ornament?.faulted) return false
+    if (ornament) ornament.faulted = true
     stats.wrongNotes++
     // Charged to the measure being played through. Anything struck during the
     // count-in belongs to no measure and is only counted in the run's stats.

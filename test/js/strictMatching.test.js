@@ -5,6 +5,7 @@ import {
   advanceEvent,
   isGraceStrike,
   classifyMatch,
+  faultAbsorbingEvent,
 } from '../../public/js/strictMatching.js'
 
 const OFFTEMPO_WINDOW = 450
@@ -73,7 +74,7 @@ describe('findMatchingEvent', () => {
   })
 
   it('skips already-hit events and falls through to the next pending one', () => {
-    const events = [event(1000, 60, 'hit'), event(1300, 60, 'pending')]
+    const events = [event(1000, 60, 'settled'), event(1300, 60, 'pending')]
     const match = findMatchingEvent(events, 60, 1100, OFFTEMPO_WINDOW)
     expect(match.event).toBe(events[1])
     expect(match.delta).toBe(-200)
@@ -107,17 +108,17 @@ describe('advanceEvent on a written note', () => {
   it('settles at once, in tempo when the strike is within tolerance', () => {
     const e = event(1000, 60)
     expect(advanceEvent(e, 100, TOLERANCE)).toBe('hit')
-    expect(e.status).toBe('hit')
+    expect(e.status).toBe('settled')
   })
 
   it('settles off-tempo when the strike is past the tolerance', () => {
     const early = event(1000, 60)
     expect(advanceEvent(early, -300, TOLERANCE)).toBe('offtempoEarly')
-    expect(early.status).toBe('offtempo')
+    expect(early.status).toBe('settled')
 
     const late = event(1000, 60)
     expect(advanceEvent(late, 300, TOLERANCE)).toBe('offtempoLate')
-    expect(late.status).toBe('offtempo')
+    expect(late.status).toBe('settled')
   })
 
   it('takes nothing more once it has settled', () => {
@@ -140,7 +141,7 @@ describe('advanceEvent on an ornament', () => {
     expect(strike(events, 72, 1000)).toBeNull()
     expect(strike(events, 71, 1040)).toBeNull()
     expect(strike(events, 72, 1080)).toBe('hit')
-    expect(events[0].status).toBe('hit')
+    expect(events[0].status).toBe('settled')
   })
 
   it('refuses the same pitches out of order', () => {
@@ -224,7 +225,7 @@ describe('advanceEvent on a trill', () => {
     for (const [midi, at] of [[71, 1120], [69, 1160], [71, 1200], [69, 1240]]) {
       expect(strike(events, midi, at)).toBeNull()
     }
-    expect(events[0].status).toBe('hit')
+    expect(events[0].status).toBe('settled')
   })
 
   it('alternates: the free notes are not a free bag of two pitches', () => {
@@ -303,5 +304,53 @@ describe('classifyMatch', () => {
   it('classifies positive delta beyond tolerance as offtempoLate', () => {
     expect(classifyMatch(151, TOLERANCE)).toBe('offtempoLate')
     expect(classifyMatch(300, TOLERANCE)).toBe('offtempoLate')
+  })
+})
+
+// An ornament is one written note, and must cost one fault however many notes
+// it spells out — otherwise the mode scores a passage played as written below
+// the same passage played plainly, which is the opposite of what it is for.
+describe('what a stray strike is charged to', () => {
+  const mordent = () => expectedEvent({ timeMs: 1000, sequence: [60, 59, 60], openUntilMs: 3000 })
+  const plain = () => expectedEvent({ timeMs: 1000, sequence: [72], openUntilMs: 1150 })
+
+  // The run charges the first strike the lookup claims and absorbs the rest.
+  const charge = (events, midi, now) => {
+    const event = faultAbsorbingEvent(events, midi, now)
+    if (event?.faulted) return 'absorbed'
+    if (event) event.faulted = true
+    return 'wrong'
+  }
+
+  it('charges a late mordent once, not once per note of it', () => {
+    const events = [mordent()]
+
+    expect(charge(events, 60, 1500)).toBe('wrong')
+    expect(charge(events, 59, 1520)).toBe('absorbed')
+    expect(charge(events, 60, 1540)).toBe('absorbed')
+  })
+
+  it('charges a late plain note once, which is the same price', () => {
+    const events = [plain()]
+
+    expect(charge(events, 72, 1400)).toBe('wrong')
+  })
+
+  it('claims no pitch the ornament does not spell out', () => {
+    const events = [mordent()]
+
+    expect(faultAbsorbingEvent(events, 65, 1500)).toBeNull()
+  })
+
+  it('claims nothing once the note it decorates is over', () => {
+    const events = [mordent()]
+
+    expect(faultAbsorbingEvent(events, 59, 3001)).toBeNull()
+  })
+
+  it('leaves a plain note to answer for itself', () => {
+    const events = [plain()]
+
+    expect(faultAbsorbingEvent(events, 72, 1100)).toBeNull()
   })
 })

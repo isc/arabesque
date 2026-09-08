@@ -25,13 +25,13 @@ const ORNAMENTS = [
 const expand = (ornamentType, options) =>
   expandOrnamentNotes([noteWithOrnament(ornamentType, { midiNumber: PRINCIPAL, noteheadIndex: NOTEHEAD, ...options })])
 
-const principalOf = (notes) => notes.find((n) => n.ornamentSequence)
+const principalOf = (notes) => notes.find((n) => n.ornamentAsk)
 
 describe('the principal of an expanded ornament', () => {
   it.each(ORNAMENTS)('is the notated pitch of %s, once, on the beat', (_label, ornamentType, expectedIndex) => {
     const notes = expand(ornamentType).filter((n) => !n.isTrillEnd)
 
-    const principals = notes.filter((n) => n.ornamentSequence)
+    const principals = notes.filter((n) => n.ornamentAsk)
     expect(principals).toHaveLength(1)
     expect(notes.indexOf(principals[0])).toBe(expectedIndex)
     expect(principals[0].midiNumber).toBe(PRINCIPAL)
@@ -44,9 +44,9 @@ describe('the principal of an expanded ornament', () => {
     const notes = expand(ornamentType)
     const sounded = notes.filter((n) => !n.isTrillEnd).map((n) => n.midiNumber)
 
-    expect(principalOf(notes).ornamentSequence).toEqual(sounded)
+    expect(principalOf(notes).ornamentAsk.sequence).toEqual(sounded)
     for (const note of notes) {
-      expect(note.noteheadIndex).toBe(note.ornamentSequence ? NOTEHEAD : -1)
+      expect(note.noteheadIndex).toBe(note.ornamentAsk ? NOTEHEAD : -1)
     }
   })
 })
@@ -67,7 +67,7 @@ describe('requiredSequence', () => {
     // Half note, closed sequence: the mordent has that value to be played in.
     expect(requiredSequence(principalOf(notes)))
       .toEqual({ sequence: [72, 71, 72], delayTs: 0, holdTs: 0.5, alternating: false })
-    for (const note of notes.filter((n) => !n.ornamentSequence)) {
+    for (const note of notes.filter((n) => !n.ornamentAsk)) {
       expect(requiredSequence(note).sequence).toEqual([])
     }
   })
