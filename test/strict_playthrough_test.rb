@@ -255,23 +255,70 @@ class StrictPlaythroughTest < CapybaraTestBase
   # ornements ne sont jamais validés". An ornament is expanded into the notes it
   # is realized with, and strict mode expected none of them — so an ornamented
   # note had no event at all: never lit, never validated, and counted as a wrong
-  # note when the player struck it. Its principal is now what the run asks for.
-  def test_an_ornamented_note_validates_on_its_principal_alone
-    play_mordent_run(%w[C5], %w[E5])
-
-    within('dialog.pt-result-dialog') { click_on 'Fermer' }
-    assert_selector 'svg g.vf-notehead.played-note', count: 3
-  end
-
-  # The other half of the same report: playing the ornament out — which is what
-  # the symbol asks for — must not be punished either. Its notes are tolerated
-  # for as long as the note they decorate lasts.
-  def test_playing_the_ornament_out_costs_nothing
+  # note when the player struck it. What the run asks for is the realization the
+  # notation determines: those pitches, in that order.
+  def test_an_ornament_is_validated_on_the_realization_the_score_writes
     # Mordent on C5 in C major: principal, diatonic lower, principal. Inverted
     # mordent on E5: principal, diatonic upper, principal.
     play_mordent_run(%w[C5 B4 C5], %w[E5 F5 E5])
 
+    assert_text '100%'
+    assert_text '3 sur 3'
+    assert_no_text 'fausses notes'
     assert_no_text 'hors tempo'
+
+    # One notehead per written note, the ornaments lit on their principal.
+    within('dialog.pt-result-dialog') { click_on 'Fermer' }
+    assert_selector 'svg g.vf-notehead.played-note', count: 3
+  end
+
+  # An ornament is not decoration the player may drop: its notes are written,
+  # and a note written and not played is a note missed.
+  def test_an_ornament_left_out_is_a_missed_note
+    play_mordent_run(%w[C5], %w[E5])
+
+    assert_text '33%'
+    assert_text '2 manquées'
+    assert_no_text 'fausses notes'
+  end
+
+  # Inside an ornament it is the order that is judged, not the clock — the
+  # notes are as fast as the fingers go. So the right pitches in the wrong
+  # order are wrong notes, and the ornament stays unplayed.
+  def test_the_notes_of_an_ornament_are_wrong_in_the_wrong_order
+    play_mordent_run(%w[C5 C5 B4], %w[E5 F5 E5])
+
+    assert_text '67%'
+    assert_text '1 manquée'
+    assert_text '1 fausse'
+  end
+
+  # The one thing the notation leaves to the player: how many times a trill
+  # alternates. Once the written sequence is played, going on between the same
+  # two pitches costs nothing, to the end of the note the sign is on.
+  def test_a_trill_alternates_as_long_as_the_player_wants
+    load_score('trill-ornament.xml', 2)
+    start_strict_mode
+
+    with_clock_control do
+      trigger_click_on('▶ Démarrer')
+
+      # Ab4 (half, trilled) then Eb5 (half). In Eb major the upper neighbour is
+      # Bb4: the sequence is Ab4, Bb4, Ab4, and two alternations more here.
+      advance_clock(2000)
+      assert_selector 'svg g.vf-notehead.expected-note', count: 1, wait: 4
+      play_notes(%w[Ab4 Bb4 Ab4 Bb4 Ab4])
+
+      advance_clock(1000)
+      play_note('Eb5')
+
+      advance_clock(1000)
+      assert_text 'Playthrough strict terminé', wait: 2
+    end
+
+    assert_text '100%'
+    assert_text '2 sur 2'
+    assert_no_text 'fausses notes'
   end
 
   private
@@ -290,8 +337,8 @@ class StrictPlaythroughTest < CapybaraTestBase
 
   # One run of mordent-ornament.xml — C5 (mordent), E5 (inverted mordent), G5,
   # a quarter, a quarter and a half — striking `first` and `second` for the two
-  # ornamented notes. Full marks either way: only the principal is asked for,
-  # and whatever the player puts around it is tolerated. Ends on the modal.
+  # ornamented notes and G5 on the beat after them. What each ornament is worth
+  # is left to the caller. Ends on the result modal.
   def play_mordent_run(first, second)
     load_score('mordent-ornament.xml', 3)
     start_strict_mode
@@ -313,10 +360,6 @@ class StrictPlaythroughTest < CapybaraTestBase
       advance_clock(1000)
       assert_text 'Playthrough strict terminé', wait: 2
     end
-
-    assert_text '100%'
-    assert_text '3 sur 3'
-    assert_no_text 'fausses notes'
   end
 
   # One flawless run of chord.xml at the tempo start_strict_mode set, from

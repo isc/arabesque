@@ -10,15 +10,16 @@ import {
 import { handsKey } from './hands.js'
 import { prepareClick, playClick } from './metronomeClick.js'
 import {
-  isRequiredInput,
+  requiredSequence,
   isNoteActiveForHands,
   sourceMeasuresToResetOnEntry,
   svgNoteheadFor,
 } from './noteExtraction.js'
 import {
   findMatchingEvent,
-  isToleratedNote,
-  classifyMatch,
+  expectedEvent,
+  advanceEvent,
+  isGraceStrike,
   EVENT_STATUS,
   CLASSIFICATION,
 } from './strictMatching.js'
@@ -41,8 +42,8 @@ let timeouts = []
 let isRunning = false
 let activeOsmd = null
 let pendingEvents = []
-// Ornament and grace pitches, with the span each is allowed over (toleratedSpan).
-let toleratedNotes = []
+// Grace pitches with the beat each leans on: let through, never asked for.
+let graceNotes = []
 let stats = null
 let onCompleteCb = null
 let onProgressCb = null
@@ -115,18 +116,21 @@ function planRepeatResets(allNotes, runs) {
   return plans
 }
 
-// How long a decorative note's pitch stays acceptable. An ornament's pitches are
-// tolerated for the whole written value of the note they decorate, so a trill
-// may alternate to the end of it; a grace note is a single strike ahead of the
-// beat and gets the off-tempo window alone. Both are padded by that window on
-// either side, the same slack a required note is matched with.
-function toleratedSpan(noteData, timeMs, bpm, offTempoWindow) {
-  const heldTs = noteData.isGrace ? 0 : (noteData.note?.Length?.RealValue ?? 0)
-  return {
-    midiNumber: noteData.midiNumber,
-    fromMs: timeMs - offTempoWindow,
-    untilMs: timeMs + tsToSeconds(heldTs, bpm) * 1000 + offTempoWindow,
-  }
+// What one note of the score asks the run for (requiredSequence says it, in
+// whole-note fractions; this puts it on the run's clock), or null when it asks
+// for nothing — the notes an ornament is spelled out in, and a pitch a tie
+// already holds.
+function eventForNote(noteData, { timeMs, bpm, offTempoWindow, ...rest }) {
+  const { sequence, delayTs, holdTs, alternating } = requiredSequence(noteData)
+  if (sequence.length === 0) return null
+  return expectedEvent({
+    timeMs: timeMs + tsToSeconds(delayTs, bpm) * 1000,
+    sequence,
+    openUntilMs: timeMs + tsToSeconds(holdTs, bpm) * 1000 + offTempoWindow,
+    alternating,
+    noteData,
+    ...rest,
+  })
 }
 
 function start({
@@ -171,7 +175,7 @@ function start({
   const countInMs = resolvedCountInBeats * beatMs
 
   pendingEvents = []
-  toleratedNotes = []
+  graceNotes = []
   markedNoteheads = []
   measureRuns = allNotes.map((measureData, i) => ({
     sourceMeasureIndex: measureData.sourceMeasureIndex,
@@ -182,8 +186,8 @@ function start({
   const cursorTimes = buildCursorTimeline(allNotes, measureStartTimes, bpm, countInMs)
 
   // Single pass: look up each notehead once, clear residual strict-mode classes
-  // from prior runs, and sort each note into what the run expects
-  // (pendingEvents) or merely allows (toleratedNotes).
+  // from prior runs, and sort each note into what the run asks for
+  // (pendingEvents) or merely lets through (graceNotes).
   for (let i = 0; i < allNotes.length; i++) {
     const measureData = allNotes[i]
     const measureOffset = measureStartTimes[i] - measureData.measureIndex
@@ -198,31 +202,26 @@ function start({
       const ts = measureOffset + noteData.timestamp
       const noteTimeMs = countInMs + tsToSeconds(ts, bpm) * 1000
 
-      if (!isRequiredInput(noteData)) {
-        // The trill sentinel stands for the alternation rather than for a pitch,
-        // and the expanded trill already contributes both of its notes.
-        if (!noteData.isTrillEnd) {
-          toleratedNotes.push(toleratedSpan(noteData, noteTimeMs, bpm, offTempoWindow))
-        }
+      // Not asked for, and not wrong either: see isGraceStrike.
+      if (noteData.isGrace) {
+        graceNotes.push({ midiNumber: noteData.midiNumber, timeMs: noteTimeMs })
         continue
       }
-      // A pitch already sounding under a tie is not struck again.
-      if (noteData.isTieContinuation) continue
 
-      pendingEvents.push({
+      const event = eventForNote(noteData, {
         timeMs: noteTimeMs,
-        midiNumber: noteData.midiNumber,
-        noteData,
+        bpm,
+        offTempoWindow,
         noteheadEl,
         measureIndex: i,
         sourceMeasureIndex: measureData.sourceMeasureIndex,
-        status: EVENT_STATUS.PENDING,
       })
+      if (event) pendingEvents.push(event)
     }
   }
 
   pendingEvents.sort((a, b) => a.timeMs - b.timeMs)
-  toleratedNotes.sort((a, b) => a.fromMs - b.fromMs)
+  graceNotes.sort((a, b) => a.timeMs - b.timeMs)
   stats = {
     total: pendingEvents.length,
     hit: 0,
@@ -282,22 +281,36 @@ function start({
       event.noteheadEl?.classList.add(CLS_EXPECTED)
     }, event.timeMs))
 
+    // Nothing struck by the time the window closes: the note is missed, and so
+    // is an ornament never begun.
     timeouts.push(setTimeout(() => {
-      if (event.status !== EVENT_STATUS.PENDING) return
-      event.status = EVENT_STATUS.MISSED
-      stats.missed++
-      event.noteheadEl?.classList.remove(CLS_EXPECTED)
-      event.noteheadEl?.classList.add(CLS_MISSED)
-      onProgressCb?.({ ...stats })
+      if (event.status === EVENT_STATUS.PENDING && event.cursor === 0) missEvent(event)
     }, event.timeMs + offTempoWindow))
+
+    // An ornament begun and left unfinished by the end of the note it
+    // decorates: the realization the score writes was not played.
+    if (event.openUntilMs > event.timeMs + offTempoWindow) {
+      timeouts.push(setTimeout(() => {
+        if (event.status === EVENT_STATUS.PENDING) missEvent(event)
+      }, event.openUntilMs))
+    }
   }
 
-  const lastEventTime = pendingEvents.length > 0
-    ? pendingEvents[pendingEvents.length - 1].timeMs
-    : countInMs
-  // Finish only after every miss timeout has had a chance to fire.
-  const tailMs = lastEventTime + offTempoWindow + TAIL_PADDING_MS
-  timeouts.push(setTimeout(() => finish(false), tailMs))
+  // Finish only after every miss timeout has had a chance to fire — the last of
+  // them belongs to whichever event stays open longest, not to the last one due.
+  const lastCloseMs = pendingEvents.reduce(
+    (latest, event) => Math.max(latest, event.openUntilMs),
+    countInMs + offTempoWindow,
+  )
+  timeouts.push(setTimeout(() => finish(false), lastCloseMs + TAIL_PADDING_MS))
+}
+
+function missEvent(event) {
+  event.status = EVENT_STATUS.MISSED
+  stats.missed++
+  event.noteheadEl?.classList.remove(CLS_EXPECTED)
+  event.noteheadEl?.classList.add(CLS_MISSED)
+  onProgressCb?.({ ...stats })
 }
 
 function handleNoteOn(midiNumber) {
@@ -305,8 +318,8 @@ function handleNoteOn(midiNumber) {
   const now = performance.now() - startedAtPerf
   const match = findMatchingEvent(pendingEvents, midiNumber, now, currentOffTempoWindowMs)
   if (!match) {
-    // Decoration around a note the score did ask for: not a hit, not a fault.
-    if (isToleratedNote(toleratedNotes, midiNumber, now)) return true
+    // A grace note leaning on the beat: not a hit, not a fault.
+    if (isGraceStrike(graceNotes, midiNumber, now, currentOffTempoWindowMs)) return true
     stats.wrongNotes++
     // Charged to the measure being played through. Anything struck during the
     // count-in belongs to no measure and is only counted in the run's stats.
@@ -316,15 +329,16 @@ function handleNoteOn(midiNumber) {
     return false
   }
   const { event, delta } = match
-  const classification = classifyMatch(delta, currentToleranceMs)
+  const classification = advanceEvent(event, delta, currentToleranceMs)
+  // More of the ornament to come, or a trill still alternating past the
+  // realization it was credited for: the note is taken, nothing is settled yet.
+  if (!classification) return true
   event.noteheadEl?.classList.remove(CLS_EXPECTED)
   if (classification === CLASSIFICATION.HIT) {
-    event.status = EVENT_STATUS.HIT
     stats.hit++
     event.noteheadEl?.classList.add(CLS_PLAYED)
   } else {
     // Single offtempo status; early vs late is captured in the stats only.
-    event.status = EVENT_STATUS.OFFTEMPO
     if (classification === CLASSIFICATION.OFFTEMPO_EARLY) stats.offTempoEarly++
     else stats.offTempoLate++
     event.noteheadEl?.classList.add(CLS_OFFTEMPO)
@@ -393,7 +407,7 @@ function teardown() {
   }
   activeOsmd = null
   pendingEvents = []
-  toleratedNotes = []
+  graceNotes = []
   measureRuns = []
 }
 

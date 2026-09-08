@@ -1,11 +1,43 @@
 import { describe, it, expect } from 'vitest'
-import { findMatchingEvent, isToleratedNote, classifyMatch } from '../../public/js/strictMatching.js'
+import {
+  expectedEvent,
+  findMatchingEvent,
+  advanceEvent,
+  isGraceStrike,
+  classifyMatch,
+} from '../../public/js/strictMatching.js'
 
 const OFFTEMPO_WINDOW = 450
 const TOLERANCE = 150
 
+// A written note: one pitch, open for the off-tempo window either side of it.
 function event(timeMs, midiNumber, status = 'pending') {
-  return { timeMs, midiNumber, status }
+  return expectedEvent({
+    timeMs,
+    sequence: [midiNumber],
+    openUntilMs: timeMs + OFFTEMPO_WINDOW,
+    status,
+  })
+}
+
+// An ornamented note: the pitches of its realization, in order, with the whole
+// written value of the note it decorates to be played in.
+function ornament(timeMs, sequence, { heldMs = 1000, alternating = false } = {}) {
+  return expectedEvent({
+    timeMs,
+    sequence,
+    openUntilMs: timeMs + heldMs + OFFTEMPO_WINDOW,
+    alternating,
+  })
+}
+
+// Strike `midiNumber` at `now` and answer what the run would record: the
+// classification the event settled on, or null for a note taken without
+// settling anything, or 'wrong' when nothing was waiting for it.
+function strike(events, midiNumber, now) {
+  const match = findMatchingEvent(events, midiNumber, now, OFFTEMPO_WINDOW)
+  if (!match) return 'wrong'
+  return advanceEvent(match.event, match.delta, TOLERANCE)
 }
 
 describe('findMatchingEvent', () => {
@@ -71,45 +103,188 @@ describe('findMatchingEvent', () => {
   })
 })
 
-// What the run allows without expecting: the notes an ornament is realized
-// with, and grace notes. The score writes one note and leaves the decoration to
-// the player, so striking those pitches around the beat is neither a hit nor a
-// wrong note.
-describe('isToleratedNote', () => {
-  // A mordent on C5 over a half note at 120 BPM: its lower neighbour B4 stays
-  // acceptable for the note's whole written value, plus the window either side.
-  const mordent = [
-    { midiNumber: 72, fromMs: 550, untilMs: 2450 },
-    { midiNumber: 71, fromMs: 550, untilMs: 2450 },
+describe('advanceEvent on a written note', () => {
+  it('settles at once, in tempo when the strike is within tolerance', () => {
+    const e = event(1000, 60)
+    expect(advanceEvent(e, 100, TOLERANCE)).toBe('hit')
+    expect(e.status).toBe('hit')
+  })
+
+  it('settles off-tempo when the strike is past the tolerance', () => {
+    const early = event(1000, 60)
+    expect(advanceEvent(early, -300, TOLERANCE)).toBe('offtempoEarly')
+    expect(early.status).toBe('offtempo')
+
+    const late = event(1000, 60)
+    expect(advanceEvent(late, 300, TOLERANCE)).toBe('offtempoLate')
+    expect(late.status).toBe('offtempo')
+  })
+
+  it('takes nothing more once it has settled', () => {
+    const events = [event(1000, 60)]
+    expect(strike(events, 60, 1000)).toBe('hit')
+    expect(strike(events, 60, 1050)).toBe('wrong')
+  })
+})
+
+// An ornament is written as one note and realized as several, and the notation
+// determines that realization: the pitches, and the order they come in. The run
+// asks for the whole of it, judged by order rather than by a clock of its own —
+// the ornament is anchored to its beat by the strike that opens it.
+describe('advanceEvent on an ornament', () => {
+  // A mordent on C5: principal, lower neighbour, principal.
+  const MORDENT = [72, 71, 72]
+
+  it('takes the realization in order and settles on its last note', () => {
+    const events = [ornament(1000, MORDENT)]
+    expect(strike(events, 72, 1000)).toBeNull()
+    expect(strike(events, 71, 1040)).toBeNull()
+    expect(strike(events, 72, 1080)).toBe('hit')
+    expect(events[0].status).toBe('hit')
+  })
+
+  it('refuses the same pitches out of order', () => {
+    const events = [ornament(1000, MORDENT)]
+    // principal, principal, lower: every pitch of the mordent, not the mordent.
+    expect(strike(events, 72, 1000)).toBeNull()
+    expect(strike(events, 72, 1040)).toBe('wrong')
+    // The ornament has not moved on: it is still waiting for its lower neighbour.
+    expect(strike(events, 71, 1080)).toBeNull()
+  })
+
+  it('is not settled by its principal alone', () => {
+    const events = [ornament(1000, MORDENT)]
+    expect(strike(events, 72, 1000)).toBeNull()
+    expect(events[0].status).toBe('pending')
+  })
+
+  it('keeps the verdict its first strike earned, however fast the rest comes', () => {
+    // The whole ornament is late: the beat is what it is judged against, and
+    // that is decided once, when it begins.
+    const events = [ornament(1000, MORDENT)]
+    expect(strike(events, 72, 1300)).toBeNull()
+    expect(strike(events, 71, 1310)).toBeNull()
+    expect(strike(events, 72, 1320)).toBe('offtempoLate')
+  })
+
+  it('goes on being playable past the off-tempo window, to the end of the note', () => {
+    const events = [ornament(1000, MORDENT, { heldMs: 1000 })]
+    expect(strike(events, 72, 1000)).toBeNull()
+    // Well past 1000 + 450, still inside the note the mordent decorates.
+    expect(strike(events, 71, 1900)).toBeNull()
+    expect(strike(events, 72, 2400)).toBe('hit')
+  })
+
+  it('has to open on its beat, however long it stays open afterwards', () => {
+    // The long span is for playing the ornament out, not for starting it late.
+    const events = [ornament(1000, MORDENT, { heldMs: 1000 })]
+    expect(strike(events, 72, 1600)).toBe('wrong')
+  })
+
+  it('takes no more once that note is over', () => {
+    const events = [ornament(1000, MORDENT, { heldMs: 1000 })]
+    expect(strike(events, 72, 1000)).toBeNull()
+    expect(strike(events, 71, 2500)).toBe('wrong')
+  })
+
+  it('takes nothing more once its closed sequence is complete', () => {
+    const events = [ornament(1000, MORDENT)]
+    strike(events, 72, 1000)
+    strike(events, 71, 1040)
+    expect(strike(events, 72, 1080)).toBe('hit')
+    // A fourth note is not part of a mordent, early in the note or not.
+    expect(strike(events, 71, 1120)).toBe('wrong')
+  })
+
+  it('takes a delayed turn as it is written: principal held, then the turn proper', () => {
+    // Upper, principal, lower, principal, after the principal on the beat.
+    const events = [ornament(1000, [72, 74, 72, 71, 72], { heldMs: 1000 })]
+    expect(strike(events, 72, 1000)).toBeNull()
+    expect(strike(events, 74, 1750)).toBeNull()
+    expect(strike(events, 72, 1790)).toBeNull()
+    expect(strike(events, 71, 1830)).toBeNull()
+    expect(strike(events, 72, 1870)).toBe('hit')
+  })
+})
+
+// The one thing notation leaves to the player: how many times a trill
+// alternates, and how fast. Its pitches and its opening are as written as any
+// other ornament's.
+describe('advanceEvent on a trill', () => {
+  const TRILL = [69, 71, 69]
+  const trill = (timeMs) => ornament(timeMs, TRILL, { heldMs: 1000, alternating: true })
+
+  it('is credited on its written sequence, then goes on alternating for free', () => {
+    const events = [trill(1000)]
+    expect(strike(events, 69, 1000)).toBeNull()
+    expect(strike(events, 71, 1040)).toBeNull()
+    expect(strike(events, 69, 1080)).toBe('hit')
+
+    // Four more alternations, none of them counted again, none of them wrong.
+    for (const [midi, at] of [[71, 1120], [69, 1160], [71, 1200], [69, 1240]]) {
+      expect(strike(events, midi, at)).toBeNull()
+    }
+    expect(events[0].status).toBe('hit')
+  })
+
+  it('alternates: the free notes are not a free bag of two pitches', () => {
+    const events = [trill(1000)]
+    strike(events, 69, 1000)
+    strike(events, 71, 1040)
+    strike(events, 69, 1080)
+    expect(strike(events, 69, 1120)).toBe('wrong')
+  })
+
+  it('stops taking alternations at the end of the note it decorates', () => {
+    const events = [trill(1000)]
+    strike(events, 69, 1000)
+    strike(events, 71, 1040)
+    strike(events, 69, 1080)
+    expect(strike(events, 71, 1400)).toBeNull()
+    expect(strike(events, 71, 2500)).toBe('wrong')
+  })
+
+  it('takes nothing at all once it has been missed', () => {
+    const events = [trill(1000)]
+    events[0].status = 'missed'
+    expect(strike(events, 69, 1100)).toBe('wrong')
+  })
+})
+
+// What the run lets through without asking for it: grace notes. They are struck
+// ahead of the beat they lean on, and how far ahead is the player's, so their
+// pitch is neither a hit nor a wrong note.
+describe('isGraceStrike', () => {
+  // Two grace notes leaning on a beat at 1000ms.
+  const graceNotes = [
+    { midiNumber: 64, timeMs: 1000 },
+    { midiNumber: 65, timeMs: 1000 },
   ]
 
-  it('tolerates an ornament pitch struck on the beat', () => {
-    expect(isToleratedNote(mordent, 71, 1000)).toBe(true)
+  it('lets a grace pitch through around its beat', () => {
+    expect(isGraceStrike(graceNotes, 64, 900, OFFTEMPO_WINDOW)).toBe(true)
+    expect(isGraceStrike(graceNotes, 65, 1400, OFFTEMPO_WINDOW)).toBe(true)
   })
 
-  it('tolerates it to the end of the note it decorates', () => {
-    expect(isToleratedNote(mordent, 71, 2400)).toBe(true)
+  it('does not let it through once the beat has gone by', () => {
+    expect(isGraceStrike(graceNotes, 64, 1500, OFFTEMPO_WINDOW)).toBe(false)
   })
 
-  it('does not tolerate it once that note is over', () => {
-    expect(isToleratedNote(mordent, 71, 2500)).toBe(false)
+  it('does not let it through before the beat comes round', () => {
+    expect(isGraceStrike(graceNotes, 64, 400, OFFTEMPO_WINDOW)).toBe(false)
   })
 
-  it('does not tolerate it before the ornament comes round', () => {
-    expect(isToleratedNote(mordent, 71, 400)).toBe(false)
+  it('does not let through a pitch no grace note carries', () => {
+    expect(isGraceStrike(graceNotes, 70, 1000, OFFTEMPO_WINDOW)).toBe(false)
   })
 
-  it('does not tolerate a pitch the ornament never sounds', () => {
-    expect(isToleratedNote(mordent, 70, 1000)).toBe(false)
+  it('lets nothing through when the score has no grace note', () => {
+    expect(isGraceStrike([], 64, 1000, OFFTEMPO_WINDOW)).toBe(false)
   })
 
-  it('tolerates nothing when the score has no ornament', () => {
-    expect(isToleratedNote([], 71, 1000)).toBe(false)
-  })
-
-  it('reaches an ornament later in the piece', () => {
-    const later = [...mordent, { midiNumber: 64, fromMs: 4550, untilMs: 5450 }]
-    expect(isToleratedNote(later, 64, 5000)).toBe(true)
+  it('reaches a grace note later in the piece', () => {
+    const later = [...graceNotes, { midiNumber: 60, timeMs: 5000 }]
+    expect(isGraceStrike(later, 60, 5000, OFFTEMPO_WINDOW)).toBe(true)
   })
 })
 
