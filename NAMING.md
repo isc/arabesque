@@ -137,11 +137,12 @@ le domaine. Les étapes sont conservées ci-dessous pour la trace.
 `arabesque.app` ne reçoit ni n'envoie de courrier : la zone déclare un **null MX**
 (RFC 7505), un SPF `v=spf1 -all` et un DMARC `p=reject`, ce qui empêche
 d'usurper le domaine pour envoyer en son nom. Les deux fonctionnalités qui
-envoient des mails — les magic links et la notification de feedback — expédient
-depuis `onboarding@resend.dev`, pas depuis le domaine, donc rien n'en dépend.
+envoient des mails — le code de connexion et la notification de feedback —
+expédient depuis `onboarding@resend.dev`, pas depuis le domaine, donc rien n'en
+dépend.
 
-⚠️ Le jour où l'on vérifiera `arabesque.app` dans Resend pour que les magic
-links partent du domaine (nécessaire pour d'autres utilisateurs que le
+⚠️ Le jour où l'on vérifiera `arabesque.app` dans Resend pour que le code de
+connexion parte du domaine (nécessaire pour d'autres utilisateurs que le
 propriétaire du compte Resend), ces trois enregistrements devront être revus :
 le SPF devra inclure Resend, il faudra ajouter la clé DKIM fournie, et le null
 MX empêchera d'utiliser l'apex comme domaine d'envoi (Resend passe de toute

@@ -26,7 +26,7 @@
 -- rows from before profiles existed). A device syncs one profile at a time —
 -- the one whose database it has open — and filters on that column.
 --
--- Auth: Supabase Auth (email magic link). RLS restricts every row to its owner
+-- Auth: Supabase Auth (email one-time code, see auth.md). RLS restricts every row to its owner
 -- via auth.uid(); the publishable key alone grants nothing without a session.
 
 create table if not exists public.training_sessions (
