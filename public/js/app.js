@@ -8,6 +8,7 @@ import { formatDuration, formatDate, applyStickyOffset, scorePageUrl, onIdle, on
 import { initStorage } from './storage.js'
 import { loadMxlAsXml } from './mxlLoader.js'
 import { injectFingerings } from './fingeringInjector.js'
+import { migrateLegacyFingerings } from './fingeringKeys.js'
 import { initPlayback, getBPM } from './playback.js'
 import { initStrictPlaythrough } from './strictPlaythrough.js'
 import { createTempoPlan, createTempoTrainer, GRADUATED, BPM_STEP, STREAK } from './tempoTrainer.js'
@@ -591,6 +592,48 @@ export function midiApp() {
       await musicxml.renderMusicXML(modified)
       await this.afterScoreLoad()
       this.setupFingeringHandlers()
+      await this.migrateFingeringKeys(fingerings)
+    },
+
+    // A fingering used to be stored under the measure number the file printed,
+    // which is a label and not an identity -- Satie's Gnossienne prints "0" on
+    // all eleven of its measures, so one fingering was drawn on eleven notes.
+    // Records written then are rewritten here, once, the first time the player
+    // opens the score on this device: the key each note is filed under now, and
+    // the key it was filed under then, both come out of the same walk over the
+    // sheet, so the translation is exact rather than guessed at.
+    //
+    // After the load rather than before it, which costs a re-render, because
+    // the old names cannot be read off the file. They were the *editor's*
+    // spelling of the measure number -- OSMD's MeasureNumberXML, which is null
+    // for the "X1" of a second ending -- where the injection reads the same
+    // attribute with parseInt and gets NaN. Deriving them from the raw document
+    // would mean reimplementing OSMD's parse of that attribute, which is the
+    // second derivation this whole change exists to remove. So what the
+    // injection could not place is added to OSMD's data model instead and drawn
+    // by the light re-render a newly entered fingering takes -- no second parse
+    // of the score.
+    //
+    // The record carries no "already migrated" mark: an old key is recognised
+    // by its shape, so this heals whatever it is handed. The cost is that a
+    // device still on the old build can push its legacy record back and have
+    // the copies made again, including ones the player has since deleted. That
+    // lasts as long as the old build does, and a stored flag would travel no
+    // better than the keys themselves.
+    async migrateFingeringKeys(fingerings) {
+      const migrated = migrateLegacyFingerings(fingerings, musicxml.getLegacyFingeringKeyMap())
+      if (!migrated) return
+      // A newer updatedAt so the rewrite reaches the player's other devices:
+      // the old keys are ambiguous everywhere, not only here.
+      await storage.putFingeringRecord({
+        scoreUrl: this.scoreUrl,
+        fingerings: migrated.fingerings,
+        updatedAt: Date.now(),
+      })
+      for (const key of migrated.added) {
+        fingeringEditor.addFingeringToDataModel(key, migrated.fingerings[key])
+      }
+      if (migrated.added.length) this.rerenderScore()
     },
 
     // The score never arrived. A request that never reached a server (mxlLoader

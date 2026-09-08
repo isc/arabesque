@@ -1,0 +1,5 @@
+# fr
+Un doigté reste sur la note où vous l'avez écrit. Sur certaines partitions il partait ailleurs : sur la Gnossienne nº 1 de Satie, qui n'a pas de barres de mesure, un doigté écrit sur une mesure apparaissait sur les onze ; sur les partitions gravées en deux portées séparées, comme L'Entertainer, ceux de la main gauche se posaient sur les notes de la main droite ; et ailleurs encore, un doigté glissait d'une note à sa voisine. Les doigtés déjà enregistrés sont repris à la première ouverture de la partition, sans rien perdre.
+
+# en
+A fingering stays on the note you wrote it on. On some scores it went elsewhere: on Satie's Gnossienne No. 1, which has no barlines at all, a fingering written on one measure appeared on all eleven; on scores engraved as two separate staves, such as The Entertainer, the left hand's fingerings landed on the right hand's notes; and elsewhere a fingering could slide onto the note next door. Fingerings already saved are carried over the first time you open the score, with nothing lost.

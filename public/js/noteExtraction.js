@@ -1,4 +1,5 @@
 import { NOTE_NAMES } from './midi.js'
+import { fingeringKey, legacyFingeringKey, nextNoteIndex } from './fingeringKeys.js'
 
 // Ornament types from OSMD
 const OrnamentEnum = {
@@ -355,15 +356,23 @@ function extractNotesFromSourceMeasures(sourceMeasures) {
   const notesByMeasure = new Map()
   const pedalEventsByMeasure = new Map()
   const cursorStopsByMeasure = new Map()
+  // Map<the key a note used to be filed under, the keys it is filed under now>,
+  // for the one load per score that rewrites a record still holding the old
+  // names -- see migrateLegacyFingerings. Several notes to one old key is the
+  // whole point: that ambiguity is what the current scheme fixes. Built here
+  // because this is the only walk that knows the old rule, and the old rule was
+  // "count the notes this walk keeps" rather than "count the notes the measure
+  // has". Delete it, and legacyNoteCounters below, when no stored record can
+  // hold one any more.
+  const legacyKeyMap = new Map()
   let currentFifths = 0
 
   sourceMeasures.forEach((measure, measureIndex) => {
     const measureNotes = []
-    // Use MeasureNumberXML to match the XML's measure number attribute
-    // (MeasureNumber is OSMD's internal numbering which starts from 0 for pickups)
-    const measureNumber = measure.MeasureNumberXML
     // Track sequential note index for each (staff, voice) combination
     const noteCounters = new Map()
+    const legacyNoteCounters = new Map()
+    const legacyMeasureNumber = measure.MeasureNumberXML
 
     // The OSMD cursor stops once per vertical container -- including containers
     // that hold only rests (e.g. one hand pausing while the other sustains a
@@ -392,27 +401,34 @@ function extractNotesFromSourceMeasures(sourceMeasures) {
             // Get voice ID from OSMD (1-based in MusicXML), convert to 0-indexed
             const voiceId = voiceEntry.ParentVoice?.VoiceId ?? 1
             const voiceIndex = voiceId - 1
-            for (let noteIndex = 0; noteIndex < voiceEntry.notes.length; noteIndex++) {
-              const note = voiceEntry.notes[noteIndex]
-              // Skip notes without pitch, rests, or cue notes (editorial guide notes not meant to be played).
+            for (let noteheadIndex = 0; noteheadIndex < voiceEntry.notes.length; noteheadIndex++) {
+              const note = voiceEntry.notes[noteheadIndex]
+              if (note.isRest()) continue
+              // Counted here rather than after the skips below: a fingering key
+              // is a running index, so a note this walk drops still has to
+              // spend its place, or every key after it in the measure moves and
+              // the injector -- which counts what the measure has -- hands each
+              // fingering to the note next door. See fingeringKeys.js.
+              const noteIndex = nextNoteIndex(noteCounters, staffIndex, voiceIndex)
+              // Skip notes without pitch or cue notes (editorial guide notes not meant to be played).
               // Also skip invisible notes (print-object="no"): some publishers write an ornament's realized
               // notes as hidden notes in a separate voice *in addition* to the ornament symbol (e.g. the turns
               // in Beethoven's Pathétique). The symbol already expands into playable notes, so honoring the
               // hidden copy would double the ornament -- the player would have to play it twice, and the hidden
               // noteheads would only appear once validated. The player plays what they see, never hidden notes.
-              if (!note.pitch || note.isRest() || note.IsCueNote || note.PrintObject === false) continue
+              if (!note.pitch || note.IsCueNote || note.PrintObject === false) continue
               const noteInfo = pitchToMidiFromSourceNote(note.pitch)
               // Check if this note is a tie continuation (not the start of the tie)
               const isTieContinuation = note.NoteTie && note.NoteTie.StartNote !== note
-              // Get sequential note index for this (staff, voice) combination
-              const counterKey = `${staffIndex}:${voiceIndex}`
-              if (!noteCounters.has(counterKey)) {
-                noteCounters.set(counterKey, 0)
-              }
-              const sequentialNoteIndex = noteCounters.get(counterKey)
-              noteCounters.set(counterKey, sequentialNoteIndex + 1)
-              // Fingering key format: measureNumber:staffIndex:voiceIndex:sequentialNoteIndex
-              const fingeringKey = `${measureNumber}:${staffIndex}:${voiceIndex}:${sequentialNoteIndex}`
+              const key = fingeringKey(measureIndex, staffIndex, voiceIndex, noteIndex)
+              const legacyKey = legacyFingeringKey(
+                legacyMeasureNumber,
+                staffIndex,
+                voiceIndex,
+                nextNoteIndex(legacyNoteCounters, staffIndex, voiceIndex),
+              )
+              if (legacyKeyMap.has(legacyKey)) legacyKeyMap.get(legacyKey).push(key)
+              else legacyKeyMap.set(legacyKey, [key])
               measureNotes.push({
                 note,
                 voiceEntry,
@@ -425,12 +441,12 @@ function extractNotesFromSourceMeasures(sourceMeasures) {
                 isTieContinuation,
                 isGrace: voiceEntry.isGrace === true,
                 // Index of the notehead within the chord (for targeting individual noteheads in SVG)
-                noteheadIndex: noteIndex,
+                noteheadIndex,
                 noteheadCount: voiceEntry.notes.filter((n) => n.pitch).length,
                 // Staff 0 = right hand (treble clef), Staff 1 = left hand (bass clef)
                 staffIndex,
                 // Key for fingering storage
-                fingeringKey,
+                fingeringKey: key,
                 voiceIndex,
               })
             }
@@ -481,7 +497,7 @@ function extractNotesFromSourceMeasures(sourceMeasures) {
     }
   })
 
-  return { notesByMeasure, pedalEventsByMeasure, cursorStopsByMeasure }
+  return { notesByMeasure, pedalEventsByMeasure, cursorStopsByMeasure, legacyKeyMap }
 }
 
 // Extract notes from the score and build the playback sequence
@@ -581,7 +597,7 @@ export function sourceMeasuresToResetOnEntry(allNotes, fromIdx, toIdx, playedSou
 
 export function extractNotesFromScore(osmdInstance) {
   if (!osmdInstance) {
-    return { allNotes: [], playbackSequence: [] }
+    return { allNotes: [], playbackSequence: [], legacyKeyMap: new Map() }
   }
 
   const sheet = osmdInstance.Sheet
@@ -590,7 +606,8 @@ export function extractNotesFromScore(osmdInstance) {
   // Build the playback sequence (handles repeats and endings)
   const playbackSequence = buildPlaybackSequence(sourceMeasures)
 
-  const { notesByMeasure, pedalEventsByMeasure, cursorStopsByMeasure } = extractNotesFromSourceMeasures(sourceMeasures)
+  const { notesByMeasure, pedalEventsByMeasure, cursorStopsByMeasure, legacyKeyMap } =
+    extractNotesFromSourceMeasures(sourceMeasures)
 
   // Build allNotes array following the playback sequence
   const allNotes = []
@@ -627,7 +644,7 @@ export function extractNotesFromScore(osmdInstance) {
     })
   })
 
-  return { allNotes, playbackSequence }
+  return { allNotes, playbackSequence, legacyKeyMap }
 }
 
 // Carry played/active over from a note model onto its rebuild, note by note in playback

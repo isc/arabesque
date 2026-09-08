@@ -21,6 +21,9 @@ let allNotes = []
 // only redraws a score already up (see extractNotesFromScore).
 let sheetJustLoaded = false
 let noteDataByKey = new Map() // Map<fingeringKey, noteData> for O(1) lookups
+// Map<the key a note used to be filed under, the keys it is filed under now>,
+// built by the same walk that names the notes -- see migrateLegacyFingerings.
+let legacyKeyMap = new Map()
 let playbackSequence = [] // Ordered list of source measure indices for playback (handles repeats)
 let currentMeasureIndex = 0
 let trainingMode = false
@@ -159,6 +162,7 @@ export function initMusicXML() {
       }
     },
     getNoteDataByKey: () => noteDataByKey,
+    getLegacyFingeringKeyMap: () => legacyKeyMap,
     svgNote,
     svgNotehead,
     setReinforcementMode: (measures) => {
@@ -439,6 +443,7 @@ function extractNotesFromScore() {
 
   const result = extractNotes(osmdInstance)
   allNotes = result.allNotes
+  legacyKeyMap = result.legacyKeyMap
   if (outgoingNotes) {
     carryOverNoteStates(outgoingNotes, allNotes)
   } else {

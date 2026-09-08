@@ -1,3 +1,5 @@
+import { parseFingeringKey } from './fingeringKeys.js'
+
 // Of two occurrences of the same note, which one belongs to the "current pass"? The latest
 // occurrence at or before the cursor; or, if neither has been reached yet, the earliest upcoming.
 function isCurrentPassOccurrence(index, otherIndex, currentMeasureIndex) {
@@ -60,52 +62,26 @@ export function initFingeringEditor({ getOsmdInstance, getAllNotes, getNoteDataB
   let onNoteClick = null
   let delegatedHandlerAttached = false
 
-  // Build a map from SVG group ID to noteData array by iterating through SourceMeasures.
-  // Uses OSMD's GNote lookup on fresh SourceNote objects (more reliable than noteData.note from allNotes).
-  // Returns Map<svgId, noteData[]> to handle chords (multiple notes per SVG group).
+  // Map<svg group id, noteData[]> for the heads a click can land on. A chord is
+  // one group holding several heads, hence the array.
+  //
+  // Built from the note model rather than from a walk over the sheet of its
+  // own. It used to rebuild every fingering key by re-traversing
+  // SourceMeasures, which meant carrying a fourth copy of the counting rule
+  // fingeringKeys.js defines -- and the copy it carried disagreed with the
+  // extraction's, so on a score with cue or hidden notes the click on a note
+  // after one of them found no entry, or the entry next door. There is nothing
+  // to keep in step now: the model already holds the key, and all this needs
+  // from OSMD is which group each note was drawn into.
   function buildSvgIdToNoteDataMap() {
     const osmdInstance = getOsmdInstance()
-    const noteDataByKeyMap = getNoteDataByKey()
     const svgIdToNoteDatas = new Map()
 
-    for (const measure of osmdInstance.Sheet.SourceMeasures) {
-      const measureNumber = measure.MeasureNumberXML
-      const noteCounters = new Map()
-
-      for (const container of measure.verticalSourceStaffEntryContainers || []) {
-        if (!container.staffEntries) continue
-
-        for (let staffIndex = 0; staffIndex < container.staffEntries.length; staffIndex++) {
-          const staffEntry = container.staffEntries[staffIndex]
-          if (!staffEntry?.voiceEntries) continue
-
-          for (const voiceEntry of staffEntry.voiceEntries) {
-            if (!voiceEntry.notes) continue
-
-            const voiceIndex = (voiceEntry.ParentVoice?.VoiceId ?? 1) - 1
-
-            for (const note of voiceEntry.notes) {
-              if (!note.pitch || note.isRest?.()) continue
-
-              const counterKey = `${staffIndex}:${voiceIndex}`
-              const seqIdx = noteCounters.get(counterKey) ?? 0
-              noteCounters.set(counterKey, seqIdx + 1)
-
-              const fingeringKey = `${measureNumber}:${staffIndex}:${voiceIndex}:${seqIdx}`
-              const svgGroup = osmdInstance.rules.GNote(note)?.getSVGGElement?.()
-              if (!svgGroup?.id) continue
-
-              const noteData = noteDataByKeyMap.get(fingeringKey)
-              if (noteData) {
-                if (!svgIdToNoteDatas.has(svgGroup.id)) {
-                  svgIdToNoteDatas.set(svgGroup.id, [])
-                }
-                svgIdToNoteDatas.get(svgGroup.id).push(noteData)
-              }
-            }
-          }
-        }
-      }
+    for (const noteData of getNoteDataByKey().values()) {
+      const svgGroup = osmdInstance.rules.GNote(noteData.note)?.getSVGGElement?.()
+      if (!svgGroup?.id) continue
+      if (!svgIdToNoteDatas.has(svgGroup.id)) svgIdToNoteDatas.set(svgGroup.id, [])
+      svgIdToNoteDatas.get(svgGroup.id).push(noteData)
     }
 
     return svgIdToNoteDatas
@@ -278,19 +254,17 @@ export function initFingeringEditor({ getOsmdInstance, getAllNotes, getNoteDataB
     return fingerings
   }
 
-  // Find the FingeringEntry for a note given its fingeringKey and noteData.
-  // fingeringKey format: measureNumber:staffIndex:voiceIndex:noteIndex
-  function findFingeringEntry(fingeringKey, targetNoteData) {
+  // Find the FingeringEntry for a note given its fingering key and noteData.
+  function findFingeringEntry(key, targetNoteData) {
     const osmdInstance = getOsmdInstance()
     if (!osmdInstance?.graphic?.MeasureList) return null
 
-    const [measureNumber, staffIndex] = fingeringKey.split(':').map(Number)
-
-    const sourceMeasures = osmdInstance.Sheet.SourceMeasures
-    const sourceMeasureIndex = sourceMeasures.findIndex((m) => m.MeasureNumberXML === measureNumber)
-    if (sourceMeasureIndex < 0) return null
-
-    const graphicalMeasure = osmdInstance.graphic.MeasureList[sourceMeasureIndex]?.[staffIndex]
+    // The key names the measure by its place in the score, so it indexes
+    // MeasureList directly. It used to name it by the XML's number attribute
+    // and look that up, which found the first measure carrying the number --
+    // the wrong one, in every score that reuses a number.
+    const { measureIndex, staff } = parseFingeringKey(key)
+    const graphicalMeasure = osmdInstance.graphic.MeasureList[measureIndex]?.[staff]
     if (!graphicalMeasure) return null
 
     for (const staffEntry of graphicalMeasure.staffEntries || []) {
@@ -367,8 +341,8 @@ export function initFingeringEditor({ getOsmdInstance, getAllNotes, getNoteDataB
 
   // Update an existing fingering's SVG directly without re-rendering
   // Returns true if successful, false if no existing fingering found
-  function updateFingeringSVG(fingeringKey, newFinger) {
-    const targetNoteData = getNoteDataByKey().get(fingeringKey)
+  function updateFingeringSVG(key, newFinger) {
+    const targetNoteData = getNoteDataByKey().get(key)
     if (!targetNoteData) return false
 
     const fingerText = newFinger.toString()
@@ -390,7 +364,7 @@ export function initFingeringEditor({ getOsmdInstance, getAllNotes, getNoteDataB
       return createGraceNoteFingeringText(svgGroup, fingerText)
     }
 
-    const fingeringEntry = findFingeringEntry(fingeringKey, targetNoteData)
+    const fingeringEntry = findFingeringEntry(key, targetNoteData)
     const textEl = fingeringEntry?.SVGNode?.querySelector('text')
     if (!textEl) return false
 
@@ -411,8 +385,8 @@ export function initFingeringEditor({ getOsmdInstance, getAllNotes, getNoteDataB
 
   // Add a fingering to OSMD's internal data model (without re-rendering)
   // This allows a subsequent renderScore() to pick it up via calculateFingerings
-  function addFingeringToDataModel(fingeringKey, finger) {
-    const noteData = getNoteDataByKey().get(fingeringKey)
+  function addFingeringToDataModel(key, finger) {
+    const noteData = getNoteDataByKey().get(key)
     if (!noteData?.voiceEntry?.TechnicalInstructions) return false
 
     noteData.voiceEntry.TechnicalInstructions.push({
@@ -424,8 +398,8 @@ export function initFingeringEditor({ getOsmdInstance, getAllNotes, getNoteDataB
   }
 
   // Remove a fingering from OSMD's internal data model
-  function removeFingeringFromDataModel(fingeringKey) {
-    const noteData = getNoteDataByKey().get(fingeringKey)
+  function removeFingeringFromDataModel(key) {
+    const noteData = getNoteDataByKey().get(key)
     if (!noteData?.voiceEntry?.TechnicalInstructions) return false
 
     const tis = noteData.voiceEntry.TechnicalInstructions
