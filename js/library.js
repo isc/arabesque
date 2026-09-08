@@ -1,5 +1,5 @@
 import { initMidi } from './midi.js'
-import { initPracticeTracker, STATUS_THRESHOLDS } from './practiceTracker.js'
+import { initPracticeTracker, STATUS_THRESHOLDS, hasMinimumPractice } from './practiceTracker.js'
 import { initStorage } from './storage.js'
 import { formatDuration, formatDate, formatRelativeDate, statusLabel, scorePageUrl } from './utils.js'
 import { journalEntryHelpers } from './journalEntries.js'
@@ -498,7 +498,15 @@ export function libraryApp() {
       }
       return agg
     },
-    getStatusFor(score)        { return this.aggregateFor(score)?.status || null },
+    // The stored status is the tracker's verdict from the last time the piece
+    // was played — for a row graded before the practice floor existed, that
+    // verdict predates the rule. Applying the floor here as well retires those
+    // badges on sight, instead of waiting for a piece nobody plays to be played
+    // again, and saves a migration over everyone's aggregates.
+    getStatusFor(score) {
+      const aggregate = this.aggregateFor(score)
+      return hasMinimumPractice(aggregate) ? aggregate.status : null
+    },
     getPracticeTimeFor(score)  { return this.aggregateFor(score)?.totalPracticeTimeMs || 0 },
 
     // Returns '' (not "0×") for never-completed scores, so Alpine x-show
