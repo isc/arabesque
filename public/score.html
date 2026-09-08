@@ -195,20 +195,46 @@
           :aria-label="isStrictPlaying ? $t('score.pause') : $t('score.start')"
           x-text="isStrictPlaying ? $t('score.pauseBtn') : $t('score.startBtn')"
         ></button>
-        <label class="pt-bpm-field">
-          <span class="pt-sr-only" x-text="$t('score.tempoBpm')">Tempo en BPM</span>
+        <!-- The tempo is typed with a keyboard and pressed with a thumb: the
+             −/+ buttons step it by a notch, and hold to keep stepping. A div
+             rather than a label around the lot, since a label hands its clicks
+             to the first control it holds — which would now be a button. -->
+        <div class="pt-bpm-field">
+          <button
+            type="button"
+            class="pt-band-button pt-bpm-field__step"
+            :disabled="isStrictPlaying"
+            :aria-label="$t('score.tempoDown')"
+            @click="stepBpmField('strictBpm', -1)"
+            @pointerdown="startBpmHold('strictBpm', -1)"
+            @pointerup="endBpmHold('strictBpm')"
+            @pointerleave="endBpmHold('strictBpm')"
+            @pointercancel="endBpmHold('strictBpm')"
+          >−</button>
+          <label class="pt-sr-only" for="strict-bpm" x-text="$t('score.tempoBpm')">Tempo en BPM</label>
           <input
             id="strict-bpm"
             type="number"
-            min="20"
-            max="300"
-            step="1"
+            :min="bpmMin"
+            :max="bpmMax"
+            :step="bpmStep"
             x-model.number="strictBpm"
             :disabled="isStrictPlaying"
             :aria-label="$t('score.tempoBpm')"
           />
           <span class="pt-bpm-field__suffix" x-text="$t('score.bpm')">BPM</span>
-        </label>
+          <button
+            type="button"
+            class="pt-band-button pt-bpm-field__step"
+            :disabled="isStrictPlaying"
+            :aria-label="$t('score.tempoUp')"
+            @click="stepBpmField('strictBpm', 1)"
+            @pointerdown="startBpmHold('strictBpm', 1)"
+            @pointerup="endBpmHold('strictBpm')"
+            @pointerleave="endBpmHold('strictBpm')"
+            @pointercancel="endBpmHold('strictBpm')"
+          >+</button>
+        </div>
         <button
           class="pt-band-button"
           :aria-pressed="loopEnabled"
@@ -255,19 +281,39 @@
           :aria-label="isPlaying ? $t('score.pause') : $t('score.resume')"
           x-text="isPlaying ? $t('score.pauseBtn') : $t('score.resumeBtn')"
         ></button>
-        <label class="pt-bpm-field">
-          <span class="pt-sr-only" x-text="$t('score.playbackTempoBpm')">Tempo de lecture en BPM</span>
+        <div class="pt-bpm-field">
+          <button
+            type="button"
+            class="pt-band-button pt-bpm-field__step"
+            :aria-label="$t('score.playbackTempoDown')"
+            @click="stepBpmField('playbackBpm', -1)"
+            @pointerdown="startBpmHold('playbackBpm', -1)"
+            @pointerup="endBpmHold('playbackBpm')"
+            @pointerleave="endBpmHold('playbackBpm')"
+            @pointercancel="endBpmHold('playbackBpm')"
+          >−</button>
+          <label class="pt-sr-only" for="playback-bpm" x-text="$t('score.playbackTempoBpm')">Tempo de lecture en BPM</label>
           <input
             id="playback-bpm"
             type="number"
-            min="20"
-            max="300"
-            step="1"
+            :min="bpmMin"
+            :max="bpmMax"
+            :step="bpmStep"
             x-model.number.debounce.400ms="playbackBpm"
             :aria-label="$t('score.playbackTempoBpm')"
           />
           <span class="pt-bpm-field__suffix" x-text="$t('score.bpm')">BPM</span>
-        </label>
+          <button
+            type="button"
+            class="pt-band-button pt-bpm-field__step"
+            :aria-label="$t('score.playbackTempoUp')"
+            @click="stepBpmField('playbackBpm', 1)"
+            @pointerdown="startBpmHold('playbackBpm', 1)"
+            @pointerup="endBpmHold('playbackBpm')"
+            @pointerleave="endBpmHold('playbackBpm')"
+            @pointercancel="endBpmHold('playbackBpm')"
+          >+</button>
+        </div>
       </div>
       <span class="pt-context__row" x-text="playbackBandText()">Cliquez sur une mesure pour écouter à partir de là.</span>
     </div>

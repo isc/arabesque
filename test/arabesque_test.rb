@@ -706,12 +706,40 @@ class ArabesqueTest < CapybaraTestBase
     assert_text '▶ Écouter'
   end
 
+  # Feedback c586857e: a number input is fine to type a tempo into and awkward
+  # to change with a thumb — its spinner is a few pixels tall where it is drawn
+  # at all. The field keeps its digits and gains a −/+ pair.
+  def test_the_tempo_is_set_by_the_buttons_beside_the_field
+    visit '/score.html?url=/test-fixtures/two-measures.xml'
+    wait_for_score_render(2)
+
+    click_on '⏱ Mode strict'
+    fill_in 'strict-bpm', with: '120'
+    click_on 'Augmenter le tempo'
+    assert_field 'strict-bpm', with: '125'
+    2.times { click_on 'Diminuer le tempo' }
+    assert_field 'strict-bpm', with: '115'
+
+    # The field is bound to the same bounds the buttons step within, so its
+    # arrow keys move the notch they do and neither can drift from the other.
+    assert_selector '#strict-bpm[min="20"][max="300"][step="5"]', visible: :all
+
+    # A press stops at the floor rather than stepping past it, and the last
+    # notch is short rather than skipped.
+    fill_in 'strict-bpm', with: '22'
+    click_on 'Diminuer le tempo'
+    assert_field 'strict-bpm', with: '20'
+
+    # And a tempo pressed in is the player's for this score, like a typed one.
+    wait_for_stored_tempo('/test-fixtures/two-measures.xml', '20', name: 'strictBpm')
+  end
+
   private
 
   # Polls rather than asserting once: the BPM field is debounced, so the value
   # lands in the app a moment after the last keystroke.
-  def wait_for_stored_tempo(score_url, bpm, timeout: 5)
-    key = "arabesque:playbackBpm:#{score_url}"
+  def wait_for_stored_tempo(score_url, bpm, name: 'playbackBpm', timeout: 5)
+    key = "arabesque:#{name}:#{score_url}"
     Timeout.timeout(timeout) do
       sleep 0.05 until page.evaluate_script("localStorage.getItem(#{key.inspect})") == bpm
     end
