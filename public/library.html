@@ -126,13 +126,13 @@
                behind its back. :selected rather than :value on the select — it
                re-evaluates with the x-for item, so it cannot be assigned before
                the options exist. -->
-          <select class="pt-select" @change="setComposerFilter($event.target.value)" :aria-label="$t('library.composerFilterAria')" x-show="composerOptions.length > 1">
+          <select class="pt-select" @change="setComposerFilter($event.target.value)" :aria-label="$t('library.composerFilterAria')" x-show="composerValues.length > 1">
             <option value="" :selected="!composerFilter" x-text="$t('library.allComposers')">Tous compositeurs</option>
             <template x-for="c in composerOptions" :key="c.value">
               <option :value="c.value" :selected="c.value === composerFilter" x-text="`${c.label} (${c.count})`"></option>
             </template>
           </select>
-          <select class="pt-select" @change="setPeriodFilter($event.target.value)" :aria-label="$t('library.periodFilterAria')" x-show="periodOptions.length > 1">
+          <select class="pt-select" @change="setPeriodFilter($event.target.value)" :aria-label="$t('library.periodFilterAria')" x-show="periodValues.length > 1">
             <option value="" :selected="!periodFilter" x-text="$t('library.allPeriods')">Toutes périodes</option>
             <template x-for="p in periodOptions" :key="p.value">
               <option :value="p.value" :selected="p.value === periodFilter" x-text="`${p.label} (${p.count})`"></option>
@@ -140,7 +140,7 @@
           </select>
         </div>
 
-        <div class="pt-focus" x-show="focusOptions.length > 0">
+        <div class="pt-focus" x-show="focusValues.length > 0">
           <span class="pt-focus__label" x-text="$t('library.focusLabel')">À travailler :</span>
           <template x-for="opt in focusOptions" :key="opt.value">
             <button

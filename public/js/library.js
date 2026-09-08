@@ -40,6 +40,10 @@ const FILTER_MATCHERS = {
 }
 const FILTER_KEYS = Object.keys(FILTER_MATCHERS)
 
+// Synthesized collection aggregates, keyed by the catalog entry. Cleared
+// whenever the practice data behind them is reloaded — see refreshPracticeData.
+const collectionAggregates = new Map()
+
 // The ways to release some of `keys`, fewest first — [a], [b], [a, b] — so a
 // pick gives up as little as it can. At most three filters are ever in play
 // besides the one being picked, so this is at most seven combinations.
@@ -232,6 +236,7 @@ export function libraryApp() {
     async refreshPracticeData() {
       this.lastPlayedByScore = {}
       this.aggregatesByScore = {}
+      collectionAggregates.clear()
       sessionCountByFile = {}
 
       const [sessions, aggregates] = await Promise.all([storage.getSessions(), storage.getAllAggregates()])
@@ -310,10 +315,23 @@ export function libraryApp() {
     // The scores a given set of filter values leaves, the search box always
     // having its say — `this` is itself a valid selection, since the component
     // carries statusFilter & co. as own properties.
+    // Does this score answer every filter the selection sets?
+    matchesSelection(score, selection) {
+      return FILTER_KEYS.every((key) => !selection[key] || FILTER_MATCHERS[key](this, score, selection[key]))
+    },
+
+    // Whether any score at all answers a selection. Short-circuits, where
+    // matching() builds the whole list — and resolvedSelection asks this of
+    // every option of every facet on every render.
+    hasMatch(selection) {
+      return this.searchResults.some((score) => this.matchesSelection(score, selection))
+    },
+
+    // The scores a given set of filter values leaves, the search box always
+    // having its say — `this` is itself a valid selection, since the component
+    // carries statusFilter & co. as own properties.
     matching(selection) {
-      return this.searchResults.filter((score) => FILTER_KEYS.every(
-        (key) => !selection[key] || FILTER_MATCHERS[key](this, score, selection[key]),
-      ))
+      return this.searchResults.filter((score) => this.matchesSelection(score, selection))
     },
 
     // The filters that clicking `value` on `key` would leave standing. The pick
@@ -329,13 +347,13 @@ export function libraryApp() {
     // ones. Clearing a filter only widens the list, so it releases nothing.
     resolvedSelection(key, value) {
       const base = Object.fromEntries(FILTER_KEYS.map((k) => [k, k === key ? value : this[k]]))
-      if (!value || this.matching(base).length > 0) return base
+      if (!value || this.hasMatch(base)) return base
 
       const others = FILTER_KEYS.filter((k) => k !== key && base[k])
       let widest = base
       for (const combo of releaseCombinations(others)) {
         widest = { ...base, ...Object.fromEntries(combo.map((k) => [k, ''])) }
-        if (this.matching(widest).length > 0) return widest
+        if (this.hasMatch(widest)) return widest
       }
       // Nothing left to release: the search box is the one narrowing the list,
       // and it is never released — what was typed is not the app's to discard.
@@ -473,17 +491,27 @@ export function libraryApp() {
       return values.filter((value) => this.scores.some((score) => match(this, score, value)))
     },
 
+    // The values apart from the counts: the markup's x-show guards ask only
+    // whether a facet is worth showing, and Alpine evaluates every binding as
+    // its own effect — asking facetOptions there would resolve conflicts and
+    // count every option a second time, doubling the whole filter bar's work.
+    get composerValues() {
+      const all = [...new Set(this.scores.map((s) => s.composer).filter(Boolean))]
+      return all.sort((a, b) => a.localeCompare(b, locale()))
+    },
+    get periodValues() { return this.offered('periodFilter', PERIODS) },
+    get focusValues()  { return this.offered('focusFilter', FOCUS_VALUES) },
+
     get statusOptions() {
       return this.facetOptions('statusFilter', this.offered('statusFilter', STATUS_ORDER), statusLabel)
     },
 
     get composerOptions() {
-      const all = [...new Set(this.scores.map((s) => s.composer).filter(Boolean))]
-      return this.facetOptions('composerFilter', all.sort((a, b) => a.localeCompare(b, locale())))
+      return this.facetOptions('composerFilter', this.composerValues)
     },
 
     get periodOptions() {
-      return this.facetOptions('periodFilter', this.offered('periodFilter', PERIODS), periodLabel)
+      return this.facetOptions('periodFilter', this.periodValues, periodLabel)
     },
 
     // Each focus chip filters the table to an actionable subset — the user
@@ -507,7 +535,7 @@ export function libraryApp() {
     },
 
     get focusOptions() {
-      return this.facetOptions('focusFilter', this.offered('focusFilter', FOCUS_VALUES), focusLabel)
+      return this.facetOptions('focusFilter', this.focusValues, focusLabel)
     },
 
     // Under the filtered list: what the pieces on screen still have to clear to
@@ -561,9 +589,21 @@ export function libraryApp() {
 
     aggregateFor(score) {
       if (!this.isCollection(score)) return this.aggregatesByScore[this.getScoreUrl(score)]
-      // Synthesized from the parts: times summed, dates maxed, measures pooled
-      // (keys namespaced by part — focus chips only look at the values). No
-      // status — statuses live per exercise, not per recueil.
+      // Synthesized from the parts, and remembered: the filter bar asks what
+      // every option would show, so this used to be rebuilt some five hundred
+      // times per render — pooling the measures of all twenty Hanon exercises
+      // each time, for an object thrown away immediately. It only changes when
+      // the practice data does, and refreshPracticeData drops the cache.
+      if (collectionAggregates.has(score)) return collectionAggregates.get(score)
+      const built = this.synthesizeCollectionAggregate(score)
+      collectionAggregates.set(score, built)
+      return built
+    },
+
+    // Times summed, dates maxed, measures pooled (keys namespaced by part —
+    // focus chips only look at the values). No status: statuses live per
+    // exercise, not per recueil.
+    synthesizeCollectionAggregate(score) {
       let agg = null
       for (const part of score.parts) {
         const partAgg = this.aggregatesByScore[this.baseUrl + part.file]

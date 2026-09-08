@@ -66,7 +66,7 @@ class LibraryFiltersTest < CapybaraTestBase
   # sight-read, and wears no badge — including one graded before the floor
   # existed, which the library re-grades on its way to the screen.
   def test_barely_practised_score_wears_no_status_badge
-    assert_selector 'tbody .pt-pill--dechiffrage', count: 2
+    assert_selector 'tbody .pt-pill--dechiffrage', count: 3
     find('tbody tr', text: 'Ballade No. 1 in G minor Op. 23').assert_no_selector '.pt-pill'
   end
 
