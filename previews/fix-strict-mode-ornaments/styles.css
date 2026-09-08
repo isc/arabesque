@@ -843,6 +843,36 @@ button.pt-topbar__pill:disabled { opacity: 0.4; cursor: default; }
   line-height: 28px;
 }
 .pt-band-controls .pt-bpm-field__suffix { color: color-mix(in srgb, var(--pt-band) 75%, transparent); }
+/* Setting a tempo with a thumb: the spinner a number input draws is a few
+   pixels tall on a desktop and nothing at all on touch, so the field carries
+   its own −/+ (held down, they keep stepping — see bpmStepper.js). They carry
+   .pt-band-button too, for the band's colour and hover tint; what is left here
+   is a square the size of the band instead of a labelled pill, which needs the
+   descendant selector to outweigh it. */
+.pt-band-controls .pt-bpm-field__step {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  /* A square the height of the band, so both buttons are the same box and the
+     glyph is centred in it — sized on the glyph, − and + land at different
+     heights and neither lines up with the field. */
+  width: 40px;
+  height: 34px;
+  padding: 0;
+  border-radius: var(--pt-radius-sm);
+  font-size: 1.15rem;
+  line-height: 1;
+  /* A held button must not be taken for a scroll, a text selection or a
+     double-tap zoom. */
+  touch-action: manipulation;
+}
+/* 34px is what the band is tall and 44 is what a thumb needs, so the target is
+   grown with a pseudo-element rather than the box, the way the modal's back
+   arrow is — the band keeps its height, and the 2px of overhang on the field
+   side stay well clear of the input's own padding. */
+.pt-band-controls .pt-bpm-field__step::after { content: ""; position: absolute; inset: -5px -2px; }
 
 /* =============================================================================
    Mode-context band (under modebar, varies per mode)
@@ -1419,7 +1449,10 @@ table tbody td:nth-child(2) a:hover { color: var(--pt-accent); }
 /* The panel under the filtered list: what earns the status above the one being
    filtered on. A .pt-card sitting after the table, so it scrolls away with the
    last row instead of holding a strip of the pane. */
-.pt-criteria { margin-top: var(--pt-space-4); }
+/* Both sit under the list: the criteria panel, and the one that shows when the
+   filters leave nothing. flex-start keeps the latter's button hugging its label. */
+.pt-criteria, .pt-library-empty { margin-top: var(--pt-space-4); }
+.pt-library-empty { align-items: flex-start; }
 
 /* Journal sidebar */
 /* Layout from .pt-row-between, label from .pt-eyebrow; baseline alignment is

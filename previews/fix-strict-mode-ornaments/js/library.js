@@ -1,5 +1,5 @@
 import { initMidi } from './midi.js'
-import { initPracticeTracker, STATUS_THRESHOLDS } from './practiceTracker.js'
+import { initPracticeTracker, STATUS_THRESHOLDS, hasMinimumPractice } from './practiceTracker.js'
 import { initStorage } from './storage.js'
 import { formatDuration, formatDate, formatRelativeDate, statusLabel, scorePageUrl } from './utils.js'
 import { journalEntryHelpers } from './journalEntries.js'
@@ -19,10 +19,42 @@ const STATUS_RANK = Object.fromEntries(STATUS_ORDER.map((s, i) => [s, i]))
 const DAYS_TO_SHOW = 14
 const STALE_DAYS = 7
 const STALE_MS = STALE_DAYS * 24 * 60 * 60 * 1000
-// The dropdown/pill filters, as opposed to the search box: each is mirrored
-// into the URL, and each counts towards the badge on the narrow-screen
-// "Filtrer" button. Adding a filter here wires up both.
-const FILTER_KEYS = ['statusFilter', 'composerFilter', 'periodFilter', 'focusFilter']
+// The focus chips, in the order they are offered — the library's own list, so
+// they read like STATUS_ORDER/statusLabel and PERIODS/periodLabel next door.
+const FOCUS_LABEL_KEYS = {
+  reinforce: 'focus.reinforce',
+  'near-mastery': 'focus.nearMastery',
+  stale: 'focus.stale',
+}
+const FOCUS_VALUES = Object.keys(FOCUS_LABEL_KEYS)
+const focusLabel = (value) => t(FOCUS_LABEL_KEYS[value], { n: STALE_DAYS })
+// The dropdown/pill filters, as opposed to the search box: what each one keeps.
+// One entry wires up everything they share — narrowing the list, the badge on
+// the narrow-screen "Filtrer" button, the URL, which values are worth offering
+// at all (see offered), and the count each option carries (see facetOptions).
+const FILTER_MATCHERS = {
+  statusFilter:   (app, score, value) => app.getStatusFor(score) === value,
+  composerFilter: (app, score, value) => score.composer === value,
+  periodFilter:   (app, score, value) => getPeriodForComposer(score.composer) === value,
+  focusFilter:    (app, score, value) => app.matchesFocus(score, value),
+}
+const FILTER_KEYS = Object.keys(FILTER_MATCHERS)
+
+// Synthesized collection aggregates, keyed by the catalog entry. Cleared
+// whenever the practice data behind them is reloaded — see refreshPracticeData.
+const collectionAggregates = new Map()
+
+// The ways to release some of `keys`, fewest first — [a], [b], [a, b] — so a
+// pick gives up as little as it can. At most three filters are ever in play
+// besides the one being picked, so this is at most seven combinations.
+function releaseCombinations(keys) {
+  return Array.from({ length: 1 << keys.length }, (_, mask) => keys.filter((_, i) => mask & (1 << i)))
+    .filter((combo) => combo.length > 0)
+    .sort((a, b) => a.length - b.length)
+}
+// `statusFilter` travels as ?status=, and so on: the query string is read by
+// people, and shared.
+const urlParam = (key) => key.replace(/Filter$/, '')
 
 export function libraryApp() {
   const midi = initMidi()
@@ -150,19 +182,20 @@ export function libraryApp() {
 
       this.scores = data.scores
 
-      // Restore filters from URL once the scores are in: x-model on the
-      // <select> dropdowns only matches an existing <option>, and those
-      // are rendered by an x-for over periodOptions / composerOptions
-      // which depend on this.scores. Setting the filters before this
-      // makes Alpine bind to a still-empty option list and silently keep
-      // the default "Toutes périodes" / "Tous compositeurs". $nextTick
-      // gives the template x-for a chance to flush before x-model rebinds.
+      // Restore filters from URL once the scores are in: the <select>
+      // dropdowns show their value through :selected on each <option>, and
+      // those are rendered by an x-for over periodOptions / composerOptions,
+      // which depend on this.scores. $nextTick gives that x-for a chance to
+      // flush, so the restored value has an option to land on.
+      //
+      // Set directly rather than through pickFilter: a URL says what its sender
+      // was looking at, and resolving it would rewrite the address bar on load
+      // — and resolve differently per profile, since statuses are read from the
+      // reader's own practice data. A dead combination gets the empty-state
+      // panel and its way out instead.
       await this.$nextTick()
       const params = new URLSearchParams(window.location.search)
-      this.statusFilter = params.get('status') || ''
-      this.composerFilter = params.get('composer') || ''
-      this.periodFilter = params.get('period') || ''
-      this.focusFilter = params.get('focus') || ''
+      for (const key of FILTER_KEYS) this[key] = params.get(urlParam(key)) || ''
       this.searchQuery = params.get('q') || ''
       // Synchronously, rather than leaving it to the $watch above: that flushes
       // on a microtask, which is a frame of the wrong pane on first paint.
@@ -203,6 +236,7 @@ export function libraryApp() {
     async refreshPracticeData() {
       this.lastPlayedByScore = {}
       this.aggregatesByScore = {}
+      collectionAggregates.clear()
       sessionCountByFile = {}
 
       const [sessions, aggregates] = await Promise.all([storage.getSessions(), storage.getAllAggregates()])
@@ -269,21 +303,66 @@ export function libraryApp() {
       clearTimeout(searchResetTimer)
     },
 
-    get filteredScores() {
-      let results = this.scores
-      if (this.searchQuery) {
-        const regexes = this.searchQuery.toLowerCase().trim().split(/\s+/).filter(Boolean).map((w) => new RegExp(`\\b${w}`))
-        results = results.filter((score) => {
-          const text = `${score.title} ${score.composer}`.toLowerCase()
-          return regexes.every((r) => r.test(text))
-        })
+    get searchResults() {
+      if (!this.searchQuery) return this.scores
+      const regexes = this.searchQuery.toLowerCase().trim().split(/\s+/).filter(Boolean).map((w) => new RegExp(`\\b${w}`))
+      return this.scores.filter((score) => {
+        const text = `${score.title} ${score.composer}`.toLowerCase()
+        return regexes.every((r) => r.test(text))
+      })
+    },
+
+    // The scores a given set of filter values leaves, the search box always
+    // having its say — `this` is itself a valid selection, since the component
+    // carries statusFilter & co. as own properties.
+    // Does this score answer every filter the selection sets?
+    matchesSelection(score, selection) {
+      return FILTER_KEYS.every((key) => !selection[key] || FILTER_MATCHERS[key](this, score, selection[key]))
+    },
+
+    // Whether any score at all answers a selection. Short-circuits, where
+    // matching() builds the whole list — and resolvedSelection asks this of
+    // every option of every facet on every render.
+    hasMatch(selection) {
+      return this.searchResults.some((score) => this.matchesSelection(score, selection))
+    },
+
+    // The scores a given set of filter values leaves, the search box always
+    // having its say — `this` is itself a valid selection, since the component
+    // carries statusFilter & co. as own properties.
+    matching(selection) {
+      return this.searchResults.filter((score) => this.matchesSelection(score, selection))
+    },
+
+    // The filters that clicking `value` on `key` would leave standing. The pick
+    // itself always survives; of the others, as few as possible are released.
+    //
+    // Picking a filter says what you want to see, so it is the filters already
+    // set that give way — greying the pick out instead would leave you to work
+    // out which of the others was in the way, and clear it yourself. But only
+    // the ones actually in the way: releasing them in a fixed order would let
+    // "Baroque", clicked under Déchiffrage + Chopin, drop the status too, when
+    // only the composer conflicted. Fewest first, so a release is never wider
+    // than the conflict; declaration order breaks ties between equal-sized
+    // ones. Clearing a filter only widens the list, so it releases nothing.
+    resolvedSelection(key, value) {
+      const base = Object.fromEntries(FILTER_KEYS.map((k) => [k, k === key ? value : this[k]]))
+      if (!value || this.hasMatch(base)) return base
+
+      const others = FILTER_KEYS.filter((k) => k !== key && base[k])
+      let widest = base
+      for (const combo of releaseCombinations(others)) {
+        widest = { ...base, ...Object.fromEntries(combo.map((k) => [k, ''])) }
+        if (this.hasMatch(widest)) return widest
       }
-      if (this.statusFilter)   results = results.filter((s) => this.getStatusFor(s) === this.statusFilter)
-      if (this.composerFilter) results = results.filter((s) => s.composer === this.composerFilter)
-      if (this.periodFilter)   results = results.filter((s) => getPeriodForComposer(s.composer) === this.periodFilter)
-      if (this.focusFilter)    results = results.filter((s) => this.matchesFocus(s, this.focusFilter))
+      // Nothing left to release: the search box is the one narrowing the list,
+      // and it is never released — what was typed is not the app's to discard.
+      return widest
+    },
+
+    get filteredScores() {
       const dir = this.sortDir === 'asc' ? 1 : -1
-      return results.toSorted((a, b) => {
+      return this.matching(this).toSorted((a, b) => {
         const va = this.sortKey(a), vb = this.sortKey(b)
         if (this.sortBy === 'status') return ((STATUS_RANK[va] ?? -1) - (STATUS_RANK[vb] ?? -1)) * dir
         if (typeof va === 'number') return (va - vb) * dir
@@ -349,48 +428,90 @@ export function libraryApp() {
       return this.sortDir === 'asc' ? ' ▲' : ' ▼'
     },
 
-    // Clicking the same value clears the filter — natural toggle for pills.
-    setStatusFilter(status)     { this.statusFilter   = (this.statusFilter   === status)   ? '' : status },
-    setComposerFilter(composer) { this.composerFilter = (this.composerFilter === composer) ? '' : composer },
-    setFocusFilter(focus)       { this.focusFilter    = (this.focusFilter    === focus)    ? '' : focus },
+    // The way out when the filters and the search leave nothing on screen. The
+    // search box goes with them: it narrows the list the same way, and leaving
+    // it on would keep the list empty.
+    clearFilters() {
+      for (const key of FILTER_KEYS) this[key] = ''
+      this.searchQuery = ''
+    },
+
+    // Clicking the same value clears the filter — natural toggle for pills —
+    // and any other filter that had nothing in common with the new one is
+    // released with it, so a pick always lands on something. See
+    // resolvedSelection.
+    pickFilter(key, value) {
+      const selection = this.resolvedSelection(key, this[key] === value ? '' : value)
+      for (const k of FILTER_KEYS) this[k] = selection[k]
+    },
+
+    setStatusFilter(status)     { this.pickFilter('statusFilter', status) },
+    setComposerFilter(composer) { this.pickFilter('composerFilter', composer) },
+    setPeriodFilter(period)     { this.pickFilter('periodFilter', period) },
+    setFocusFilter(focus)       { this.pickFilter('focusFilter', focus) },
+
+    // How many scores picking `value` on `key` would put on screen — the one
+    // question every count in the filter bar answers. '' is "Tous": the filter
+    // cleared, the others as they are.
+    countFor(key, value) {
+      return this.matching(this.resolvedSelection(key, value)).length
+    },
 
     syncUrl() {
       const params = new URLSearchParams()
-      if (this.statusFilter)   params.set('status', this.statusFilter)
-      if (this.composerFilter) params.set('composer', this.composerFilter)
-      if (this.periodFilter)   params.set('period', this.periodFilter)
-      if (this.focusFilter)    params.set('focus', this.focusFilter)
+      for (const key of FILTER_KEYS) {
+        if (this[key]) params.set(urlParam(key), this[key])
+      }
       if (this.searchQuery)    params.set('q', this.searchQuery)
       const qs = params.toString()
       const url = qs ? `?${qs}` : window.location.pathname
       window.history.replaceState(null, '', url)
     },
 
+    // The options of one filter, each carrying the number of scores clicking it
+    // would actually put on screen — which is the count against the filters
+    // that would survive the click, not against the whole library and not
+    // against filters the click is about to release. A filtered library used to
+    // advertise counts from the whole library and then answer with an empty
+    // table; no option shown here is ever a dead end.
+    //
+    // `values` is what the library itself can offer, so a status nobody has
+    // reached is not listed at all rather than listed at nought.
+    facetOptions(key, values, label = (value) => value) {
+      return values.map((value) => ({ value, label: label(value), count: this.countFor(key, value) }))
+    },
+
+    // Of `values`, the ones some score in the library answers — asked through
+    // FILTER_MATCHERS, so a filter's one entry there still wires up everything
+    // about it. A status nobody has reached is not offered at all rather than
+    // offered at nought, and a score can answer several focus chips at once,
+    // which is why this is a pass and not a Set of one value per score.
+    offered(key, values) {
+      const match = FILTER_MATCHERS[key]
+      return values.filter((value) => this.scores.some((score) => match(this, score, value)))
+    },
+
+    // The values apart from the counts: the markup's x-show guards ask only
+    // whether a facet is worth showing, and Alpine evaluates every binding as
+    // its own effect — asking facetOptions there would resolve conflicts and
+    // count every option a second time, doubling the whole filter bar's work.
+    get composerValues() {
+      const all = [...new Set(this.scores.map((s) => s.composer).filter(Boolean))]
+      return all.sort((a, b) => a.localeCompare(b, locale()))
+    },
+    get periodValues() { return this.offered('periodFilter', PERIODS) },
+    get focusValues()  { return this.offered('focusFilter', FOCUS_VALUES) },
+
     get statusOptions() {
-      const counts = { dechiffrage: 0, perfectionnement: 0, repertoire: 0 }
-      for (const score of this.scores) {
-        const status = this.getStatusFor(score)
-        if (status && counts[status] !== undefined) counts[status]++
-      }
-      return STATUS_ORDER.map((value) => ({ value, label: statusLabel(value), count: counts[value] }))
+      return this.facetOptions('statusFilter', this.offered('statusFilter', STATUS_ORDER), statusLabel)
     },
 
     get composerOptions() {
-      const set = new Set(this.scores.map((s) => s.composer).filter(Boolean))
-      return [...set].sort((a, b) => a.localeCompare(b, locale()))
+      return this.facetOptions('composerFilter', this.composerValues)
     },
 
-    // Surface only periods that actually have scores in the library, so the
-    // dropdown doesn't list dead-end options.
     get periodOptions() {
-      const counts = {}
-      for (const score of this.scores) {
-        const p = getPeriodForComposer(score.composer)
-        if (p) counts[p] = (counts[p] || 0) + 1
-      }
-      return PERIODS
-        .filter((value) => counts[value] > 0)
-        .map((value) => ({ value, label: periodLabel(value), count: counts[value] }))
+      return this.facetOptions('periodFilter', this.periodValues, periodLabel)
     },
 
     // Each focus chip filters the table to an actionable subset — the user
@@ -414,17 +535,7 @@ export function libraryApp() {
     },
 
     get focusOptions() {
-      const counts = { reinforce: 0, 'near-mastery': 0, stale: 0 }
-      for (const score of this.scores) {
-        for (const k of Object.keys(counts)) {
-          if (this.matchesFocus(score, k)) counts[k]++
-        }
-      }
-      return [
-        { value: 'reinforce',    label: t('focus.reinforce'),                 count: counts.reinforce },
-        { value: 'near-mastery', label: t('focus.nearMastery'),               count: counts['near-mastery'] },
-        { value: 'stale',        label: t('focus.stale', { n: STALE_DAYS }),  count: counts.stale },
-      ].filter((opt) => opt.count > 0)
+      return this.facetOptions('focusFilter', this.focusValues, focusLabel)
     },
 
     // Under the filtered list: what the pieces on screen still have to clear to
@@ -478,9 +589,21 @@ export function libraryApp() {
 
     aggregateFor(score) {
       if (!this.isCollection(score)) return this.aggregatesByScore[this.getScoreUrl(score)]
-      // Synthesized from the parts: times summed, dates maxed, measures pooled
-      // (keys namespaced by part — focus chips only look at the values). No
-      // status — statuses live per exercise, not per recueil.
+      // Synthesized from the parts, and remembered: the filter bar asks what
+      // every option would show, so this used to be rebuilt some five hundred
+      // times per render — pooling the measures of all twenty Hanon exercises
+      // each time, for an object thrown away immediately. It only changes when
+      // the practice data does, and refreshPracticeData drops the cache.
+      if (collectionAggregates.has(score)) return collectionAggregates.get(score)
+      const built = this.synthesizeCollectionAggregate(score)
+      collectionAggregates.set(score, built)
+      return built
+    },
+
+    // Times summed, dates maxed, measures pooled (keys namespaced by part —
+    // focus chips only look at the values). No status: statuses live per
+    // exercise, not per recueil.
+    synthesizeCollectionAggregate(score) {
       let agg = null
       for (const part of score.parts) {
         const partAgg = this.aggregatesByScore[this.baseUrl + part.file]
@@ -498,7 +621,15 @@ export function libraryApp() {
       }
       return agg
     },
-    getStatusFor(score)        { return this.aggregateFor(score)?.status || null },
+    // The stored status is the tracker's verdict from the last time the piece
+    // was played — for a row graded before the practice floor existed, that
+    // verdict predates the rule. Applying the floor here as well retires those
+    // badges on sight, instead of waiting for a piece nobody plays to be played
+    // again, and saves a migration over everyone's aggregates.
+    getStatusFor(score) {
+      const aggregate = this.aggregateFor(score)
+      return hasMinimumPractice(aggregate) ? aggregate.status : null
+    },
     getPracticeTimeFor(score)  { return this.aggregateFor(score)?.totalPracticeTimeMs || 0 },
 
     // Returns '' (not "0×") for never-completed scores, so Alpine x-show

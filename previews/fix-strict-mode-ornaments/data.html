@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="app-version" content="25f13a594978" />
+    <meta name="app-version" content="0855f5f5fb12" />
     <title data-i18n="data.pageTitle">Arabesque · Données</title>
     <link rel="icon" href="favicon.svg" type="image/svg+xml" />
     <link rel="manifest" href="manifest.webmanifest" />
@@ -88,18 +88,17 @@
         </template>
 
         <div class="pt-stack" x-show="cloudConfigured && authReady" x-cloak>
-          <!-- Signed out: magic-link form -->
+          <!-- Signed out: ask for a code, then verify it -->
           <template x-if="!user">
             <div class="pt-stack">
               <!-- Just deleted: the form below is the whole signed-out page, so
                    without this the button would look like it did nothing. -->
               <p x-show="deleteStatus === 'done'" class="pt-sync-ok" x-text="$t('data.deleteDone')"></p>
               <p class="pt-hint" x-text="$t('data.accountIntro')"></p>
-              <!-- Email sent: the code is the path that works everywhere, the
-                   link only in the browser that opens it. -->
+              <!-- Email sent: waiting for the code it carries. -->
               <template x-if="codeSent">
                 <div class="pt-stack">
-                  <p class="pt-sync-ok" x-text="$t('data.linkSent')">Lien envoyé !</p>
+                  <p class="pt-sync-ok" x-text="$t('data.codeSent')">E-mail envoyé !</p>
                   <form @submit.prevent="verifyOtp()" class="pt-account-form">
                     <input
                       type="text"
@@ -126,7 +125,7 @@
                     :placeholder="$t('data.emailPlaceholder')"
                     :aria-label="$t('data.emailLabel')"
                   />
-                  <button type="submit" :aria-busy="authStatus === 'sending'" :disabled="!email.trim() || authStatus === 'sending'" x-text="$t('data.sendLink')">Recevoir un lien</button>
+                  <button type="submit" :aria-busy="authStatus === 'sending'" :disabled="!email.trim() || authStatus === 'sending'" x-text="$t('data.sendCode')">Recevoir un code</button>
                 </form>
               </template>
               <!-- Shown on any authError: a rejected code keeps the status on

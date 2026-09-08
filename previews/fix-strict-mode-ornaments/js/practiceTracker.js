@@ -58,6 +58,18 @@ export const STATUS_THRESHOLDS = {
   repertoire: { cleanAttempts: 10, measureRatio: 1, practiceDays: 3, timesCompleted: 10 },
 }
 
+// The floor under the lowest status. An aggregate row is born the moment a
+// single measure is attempted, so a piece opened, tried for a few seconds and
+// left behind used to wear a "Déchiffrage" badge for work that never happened.
+// One minute of playing time is a read-through of a short piece, and it is the
+// very number the library prints beside the badge, so the rule reads itself off
+// the row.
+export const MIN_PRACTICE_MS_FOR_STATUS = 60_000
+
+export function hasMinimumPractice(aggregate) {
+  return (aggregate?.totalPracticeTimeMs || 0) >= MIN_PRACTICE_MS_FOR_STATUS
+}
+
 function median(values) {
   if (values.length === 0) return 0
   const sorted = [...values].sort((a, b) => a - b)
@@ -619,7 +631,10 @@ export function initPracticeTracker(storageInstance = null) {
   function createDefaultAggregate(scoreId) {
     return {
       scoreId,
-      status: 'dechiffrage',
+      // No badge until the practice floor is cleared. This row is written the
+      // moment a title is upserted, before a note has been played, so anything
+      // else here would award the bottom rung for opening a score.
+      status: null,
       totalSessions: 0,
       totalPracticeTimeMs: 0,
       timesCompleted: 0,
@@ -738,19 +753,23 @@ export function initPracticeTracker(storageInstance = null) {
 
   function computeScoreStatus(aggregate) {
     const measureValues = Object.values(aggregate.measures)
-    if (measureValues.length === 0) return 'dechiffrage'
 
-    const cleanRatio = (times) =>
-      measureValues.filter((m) => m.cleanAttempts >= times).length / measureValues.length
+    if (measureValues.length > 0) {
+      const cleanRatio = (times) =>
+        measureValues.filter((m) => m.cleanAttempts >= times).length / measureValues.length
 
-    const meets = ({ cleanAttempts, measureRatio, practiceDays = 0, timesCompleted }) =>
-      cleanRatio(cleanAttempts) >= measureRatio &&
-      (aggregate.practiceDays || []).length >= practiceDays &&
-      (aggregate.timesCompleted || 0) >= timesCompleted
+      const meets = ({ cleanAttempts, measureRatio, practiceDays = 0, timesCompleted }) =>
+        cleanRatio(cleanAttempts) >= measureRatio &&
+        (aggregate.practiceDays || []).length >= practiceDays &&
+        (aggregate.timesCompleted || 0) >= timesCompleted
 
-    if (meets(STATUS_THRESHOLDS.repertoire)) return 'repertoire'
-    if (meets(STATUS_THRESHOLDS.perfectionnement)) return 'perfectionnement'
-    return 'dechiffrage'
+      if (meets(STATUS_THRESHOLDS.repertoire)) return 'repertoire'
+      if (meets(STATUS_THRESHOLDS.perfectionnement)) return 'perfectionnement'
+    }
+
+    // The bottom rung is the only one the floor can bite: the two above it ask
+    // for whole playthroughs, which cannot be had in under a minute anyway.
+    return hasMinimumPractice(aggregate) ? 'dechiffrage' : null
   }
 
   async function getScoreStats(scoreId) {

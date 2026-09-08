@@ -209,7 +209,9 @@ export function expandOrnamentNotes(measureNotes, fifths = 0) {
     // The note the score actually writes, sounded on the beat: last of the
     // sequence, first of a delayed turn. It carries the notehead, so a delayed
     // turn's head now lights on the held principal rather than at the end of the
-    // gruppetto -- the head draws that pitch, and it has been played.
+    // gruppetto -- the head draws that pitch, and it has been played. It also
+    // carries the sequence itself, which is what asks the player for the
+    // realization as a whole (see requiredSequence).
     const principalIndex = delayed ? 0 : sequence.length - 1
 
     for (let i = 0; i < sequence.length; i++) {
@@ -239,7 +241,9 @@ export function expandOrnamentNotes(measureNotes, fifths = 0) {
         // is held before the turn proper. 0 for on-beat turns, mordents and trills.
         _turnDelay: turnDelay,
         [flag]: true,
-        isOrnamentPrincipal: i === principalIndex,
+        // The realization, in order, on the note that stands for the whole
+        // ornament (see requiredSequence).
+        ...(i === principalIndex ? { ornamentSequence: sequence } : null),
         // Only the principal highlights the original notehead
         noteheadIndex: i === principalIndex ? noteData.noteheadIndex : -1,
       })
@@ -540,12 +544,38 @@ function isOrnamentOrGrace(noteData) {
   )
 }
 
-// What the player is actually asked to strike. An ornament is written as one
-// note and realized as several, and the score never spells that realization
-// out, so it is represented by its principal alone -- the notes around it are
-// neither required nor wrong.
-export function isRequiredInput(noteData) {
-  return !isOrnamentOrGrace(noteData) || noteData.isOrnamentPrincipal === true
+// What this note asks the player for, in whole-note fractions throughout: the
+// pitches in order, how long after its own timestamp the first of them is due,
+// how long the whole of it has to be played in, and whether it may go on
+// alternating past the end of the sequence.
+//
+// A written note asks for itself, on its beat. An ornament is written as one
+// note and realized as several, and the notation determines that realization
+// down to the pitch and the order, so the whole of it is asked for -- once, on
+// the note that carries the sign, the others being its spelling out. It has the
+// written value of that note to be played in, and a trill may alternate between
+// its two pitches for as long: that count is the one thing notation leaves
+// free. Nothing is asked of a grace note, which is struck ahead of the beat and
+// let through instead (see strictPlaythrough).
+//
+// What a tie already holds is dropped from the head of the sequence: on a
+// delayed turn tied into, the principal is sounding and must not be re-struck,
+// but the turn proper is still to play -- and it falls due when the held
+// principal gives way to it.
+export function requiredSequence(noteData) {
+  const ornament = noteData.ornamentSequence
+  if (!ornament) {
+    const held = isOrnamentOrGrace(noteData) || noteData.isTieContinuation
+    return { sequence: held ? [] : [noteData.midiNumber], delayTs: 0, holdTs: 0, alternating: false }
+  }
+  const ask = {
+    sequence: ornament,
+    delayTs: 0,
+    holdTs: noteData.note?.Length?.RealValue ?? 0,
+    alternating: Boolean(noteData.isTrillNote),
+  }
+  if (!noteData.isTieContinuation) return ask
+  return { ...ask, sequence: ornament.slice(1), delayTs: noteData._turnDelay ?? 0 }
 }
 
 // Staff 0 = right hand, Staff 1+ = left hand. The one place that rule is
