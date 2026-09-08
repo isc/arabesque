@@ -12,6 +12,7 @@ import { injectFingerings } from './fingeringInjector.js'
 import { initPlayback, getBPM } from './playback.js'
 import { initStrictPlaythrough } from './strictPlaythrough.js'
 import { createTempoPlan, createTempoTrainer, GRADUATED, BPM_STEP, STREAK } from './tempoTrainer.js'
+import { stepBpm, holdToRepeat, BPM_MIN, BPM_MAX, BPM_DEFAULT } from './bpmStepper.js'
 import { headerMenu } from './headerMenu.js'
 import { initAutoSync, triggerSync } from './autoSync.js'
 import { scopedKey } from './profiles.js'
@@ -176,7 +177,19 @@ export function midiApp() {
     // score apart from a run from the top, which needs none. A run reads it as
     // `?? 0`: no pick means the top.
     strictStartMeasure: null,
-    strictBpm: 120,
+    strictBpm: BPM_DEFAULT,
+    // Bound to both number inputs, so the field accepts exactly what the
+    // buttons can reach and its arrow keys move the same notch they do.
+    bpmMin: BPM_MIN,
+    bpmMax: BPM_MAX,
+    bpmStep: BPM_STEP,
+    // The −/+ buttons beside both tempo fields: the hold in progress, if any
+    // (the function that ends it), and whether the press that just ended ever
+    // repeated — the click it ends with fires after the release, and is the one
+    // that needs the answer. A hold ticks some eleven times a second, so the
+    // watches below sit one out and the release commits once (see commitBpm).
+    bpmHold: null,
+    bpmRepeated: false,
     strictResult: null,
     // The tempo trainer: strict runs of a passage in a loop, the tempo moving
     // between runs (see tempoTrainer.js). Armed by the loop button in place of
@@ -301,11 +314,8 @@ export function midiApp() {
       // The playback band appears and disappears with the listening, and it is
       // as tall as the strict one — so the sticky offset has to follow it too.
       this.$watch('isListening', () => this.$nextTick(applyStickyOffset))
-      this.$watch('strictBpm', (v) => rememberBpm('strictBpm', this.scoreUrl, v))
-      this.$watch('playbackBpm', (v) => {
-        rememberBpm('playbackBpm', this.scoreUrl, v)
-        playback.setTempo(v)
-      })
+      this.$watch('strictBpm', () => { if (!this.bpmHold) this.commitBpm('strictBpm') })
+      this.$watch('playbackBpm', () => { if (!this.bpmHold) this.commitBpm('playbackBpm') })
 
       // Startup errands, none of which has to finish before a score can be
       // drawn — they used to run one after another in front of the load.
@@ -748,6 +758,54 @@ export function midiApp() {
     async togglePlaybackPause() {
       if (this.isPlaying) playback.pause()
       else await this.startListening()
+    },
+
+    // Where a tempo is written down, whoever moved it. Skipped while a button
+    // is held (see the watches in init): setTempo reschedules every remaining
+    // note of the piece, which is not something to do eleven times a second on
+    // a thumb's behalf, and the tempi passed through on the way are nobody's
+    // choice. The release commits the one the press landed on.
+    commitBpm(field) {
+      rememberBpm(field, this.scoreUrl, this[field])
+      if (field === 'playbackBpm') playback.setTempo(this[field])
+    },
+
+    // The −/+ buttons beside a tempo field, in both bands: `field` is the
+    // tempo they move ('strictBpm' or 'playbackBpm'), `direction` -1 or +1.
+    // Typing a tempo still works — this is the way to change one with a thumb.
+    startBpmHold(field, direction) {
+      // Whatever was held before — a second finger on the other button, or a
+      // press let go somewhere else — is ended rather than left ticking: the
+      // chain re-arms itself, so an orphan would step the tempo for the life of
+      // the page. Two buttons, one hold.
+      this.endBpmHold(field)
+      this.bpmRepeated = false
+      this.bpmHold = holdToRepeat(() => { this[field] = stepBpm(this[field], direction) })
+    },
+
+    // The end of a press: stops the repeat and commits the tempo it held back.
+    // Taken from pointerup, and from the pointer leaving the button or the
+    // gesture being taken over — a press let go off the button never becomes a
+    // click, and its chain would tick on.
+    //
+    // Whether it repeated outlives the hold, because the click that ends the
+    // press has not fired yet. A touch fires pointerleave on the way out of a
+    // press it has already released, which is why an ended hold is not ended a
+    // second time — that would forget the answer with the click still to come.
+    endBpmHold(field) {
+      if (!this.bpmHold) return
+      this.bpmRepeated = this.bpmHold()
+      this.bpmHold = null
+      if (this.bpmRepeated) this.commitBpm(field)
+    },
+
+    stepBpmField(field, direction) {
+      // A press is a click, whatever pressed it — mouse, thumb, Entrée on the
+      // focused button — so the notch is stepped here. The click that ends a
+      // repeating hold is its release, not one notch more.
+      const repeated = this.bpmRepeated
+      this.bpmRepeated = false
+      if (!repeated) this[field] = stepBpm(this[field], direction)
     },
 
     // What the playback band says: where the piece is held, or how to move it.
