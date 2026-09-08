@@ -134,20 +134,33 @@ le domaine. Les étapes sont conservées ci-dessous pour la trace.
 
 ## Messagerie du domaine
 
-`arabesque.app` ne reçoit ni n'envoie de courrier : la zone déclare un **null MX**
-(RFC 7505), un SPF `v=spf1 -all` et un DMARC `p=reject`, ce qui empêche
-d'usurper le domaine pour envoyer en son nom. Les deux fonctionnalités qui
-envoient des mails — le code de connexion et la notification de feedback —
-expédient depuis `onboarding@resend.dev`, pas depuis le domaine, donc rien n'en
-dépend.
+`arabesque.app` ne **reçoit** pas de courrier : la zone déclare un **null MX**
+(RFC 7505), un SPF `v=spf1 -all` et un DMARC `p=reject`. Ces trois
+enregistrements de l'apex sont inchangés depuis le dépôt du domaine.
 
-⚠️ Le jour où l'on vérifiera `arabesque.app` dans Resend pour que le code de
-connexion parte du domaine (nécessaire pour d'autres utilisateurs que le
-propriétaire du compte Resend), ces trois enregistrements devront être revus :
-le SPF devra inclure Resend, il faudra ajouter la clé DKIM fournie, et le null
-MX empêchera d'utiliser l'apex comme domaine d'envoi (Resend passe de toute
-façon par un sous-domaine). L'alignement DMARC a volontairement été laissé
-souple pour que ce jour-là rien ne casse.
+Il en **envoie** en revanche, depuis le 2026-09-08 : le domaine est vérifié dans
+Resend (région `eu-west-1`), et les deux fonctionnalités qui envoient des mails —
+le code de connexion et la notification de feedback — expédient depuis
+`bonjour@arabesque.app`. Avant ça elles partaient de `onboarding@resend.dev`,
+l'expéditeur bac à sable de Resend, qui ne délivre qu'à l'adresse du compte
+Resend : personne d'autre que le propriétaire du compte ne pouvait donc se
+connecter. Détail de la config dans `supabase/auth.md`.
+
+La vérification a ajouté trois enregistrements, tous **hors de l'apex** :
+
+| Type | Nom | Valeur |
+|---|---|---|
+| TXT | `resend._domainkey` | la clé DKIM publique fournie par Resend |
+| MX | `send` | `feedback-smtp.eu-west-1.amazonses.com`, priorité 10 |
+| TXT | `send` | `v=spf1 include:amazonses.com ~all` |
+
+Une note antérieure prévoyait ici qu'il faudrait « revoir » les trois
+enregistrements de l'apex. Ça n'a pas été nécessaire : Resend pose le
+return-path sur `send.`, donc le null MX de l'apex ne gêne rien et le SPF de
+l'apex n'a pas à inclure Resend — c'est le domaine du return-path qui est
+vérifié en SPF. Ce qui était juste, c'est l'alignement DMARC laissé souple :
+`p=reject` passe par la branche DKIM, la signature portant `d=arabesque.app`,
+qui s'aligne avec un `From:` sur l'apex.
 
 ⚠️ Ne jamais recréer ensuite un dépôt nommé `piano-trainer` : les redirections
 git du dépôt renommé s'effondreraient.
