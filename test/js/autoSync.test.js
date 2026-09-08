@@ -14,7 +14,6 @@ const signOut = () => localStorage.removeItem(AUTH_STORAGE_KEY)
 const getSession = vi.fn(async () => ({ data: { session: { user: { id: 'user-1' } } } }))
 vi.mock('../../public/js/supabaseClient.js', () => ({
   supabase: { auth: { getSession: () => getSession() } },
-  authRedirectUrl: () => '',
 }))
 
 // runSync itself is covered by sync.test.js; here we only care about *when*
