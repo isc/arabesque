@@ -101,38 +101,46 @@
         </div>
 
         <div class="pt-filters" x-show="scores.length > 0">
+          <!-- "Tous" clears the status filter, so it counts what the other
+               filters leave, not the size of the library. Every count here is
+               what clicking would put on screen — see facetOptions. -->
           <button
             class="pt-filter-pill"
             :aria-pressed="!statusFilter"
-            @click="statusFilter = ''"
-          ><span x-text="$t('library.filterAll')">Tous</span> <span class="pt-filter-pill__count" x-text="scores.length"></span></button>
+            @click="setStatusFilter('')"
+          ><span x-text="$t('library.filterAll')">Tous</span> <span class="pt-filter-pill__count" x-text="countFor('statusFilter', '')"></span></button>
           <template x-for="opt in statusOptions" :key="opt.value">
             <button
               class="pt-filter-pill"
               :data-status="opt.value"
               :aria-pressed="statusFilter === opt.value"
-              @click="statusFilter = (statusFilter === opt.value ? '' : opt.value)"
-              x-show="opt.count > 0"
+              @click="setStatusFilter(opt.value)"
             >
               <span x-text="opt.label"></span>
               <span class="pt-filter-pill__count" x-text="opt.count"></span>
             </button>
           </template>
-          <select class="pt-select" x-model="composerFilter" :aria-label="$t('library.composerFilterAria')" x-show="composerOptions.length > 1">
-            <option value="" x-text="$t('library.allComposers')">Tous compositeurs</option>
-            <template x-for="c in composerOptions" :key="c">
-              <option :value="c" x-text="c"></option>
+          <!-- @change plus :selected on the option, like the sort select above:
+               picking a value has to go through pickFilter, which releases
+               whatever it conflicts with, and x-model would write the field
+               behind its back. :selected rather than :value on the select — it
+               re-evaluates with the x-for item, so it cannot be assigned before
+               the options exist. -->
+          <select class="pt-select" @change="setComposerFilter($event.target.value)" :aria-label="$t('library.composerFilterAria')" x-show="composerValues.length > 1">
+            <option value="" :selected="!composerFilter" x-text="$t('library.allComposers')">Tous compositeurs</option>
+            <template x-for="c in composerOptions" :key="c.value">
+              <option :value="c.value" :selected="c.value === composerFilter" x-text="`${c.label} (${c.count})`"></option>
             </template>
           </select>
-          <select class="pt-select" x-model="periodFilter" :aria-label="$t('library.periodFilterAria')" x-show="periodOptions.length > 1">
-            <option value="" x-text="$t('library.allPeriods')">Toutes périodes</option>
+          <select class="pt-select" @change="setPeriodFilter($event.target.value)" :aria-label="$t('library.periodFilterAria')" x-show="periodValues.length > 1">
+            <option value="" :selected="!periodFilter" x-text="$t('library.allPeriods')">Toutes périodes</option>
             <template x-for="p in periodOptions" :key="p.value">
-              <option :value="p.value" x-text="`${p.label} (${p.count})`"></option>
+              <option :value="p.value" :selected="p.value === periodFilter" x-text="`${p.label} (${p.count})`"></option>
             </template>
           </select>
         </div>
 
-        <div class="pt-focus" x-show="focusOptions.length > 0">
+        <div class="pt-focus" x-show="focusValues.length > 0">
           <span class="pt-focus__label" x-text="$t('library.focusLabel')">À travailler :</span>
           <template x-for="opt in focusOptions" :key="opt.value">
             <button
@@ -221,6 +229,16 @@
               </template>
             </tbody>
           </table>
+
+          <!-- Clicking cannot empty the list — the filter you click releases
+               whatever conflicts with it — but a bookmarked URL or a search that
+               matches nothing still can, and an empty table explains nothing. -->
+          <template x-if="scores.length > 0 && filteredScores.length === 0">
+            <aside class="pt-card pt-stack pt-library-empty">
+              <p class="pt-hint" x-text="$t('library.noMatch')">Aucune partition ne correspond à ces filtres.</p>
+              <button type="button" class="outline secondary" @click="clearFilters()" x-text="$t('library.clearFilters')">Réinitialiser les filtres</button>
+            </aside>
+          </template>
 
           <!-- Filtering by a status is asking what that status is: the panel
                answers with the bar for the one above, straight from the rules

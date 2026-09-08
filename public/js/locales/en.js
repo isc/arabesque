@@ -102,6 +102,8 @@ export default {
     allPeriods: 'All periods',
     composerFilterAria: 'Filter by composer',
     periodFilterAria: 'Filter by musical period',
+    noMatch: 'No score matches these filters.',
+    clearFilters: 'Reset filters',
     focusLabel: 'To work on:',
     journalHeading: 'Practice journal',
     seeYear: 'See the year →',

@@ -34,6 +34,20 @@ class LibraryFiltersTest < CapybaraTestBase
     refute_includes titles, 'Prelude Op. 28 No. 4 in E Minor'
   end
 
+  # A pick gives up only what actually blocked it. Chopin is romantique, so
+  # asking for baroque has to let the composer go — but not the status, which
+  # baroque scores can perfectly well be in.
+  def test_a_pick_releases_only_the_filter_that_was_in_its_way
+    find('button.pt-filter-pill[data-status="dechiffrage"]').click
+    click_link 'Chopin', match: :first
+
+    find('select[aria-label="Filtrer par période musicale"]').select 'Baroque'
+
+    assert_selector 'button.pt-filter-pill[data-status="dechiffrage"][aria-pressed="true"]'
+    assert_equal '', find('select[aria-label="Filtrer par compositeur"]').value
+    refute_empty all('tbody tr')
+  end
+
   def test_status_filter_pills_at_top_filter_library
     # Filter pill at top of page (the visible count is appended, e.g. "Déchiffrage 2")
     find('button.pt-filter-pill[data-status="dechiffrage"]').click
@@ -52,7 +66,7 @@ class LibraryFiltersTest < CapybaraTestBase
   # sight-read, and wears no badge — including one graded before the floor
   # existed, which the library re-grades on its way to the screen.
   def test_barely_practised_score_wears_no_status_badge
-    assert_selector 'tbody .pt-pill--dechiffrage', count: 2
+    assert_selector 'tbody .pt-pill--dechiffrage', count: 3
     find('tbody tr', text: 'Ballade No. 1 in G minor Op. 23').assert_no_selector '.pt-pill'
   end
 
@@ -125,6 +139,61 @@ class LibraryFiltersTest < CapybaraTestBase
     assert_selector '.pt-criteria', text: /pour passer en répertoire/i
   end
 
+  # The point of the change: a filter you click never bounces off one you set
+  # earlier. Only the Nocturne Op. 9 is close to the répertoire, and it is in
+  # Perfectionnement, so no Déchiffrage row can ever be in both sets.
+  def test_picking_a_focus_chip_releases_the_status_it_cannot_coexist_with
+    find('button.pt-filter-pill[data-status="dechiffrage"]').click
+    assert_selector 'button.pt-filter-pill[data-status="dechiffrage"][aria-pressed="true"]'
+
+    # The chip announces the row it would show, not the nought it would leave.
+    assert_selector 'button.pt-focus__chip[data-focus="near-mastery"]', text: '1'
+    find('button.pt-focus__chip[data-focus="near-mastery"]').click
+
+    # The chip took, and the status pill let go rather than the other way round.
+    assert_selector 'button.pt-focus__chip[data-focus="near-mastery"][aria-pressed="true"]'
+    assert_includes all('tbody tr td:first-child').map(&:text), 'Nocturne Op. 9 No. 1'
+
+    # And with only the chip left, the status pills count against it — "Tous"
+    # included, which clears the status and so counts what the chip leaves.
+    assert_selector 'button.pt-filter-pill[data-status="perfectionnement"]', text: '1'
+    assert_selector 'button.pt-filter-pill[aria-pressed="true"]', text: /Tous\s+1/
+  end
+
+  # And the same the other way round, since neither filter is the senior one.
+  def test_picking_a_status_releases_the_focus_it_cannot_coexist_with
+    find('button.pt-focus__chip[data-focus="near-mastery"]').click
+
+    assert_selector 'button.pt-filter-pill[data-status="dechiffrage"]', text: '3'
+    find('button.pt-filter-pill[data-status="dechiffrage"]').click
+
+    assert_selector 'button.pt-filter-pill[data-status="dechiffrage"][aria-pressed="true"]'
+    assert_no_selector 'button.pt-focus__chip[aria-pressed="true"]'
+    refute_empty all('tbody tr')
+  end
+
+  def test_period_options_count_against_the_active_composer
+    click_link 'Chopin', match: :first
+
+    period = find('select[aria-label="Filtrer par période musicale"]')
+    # Baroque is still offered, carrying the count picking it would show:
+    # the composer filter gives way rather than the option going dead.
+    refute_equal '0', period.find('option[value="baroque"]', visible: :all).text[/\((\d+)\)/, 1]
+  end
+
+  def test_a_dead_combination_restored_from_a_url_offers_a_way_out
+    visit '/library.html?status=dechiffrage&focus=near-mastery'
+
+    assert_selector '.pt-library-empty'
+    assert_no_selector 'tbody tr'
+
+    click_button 'Réinitialiser les filtres'
+
+    assert_selector 'tbody tr', minimum: 4
+    assert_no_selector '.pt-library-empty'
+    refute_match(/status=|focus=/, page.current_url)
+  end
+
   private
 
   def inject_aggregates
@@ -146,6 +215,9 @@ class LibraryFiltersTest < CapybaraTestBase
         lastPlayedAt: '2026-02-15T10:00:00.000Z',
         totalPracticeTimeMs: 1_800_000,
         practiceDays: ['2026-02-13', '2026-02-14', '2026-02-15'],
+        # Every measure played clean often enough: the one score the
+        # "⭐ Proches du répertoire" chip has to offer.
+        measures: (1..4).to_h { |i| [i.to_s, { totalAttempts: 5, cleanAttempts: 5, errorRate: 0 }] },
       },
       {
         scoreId: 'scores/Waltz_in_A_MinorChopin.mxl',
@@ -166,6 +238,18 @@ class LibraryFiltersTest < CapybaraTestBase
         lastPlayedAt: '2026-03-16T10:00:00.000Z',
         totalPracticeTimeMs: 30_000,
         practiceDays: ['2026-03-16'],
+      },
+      # A baroque score in Déchiffrage, so that status and period can coexist:
+      # it is what makes "release only the composer" the minimal answer when
+      # Baroque is picked under Déchiffrage + Chopin.
+      {
+        scoreId: 'scores/J._S._Bach_-_Air_on_the_G_String_Piano_arrangement.mxl',
+        scoreTitle: 'Air on the G String',
+        composer: 'J.S. Bach',
+        status: 'dechiffrage',
+        lastPlayedAt: '2026-03-14T10:00:00.000Z',
+        totalPracticeTimeMs: 900_000,
+        practiceDays: ['2026-03-14'],
       },
       {
         scoreId: 'scores/Nocturne_No._20_in_C_sharp_Minor.mxl',

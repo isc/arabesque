@@ -102,6 +102,8 @@ export default {
     allPeriods: 'Toutes périodes',
     composerFilterAria: 'Filtrer par compositeur',
     periodFilterAria: 'Filtrer par période musicale',
+    noMatch: 'Aucune partition ne correspond à ces filtres.',
+    clearFilters: 'Réinitialiser les filtres',
     focusLabel: 'À travailler :',
     journalHeading: 'Journal de pratique',
     seeYear: 'Voir l’année →',
