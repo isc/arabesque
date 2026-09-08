@@ -254,6 +254,7 @@ export default {
     trainerRandom: 'Tempos alternés (70–110 %)',
     loopHint: 'Cliquez sur la première puis la dernière mesure du passage à travailler.',
     loopRange: 'Boucle des mesures {from} à {to}.',
+    loopRangeOne: 'Boucle de la mesure {from}.',
     loopRangeOpen: 'Boucle de la mesure {from} à la fin.',
     loopHintEnd: 'Départ à la mesure {n} — cliquez sur la dernière mesure du passage.',
     loopRun: 'passage {n}',
