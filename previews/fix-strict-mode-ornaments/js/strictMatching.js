@@ -2,10 +2,11 @@
 // timers. Kept separate from strictPlaythrough.js so it can be unit-tested
 // without dragging in the playback chain (and its esm.sh @tonejs/piano import).
 
+// Three states, not four: whether a settled event was in tempo is the verdict
+// it already carries as `classification`, and nothing reads it off the status.
 export const EVENT_STATUS = {
   PENDING: 'pending',
-  HIT: 'hit',
-  OFFTEMPO: 'offtempo',
+  SETTLED: 'settled',
   MISSED: 'missed',
 }
 
@@ -62,9 +63,10 @@ function awaitedPitch(event, now, offTempoWindow) {
   // any other note, or it is not being played on the beat at all.
   if (event.cursor === 0 && now - event.timeMs > offTempoWindow) return null
   // Anything with a verdict is done, save a trill that has been credited: it
-  // goes on alternating to the end of the note it decorates.
+  // goes on alternating to the end of the note it decorates. A missed one does
+  // not — there is nothing left for it to be credited towards.
   const open = event.status === EVENT_STATUS.PENDING
-    || (event.alternating && event.status !== EVENT_STATUS.MISSED)
+    || (event.alternating && event.status === EVENT_STATUS.SETTLED)
   return open ? event.sequence[event.cursor] : null
 }
 
@@ -93,19 +95,31 @@ export function findMatchingEvent(events, midiNumber, now, offTempoWindow) {
 // still alternating. The verdict is the one the first strike earned, whenever
 // the last of the sequence arrives.
 export function advanceEvent(event, delta, tolerance) {
-  if (event.status !== EVENT_STATUS.PENDING) {
-    // A credited trill going on alternating: neither counted again nor wrong.
-    event.cursor = nextCursor(event)
-    return null
-  }
-  if (event.cursor === 0) event.classification = classifyMatch(delta, tolerance)
-  const settles = event.cursor + 1 === event.sequence.length
+  // Already settled means a credited trill going on alternating: it takes the
+  // note, and nothing is counted a second time.
+  const pending = event.status === EVENT_STATUS.PENDING
+  if (pending && event.cursor === 0) event.classification = classifyMatch(delta, tolerance)
+  const settles = pending && event.cursor + 1 === event.sequence.length
   event.cursor = nextCursor(event)
   if (!settles) return null
-  event.status = event.classification === CLASSIFICATION.HIT
-    ? EVENT_STATUS.HIT
-    : EVENT_STATUS.OFFTEMPO
+  event.status = EVENT_STATUS.SETTLED
   return event.classification
+}
+
+// The event whose realization `midiNumber` belongs to at `now`, looked up only
+// once a strike has failed to be taken. An ornament is one written note and
+// must cost one fault however many notes it spells out: entered late, a mordent
+// would otherwise be charged three wrong notes where a plain note is charged
+// one, so the mode would score a passage played as written below the same
+// passage played plainly. The first stray strike inside the span answers for
+// the ornament; the rest of the realization is neither credited nor punished.
+export function faultAbsorbingEvent(events, midiNumber, now) {
+  for (const event of events) {
+    if (event.timeMs > now) break
+    if (now > event.openUntilMs || event.sequence.length === 1) continue
+    if (event.sequence.includes(midiNumber)) return event
+  }
+  return null
 }
 
 // Whether the run lets `midiNumber` through at `now` as a grace note. A grace
