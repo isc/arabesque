@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { expandOrnamentNotes } from '../../public/js/noteExtraction.js'
+import { ORNAMENT, noteWithOrnament } from './support/ornamentedNote.js'
 
 // An ornament re-articulates, so its expanded notes must NOT inherit the parent
 // note's tie-continuation flag -- doing so suppressed their note-on in audio
@@ -9,25 +10,9 @@ import { expandOrnamentNotes } from '../../public/js/noteExtraction.js'
 // is the held principal of a delayed turn: when the parent is tied into, that
 // pitch is already sounding and must not be re-struck.
 
-// OrnamentEnum: Turn = 1, DelayedTurn = 3. AccidentalEnum: NATURAL = 3.
-// Explicit accidental marks keep getOrnamentAuxiliaryNotes off the diatonic path,
-// so no real pitch/key data is needed: NATURAL above -> +2, NATURAL below -> -1.
-const noteWithTurn = (ornamentType, { tied }) => ({
-  midiNumber: 72,
-  timestamp: 1.5,
-  measureIndex: 1,
-  isTieContinuation: tied,
-  noteheadIndex: 0,
-  note: { Length: { RealValue: 0.5 } },
-  voiceEntry: { OrnamentContainer: { GetOrnament: ornamentType, AccidentalAbove: 3, AccidentalBelow: 3 } },
-})
-
-const TURN = 1
-const DELAYED_TURN = 3
-
 describe('expandOrnamentNotes tie handling', () => {
   it('does not let a delayed turn on a tied note inherit the tie on its turn proper', () => {
-    const expanded = expandOrnamentNotes([noteWithTurn(DELAYED_TURN, { tied: true })])
+    const expanded = expandOrnamentNotes([noteWithOrnament(ORNAMENT.DELAYED_TURN, { tied: true })])
     // [principal, upper, principal, lower, principal]
     expect(expanded).toHaveLength(5)
     expect(expanded.every((n) => n.isTurnNote)).toBe(true)
@@ -36,13 +21,13 @@ describe('expandOrnamentNotes tie handling', () => {
   })
 
   it('marks every expanded note as a fresh attack when the parent is not tied', () => {
-    const expanded = expandOrnamentNotes([noteWithTurn(DELAYED_TURN, { tied: false })])
+    const expanded = expandOrnamentNotes([noteWithOrnament(ORNAMENT.DELAYED_TURN, { tied: false })])
     expect(expanded.map((n) => n.isTieContinuation)).toEqual([false, false, false, false, false])
   })
 
   it('never keeps the tie for a non-delayed turn (no held principal)', () => {
     // A plain turn leads with the upper neighbour, so even index 0 is an attack.
-    const expanded = expandOrnamentNotes([noteWithTurn(TURN, { tied: true })])
+    const expanded = expandOrnamentNotes([noteWithOrnament(ORNAMENT.TURN, { tied: true })])
     expect(expanded).toHaveLength(4)
     expect(expanded.every((n) => n.isTieContinuation === false)).toBe(true)
   })

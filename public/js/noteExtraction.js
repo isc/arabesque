@@ -206,6 +206,31 @@ export function expandOrnamentNotes(measureNotes, fifths = 0) {
     const parentDurationWN = noteData.note?.Length?.RealValue ?? 0
     const turnDelay = delayed ? Math.max(0, parentDurationWN - DELAYED_TURN_FILL_WN) : 0
 
+    // The note the score actually writes, sounded on the beat: last of the
+    // sequence, first of a delayed turn. It carries the notehead, so a delayed
+    // turn's head now lights on the held principal rather than at the end of the
+    // gruppetto -- the head draws that pitch, and it has been played.
+    const principalIndex = delayed ? 0 : sequence.length - 1
+
+    // It also carries what the ornament asks the player for, built here because
+    // this is the one scope holding every fact it needs -- the sequence, whether
+    // the turn is delayed, the parent's value and its tie. Re-deriving it from
+    // the expanded notes later means restating those facts, and a rule like
+    // "drop the first pitch of a tied ornament" is only right while
+    // principalIndex === 0 exactly when `delayed`, which is not visible from
+    // there. See requiredSequence, which now only reads this back.
+    //
+    // A tie already holds the delayed turn's principal, so it is not struck
+    // again; the turn proper still is, and falls due when the held principal
+    // gives way to it.
+    const tied = delayed && noteData.isTieContinuation
+    const ornamentAsk = {
+      sequence: tied ? sequence.slice(1) : sequence,
+      delayTs: tied ? turnDelay : 0,
+      holdTs: parentDurationWN,
+      alternating: flag === 'isTrillNote',
+    }
+
     for (let i = 0; i < sequence.length; i++) {
       const midiNumber = sequence[i]
       const noteNameStd = NOTE_NAMES[midiNumber % 12]
@@ -233,8 +258,10 @@ export function expandOrnamentNotes(measureNotes, fifths = 0) {
         // is held before the turn proper. 0 for on-beat turns, mordents and trills.
         _turnDelay: turnDelay,
         [flag]: true,
-        // Only the last note should highlight the original notehead
-        noteheadIndex: i === sequence.length - 1 ? noteData.noteheadIndex : -1,
+        // What this ornament asks for, on the one note that stands for it.
+        ...(i === principalIndex ? { ornamentAsk } : null),
+        // Only the principal highlights the original notehead
+        noteheadIndex: i === principalIndex ? noteData.noteheadIndex : -1,
       })
     }
 
@@ -521,8 +548,9 @@ function extractNotesFromSourceMeasures(sourceMeasures) {
   return { notesByMeasure, pedalEventsByMeasure, cursorStopsByMeasure }
 }
 
-// Extract notes from the score and build the playback sequence
-export function isOrnamentOrGrace(noteData) {
+// Every note that decorates another rather than being written as one: grace
+// notes, the notes an ornament expands into, and the trill sentinel.
+function isOrnamentOrGrace(noteData) {
   return Boolean(
     noteData.isGrace ||
     noteData.isTrillNote ||
@@ -530,6 +558,37 @@ export function isOrnamentOrGrace(noteData) {
     noteData.isMordentNote ||
     noteData.isTrillEnd
   )
+}
+
+// What this note asks the player for, in whole-note fractions throughout: the
+// pitches in order, how long after its own timestamp the first of them is due,
+// how long the whole of it has to be played in, and whether it may go on
+// alternating past the end of the sequence.
+//
+// A written note asks for itself, on its beat. An ornament is written as one
+// note and realized as several, and the notation determines that realization
+// down to the pitch and the order, so the whole of it is asked for -- once, on
+// the note that carries the sign, the others being its spelling out. It has the
+// written value of that note to be played in, and a trill may alternate between
+// its two pitches for as long: that count is the one thing notation leaves
+// free. Nothing is asked of a grace note, which is struck ahead of the beat and
+// let through instead (see strictPlaythrough).
+//
+// What a tie already holds is dropped from the head of the sequence: on a
+// delayed turn tied into, the principal is sounding and must not be re-struck,
+// but the turn proper is still to play -- and it falls due when the held
+// principal gives way to it.
+// Free mode answers this same question its own way, and differently: musicxml.js
+// walks the expanded notes with played/active flags and a trill sentinel that
+// accepts either of the trill's two pitches in any order and any number, where
+// the cursor here requires strict alternation. The two also count a bar's notes
+// differently — free mode counts the expansion, strict mode the written note.
+// Worth folding into one rule, but that changes free-mode behaviour and wants
+// its own change; until then the divergence is deliberate, not overlooked.
+export function requiredSequence(noteData) {
+  if (noteData.ornamentAsk) return noteData.ornamentAsk
+  const held = isOrnamentOrGrace(noteData) || noteData.isTieContinuation
+  return { sequence: held ? [] : [noteData.midiNumber], delayTs: 0, holdTs: 0, alternating: false }
 }
 
 // Staff 0 = right hand, Staff 1+ = left hand. The one place that rule is
