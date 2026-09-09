@@ -49,12 +49,14 @@ export default {
     perfectionnement: 'Perfectionnement',
     repertoire: 'Répertoire',
   },
-  // Ce qu'il faut atteindre pour le statut suivant, sous la liste filtrée de la
-  // bibliothèque. Les nombres viennent de STATUS_THRESHOLDS (practiceTracker.js).
+  // Ce que sélectionne le filtre en cours, sous la liste filtrée de la
+  // bibliothèque. Les nombres viennent des constantes que les règles elles-mêmes
+  // appliquent : STATUS_THRESHOLDS et la fenêtre de renforcement
+  // (practiceTracker.js).
   criteria: {
-    reinforceHeading: 'Ce que sélectionne « À renforcer » :',
-    reinforceFumbled: 'des mesures fautives lors des {n} dernières séances sur le morceau',
-    reinforceClean: 'et pas encore rejouées proprement {n} fois de suite',
+    reinforceHeading: 'Ce que sélectionne {filter}',
+    reinforceFumbled: 'Des mesures fautives lors des {n} dernières séances sur le morceau',
+    reinforceClean: 'Et pas encore rejouées proprement {n} passages de suite',
     heading: 'Pour passer en {status}',
     cleanMeasures: '{percent} % des mesures jouées proprement au moins {n} fois',
     cleanMeasuresAll: 'Toutes les mesures jouées proprement au moins {n} fois',

@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="app-version" content="a4769b0699ea" />
+    <meta name="app-version" content="a0e153646f51" />
     <title data-i18n="library.pageTitle">Arabesque · Bibliothèque</title>
     <link rel="icon" href="favicon.svg" type="image/svg+xml" />
     <link rel="manifest" href="manifest.webmanifest" />
@@ -243,11 +243,11 @@
           <!-- Filtering by a status is asking what that status is: the panel
                answers with the bar for the one above, straight from the rules
                the app grades by. -->
-          <template x-if="statusCriteria">
+          <template x-if="filterCriteria">
             <aside class="pt-card pt-criteria">
-              <h2 class="pt-eyebrow" x-text="statusCriteria.heading"></h2>
+              <h2 class="pt-eyebrow" x-text="filterCriteria.heading"></h2>
               <ul class="pt-hint">
-                <template x-for="item in statusCriteria.items" :key="item">
+                <template x-for="item in filterCriteria.items" :key="item">
                   <li x-text="item"></li>
                 </template>
               </ul>

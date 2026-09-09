@@ -52,12 +52,6 @@ const STAGNATION_MIN_SESSIONS = 3
 // right now, best candidates first — so the library's 🎯 chip is exactly
 // "pieces this returns something for", rather than a second rule of its own
 // reading the cumulative aggregates, which never forget.
-//
-// The window is what makes it forget: only the last REINFORCEMENT_WINDOW_SESSIONS
-// sessions of that score count, so a bar massacred six months ago and left alone
-// since says nothing today. Stagnating measures rank ahead of the rest — those
-// are the passages practice has stopped paying off on, and the reason to look
-// past the last session at all.
 export function measuresToReinforce(sessions, limit = 5) {
   return [...reinforceCandidates(sessions)]
     .sort(
@@ -76,9 +70,13 @@ export function hasMeasuresToReinforce(sessions) {
   return !reinforceCandidates(sessions).next().done
 }
 
-// The measures worth offering, unranked. `startedAt` is always an ISO string in
-// UTC, so it sorts as text — and a comparator building two Dates per comparison
-// is most of the cost of a call that runs at every measure boundary.
+// The measures worth offering, unranked, over the window that makes the rule
+// forget: only the last REINFORCEMENT_WINDOW_SESSIONS sessions of that score
+// count, so a bar massacred six months ago and left alone says nothing today.
+//
+// `startedAt` is always an ISO string in UTC, so it sorts as text — and a
+// comparator building two Dates per comparison was most of the cost of a call
+// that runs at every measure boundary.
 function* reinforceCandidates(sessions) {
   const recent = [...sessions]
     .sort((a, b) => (a.startedAt < b.startedAt ? -1 : a.startedAt > b.startedAt ? 1 : 0))
@@ -887,7 +885,7 @@ export function initPracticeTracker(storageInstance = null) {
 
   // The score's sessions, with the in-memory one substituted for the copy
   // endMeasureAttempt saved: that one is a measure behind by construction.
-  // Order is measuresToReinforce()'s business, not this one's.
+  // Windowing and order are measuresToReinforce()'s business, not this one's.
   //
   // Sessions are re-read from storage only when the score changes or a session
   // is closed, because this runs at every measure boundary and getSessions()

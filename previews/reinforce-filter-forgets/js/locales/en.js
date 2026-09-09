@@ -49,12 +49,13 @@ export default {
     perfectionnement: 'Refining',
     repertoire: 'Repertoire',
   },
-  // What it takes to reach the next status, shown under the filtered library
-  // list. The numbers come from STATUS_THRESHOLDS (practiceTracker.js).
+  // What the current filter selects, shown under the filtered library list.
+  // The numbers come from the constants the rules themselves judge by:
+  // STATUS_THRESHOLDS and the reinforcement window (practiceTracker.js).
   criteria: {
-    reinforceHeading: 'What "To reinforce" selects:',
-    reinforceFumbled: 'bars fumbled over the last {n} sessions on the piece',
-    reinforceClean: 'and not yet played cleanly {n} times in a row',
+    reinforceHeading: 'What {filter} selects',
+    reinforceFumbled: 'Bars fumbled over the last {n} sessions on the piece',
+    reinforceClean: 'And not yet played cleanly {n} attempts in a row',
     heading: 'To reach {status}',
     cleanMeasures: '{percent}% of the measures played clean at least {n} times',
     cleanMeasuresAll: 'Every measure played clean at least {n} times',

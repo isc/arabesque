@@ -120,10 +120,10 @@ export function libraryApp() {
     // The score files reinforcement mode would offer something on, settled once
     // per practice-data reload rather than per render: the answer needs a
     // score's sessions, and the filter bar asks it of every score for every
-    // option it offers. Keyed by file like the catalog, and a component
-    // property like the other two — what the table draws from has to be
-    // observed, or a refresh that touched only sessions would leave the chip
-    // showing a stale count with nothing to explain it.
+    // option it offers. A component property like the two above — what the
+    // table draws from has to be observed, or a refresh that touched only
+    // sessions would leave the chip showing a stale count with nothing to
+    // explain it.
     reinforceFiles: new Set(),
 
     async init() {
@@ -245,7 +245,7 @@ export function libraryApp() {
       return this.refreshingPractice
     },
 
-    // Recomputes lastPlayedByScore/aggregatesByScore/sessionCountByFile from
+    // Recomputes lastPlayedByScore/aggregatesByScore/reinforceFiles/sessionCountByFile from
     // storage. Safe to call more than once (each map is rebuilt from
     // scratch), unlike the rest of init() which registers listeners.
     async refreshPracticeData() {
@@ -265,9 +265,6 @@ export function libraryApp() {
         if (session.scoreId.startsWith(this.baseUrl)) {
           const file = session.scoreId.slice(this.baseUrl.length)
           sessionCountByFile[file] = (sessionCountByFile[file] ?? 0) + 1
-        }
-        if (session.scoreId.startsWith(this.baseUrl)) {
-          const file = session.scoreId.slice(this.baseUrl.length)
           const forFile = sessionsByFile.get(file)
           if (forFile) forFile.push(session)
           else sessionsByFile.set(file, [session])
@@ -548,9 +545,9 @@ export function libraryApp() {
     // Each focus chip filters the table to an actionable subset — the user
     // can immediately see which pieces match, unlike a passive count banner.
     matchesFocus(score, focus) {
-      // Not an aggregate question: a recueil is worth reinforcing when one of
-      // its exercises is, each judged on its own sessions (bar numbers only
-      // mean something within a part).
+      // Not an aggregate question, and not one the aggregates could answer: a
+      // recueil is worth reinforcing when one of its exercises is, each judged
+      // on its own sessions (bar numbers only mean something within a part).
       if (focus === 'reinforce') return this.partFiles(score).some((file) => this.reinforceFiles.has(file))
 
       const agg = this.aggregateFor(score)
@@ -571,26 +568,26 @@ export function libraryApp() {
       return this.facetOptions('focusFilter', this.focusValues, focusLabel)
     },
 
-    // Under the filtered list: what the pieces on screen still have to clear to
-    // earn the status above theirs. Narrowing to a status is asking what that
-    // status means, and the answer was nowhere in the app. The numbers come
-    // from STATUS_THRESHOLDS, the same object computeScoreStatus() judges by.
-    // Null when the filter names no next status — nothing selected, or
-    // Répertoire, which is the top.
-    get statusCriteria() {
+    // Under the filtered list: what the filter on screen selects. Narrowing is
+    // asking what the filter means, and the answer was nowhere in the app —
+    // the numbers come from the same constants the rules themselves judge by,
+    // STATUS_THRESHOLDS and the reinforcement window. Null when there is
+    // nothing to say: no filter, or Répertoire, which has no status above it.
+    get filterCriteria() {
       // "À renforcer" is the one chip whose label does not say what it selects,
-      // which is what the player asked ("quels sont les critères ?"). It gets
-      // the answer on the card that already exists for the question, rather
-      // than a title tooltip — which never opens on the tablet they asked from.
+      // which is what the player asked ("quels sont les critères ?"). It takes
+      // precedence over a status filter the same way "Proches du répertoire"
+      // does below: the chip is the narrower question of the two.
       if (this.focusFilter === 'reinforce') {
         return {
-          heading: t('criteria.reinforceHeading'),
+          heading: t('criteria.reinforceHeading', { filter: focusLabel('reinforce') }),
           items: [
             t('criteria.reinforceFumbled', { n: REINFORCEMENT_WINDOW_SESSIONS }),
             t('criteria.reinforceClean', { n: REINFORCEMENT_CLEAN_STREAK }),
           ],
         }
       }
+
       // "Proches du répertoire" is a subset of Perfectionnement, so it asks the
       // same question about the same next step.
       const from = this.focusFilter === 'near-mastery' ? 'perfectionnement' : this.statusFilter
@@ -655,8 +652,8 @@ export function libraryApp() {
     // exercise, not per recueil.
     synthesizeCollectionAggregate(score) {
       let agg = null
-      for (const file of this.partFiles(score)) {
-        const partAgg = this.aggregatesByScore[this.baseUrl + file]
+      for (const part of score.parts) {
+        const partAgg = this.aggregatesByScore[this.baseUrl + part.file]
         if (!partAgg) continue
         agg ??= { totalPracticeTimeMs: 0, timesCompleted: 0, timesCompletedOneHand: 0, lastPlayedAt: null, lastCompletedAt: null, measures: {} }
         agg.totalPracticeTimeMs += partAgg.totalPracticeTimeMs || 0
@@ -666,7 +663,7 @@ export function libraryApp() {
           if (partAgg[key] && (!agg[key] || partAgg[key] > agg[key])) agg[key] = partAgg[key]
         }
         for (const [index, measure] of Object.entries(partAgg.measures || {})) {
-          agg.measures[`${file}:${index}`] = measure
+          agg.measures[`${part.file}:${index}`] = measure
         }
       }
       return agg
