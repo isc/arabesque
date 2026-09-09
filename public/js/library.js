@@ -1,5 +1,12 @@
 import { initMidi } from './midi.js'
-import { initPracticeTracker, STATUS_THRESHOLDS, hasMinimumPractice } from './practiceTracker.js'
+import {
+  initPracticeTracker,
+  hasMeasuresToReinforce,
+  STATUS_THRESHOLDS,
+  hasMinimumPractice,
+  REINFORCEMENT_WINDOW_SESSIONS,
+  REINFORCEMENT_CLEAN_STREAK,
+} from './practiceTracker.js'
 import { initStorage } from './storage.js'
 import { formatDuration, formatDate, formatRelativeDate, statusLabel, scorePageUrl } from './utils.js'
 import { journalEntryHelpers } from './journalEntries.js'
@@ -110,6 +117,14 @@ export function libraryApp() {
     refreshingPractice: null,
     lastPlayedByScore: {},
     aggregatesByScore: {},
+    // The score files reinforcement mode would offer something on, settled once
+    // per practice-data reload rather than per render: the answer needs a
+    // score's sessions, and the filter bar asks it of every score for every
+    // option it offers. A component property like the two above — what the
+    // table draws from has to be observed, or a refresh that touched only
+    // sessions would leave the chip showing a stale count with nothing to
+    // explain it.
+    reinforceFiles: new Set(),
 
     async init() {
       // Mark this visitor as a returning user so the landing page (/) can
@@ -230,7 +245,7 @@ export function libraryApp() {
       return this.refreshingPractice
     },
 
-    // Recomputes lastPlayedByScore/aggregatesByScore/sessionCountByFile from
+    // Recomputes lastPlayedByScore/aggregatesByScore/reinforceFiles/sessionCountByFile from
     // storage. Safe to call more than once (each map is rebuilt from
     // scratch), unlike the rest of init() which registers listeners.
     async refreshPracticeData() {
@@ -241,6 +256,7 @@ export function libraryApp() {
 
       const [sessions, aggregates] = await Promise.all([storage.getSessions(), storage.getAllAggregates()])
 
+      const sessionsByFile = new Map()
       for (const session of sessions) {
         const existing = this.lastPlayedByScore[session.scoreId]
         if (!existing || session.startedAt > existing) {
@@ -249,7 +265,19 @@ export function libraryApp() {
         if (session.scoreId.startsWith(this.baseUrl)) {
           const file = session.scoreId.slice(this.baseUrl.length)
           sessionCountByFile[file] = (sessionCountByFile[file] ?? 0) + 1
+          const forFile = sessionsByFile.get(file)
+          if (forFile) forFile.push(session)
+          else sessionsByFile.set(file, [session])
         }
+      }
+
+      // The 🎯 chip asks the very question the score page answers with its
+      // "Renforcer N mesures" badge, so it asks it of the same rule and the
+      // same data — the score's own recent sessions, not the aggregates, whose
+      // counters have never forgotten anything.
+      this.reinforceFiles = new Set()
+      for (const [file, forFile] of sessionsByFile) {
+        if (hasMeasuresToReinforce(forFile)) this.reinforceFiles.add(file)
       }
 
       // Aggregates power the status filter, status pills, and practice-focus banner.
@@ -517,12 +545,14 @@ export function libraryApp() {
     // Each focus chip filters the table to an actionable subset — the user
     // can immediately see which pieces match, unlike a passive count banner.
     matchesFocus(score, focus) {
+      // Not an aggregate question, and not one the aggregates could answer: a
+      // recueil is worth reinforcing when one of its exercises is, each judged
+      // on its own sessions (bar numbers only mean something within a part).
+      if (focus === 'reinforce') return this.partFiles(score).some((file) => this.reinforceFiles.has(file))
+
       const agg = this.aggregateFor(score)
       if (!agg) return false
       const measures = Object.values(agg.measures || {})
-      if (focus === 'reinforce') {
-        return measures.some((m) => (m.totalAttempts || 0) >= 2 && (m.errorRate || 0) > 0.4)
-      }
       if (focus === 'near-mastery') {
         if (agg.status !== 'perfectionnement' || measures.length === 0) return false
         const clean = measures.filter((m) => (m.cleanAttempts || 0) >= STATUS_THRESHOLDS.perfectionnement.cleanAttempts).length
@@ -538,13 +568,26 @@ export function libraryApp() {
       return this.facetOptions('focusFilter', this.focusValues, focusLabel)
     },
 
-    // Under the filtered list: what the pieces on screen still have to clear to
-    // earn the status above theirs. Narrowing to a status is asking what that
-    // status means, and the answer was nowhere in the app. The numbers come
-    // from STATUS_THRESHOLDS, the same object computeScoreStatus() judges by.
-    // Null when the filter names no next status — nothing selected, or
-    // Répertoire, which is the top.
-    get statusCriteria() {
+    // Under the filtered list: what the filter on screen selects. Narrowing is
+    // asking what the filter means, and the answer was nowhere in the app —
+    // the numbers come from the same constants the rules themselves judge by,
+    // STATUS_THRESHOLDS and the reinforcement window. Null when there is
+    // nothing to say: no filter, or Répertoire, which has no status above it.
+    get filterCriteria() {
+      // "À renforcer" is the one chip whose label does not say what it selects,
+      // which is what the player asked ("quels sont les critères ?"). It takes
+      // precedence over a status filter the same way "Proches du répertoire"
+      // does below: the chip is the narrower question of the two.
+      if (this.focusFilter === 'reinforce') {
+        return {
+          heading: t('criteria.reinforceHeading', { filter: focusLabel('reinforce') }),
+          items: [
+            t('criteria.reinforceFumbled', { n: REINFORCEMENT_WINDOW_SESSIONS }),
+            t('criteria.reinforceClean', { n: REINFORCEMENT_CLEAN_STREAK }),
+          ],
+        }
+      }
+
       // "Proches du répertoire" is a subset of Perfectionnement, so it asks the
       // same question about the same next step.
       const from = this.focusFilter === 'near-mastery' ? 'perfectionnement' : this.statusFilter
@@ -570,6 +613,10 @@ export function libraryApp() {
     // stays keyed per part file; the row aggregates it and opening the row
     // resumes the last-played part.
     isCollection(score) { return Array.isArray(score.parts) },
+
+    // The score files a library row stands for: its own, or every part of a
+    // recueil. Practice data is keyed per file, never per row.
+    partFiles(score) { return this.isCollection(score) ? score.parts.map((p) => p.file) : [score.file] },
 
     lastPlayedPartOf(score) {
       let best = null

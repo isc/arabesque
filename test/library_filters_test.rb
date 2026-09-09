@@ -194,7 +194,77 @@ class LibraryFiltersTest < CapybaraTestBase
     refute_match(/status=|focus=/, page.current_url)
   end
 
+  # "🎯 À renforcer" now asks the question the score page answers with its
+  # "Renforcer N mesures" badge — are there bars reinforcement mode would offer
+  # right now? — instead of reading the aggregates, whose counters never forget.
+  # The Prelude's lifetime error rate still looks damning and used to pin it in
+  # the chip for ever; its fumble is ten sessions old, so it is done with.
+  def test_the_reinforce_chip_forgets_mistakes_the_reinforcement_window_has_dropped
+    seed_store('aggregates', [
+      {
+        scoreId: PRELUDE,
+        scoreTitle: 'Prelude Op. 28 No. 4 in E Minor',
+        composer: 'Chopin',
+        status: 'dechiffrage',
+        lastPlayedAt: '2026-01-11T10:00:00.000Z',
+        totalPracticeTimeMs: 300_000,
+        practiceDays: ['2026-01-01'],
+        # Six fumbles out of ten, counted since the first day: over the bar the
+        # old rule set, and never coming back down. Re-seeded deliberately, so
+        # a revert to the aggregate rule fails this test rather than passing it.
+        measures: { '0' => { totalAttempts: 10, cleanAttempts: 4, errorRate: 0.6 } },
+      },
+    ])
+    # One old fumble, then ten sessions spent elsewhere in the piece — enough to
+    # push it out of the ten-session window.
+    sessions = [reinforce_session(PRELUDE, 0, 0, fumbled: true)]
+    sessions += (1..10).map { |day| reinforce_session(PRELUDE, day, 9, fumbled: false) }
+    sessions << reinforce_session(NOCTURNE_20, 11, 3, fumbled: true)
+    seed_store('sessions', sessions)
+
+    visit '/library.html'
+
+    chip = find('button.pt-focus__chip[data-focus="reinforce"]')
+    assert_equal '1', chip.find('.pt-focus__count').text
+
+    chip.click
+
+    titles = all('tbody tr td:first-child').map(&:text)
+    assert_includes titles, 'Nocturne No. 20 in C# Minor'
+    refute_includes titles, 'Prelude Op. 28 No. 4 in E Minor'
+
+    # And the page says what the chip selects, which is what nobody could tell
+    # from "🎯 À renforcer" alone — the question that prompted all this. On the
+    # card that already answers it for a status, not a title tooltip: a tooltip
+    # never opens on the tablet the question came from.
+    criteria = find('.pt-criteria')
+    assert_match(/À RENFORCER/i, criteria.text)
+    assert_match(/10 dernières séances/, criteria.text)
+    assert_match(/3 passages de suite/, criteria.text)
+  end
+
   private
+
+  PRELUDE = 'scores/Prlude_No._4_in_E_Minor_Op._28_-_Frdric_Chopin.mxl'
+  NOCTURNE_20 = 'scores/Nocturne_No._20_in_C_sharp_Minor.mxl'
+
+  # One session on one bar, `day` days into January 2026.
+  def reinforce_session(score_id, day, measure_index, fumbled:)
+    started = format('2026-01-%<d>02dT10:00:00.000Z', d: day + 1)
+    {
+      id: "s-#{score_id.hash.abs}-#{day}",
+      scoreId: score_id,
+      mode: 'training',
+      startedAt: started,
+      endedAt: started,
+      measures: [
+        {
+          sourceMeasureIndex: measure_index,
+          attempts: [{ startedAt: started, durationMs: 4_000, wrongNotes: fumbled ? 2 : 0, clean: !fumbled }],
+        },
+      ],
+    }
+  end
 
   def inject_aggregates
     aggregates = [
