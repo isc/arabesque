@@ -103,6 +103,38 @@ the score page, and practice data, fingerings and fingerprints kept per part
 file. The Hanon files were produced by `scripts/split_hanon.rb` from the
 combined MuseScore export.
 
+### Promoting a player's fingerings into a score
+
+A player who worked a piece out with their teacher has a year of fingerings in
+their own IndexedDB and no way to give them to the next person who opens the
+same score. `scripts/import-fingerings.mjs` writes them into the file in
+`public/scores/`:
+
+```bash
+node scripts/import-fingerings.mjs backup.json --dry-run          # what it would change
+node scripts/import-fingerings.mjs backup.json --score Canon_in_D # narrow to some scores
+node scripts/import-fingerings.mjs backup.json                    # write it
+```
+
+`backup.json` is what the app's own **📤 Exporter sauvegarde** button (data
+page) writes — its `fingerings` array is the input, one record per score file,
+collections included. The script header has a console snippet for the same
+thing without the practice history, and the rest of the reasoning.
+
+Always start with `--dry-run`, and always look at the result on the branch
+preview before merging: a key names a note by its position in the engraving, so
+a key from another edition of the same piece lands on the wrong note. Keys that
+match nothing are reported rather than dropped, which is the signal. The script
+is idempotent and writes nothing when a file comes out unchanged, so re-running
+it is free; after it runs, nothing else has to be regenerated (fingerprints
+depend on pitches, not on fingerings).
+
+**A player's own fingering always wins over a shipped one** — `injectFingerings`
+clears the note's fingerings before writing theirs — so publishing cannot
+overwrite anybody's work. The one exception: a note where a player *cleared*
+their fingering with the × stores nothing, so a fingering shipped there later
+does appear for them.
+
 ## Changelog in-app
 
 The "Nouveautés" modal on the library page and the `CHANGELOG` file are two
