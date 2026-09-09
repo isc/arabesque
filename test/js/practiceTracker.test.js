@@ -5,6 +5,7 @@ import {
   computePlaythroughDuration,
   computeSessionDuration,
   MIN_PRACTICE_MS_FOR_STATUS,
+  measuresToReinforce,
 } from '../../public/js/practiceTracker.js'
 import { playthroughHands, playthroughGroups } from '../../public/js/hands.js'
 import { initStorage } from '../../public/js/storage.js'
@@ -441,29 +442,29 @@ describe('practiceTracker', () => {
     })
 
     it('returns nothing without sessions', () => {
-      expect(tracker.rankMeasuresToReinforce([])).toEqual([])
+      expect(measuresToReinforce([])).toEqual([])
     })
 
     it('excludes measures played without a fumble', () => {
-      const result = tracker.rankMeasuresToReinforce([session({ 0: [[0]], 1: [[2]] })])
+      const result = measuresToReinforce([session({ 0: [[0]], 1: [[2]] })])
       expect(result.map((m) => m.sourceMeasureIndex)).toEqual([1])
     })
 
     it('drops a measure once it has been played cleanly three times in a row', () => {
       const fumbled = [session({ 0: [[2]] })]
-      expect(tracker.rankMeasuresToReinforce([...fumbled, session({ 0: [[0], [0]] })])).toHaveLength(1)
-      expect(tracker.rankMeasuresToReinforce([...fumbled, session({ 0: [[0], [0], [0]] })])).toEqual([])
+      expect(measuresToReinforce([...fumbled, session({ 0: [[0], [0]] })])).toHaveLength(1)
+      expect(measuresToReinforce([...fumbled, session({ 0: [[0], [0], [0]] })])).toEqual([])
     })
 
     it('sorts by wrong notes, then by duration', () => {
-      const result = tracker.rankMeasuresToReinforce([
+      const result = measuresToReinforce([
         session({ 0: [[2, 100]], 1: [[3, 100]], 2: [[2, 300]] }),
       ])
       expect(result.map((m) => m.sourceMeasureIndex)).toEqual([1, 2, 0])
     })
 
     it('sums wrong notes across sessions and keeps the last duration', () => {
-      const result = tracker.rankMeasuresToReinforce([
+      const result = measuresToReinforce([
         session({ 0: [[1, 100]] }),
         session({ 0: [[2, 300]] }),
       ])
@@ -471,14 +472,14 @@ describe('practiceTracker', () => {
     })
 
     it('respects the limit', () => {
-      const result = tracker.rankMeasuresToReinforce([session({ 0: [[3]], 1: [[2]], 2: [[1]] })], 2)
+      const result = measuresToReinforce([session({ 0: [[3]], 1: [[2]], 2: [[1]] })], 2)
       expect(result.map((m) => m.sourceMeasureIndex)).toEqual([0, 1])
     })
 
     it('flags a measure whose error rate stops falling, and ranks it first', () => {
       const stagnating = { 0: [[1]] } // fumbled in every session
       const improving = { 1: [[4]] } // heavier, but on the mend below
-      const result = tracker.rankMeasuresToReinforce([
+      const result = measuresToReinforce([
         session({ ...stagnating, ...improving }),
         session({ ...stagnating, 1: [[1], [0]] }),
         session({ ...stagnating, 1: [[0]] }),
@@ -489,7 +490,7 @@ describe('practiceTracker', () => {
 
     it('needs three sessions before calling a measure stagnant', () => {
       const twoSessions = [session({ 0: [[1]] }), session({ 0: [[1]] })]
-      expect(tracker.rankMeasuresToReinforce(twoSessions)[0].stagnant).toBe(false)
+      expect(measuresToReinforce(twoSessions)[0].stagnant).toBe(false)
     })
 
     it('suggests measures from the session under way, before any playthrough', async () => {
