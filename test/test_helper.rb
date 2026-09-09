@@ -1,3 +1,7 @@
+# Read by every test file but one, so this is what covers a test run in a
+# process the Rakefile spawned. The Rakefile says why the line exists.
+Encoding.default_external = Encoding::UTF_8 unless Encoding.default_external == Encoding::UTF_8
+
 require 'json'
 require 'time'
 require 'capybara'

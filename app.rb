@@ -1,3 +1,7 @@
+# UTF-8 whatever the locale says, once per process — see the Rakefile. Reached
+# through test_helper.rb under test, and on its own when run as the dev server.
+Encoding.default_external = Encoding::UTF_8 unless Encoding.default_external == Encoding::UTF_8
+
 require 'sinatra/base'
 require 'json'
 require 'fileutils'

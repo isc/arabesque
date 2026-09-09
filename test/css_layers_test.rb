@@ -1,5 +1,10 @@
 require 'minitest/autorun'
 
+# Its own copy, unlike every other test file: this one does not load
+# test_helper, so run on its own it would read styles.css in the locale's
+# encoding. The Rakefile says why the line exists at all.
+Encoding.default_external = Encoding::UTF_8 unless Encoding.default_external == Encoding::UTF_8
+
 # styles.css puts every rule in a cascade layer, and the whole point is that
 # layer order decides precedence instead of specificity. One mistake undoes it:
 # a rule appended after the last closer sits outside every layer and outranks
@@ -9,10 +14,7 @@ class CssLayersTest < Minitest::Test
   STYLESHEET = File.expand_path('../public/styles.css', __dir__)
 
   def setup
-    # UTF-8, not the locale's encoding: with LANG and LC_ALL unset File.read
-    # tags the string US-ASCII, and the first gsub over the stylesheet's few
-    # accented bytes raises `invalid byte sequence in US-ASCII`.
-    @source = File.read(STYLESHEET, encoding: 'UTF-8')
+    @source = File.read(STYLESHEET)
     # Comments and quoted strings hold braces of their own (the icon data: URIs
     # are full of them), so they go before anything counts brackets. A blanked
     # comment keeps its newlines, or every line number reported below would be

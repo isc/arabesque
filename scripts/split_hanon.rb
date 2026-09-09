@@ -20,6 +20,9 @@
 #
 # Re-run scripts/generate_fingerprints.rb afterwards.
 
+# UTF-8 whatever the locale says, once per process — see the Rakefile.
+Encoding.default_external = Encoding::UTF_8 unless Encoding.default_external == Encoding::UTF_8
+
 require 'rexml/document'
 require 'tmpdir'
 require 'fileutils'

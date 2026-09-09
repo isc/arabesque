@@ -5,6 +5,9 @@
 # Re-run after adding or removing scores from the library:
 #   ruby scripts/generate_fingerprints.rb
 
+# UTF-8 whatever the locale says, once per process — see the Rakefile.
+Encoding.default_external = Encoding::UTF_8 unless Encoding.default_external == Encoding::UTF_8
+
 require 'rexml/document'
 require 'json'
 require 'tmpdir'

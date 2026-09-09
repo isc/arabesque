@@ -22,6 +22,10 @@
 # tambien.github.io when playback first starts. They are tens of megabytes and
 # nothing loads them until the player presses ▶ Écouter, so they cost no page
 # load and no test — which is what this script is about.
+
+# UTF-8 whatever the locale says, once per process — see the Rakefile.
+Encoding.default_external = Encoding::UTF_8 unless Encoding.default_external == Encoding::UTF_8
+
 require 'net/http'
 require 'uri'
 require 'fileutils'

@@ -1,6 +1,23 @@
 require 'rake/testtask'
 require 'etc'
 
+# Every file this repository reads — the test sources, styles.css, scores.json,
+# a shard's log — is UTF-8. Ruby decides otherwise from the locale: with LANG
+# and LC_ALL unset, Encoding.default_external is US-ASCII and the first accented
+# byte raises `invalid byte sequence in US-ASCII` from inside whatever scanned
+# it, nowhere near the read that chose the encoding.
+#
+# Once per process rather than at every File.read, which also covers what no
+# read argument can reach: Open3 output, Dir.glob paths. The cost is that it
+# does not survive a spawn, so each entry point repeats it — this file,
+# test_helper.rb for the children it starts, css_layers_test.rb for a run of
+# that one file on its own, app.rb and each script for a run of their own.
+#
+# Assigned only when it differs: Ruby warns on every assignment to
+# default_external, including one that changes nothing, and `rake test` runs
+# with -w.
+Encoding.default_external = Encoding::UTF_8 unless Encoding.default_external == Encoding::UTF_8
+
 # Resolved eagerly: a lazy FileList cannot be frozen, and both the serial task
 # and the shards need the same list.
 TEST_FILES = FileList['test/**/*_test.rb'].to_a.freeze
@@ -27,16 +44,9 @@ module TestSharding
   module_function
 
   # "Class#method" for every test, in file order.
-  #
-  # Read as UTF-8 rather than in whatever the locale says: `File.read` otherwise
-  # tags the string with Encoding.default_external, which is US-ASCII whenever
-  # LANG and LC_ALL are unset — as they are in a bare login shell, a cron job or
-  # a container without them. The test files hold accented comments, so the
-  # first scan over one raised `invalid byte sequence in US-ASCII` and took the
-  # whole task down before a single test ran.
   def ids
     TEST_FILES.flat_map do |file|
-      source = File.read(file, encoding: 'UTF-8')
+      source = File.read(file)
       klass = source[/^class\s+([\w:]+)/, 1]
       source.scan(/^\s*def\s+(test_\w+)/).flatten.map { |name| "#{klass}##{name}" }
     end
@@ -137,11 +147,7 @@ namespace :test do
     failed = false
 
     results.each do |index, log, size, status|
-      # UTF-8 for the same reason, and it bites at the worst moment here: a
-      # passing shard's log is plain ASCII, so only a failure whose message
-      # carries one of the app's accented strings would hit it — the run that
-      # most needs its output printed is the one that would crash instead.
-      output = File.read(log, encoding: 'UTF-8')
+      output = File.read(log)
       counts = TestSharding.tally(output)
       counts&.each { |key, value| totals[key] += value }
 
