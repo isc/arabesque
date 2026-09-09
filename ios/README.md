@@ -158,7 +158,9 @@ keyboard still plays — before a line of service worker is written.
   picked up automatically, including when plugged in after launch.
 - **Bluetooth**: tap « Connecter clavier MIDI » — in the score page's top bar,
   or in the ⚙️ menu, which carries the entry here alone — and pair the keyboard
-  from the system sheet. Pairing is remembered by the app.
+  from the system sheet. The sheet closes itself the moment the keyboard turns
+  up as a CoreMIDI source, so Done is only there for a change of mind. Pairing
+  is remembered by the app.
 
 ## Icône
 
