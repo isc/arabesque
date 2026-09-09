@@ -81,8 +81,16 @@ class CapybaraTestBase < Minitest::Test
   #
   # before_setup, not setup: every test file writes its own setup and none of
   # them calls super, so a setup here would simply be overridden.
+  #
+  # The block is per browser page, not per browser: a window opened later
+  # (visit_with_real_clock) has a CDP session of its own and starts unblocked,
+  # so it has to ask for the block again.
   def before_setup
     super
+    block_cdn
+  end
+
+  def block_cdn
     page.driver.browser.page.command('Network.setBlockedURLs', urls: ['https://esm.sh/*'])
   end
 
@@ -215,9 +223,41 @@ class CapybaraTestBase < Minitest::Test
     cdp.command('Emulation.setVirtualTimePolicy', policy: 'pause')
     yield
   ensure
-    # Hand the page back to the wall clock so teardown and any later
-    # interaction behave normally.
+    # Let the page's own timers fire again, so teardown and any later
+    # interaction on it behave normally. This is NOT the wall clock: see
+    # visit_with_real_clock for what `advance` actually does and what it costs.
     cdp&.command('Emulation.setVirtualTimePolicy', policy: 'advance')
+  end
+
+  # Carry on the test on a page whose clock has never been driven.
+  #
+  # Chrome cannot turn virtual time back off, and `advance` is not "real time"
+  # — it means "when the page runs out of immediate work, jump the clock to the
+  # next pending timer". So once with_clock_control has returned, the page's
+  # clock runs away as fast as the CPU can spin timers, and it keeps running
+  # away across `visit`, since virtual time belongs to the renderer rather than
+  # to the document. Measured on library.html, whose day-rollover poll is armed
+  # for every virtual minute: 4 days ahead of the wall clock by the time
+  # `visit` returned, 38 days a real second later.
+  #
+  # Anything the page then reads out of `new Date()` is fiction. The practice
+  # journal lays out the last fourteen days from it, so a run recorded seconds
+  # earlier fell off the far end of its own window and every day read "Aucune
+  # pratique" — on the slow runs of a loaded suite, where the drift had longer
+  # to accumulate before the page read the date.
+  #
+  # A window is a renderer of its own, and virtual time is only ever enabled on
+  # the one that asked for it. This one shares the browser context, so the
+  # origin's cookies and IndexedDB — the practice data the test just recorded —
+  # come with it. The driven page is closed rather than left behind: its timers
+  # spin at the speed of the CPU for as long as it exists, and the suite runs
+  # eight of these at once.
+  def visit_with_real_clock(path)
+    driven = page.current_window
+    page.switch_to_window(page.open_new_window)
+    driven.close
+    block_cdn
+    visit path
   end
 
   # Leave every IndexedDB open request unanswered on the page visited next, the

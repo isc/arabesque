@@ -80,7 +80,11 @@ class StrictPlaythroughTest < CapybaraTestBase
       assert_no_text 'Évolution'
     end
 
-    visit '/library.html'
+    # Not `visit`: the run was played on a clock this test drove, and a driven
+    # clock runs away rather than going back to the wall clock — the journal
+    # would lay its fourteen days out around a date days from now and find the
+    # run in none of them.
+    visit_with_real_clock '/library.html'
     within '#daily-log' do
       assert_text 'Chord Test'
       assert_text 'Joué en entier · mode strict'
