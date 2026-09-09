@@ -36,6 +36,10 @@ final class ViewController: UIViewController {
   private lazy var loadFailureView: UIView = makeLoadFailureView()
   /// Samples the page's wake lock (see refreshScreenAwake).
   private var wakeLockPoll: Timer?
+  /// The Bluetooth pairing sheet while it is up, and the input endpoints there
+  /// were when it went up — see dismissPairingIfKeyboardArrived.
+  private weak var pairingSheet: UIViewController?
+  private var inputsBeforePairing: Set<Int32> = []
 
   private var appURL: URL {
     let configured = Bundle.main.object(forInfoDictionaryKey: "PTWebAppURL") as? String
@@ -200,10 +204,32 @@ final class ViewController: UIViewController {
       barButtonSystemItem: .done, target: self, action: #selector(dismissPresented))
     let navigation = UINavigationController(rootViewController: central)
     navigation.modalPresentationStyle = .formSheet
+    inputsBeforePairing = currentInputIDs()
+    pairingSheet = navigation
     present(navigation, animated: true)
   }
 
+  /// Closes the sheet once the keyboard paired in it has connected, which is
+  /// the tap on Done the user would otherwise spend on a screen that has
+  /// nothing left to say. Only an input that was not there when the sheet went
+  /// up counts: the list also changes when a device drops, and the sheet is
+  /// often opened with another keyboard already plugged in.
+  private func dismissPairingIfKeyboardArrived() {
+    guard let sheet = pairingSheet, presentedViewController === sheet,
+      !currentInputIDs().subtracting(inputsBeforePairing).isEmpty else { return }
+    pairingSheet = nil
+    dismiss(animated: true)
+  }
+
+  /// CoreMIDI's own virtual endpoint is filtered out by portInfos(), which
+  /// matters here: iOS creates it when Bluetooth MIDI Central opens, so
+  /// without that filter the sheet would close itself as it appeared.
+  private func currentInputIDs() -> Set<Int32> {
+    Set(midiBridge.portInfos().filter { $0.type == "input" }.map(\.id))
+  }
+
   @objc private func dismissPresented() {
+    pairingSheet = nil
     dismiss(animated: true)
   }
 
@@ -260,6 +286,7 @@ extension ViewController: MIDIBridgeDelegate {
 
   func midiBridgePortsChanged(_ bridge: MIDIBridge) {
     pushPorts()
+    dismissPairingIfKeyboardArrived()
   }
 }
 
