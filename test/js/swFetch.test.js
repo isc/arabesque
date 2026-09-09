@@ -60,8 +60,18 @@ describe('the service worker', () => {
   // which leaves the browser to go to the network itself.
   async function respond(req) {
     let answered = null
-    handlers.get('fetch')({ request: req, respondWith: (value) => (answered = value) })
-    return answered === null ? null : await answered
+    const background = []
+    handlers.get('fetch')({
+      request: req,
+      respondWith: (value) => (answered = value),
+      waitUntil: (work) => background.push(work),
+    })
+    if (answered === null) return null
+    const response = await answered
+    // Whatever the worker asked to outlive its answer, settled — the background
+    // refresh of a score, on the requests that have one.
+    await Promise.all(background)
+    return response
   }
 
   const seed = async (cacheName, url, body) => {
@@ -111,6 +121,48 @@ describe('the service worker', () => {
       expect(await caches.keys()).not.toContain('arabesque-shell-dev')
     },
   )
+
+  // A .mxl is not immutable under its name — a wrong trill gets fixed, a
+  // cadenza gets re-engraved — and cache-first alone made that correction
+  // undeliverable to the devices that had already opened the piece.
+  describe('a score', () => {
+    const score = () => request('/scores/bwv847.mxl')
+    const stored = () => caches.stores.get('arabesque-lasting').get(`${ORIGIN}/scores/bwv847.mxl`)
+
+    it('is answered from the cache, without waiting on the network', async () => {
+      await seed('arabesque-lasting', `${ORIGIN}/scores/bwv847.mxl`, 'the wrong trills')
+      expect((await respond(score())).body).toBe('the wrong trills')
+    })
+
+    it('is replaced behind that answer, so the next opening gets the fix', async () => {
+      await seed('arabesque-lasting', `${ORIGIN}/scores/bwv847.mxl`, 'the wrong trills')
+      await respond(score())
+      expect(network).toHaveBeenCalledOnce()
+      expect(stored().body).toBe('from network')
+    })
+
+    // The music stand with no wifi, which is what the whole cache is for.
+    it('survives a refresh that cannot reach the network', async () => {
+      await seed('arabesque-lasting', `${ORIGIN}/scores/bwv847.mxl`, 'the only copy')
+      network.mockRejectedValueOnce(new Error('offline'))
+      expect((await respond(score())).body).toBe('the only copy')
+      expect(stored().body).toBe('the only copy')
+    })
+
+    it('keeps the copy it has when the server answers badly', async () => {
+      await seed('arabesque-lasting', `${ORIGIN}/scores/bwv847.mxl`, 'the only copy')
+      network.mockResolvedValueOnce({ ok: false, body: 'not found', clone: () => ({}) })
+      await respond(score())
+      expect(stored().body).toBe('the only copy')
+    })
+
+    // A miss is an ordinary cache-first fetch: refreshing what was just
+    // downloaded would fetch the same piece twice on one opening.
+    it('is fetched once when it is not cached yet', async () => {
+      expect((await respond(score())).body).toBe('from network')
+      expect(network).toHaveBeenCalledOnce()
+    })
+  })
 
   it('does not keep a failed response', async () => {
     network.mockResolvedValueOnce({ ok: false, body: 'not found', clone: () => ({}) })

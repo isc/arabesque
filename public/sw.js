@@ -5,10 +5,10 @@
 //
 // Two caches, because they age differently. The shell is versioned by deploy
 // and dropped whole when a new one lands. Everything whose filename already
-// carries its version — the vendor bundles — and the scores, immutable under
-// their name, go in a cache that outlives deploys: 1.8MB of OpenSheetMusicDisplay
-// and Tone plus the pieces you actually play, re-downloaded on every merge to
-// main otherwise, on the metered device this feature exists for.
+// carries its version — the vendor bundles — and the scores go in a cache that
+// outlives deploys: 1.8MB of OpenSheetMusicDisplay and Tone plus the pieces you
+// actually play, re-downloaded on every merge to main otherwise, on the metered
+// device this feature exists for.
 //
 // Cache-first everywhere, including the document. That is what makes a cold
 // launch instant and an offline one possible, and it means a page is parsed
@@ -18,6 +18,23 @@
 // the previous worker's assets — the mismatch js/version.js exists for — and
 // waiting for every client to close before activating strands the update
 // indefinitely on a one-window app (Tablito's service worker carries the scar).
+//
+// Scores are the one exception, and they revalidate in the background. Their
+// filenames carry no version, but their contents do change: a wrong trill, a
+// cadenza re-engraved so it fits a system. Cache-first alone made that
+// unfixable — a correction never reached a device that had opened the piece,
+// and there was no way to make it, because the .mxl under that name was
+// whatever it was the first time. Answering from the cache and refreshing after
+// gives up nothing offline (the fetch fails and the cached copy is what was
+// served anyway) and costs a conditional GET per opening online, which Pages
+// answers with a 304 of a couple hundred bytes. The fix lands on the opening
+// after the one that fetched it, which for a notation fix is soon enough.
+//
+// The alternative was to version the scores cache by a hash of public/scores/
+// stamped at deploy time. It is worse on both counts that matter: one deploy in
+// seven touches a score, and it would have evicted every cached piece on all of
+// them — eagerly, at activation, while the refetch waits for the next opening.
+// Update at home, walk to the lesson, and the music stand is empty.
 //
 // To remove this worker from every device, replace this file's body with
 // `self.addEventListener('install', () => self.skipWaiting())` and an activate
@@ -38,7 +55,8 @@ const LASTING_CACHE = 'arabesque-lasting'
 // Which cache answers for a path. Kept next to each other because they are one
 // decision; what is precached at install is a separate one, in
 // scripts/stamp-version.mjs.
-const lasting = (pathname) => pathname.includes('/scores/') || pathname.includes('/vendor/')
+const isScore = (pathname) => pathname.includes('/scores/')
+const lasting = (pathname) => isScore(pathname) || pathname.includes('/vendor/')
 const cacheFor = (pathname) => (lasting(pathname) ? LASTING_CACHE : SHELL_CACHE)
 
 self.addEventListener('install', (event) => {
@@ -88,6 +106,10 @@ self.addEventListener('fetch', (event) => {
   // 3.2MB of landing video nobody needs offline.
   if (url.pathname.includes('/video/')) return
 
+  if (isScore(url.pathname)) {
+    event.respondWith(staleWhileRevalidate(request, cacheFor(url.pathname), (work) => event.waitUntil(work)))
+    return
+  }
   // score.html?url=… is the same document whichever score it is about, so a
   // navigation ignores the query.
   event.respondWith(cacheFirst(request, cacheFor(url.pathname), request.mode === 'navigate'))
@@ -105,4 +127,31 @@ async function cacheFirst(request, cacheName, ignoreSearch = false) {
   // A 404 or a 5xx is not worth keeping; both are passed through and retried.
   if (response.ok) cache.put(request, response.clone())
   return response
+}
+
+// How the scores are served, and only the scores — see the note at the top of
+// this file. A miss is an ordinary cache-first fetch; a hit is answered from the
+// cache and the copy replaced behind it.
+//
+// `keepAlive` is the event's waitUntil: a worker is free to stop the moment it
+// has answered, and the refresh has to outlive that answer or it is cancelled
+// and the correction never lands.
+async function staleWhileRevalidate(request, cacheName, keepAlive) {
+  const cache = await caches.open(cacheName)
+  const cached = await cache.match(request, { ignoreVary: true })
+  if (!cached) return cacheFirst(request, cacheName)
+
+  keepAlive(refresh(request, cache))
+  return cached
+}
+
+// Offline, or the server having a bad day, leaves the cached copy exactly as it
+// was — which is the copy the page was already given. Nothing to report and
+// nobody to report it to, so the failure is swallowed rather than left to
+// surface as an unhandled rejection inside waitUntil.
+async function refresh(request, cache) {
+  try {
+    const response = await fetch(request)
+    if (response.ok) await cache.put(request, response)
+  } catch {}
 }
