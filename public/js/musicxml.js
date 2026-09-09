@@ -61,6 +61,27 @@ const MEASURE_CLICK_PADDING = 15
 // Delay in ms before resetting measure progress in training mode
 const TRAINING_RESET_DELAY_MS = 200
 
+// The beat a finished measure — or a finished run — holds the sheet for before
+// clearing it, so the last notes played can be seen lit. At most one is ever in
+// flight, and the work waiting at the end of it belongs to the state that armed
+// it: whatever the engine was working on then. Change what it is working on and
+// the beat is dropped, because firing it would land its cursor, its dots or its
+// whole-score clear on top of whatever came next. Reinforcement is one click
+// away in the header the moment a piece is finished, which is how that used to
+// happen: the clear of the finished run wiped the drill just armed over it,
+// leaving plain training mode on measure 1 for good.
+let pendingBeat = null
+
+function afterTheBeat(fn) {
+  clearTimeout(pendingBeat)
+  pendingBeat = setTimeout(fn, TRAINING_RESET_DELAY_MS)
+}
+
+function dropPendingBeat() {
+  clearTimeout(pendingBeat)
+  pendingBeat = null
+}
+
 // A mistake used to leave no trace at all: the repetition was silently spoiled
 // and the player, seeing the dot refuse to fill, had no way to know a stray key
 // had counted as an extra note. The notehead they owed lights up for a moment
@@ -156,6 +177,7 @@ export function initMusicXML() {
       // Normalised against the active hands: a passage whose first bar the one
       // ticked hand rests through starts where that hand actually plays, and
       // never after its own end.
+      dropPendingBeat()
       trainingStart = cursorMeasureFor(start)
       trainingEnd = end == null ? null : Math.max(trainingStart, end)
       // Closing a passage on its second click leaves the cursor where the first
@@ -197,6 +219,7 @@ export function initMusicXML() {
     setReinforcementMode: (measures) => {
       if (!measures || measures.length === 0) return
 
+      dropPendingBeat()
       reinforcementMode = true
       reinforcementMeasures = measures.map((m) => m.sourceMeasureIndex)
       reinforcementIndex = 0
@@ -825,6 +848,7 @@ function removeMeasureClickHandlers() {
 
 function jumpToMeasure(measureIndex) {
   if (measureIndex < 0 || measureIndex >= allNotes.length) return
+  dropPendingBeat()
   currentMeasureIndex = cursorMeasureFor(measureIndex)
   resetNotesFromIndex(measureIndex)
   resetMeasureProgress()
@@ -1121,7 +1145,7 @@ function advanceTraining() {
 
   if (action === 'scoreDone') {
     callbacks.onTrainingComplete?.()
-    setTimeout(() => resetProgress(), TRAINING_RESET_DELAY_MS)
+    afterTheBeat(() => resetProgress())
     return
   }
   if (action === 'passageDone') callbacks.onTrainingComplete?.()
@@ -1133,7 +1157,7 @@ function advanceTraining() {
   const options = action === 'step'
     ? { keepRepeats: true }
     : { keepRepeats: action === 'restart', clearFrom: passage.first }
-  setTimeout(() => moveTrainingCursorTo(to, options), TRAINING_RESET_DELAY_MS)
+  afterTheBeat(() => moveTrainingCursorTo(to, options))
 }
 
 // Reinforcement drills a list of measures, one at a time and three clean
@@ -1143,7 +1167,7 @@ function advanceReinforcement() {
   updateRepeatIndicators()
 
   if (repeatCount < targetRepeatCount) {
-    setTimeout(() => moveTrainingCursorTo(currentMeasureIndex, { keepRepeats: true, clearFrom: currentMeasureIndex }), TRAINING_RESET_DELAY_MS)
+    afterTheBeat(() => moveTrainingCursorTo(currentMeasureIndex, { keepRepeats: true, clearFrom: currentMeasureIndex }))
     return
   }
 
@@ -1155,11 +1179,11 @@ function advanceReinforcement() {
   }
 
   const nextPlaybackIndex = firstPassIndexOf(allNotes, reinforcementMeasures[reinforcementIndex])
-  setTimeout(() => {
+  afterTheBeat(() => {
     resetMeasureProgress()
     jumpToMeasure(nextPlaybackIndex)
     scrollToMeasure(nextPlaybackIndex)
-  }, TRAINING_RESET_DELAY_MS)
+  })
 }
 
 // Helper function to handle post-validation logic (scroll, measure completion)
@@ -1231,9 +1255,7 @@ function handleNoteValidated(measureData, noteData, validatedCount) {
         if (allMeasuresPlayed) {
           callbacks.onScoreCompleted?.(currentMeasureIndex)
         }
-        setTimeout(() => {
-          resetProgress()
-        }, TRAINING_RESET_DELAY_MS)
+        afterTheBeat(() => resetProgress())
       }
     }
   }
@@ -1315,6 +1337,7 @@ function resetNotesFromIndex(fromIndex = 0, toIndex = allNotes.length - 1) {
 
 function resetProgress() {
   if (!osmdInstance) return
+  dropPendingBeat()
   resetNotesFromIndex()
   resetPlaybackState()
 }

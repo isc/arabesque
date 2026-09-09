@@ -306,6 +306,54 @@ class CapybaraTestBase < Minitest::Test
     end
   end
 
+  # Hold every timer the page arms inside the block, and fire them all on the
+  # way out — so a test can *choose* the order of two things the page leaves
+  # unordered instead of racing them.
+  #
+  # with_clock_control cannot do this job. Parking virtual time parks the page's
+  # IndexedDB work along with it, so anything that has to read or write the
+  # practice journal in the meantime — entering reinforcement does both — never
+  # gets there. Here real time runs on untouched and only setTimeout is
+  # deferred, which is all these orderings ever hang on.
+  #
+  # A held timer the page then cancels is dropped rather than fired: cancelling
+  # deferred work is exactly what several of these orderings turn on, and a
+  # harness that fired it anyway would report the bug it was written to rule out.
+  # So the ids handed back are real ones and clearTimeout is held with them.
+  #
+  # setTimeout is restored before the queue is drained, so a callback that arms
+  # another timer gets the real one rather than piling back onto the queue being
+  # walked.
+  def with_timers_held
+    page.execute_script(<<~JS)
+      window.__heldTimers = new Map()
+      // Bound: called off a plain object, the natives throw "Illegal invocation".
+      window.__realTimers = {
+        set: window.setTimeout.bind(window),
+        clear: window.clearTimeout.bind(window),
+      }
+      // Far above anything Chrome has handed out, so a timer armed before the
+      // block and cancelled inside it falls through to the real clearTimeout
+      // instead of matching one of these by accident.
+      let nextId = 1e6
+      window.setTimeout = (fn, _ms, ...args) => {
+        window.__heldTimers.set(++nextId, () => fn(...args))
+        return nextId
+      }
+      window.clearTimeout = (id) => {
+        if (!window.__heldTimers.delete(id)) window.__realTimers.clear(id)
+      }
+    JS
+    yield
+  ensure
+    page.execute_script(<<~JS)
+      window.setTimeout = window.__realTimers.set
+      window.clearTimeout = window.__realTimers.clear
+      for (const fire of window.__heldTimers.values()) fire()
+      window.__heldTimers.clear()
+    JS
+  end
+
   # Write records into an IndexedDB store and block until the transaction has
   # actually committed.
   #
