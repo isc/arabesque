@@ -226,10 +226,16 @@ refs, then `click`/`fill`/`eval` against them.
 
 `scripts/demo/capture.sh` regenerates the whole screenshot set from real
 simulators — run it after any UI change the listing shows. `scripts/demo/record.sh`
-records the walkthrough App Review needs, since a reviewer has no MIDI keyboard.
-Both seed a practice history and play a piece through the mock MIDI input, and
-both work on a throwaway copy of `public/` — no demo hook ever ships. See
-`scripts/demo/README.md`, which also has the wording for the review notes.
+records a walkthrough off a simulator. Both seed a practice history and play a
+piece through the mock MIDI input, and both work on a throwaway copy of
+`public/` — no demo hook ever ships.
+
+The video App Review watches is neither: Apple requires a **filmed** one,
+showing a physical device and the MIDI keyboard pairing and playing together.
+It is committed at `public/video/review-demo.mp4`, and the review notes in
+`scripts/appstore/listing_fr.py` link to it — replacing that file replaces the
+video. `scripts/demo/README.md` has what a re-film must show and how to
+compress it.
 
 `scripts/appstore/push_listing.py` writes the listing itself — description,
 keywords, URLs, categories, age rating, screenshots — through the App Store
