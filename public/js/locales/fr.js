@@ -51,12 +51,14 @@ export default {
   },
   // Ce que sélectionne le filtre en cours, sous la liste filtrée de la
   // bibliothèque. Les nombres viennent des constantes que les règles elles-mêmes
-  // appliquent : STATUS_THRESHOLDS et la fenêtre de renforcement
-  // (practiceTracker.js).
+  // appliquent : STATUS_THRESHOLDS, la fenêtre de renforcement et le plancher de
+  // pratique (practiceTracker.js), et STALE_DAYS (library.js).
   criteria: {
-    reinforceHeading: 'Ce que sélectionne {filter}',
+    filterHeading: 'Ce que sélectionne {filter}',
     reinforceFumbled: 'Des mesures fautives lors des {n} dernières séances sur le morceau',
     reinforceClean: 'Et pas encore rejouées proprement {n} passages de suite',
+    stalePractised: 'Travaillée au moins {n} min en tout',
+    staleSilent: 'Et pas rouverte depuis plus de {n} jours',
     heading: 'Pour passer en {status}',
     cleanMeasures: '{percent} % des mesures jouées proprement au moins {n} fois',
     cleanMeasuresAll: 'Toutes les mesures jouées proprement au moins {n} fois',

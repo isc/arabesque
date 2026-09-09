@@ -243,8 +243,60 @@ class LibraryFiltersTest < CapybaraTestBase
     assert_match(/3 passages de suite/, criteria.text)
   end
 
+  # "💤 Pas joué depuis 7 j" now asks the practice floor first — the same
+  # question the status badge asks, and the reason a barely-opened piece wears
+  # none. Two of the fixture's rows are moved onto the boundary the rule turns
+  # on, one either side of it, and both left silent.
+  def test_the_stale_chip_passes_over_pieces_that_never_cleared_the_practice_floor
+    floors = {
+      # Half a minute short of a minute: no badge, and now no reminder either.
+      BALLADE => MIN_PRACTICE_MS - 1,
+      # Exactly the floor is enough — hasMinimumPractice is `>=`, and the chip
+      # has to agree with the badge on the very millisecond it appears.
+      PRELUDE => MIN_PRACTICE_MS,
+    }
+    # Every other row is re-dated to today — well past the floor, but nothing to
+    # come back to — so the chip's count is this test's arithmetic alone and not
+    # the shared fixture's March dates, which are silent by now whatever the day.
+    # Merged onto the fixture's own rows: seed_store puts whole records, so
+    # rebuilding them here would quietly drop the composer, status and measures
+    # the other tests set up.
+    rows = aggregate_rows.map do |row|
+      silent = floors.key?(row[:scoreId])
+      at = Time.now.utc - (silent ? 30 * 86_400 : 0) - 3_600
+      row.merge(
+        totalPracticeTimeMs: floors.fetch(row[:scoreId], row[:totalPracticeTimeMs]),
+        lastPlayedAt: at.strftime('%Y-%m-%dT%H:%M:%S.000Z'),
+        practiceDays: [at.strftime('%Y-%m-%d')],
+      )
+    end
+    seed_store('aggregates', rows)
+
+    visit '/library.html'
+
+    chip = find('button.pt-focus__chip[data-focus="stale"]')
+    assert_equal '1', chip.find('.pt-focus__count').text
+
+    chip.click
+
+    titles = all('tbody tr td:first-child').map(&:text)
+    assert_includes titles, 'Prelude Op. 28 No. 4 in E Minor'
+    refute_includes titles, 'Ballade No. 1 in G minor Op. 23'
+    refute_includes titles, 'Nocturne No. 20 in C# Minor'
+
+    # And the card says the half the label never could: the floor. The numbers
+    # are MIN_PRACTICE_MS_FOR_STATUS and STALE_DAYS (library.js/practiceTracker.js).
+    criteria = find('.pt-criteria')
+    assert_match(/PAS JOUÉ DEPUIS/i, criteria.text)
+    assert_match(/au moins 1 min en tout/, criteria.text)
+    assert_match(/depuis plus de 7 jours/, criteria.text)
+  end
+
   private
 
+  # practiceTracker.js's MIN_PRACTICE_MS_FOR_STATUS, the floor under every status.
+  MIN_PRACTICE_MS = 60_000
+  BALLADE = 'scores/Chopin_-_Ballade_no._1_in_G_minor_Op._23.mxl'
   PRELUDE = 'scores/Prlude_No._4_in_E_Minor_Op._28_-_Frdric_Chopin.mxl'
   NOCTURNE_20 = 'scores/Nocturne_No._20_in_C_sharp_Minor.mxl'
 
@@ -267,7 +319,15 @@ class LibraryFiltersTest < CapybaraTestBase
   end
 
   def inject_aggregates
-    aggregates = [
+    seed_store('aggregates', aggregate_rows)
+  end
+
+  # The library every test in this file starts from. Kept apart from the seeding
+  # so a test can re-date or re-time a row without restating the composer,
+  # status and measures the other tests lean on — seed_store replaces a record
+  # whole, so a hand-built copy loses whatever it forgot to mention.
+  def aggregate_rows
+    [
       {
         scoreId: 'scores/Prlude_No._4_in_E_Minor_Op._28_-_Frdric_Chopin.mxl',
         scoreTitle: 'Prelude Op. 28 No. 4 in E Minor',
@@ -331,7 +391,5 @@ class LibraryFiltersTest < CapybaraTestBase
         practiceDays: ['2026-03-15'],
       },
     ]
-
-    seed_store('aggregates', aggregates)
   end
 end
