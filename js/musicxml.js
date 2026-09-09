@@ -884,6 +884,10 @@ function activateNote(midiNote) {
   if (!expectedNote) return false
 
   // Handle trill sentinel: allow free alternation between trillMidi and trillUpperMidi.
+  // Strict mode asks the same musical question through requiredSequence /
+  // advanceEvent (noteExtraction.js, strictMatching.js) and answers it more
+  // tightly — strict alternation rather than either pitch in any order. The two
+  // should become one rule; see the note over requiredSequence.
   // The sentinel is consumed when the player presses the next real note after the trill.
   if (expectedNote.isTrillEnd) {
     const { trillMidi, trillUpperMidi } = expectedNote
