@@ -69,6 +69,7 @@
     { "title": "Polonaise in G Minor BWV Anh. 125", "composer": "C.P.E. Bach", "file": "bach-polonaise-in-g-minor-bwv-anh-125.mxl" },
     { "title": "Consolation Op. 100 No. 13", "composer": "Burgmüller", "file": "burgmuller-consolation-op-100-no-13.mxl" },
     { "title": "Ballade Op. 100 No. 15", "composer": "Burgmüller", "file": "burgmuller-ballade-op-100-no-15.mxl" },
+    { "title": "L'Harmonie des anges Op. 100 No. 21", "composer": "Burgmüller", "file": "burgmuller-harmonie-des-anges-op-100-no-21.mxl" },
     { "title": "Chansons", "composer": "Traditionnel", "parts": [
       { "title": "Promenons-nous dans les bois", "file": "Chansons_01_promenons-nous-dans-les-bois.musicxml" },
       { "title": "Sors, sors, escargot", "file": "Chansons_02_sors-sors-escargot.musicxml" },
