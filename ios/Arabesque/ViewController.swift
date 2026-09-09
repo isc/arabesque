@@ -23,8 +23,10 @@ private enum Strings {
 }
 
 /// Full-screen WKWebView hosting the existing web app, plus the glue between
-/// the native MIDIBridge and the injected Web MIDI shim. A small overlay
-/// button opens the system Bluetooth MIDI pairing sheet.
+/// the native MIDIBridge and the injected Web MIDI shim. The web app's own
+/// "connect a keyboard" button asks through that bridge for the system
+/// Bluetooth MIDI pairing sheet, which is the only way to pair a BLE device
+/// here — iOS pairs them per app, not in Settings.
 final class ViewController: UIViewController {
   private var webView: WKWebView!
   private let midiBridge = MIDIBridge()
@@ -106,15 +108,6 @@ final class ViewController: UIViewController {
       loadFailureView.bottomAnchor.constraint(equalTo: webView.bottomAnchor),
       loadFailureView.leadingAnchor.constraint(equalTo: webView.leadingAnchor),
       loadFailureView.trailingAnchor.constraint(equalTo: webView.trailingAnchor),
-    ])
-
-    // Added last so pairing stays reachable over both the webview and the
-    // failure screen: a keyboard can be paired while the app is still offline.
-    let bluetoothButton = makeBluetoothButton()
-    view.addSubview(bluetoothButton)
-    NSLayoutConstraint.activate([
-      bluetoothButton.trailingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.trailingAnchor, constant: -12),
-      bluetoothButton.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -12),
     ])
 
     NotificationCenter.default.addObserver(
@@ -200,19 +193,7 @@ final class ViewController: UIViewController {
 
   // MARK: - Bluetooth MIDI pairing
 
-  private func makeBluetoothButton() -> UIButton {
-    var config = UIButton.Configuration.gray()
-    config.image = UIImage(systemName: "antenna.radiowaves.left.and.right")
-    config.cornerStyle = .capsule
-    let button = UIButton(configuration: config, primaryAction: UIAction { [weak self] _ in
-      self?.presentBluetoothMIDIPairing()
-    })
-    button.alpha = 0.6
-    button.accessibilityLabel = "Bluetooth MIDI"
-    button.translatesAutoresizingMaskIntoConstraints = false
-    return button
-  }
-
+  /// Presented at the page's request: shim `pairBluetooth()` → `{type: 'pair'}`.
   private func presentBluetoothMIDIPairing() {
     let central = CABTMIDICentralViewController()
     central.navigationItem.rightBarButtonItem = UIBarButtonItem(
@@ -292,6 +273,8 @@ extension ViewController: WKScriptMessageHandler {
     switch body["type"] as? String {
     case "ready":
       pushPorts()
+    case "pair":
+      presentBluetoothMIDIPairing()
     case "send":
       guard let idString = body["id"] as? String, let id = Int32(idString),
         let data = body["data"] as? [Any] else { return }

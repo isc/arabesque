@@ -1,4 +1,4 @@
-import { initMidi } from './midi.js'
+import { initMidi, nativePairingAvailable, openNativePairing } from './midi.js'
 import { initMusicXML } from './musicxml.js'
 import { initFingeringEditor } from './fingeringEditor.js'
 import { initCassettes } from './cassettes.js'
@@ -485,12 +485,18 @@ export function midiApp() {
     async connectMIDI() {
       const result = await midi.connectMIDI()
       this.syncMidiState()
-      if (result?.status === 'no_devices') {
-        this.showMidiHelpModal = true
-      }
+      // No keyboard found: say how to connect one. In the wrapper that is not
+      // instructions but a system sheet (see midi.js).
+      if (result?.status !== 'no_devices') return
+      if (nativePairingAvailable()) openNativePairing()
+      else this.showMidiHelpModal = true
     },
 
     detectedOS() {
+      // Asked first, because the user agent lies where it matters most: the
+      // iPad wrapper sends a Macintosh one, and used to get macOS instructions
+      // for a keyboard iOS pairs from a sheet of its own.
+      if (nativePairingAvailable()) return 'ios'
       const ua = navigator.userAgent
       if (/Mac/.test(ua)) return 'mac'
       if (/Win/.test(ua)) return 'windows'

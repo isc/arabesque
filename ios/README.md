@@ -11,9 +11,9 @@ This directory contains a minimal native wrapper that bridges the gap:
 - a second one (`wakelock-shim.js`) does the same for `navigator.wakeLock`,
   which WebKit grants in Safari proper only, so the screen stays on with a
   score up — and the library still falls asleep (see below);
-- a small overlay button opens the system **Bluetooth MIDI pairing** sheet
-  (`CABTMIDICentralViewController`), needed because BLE MIDI devices are paired
-  per-app, not in iOS Settings.
+- the web app opens the system **Bluetooth MIDI pairing** sheet
+  (`CABTMIDICentralViewController`) through that same bridge, needed because
+  BLE MIDI devices are paired per-app, not in iOS Settings.
 
 Everything on screen comes from the network, so a failed load has nowhere to
 fall back to: `ViewController` covers the webview with a **retry screen**
@@ -35,8 +35,11 @@ MIDI device ──CoreMIDI──▶ MIDIBridge.swift ──evaluateJavaScript─
   `window.__pianoTrainerMIDI.receiveMIDI(id, bytes)` delivers incoming
   messages to the right input port.
 - JS → native: `webkit.messageHandlers.midiBridge` carries `{type: 'ready'}`
-  (asks for the port list) and `{type: 'send', id, data}` (MIDI output, used
-  by playback).
+  (asks for the port list), `{type: 'send', id, data}` (MIDI output, used by
+  playback) and `{type: 'pair'}` (open the pairing sheet). The shim exposes the
+  last one as `window.__pianoTrainerMIDI.pairBluetooth()`, and its presence is
+  how the page knows it is in the wrapper — the user agent cannot say, an iPad
+  claiming to be a Macintosh.
 
 The shim keeps port object identity stable across updates because `midi.js`
 compares ports with `===` in its `onstatechange` auto-reconnect logic. Its
@@ -153,8 +156,9 @@ keyboard still plays — before a line of service worker is written.
 
 - **USB**: plug the keyboard into the iPad (camera adapter / USB-C). It is
   picked up automatically, including when plugged in after launch.
-- **Bluetooth**: tap the antenna button in the bottom-right corner and pair
-  the keyboard from the system sheet. Pairing is remembered by the app.
+- **Bluetooth**: tap « Connecter clavier MIDI » — in the score page's top bar,
+  or in the ⚙️ menu, which carries the entry here alone — and pair the keyboard
+  from the system sheet. Pairing is remembered by the app.
 
 ## Icône
 

@@ -85,6 +85,11 @@ describe('webmidi-shim', () => {
     expect(access.inputs.size).toBe(1)
   })
 
+  it('asks the native side for the Bluetooth pairing sheet', () => {
+    window.__pianoTrainerMIDI.pairBluetooth()
+    expect(posted).toContainEqual({ type: 'pair' })
+  })
+
   it('forwards output.send to the native side', async () => {
     window.__pianoTrainerMIDI.setPorts([{ id: 102, name: 'FP-30X', type: 'output' }])
     const access = await window.navigator.requestMIDIAccess()
