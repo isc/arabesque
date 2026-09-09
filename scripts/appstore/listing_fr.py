@@ -91,15 +91,19 @@ Arabesque needs a MIDI keyboard (USB or Bluetooth) for its core feature, and \
 review devices do not have one. Demonstration video:
 https://arabesque.app/video/review-demo.mp4
 
-WHAT THE VIDEO SHOWS (iPad, ~30s)
-A score opens with a keyboard connected; notes turn green as they are played; a \
-wrong note is struck and the piece visibly refuses to advance until the correct \
-one arrives; the practice history opens on what was recorded; training mode is \
-switched on.
+WHAT THE VIDEO SHOWS (37s, unedited, single take)
+Filmed with a second camera: a physical iPad running the current build, on the \
+music desk of the piano it is paired with — an upright with a Bluetooth MIDI \
+transmitter (AURES2UP). Both the iPad and the keyboard are in frame throughout.
 
-The MIDI input in the recording is generated in software rather than played on \
-a keyboard. The app handles both identically — the notes sent are the ones the \
-app itself expects from the sheet, and the app decides what is accepted.
+0:00 the app is launched from the iPad home screen
+0:04 a score is opened from the library ("Sur le pont d'Avignon")
+0:06 PAIRING: the Bluetooth MIDI button opens the system pairing sheet \
+(CABTMIDICentralViewController), AURES2UP is listed as Not Connected
+0:08 it is tapped, goes to Connecting..., then Connected
+0:13 the sheet is dismissed; the app's badge turns green: "AURES2UP Bluetooth"
+0:16 to the end: the piece is played on that keyboard, and each note turns \
+green on the iPad as it is struck
 
 WHAT YOU CAN TEST WITHOUT HARDWARE
 Everything except note validation: browsing and filtering the 65+ score \
