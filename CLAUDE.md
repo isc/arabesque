@@ -97,6 +97,16 @@ ruby scripts/generate_fingerprints.rb
 `public/data/fingerprints.json` must stay in sync with the catalog: one
 fingerprint per score file, including each part of a collection.
 
+Correcting a score in place — a wrong trill, a measure re-engraved — does reach
+devices that already opened the piece: the service worker serves `/scores/` from
+the cache and refreshes behind the answer, so the fix lands on the opening after
+the one that fetched it (`public/sw.js`). Nothing to bump, no filename to
+change. What does **not** follow the correction is everything keyed to the old
+notation — fingerings by `measureNumber:staff:voice:noteIndex`, practice
+aggregates by `sourceMeasureIndex`. Adding, removing or renumbering a measure
+silently re-points both, locally and in Supabase. Fixing an accidental is free;
+changing the measure count is not.
+
 A catalog entry with `parts: [{title, file}]` instead of `file` is a
 **collection** (e.g. the Hanon exercises): one library row, a part navigator on
 the score page, and practice data, fingerings and fingerprints kept per part
