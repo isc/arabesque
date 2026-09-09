@@ -18,6 +18,7 @@ import { CHANGELOG } from './changelog.js'
 import { feedbackEnabled, buildBaseContext, submitFeedback, defaultFeedbackEmail } from './feedback.js'
 import { getLang, locale } from './i18n.js'
 import { INSTALL_AVAILABLE_EVENT, installAvailable, promptInstall } from './installPrompt.js'
+import { nativePairingAvailable, openNativePairing } from './midi.js'
 
 const CHANGELOG_SEEN_KEY = 'arabesque:changelog-seen'
 const CHANGELOG_DATE_FORMATTER = new Intl.DateTimeFormat(locale(), {
@@ -51,6 +52,17 @@ export function headerMenu() {
     install() {
       this.closeMenu()
       promptInstall()
+    },
+
+    // --- Pair a MIDI keyboard (iOS wrapper only) ---
+    // Read once, like canInstall above: the shim offering the sheet is
+    // installed at document start or never (see midi.js). It belongs in the
+    // shared menu rather than a page's own header because everywhere else the
+    // keyboard is connected in the OS, and there is nothing to offer at all.
+    canPairMIDI: nativePairingAvailable(),
+    pairMIDI() {
+      this.closeMenu()
+      openNativePairing()
     },
 
     // --- Changelog ("Nouveautés") ---
@@ -155,6 +167,7 @@ const TRIGGER_HTML = `
     <div class="pt-popover__section">
       <a href="score.html" class="pt-menu-item" @click="closeMenu()" x-text="$t('library.loadScore')">📄 Charger une partition</a>
       <button type="button" class="pt-menu-item" x-show="canInstall" @click="install()" x-text="$t('menu.install')">📲 Installer l'application</button>
+      <button type="button" class="pt-menu-item" x-show="canPairMIDI" @click="pairMIDI()" x-text="$t('score.connectMidi')">🎹 Connecter clavier MIDI</button>
       <button type="button" class="pt-menu-item" @click="openChangelog()">
         <span x-text="$t('library.changelog')">✨ Nouveautés</span>
         <span class="pt-menu-dot" x-show="hasUnseenChangelog" aria-hidden="true"></span>

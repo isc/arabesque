@@ -52,6 +52,18 @@ export function initMidi() {
   }
 }
 
+// iOS pairs Bluetooth MIDI devices per app rather than in Settings, so the
+// wrapper carries a system sheet for it and its shim exposes it here. The
+// shim's presence is also how a page knows it is running in the wrapper at
+// all: the user agent cannot say, an iPad claiming to be a Macintosh.
+export function nativePairingAvailable() {
+  return typeof globalThis.__pianoTrainerMIDI?.pairBluetooth === 'function'
+}
+
+export function openNativePairing() {
+  if (nativePairingAvailable()) globalThis.__pianoTrainerMIDI.pairBluetooth()
+}
+
 function setCallbacks(cbs) {
   callbacks = { ...callbacks, ...cbs }
 }
