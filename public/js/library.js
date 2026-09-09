@@ -4,6 +4,7 @@ import {
   hasMeasuresToReinforce,
   STATUS_THRESHOLDS,
   hasMinimumPractice,
+  MIN_PRACTICE_MS_FOR_STATUS,
   REINFORCEMENT_WINDOW_SESSIONS,
   REINFORCEMENT_CLEAN_STREAK,
 } from './practiceTracker.js'
@@ -552,13 +553,23 @@ export function libraryApp() {
 
       const agg = this.aggregateFor(score)
       if (!agg) return false
-      const measures = Object.values(agg.measures || {})
       if (focus === 'near-mastery') {
+        const measures = Object.values(agg.measures || {})
         if (agg.status !== 'perfectionnement' || measures.length === 0) return false
         const clean = measures.filter((m) => (m.cleanAttempts || 0) >= STATUS_THRESHOLDS.perfectionnement.cleanAttempts).length
         return clean / measures.length >= 0.8
       }
       if (focus === 'stale') {
+        // A piece under the practice floor wears no status at all: the library
+        // has just said it is nothing to the player yet. Offering it back as
+        // something to return to said the opposite with the other hand — a
+        // score opened for thirty seconds last spring is not a piece that has
+        // been let slide. Asked of hasMinimumPractice rather than of the badge
+        // via getStatusFor, which for a recueil returns undefined however much
+        // it has been played: synthesizeCollectionAggregate carries no status
+        // by design, so testing the badge for truthiness would silently drop
+        // every Hanon exercise — and going quiet is what they are for.
+        if (!hasMinimumPractice(agg)) return false
         return !!agg.lastPlayedAt && Date.now() - new Date(agg.lastPlayedAt).getTime() > STALE_MS
       }
       return false
@@ -580,10 +591,23 @@ export function libraryApp() {
       // does below: the chip is the narrower question of the two.
       if (this.focusFilter === 'reinforce') {
         return {
-          heading: t('criteria.reinforceHeading', { filter: focusLabel('reinforce') }),
+          heading: t('criteria.filterHeading', { filter: focusLabel('reinforce') }),
           items: [
             t('criteria.reinforceFumbled', { n: REINFORCEMENT_WINDOW_SESSIONS }),
             t('criteria.reinforceClean', { n: REINFORCEMENT_CLEAN_STREAK }),
+          ],
+        }
+      }
+
+      // Its label says the silence half and always did; what it never said is
+      // the half added with the practice floor, which is the half that decides
+      // whether a piece belongs on the list at all.
+      if (this.focusFilter === 'stale') {
+        return {
+          heading: t('criteria.filterHeading', { filter: focusLabel('stale') }),
+          items: [
+            t('criteria.stalePractised', { n: Math.round(MIN_PRACTICE_MS_FOR_STATUS / 60_000) }),
+            t('criteria.staleSilent', { n: STALE_DAYS }),
           ],
         }
       }

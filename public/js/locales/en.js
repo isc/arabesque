@@ -51,11 +51,14 @@ export default {
   },
   // What the current filter selects, shown under the filtered library list.
   // The numbers come from the constants the rules themselves judge by:
-  // STATUS_THRESHOLDS and the reinforcement window (practiceTracker.js).
+  // STATUS_THRESHOLDS, the reinforcement window and the practice floor
+  // (practiceTracker.js), and STALE_DAYS (library.js).
   criteria: {
-    reinforceHeading: 'What {filter} selects',
+    filterHeading: 'What {filter} selects',
     reinforceFumbled: 'Bars fumbled over the last {n} sessions on the piece',
     reinforceClean: 'And not yet played cleanly {n} attempts in a row',
+    stalePractised: 'Practised for at least {n} min in total',
+    staleSilent: 'And not opened again for more than {n} days',
     heading: 'To reach {status}',
     cleanMeasures: '{percent}% of the measures played clean at least {n} times',
     cleanMeasuresAll: 'Every measure played clean at least {n} times',
