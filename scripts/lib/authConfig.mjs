@@ -23,6 +23,15 @@ export const GROUPS = {
   limits: ['rate_limit_email_sent'],
 }
 export const REQUIRED = Object.values(GROUPS).flat()
+
+// The email types signInWithOtp can trigger. Supabase picks between them by
+// whether it has already seen the address, and the app gets no say, so both are
+// written from the one subject and the one body in auth.md's "## Template".
+// Derived rather than listed twice: a type with a subject and no body is how
+// this broke, and this way it cannot be expressed.
+export const SIGN_IN_TYPES = ['magic_link', 'confirmation']
+export const SUBJECT_KEYS = SIGN_IN_TYPES.map((type) => `mailer_subjects_${type}`)
+export const TEMPLATE_KEYS = SIGN_IN_TYPES.map((type) => `mailer_templates_${type}_content`)
 export const NUMERIC = ['mailer_otp_length', 'mailer_otp_exp', 'rate_limit_email_sent']
 
 // Each block is anchored to the setting name it fills, so rewording the prose
@@ -34,6 +43,19 @@ function blockFor(md, key) {
     throw new Error(`supabase/auth.md: expected exactly one fenced block introduced by \`${key}\`, found ${matches.length}.`)
   }
   return matches[0][1].trim()
+}
+
+// The one block every key in `keys` names. Two fences would each satisfy
+// blockFor and the second would be applied to nothing, so they must come out
+// equal — auth.md's "## Template" explains why there is only ever one.
+function sharedBlock(md, [first, ...rest]) {
+  const block = blockFor(md, first)
+  for (const key of rest) {
+    if (blockFor(md, key) !== block) {
+      throw new Error(`supabase/auth.md: \`${key}\` must name the same block as \`${first}\`.`)
+    }
+  }
+  return block
 }
 
 export function parseAuthMd(md = readFileSync(AUTH_MD, 'utf8')) {
@@ -65,8 +87,8 @@ export function parseAuthMd(md = readFileSync(AUTH_MD, 'utf8')) {
     if (!/^\d+$/.test(settings[k])) throw new Error(`supabase/auth.md: \`${k}\` should be a whole number, got "${settings[k]}".`)
   }
 
-  const subject = blockFor(md, 'mailer_subjects_magic_link')
-  const template = blockFor(md, 'mailer_templates_magic_link_content')
+  const subject = sharedBlock(md, SUBJECT_KEYS)
+  const template = sharedBlock(md, TEMPLATE_KEYS)
 
   // Positive and negative: the template must be the one that carries a code, and
   // must not be one that carries a link. A negative check alone would only catch
@@ -74,5 +96,36 @@ export function parseAuthMd(md = readFileSync(AUTH_MD, 'utf8')) {
   if (!template.includes('{{ .Token }}')) throw new Error('supabase/auth.md: the template has no {{ .Token }}.')
   if (template.includes('ConfirmationURL')) throw new Error('supabase/auth.md: the template carries a magic link.')
 
-  return { settings, subject, template, want: { ...settings, mailer_subjects_magic_link: subject, mailer_templates_magic_link_content: template } }
+  const want = { ...settings }
+  for (const key of SUBJECT_KEYS) want[key] = subject
+  for (const key of TEMPLATE_KEYS) want[key] = template
+
+  return { settings, subject, template, want }
+}
+
+// The applier's own diff only ever looks at keys auth.md names, so an email
+// nobody listed is invisible however wrong it is — which is exactly how the
+// sign-up template sat at Supabase's default until App Review found it in
+// September 2026. Supabase keeps its own record of which subjects and bodies
+// have been customised, and that set must be precisely the one auth.md writes:
+// anything extra was changed behind this file's back, anything missing has
+// fallen back to Supabase's default. Reported by the applier, and here rather
+// than there so it can be asserted without a token.
+export function mailerDrift(live) {
+  const drift = []
+  for (const [map, declared] of [
+    ['mailer_subjects_custom_contents', SUBJECT_KEYS],
+    ['mailer_templates_custom_contents', TEMPLATE_KEYS],
+  ]) {
+    const customised = Object.entries(live[map] ?? {})
+      .filter(([, on]) => on)
+      .map(([key]) => key.toLowerCase())
+    for (const key of customised.filter((k) => !declared.includes(k))) {
+      drift.push(`${key} is customised in the project but not in auth.md`)
+    }
+    for (const key of declared.filter((k) => !customised.includes(k))) {
+      drift.push(`${key} is back at Supabase's default`)
+    }
+  }
+  return drift
 }
