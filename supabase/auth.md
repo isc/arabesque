@@ -26,8 +26,26 @@ carries no link: a link signs in whichever browser opens it, which on iOS is
 Safari rather than the wrapper's webview, so it would strand the session on the
 wrong side of a storage boundary. `detectSessionInUrl: false` in
 `public/js/supabaseClient.js` is the client-side half of the same decision — if
-this template ever regains a `{{ .ConfirmationURL }}`, that line is what keeps
-the link from half-working.
+a template ever regains a `{{ .ConfirmationURL }}`, that line is what keeps the
+link from half-working.
+
+⚠ **`signInWithOtp` sends one of two templates, and the app never chooses
+which.** An address Supabase already knows gets *magic link*; an address it has
+never seen gets *confirm signup* — the same button, the same wording in the app,
+a different email. So both must carry the code, and each block below is applied
+to both of the keys named above it. Leaving *confirm signup* at Supabase's
+default is what App Review rejected on 2026-09-10 (Guideline 2.1(a), "no code
+was sent in the email we received"): every returning player signed in, and every
+first-time one — the reviewer included — received a bare `{{ .ConfirmationURL }}`.
+The few who clicked it confirmed their address in Safari and came back to an app
+still signed out, because `detectSessionInUrl: false` is doing its job.
+
+Two is the whole reachable set only because `signInWithOtp` is the only call the
+app makes. GoTrue has four more template pairs — invite, recovery, email_change,
+reauthentication — and each becomes reachable the day the control that sends it
+ships; they are not sign-in emails and must not be given this body. The applier
+holds the line: it reads Supabase's own record of which templates have been
+customised and reports any that this file does not name.
 
 ## Settings
 
@@ -51,14 +69,18 @@ NAMING.md ("Messagerie du domaine") — including why the apex needed no change.
 
 ## Template
 
-Subject (`mailer_subjects_magic_link`):
+One email for both types — a player must not be able to tell which of the two
+they were sent.
+
+Subject (`mailer_subjects_magic_link`, `mailer_subjects_confirmation`):
 
 ```
 Your Arabesque sign-in code
 ```
 
-Body (`mailer_templates_magic_link_content`) — bilingual, because Supabase
-serves one template per email type and cannot pick by language:
+Body (`mailer_templates_magic_link_content`, `mailer_templates_confirmation_content`) —
+bilingual, because Supabase serves one template per email type and cannot pick
+by language:
 
 ```html
 <h2>Your Arabesque sign-in code</h2>
@@ -78,7 +100,7 @@ a user at creation.
 
 ## If the sign-in email stops arriving
 
-Four things have broken it, all silently — none produced an error the player
+Five things have broken it, all silently — none produced an error the player
 could see. In the order they are cheap to check:
 
 1. **A hand-written PATCH cleared a group.** `node scripts/apply-auth-config.mjs`
@@ -92,6 +114,11 @@ could see. In the order they are cheap to check:
 4. **The Vault key was rotated in Resend and not here.** Then SMTP auth fails and
    the feedback notification dies with it. `feedback.sql` explains how to read
    `net._http_response` for the Resend side of that.
+5. **Only one of the two templates was set.** Nothing looks wrong from an
+   account that already exists — the break is invisible to anyone who has ever
+   signed in, and total for everyone who has not. Test with an address the
+   project has never seen: `select email, confirmed_at from auth.users` says
+   whether a first sign-in ever completed.
 
 ## Reading the live config
 

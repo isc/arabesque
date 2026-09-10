@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { parseAuthMd, REQUIRED, AUTH_MD } from '../../scripts/lib/authConfig.mjs'
+import { parseAuthMd, mailerDrift, REQUIRED, SUBJECT_KEYS, TEMPLATE_KEYS, AUTH_MD } from '../../scripts/lib/authConfig.mjs'
 
 // supabase/auth.md is the canonical record of the hosted Supabase auth config,
 // applied by scripts/apply-auth-config.mjs. Nothing in CI can (or should) reach
@@ -16,6 +16,37 @@ describe('supabase/auth.md', () => {
   it('parses, and declares exactly the settings the applier sends', () => {
     const { settings } = parseAuthMd()
     expect(Object.keys(settings).sort()).toEqual([...REQUIRED].sort())
+  })
+
+  it('refuses a Template section that leaves one email type out', () => {
+    // The App Review rejection of 2026-09-10, as an assertion. signInWithOtp
+    // picks the template by whether Supabase has seen the address before, so a
+    // code in magic_link alone reaches everyone who has already signed in and
+    // nobody else — every reviewer is a first-time address. Un-backticking a
+    // key is how the file stops naming it.
+    const md = readFileSync(AUTH_MD, 'utf8')
+    for (const key of [...SUBJECT_KEYS, ...TEMPLATE_KEYS]) {
+      expect(() => parseAuthMd(md.replace(`\`${key}\``, key))).toThrow(key)
+    }
+  })
+
+  it('reports an email the project customised and this file does not name', () => {
+    // The other half of the same hole: the applier's diff can only see keys
+    // auth.md names, so the closure check reads Supabase's own record of what
+    // has been customised. No token needed — the shape is all that matters.
+    const declared = (keys) => Object.fromEntries(keys.map((k) => [k.toUpperCase(), true]))
+    const live = {
+      mailer_subjects_custom_contents: declared(SUBJECT_KEYS),
+      mailer_templates_custom_contents: declared(TEMPLATE_KEYS),
+    }
+    expect(mailerDrift(live)).toEqual([])
+
+    live.mailer_templates_custom_contents.MAILER_TEMPLATES_RECOVERY_CONTENT = true
+    delete live.mailer_subjects_custom_contents.MAILER_SUBJECTS_CONFIRMATION
+    expect(mailerDrift(live)).toEqual([
+      'mailer_subjects_confirmation is back at Supabase\'s default',
+      'mailer_templates_recovery_content is customised in the project but not in auth.md',
+    ])
   })
 
   it('carries a code and never a link', () => {

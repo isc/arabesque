@@ -19,7 +19,7 @@
 // from Supabase Vault (`resend_api_key`) at apply time, and never printed.
 import { parseArgs } from 'node:util'
 import { api, die, query } from './lib/supabase.mjs'
-import { NUMERIC, parseAuthMd } from './lib/authConfig.mjs'
+import { NUMERIC, mailerDrift, parseAuthMd } from './lib/authConfig.mjs'
 
 const CONFIG = '/config/auth'
 
@@ -63,6 +63,10 @@ function report(live) {
     console.log(`        project${where}: ${trim(g[at] ?? '')}`)
   }
   console.log(live.smtp_pass ? '  ok   smtp_pass (set, from Vault)' : ' DRIFT smtp_pass (missing)')
+  for (const line of mailerDrift(live)) {
+    drifted++
+    console.log(` DRIFT ${line}`)
+  }
   return drifted
 }
 
@@ -94,8 +98,12 @@ const bad = Object.entries(want).filter(([key, expected]) => liveValue(after, ke
 // groups in authConfig.mjs are a guess, learned from one incident. Rather than
 // trust it, compare the whole config either side of the write: anything that
 // moved which we did not ask to move is a grouping not yet discovered.
-// smtp_pass is excluded because the API never reads it back.
-const asked = new Set([...Object.keys(payload), 'smtp_pass'])
+// smtp_pass is left out because the API never reads it back, and the two
+// *_custom_contents maps because they are not settings but Supabase's record of
+// which templates we have customised: they move as a consequence of this very
+// write. report() checks them head-on instead.
+const NOT_COMPARED = ['smtp_pass', 'mailer_subjects_custom_contents', 'mailer_templates_custom_contents']
+const asked = new Set([...Object.keys(payload), ...NOT_COMPARED])
 const collateral = Object.keys(after).filter(
   (k) => !asked.has(k) && JSON.stringify(after[k]) !== JSON.stringify(live[k]),
 )
