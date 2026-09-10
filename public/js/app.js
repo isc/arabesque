@@ -909,7 +909,7 @@ export function midiApp() {
       if (this.isStrictPlaying) this.toggleStrictPlaythrough()
       this.loopEnabled = !this.loopEnabled
       // The end of the passage is the loop's: a single run goes to the end.
-      this.setStrictRange(this.strictStartMeasure, null)
+      this.selectStrictPassage(this.strictStartMeasure, null)
     },
 
     // A click sets where a run starts. With the loop on, the next click
@@ -922,6 +922,17 @@ export function midiApp() {
         armed: this.strictRangeArmed,
         loop: this.loopEnabled,
       })
+      this.selectStrictPassage(start, end, armed)
+    },
+
+    // A passage the player picks, as opposed to the plumbing below. The last
+    // run's marks are a verdict on the passage that was selected when it was
+    // played, so picking another one takes them off: a note marked wrong in a
+    // bar the new loop leaves out stays lit over work nobody is doing
+    // (feedback b9d60a2b). Not in setStrictRange — a run that finishes resets
+    // the start point through it, and that one has just earned its marks.
+    selectStrictPassage(start, end, armed) {
+      strictPlaythrough.clearMarks()
       this.setStrictRange(start, end, armed)
     },
 
