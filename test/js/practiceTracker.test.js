@@ -1062,6 +1062,70 @@ describe('practiceTracker', () => {
     await tracker.endSession()
   }
 
+  // Cloud sync replays every stored session to rebuild the aggregates, and
+  // sessions do not carry a title — so what the rebuild is given is what the
+  // practice journal shows afterwards.
+  describe('rebuildAggregates', () => {
+    it('renames a score the catalog knows', async () => {
+      await playSession('scores/test.xml', [0])
+
+      await tracker.rebuildAggregates(() => ({ title: 'Consolation', composer: 'Burgmüller' }))
+
+      const stats = await tracker.getScoreStats('scores/test.xml')
+      expect(stats.scoreTitle).toBe('Consolation')
+      expect(stats.composer).toBe('Burgmüller')
+    })
+
+    it('keeps the title of a score the catalog has never heard of', async () => {
+      await playSession('scores/burgmuller-consolation.mxl', [0])
+
+      // The sync runs on a later page load, the library's — no score open, so
+      // nothing for the rebuild to borrow a title from. `null` is what a
+      // device whose cached catalog predates the score answers, and what an
+      // uploaded file answers for good.
+      const later = initPracticeTracker(storage)
+      await later.init()
+      await later.rebuildAggregates(() => null)
+
+      const stats = await later.getScoreStats('scores/burgmuller-consolation.mxl')
+      expect(stats.scoreTitle).toBe('Test')
+      expect(stats.composer).toBe('Composer')
+    })
+
+    it('names a score pulled from another device from the session itself', async () => {
+      // No catalog entry, no aggregate here: a session synced from a device
+      // that has a score this one has never opened.
+      await storage.saveSession({
+        id: 'from-another-device',
+        scoreId: 'scores/burgmuller-ballade.mxl',
+        scoreTitle: 'Ballade Op. 100 No. 15',
+        composer: 'Burgmüller',
+        mode: 'free',
+        startedAt: '2026-06-09T10:00:00.000Z',
+        endedAt: '2026-06-09T10:05:00.000Z',
+        measures: [{ sourceMeasureIndex: 0, attempts: [{ startedAt: '2026-06-09T10:00:00.000Z', durationMs: 1000, clean: true }] }],
+      })
+
+      await tracker.rebuildAggregates(() => null)
+
+      const stats = await tracker.getScoreStats('scores/burgmuller-ballade.mxl')
+      expect(stats.scoreTitle).toBe('Ballade Op. 100 No. 15')
+      expect(stats.composer).toBe('Burgmüller')
+    })
+
+    it('does not file the score being played under another id', async () => {
+      await playSession('scores/played-yesterday.xml', [0])
+      // A sync can land while a piece is open: the tracker is mid-session on
+      // one score while the rebuild walks every other score's sessions.
+      tracker.startSession('scores/open-right-now.xml', 'Open Right Now', 'Somebody', 'free')
+
+      await tracker.rebuildAggregates(() => null)
+
+      const stats = await tracker.getScoreStats('scores/played-yesterday.xml')
+      expect(stats.scoreTitle).toBe('Test')
+    })
+  })
+
   describe('getAllScores', () => {
     it('returns all practiced scores', async () => {
       tracker.startSession('/scores/test1.xml', 'Test 1', 'Composer', 'training')
