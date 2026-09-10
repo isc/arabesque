@@ -805,9 +805,11 @@ button.pt-topbar__pill:disabled { opacity: 0.4; cursor: default; }
 /* Sized to its longest option, so a progression reads in full, the chevron
    close by; hovered and focused like the buttons beside it, with their
    tint rather than the base ring. The selector outweighs the base layer's
-   select:not([multiple], [size]), which sets the chevron's padding. */
+   select:not([multiple], [size]), which sets the chevron's padding.
+   No height of its own: a definite one opts the box out of the cluster's
+   align-self: stretch, which pinned it to the top of the line and left its
+   text sitting 2px above every neighbour's (feedback 91bf14f9). */
 .pt-band-controls .pt-band-select {
-  height: 28px;
   width: auto;
   margin: 0;
   padding: 0 28px 0 10px;

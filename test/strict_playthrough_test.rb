@@ -168,6 +168,28 @@ class StrictPlaythroughTest < CapybaraTestBase
   # The tempo trainer: the passage between two clicked measures, run after run
   # with a pause between them, the tempo moving with the results — and a
   # summary of the runs when ⏸ ends it.
+  # The band's controls are one panel, so everything in it shares a midline.
+  # The progression picker used to carry a height of its own, which opted it
+  # out of the cluster's align-self: stretch and left its text 2px high
+  # (feedback 91bf14f9).
+  def test_the_progression_picker_sits_on_the_band_controls_midline
+    load_score('two-measures.xml', 2)
+    start_strict_mode
+    click_on '🔁 Boucle'
+    assert_selector '.pt-band-select'
+
+    select_mid, button_mid = page.evaluate_script(<<~JS)
+      (() => {
+        const mid = (el) => { const r = el.getBoundingClientRect(); return r.top + r.height / 2 }
+        return [mid(document.querySelector('.pt-band-select')),
+                mid(document.querySelector('.pt-band-controls .pt-band-button'))]
+      })()
+    JS
+
+    assert_in_delta button_mid, select_mid, 1,
+                    'The progression picker should be centred like the buttons beside it'
+  end
+
   def test_loop_replays_the_passage_and_sums_the_runs_up
     load_score('two-measures.xml', 2)
     start_strict_mode
