@@ -77,9 +77,24 @@ export function initStrictPlaythrough() {
     stop,
     clearMarks,
     handleNoteOn,
-    setActiveHands: (h) => { activeHands = { ...activeHands, ...h } },
+    setActiveHands,
     get isPlaying() { return isRunning },
   }
+}
+
+// A run's marks are a verdict on the hands it asked for (start() filters every
+// note through isNoteActiveForHands) as much as on the passage it covered, so
+// changing a hand takes the last one's marks off: a hand dropped, the notes it
+// missed would stay red over notes the next run will not ask for.
+//
+// Not mid-run — clearing empties markedNoteheads, and everything the run marks
+// afterwards would be stranded past the reach of clearMarks() for the rest of
+// the session. The hand checkboxes are disabled for the length of a run
+// (score.html) so this should not arise; the guard is here because only this
+// module can see why it matters.
+function setActiveHands(hands) {
+  if (!isRunning) clearMarks()
+  activeHands = { ...activeHands, ...hands }
 }
 
 // One full measure of count-in, expressed in quarter-note beats so it lines up
