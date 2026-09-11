@@ -82,7 +82,8 @@
       { "title": "Maman les p'tits bateaux", "file": "Chansons_09_maman-les-p-tits-bateaux.musicxml" },
       { "title": "Savez-vous planter les choux ?", "file": "Chansons_10_savez-vous-planter-les-choux.musicxml" },
       { "title": "J'ai du bon tabac", "file": "Chansons_11_j-ai-du-bon-tabac.musicxml" },
-      { "title": "Le roi Dagobert", "file": "Chansons_12_le-roi-dagobert.musicxml" }
+      { "title": "Le roi Dagobert", "file": "Chansons_12_le-roi-dagobert.musicxml" },
+      { "title": "Trompette et tambour", "file": "Chansons_13_trompette-et-tambour.musicxml" }
     ] },
     { "title": "Le Pianiste virtuose (1re partie)", "composer": "Hanon", "parts": [
       { "title": "Exercice 1", "file": "Hanon_Le_Pianiste_Virtuose_Ex_01.mxl" },
