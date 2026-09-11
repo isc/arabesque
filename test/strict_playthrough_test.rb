@@ -55,6 +55,28 @@ class StrictPlaythroughTest < CapybaraTestBase
     assert_no_selector 'svg g.vf-notehead.missed-note'
   end
 
+  # The verdict is a verdict on the passage that was selected: picking another
+  # one takes it off the score, or notes marked wrong in a bar the new passage
+  # leaves out stay lit over work nobody is doing (feedback b9d60a2b).
+  def test_picking_another_passage_clears_the_last_run_s_marks
+    load_score('two-measures.xml', 2)
+    start_strict_mode
+
+    with_clock_control do
+      trigger_click_on('▶ Démarrer')
+
+      # Count-in 2s, then both measures at 120 BPM, plus the off-tempo tail.
+      advance_clock(7000)
+      assert_text 'Playthrough strict terminé', wait: 4
+    end
+    within('dialog.pt-result-dialog') { click_on 'Fermer' }
+    assert_selector 'svg g.vf-notehead.missed-note', minimum: 1
+
+    click_measure(1)
+
+    assert_no_selector 'svg g.vf-notehead.missed-note'
+  end
+
   # Regression: a strict run used to leave no trace at all — its notes go to the
   # strict engine instead of the score's cursor, so nothing ever fed the
   # practice tracker and a piece played end to end in strict mode was missing

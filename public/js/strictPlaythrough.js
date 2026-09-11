@@ -177,7 +177,11 @@ function start({
 
   pendingEvents = []
   graceNotes = []
-  markedNoteheads = []
+  // Off with the last run's marks before this one's are collected: scrubbing
+  // them note by note below would only reach the notes this run covers, and
+  // a shorter passage would leave the ones beyond it lit *and* forgotten,
+  // past the reach of clearMarks() for the rest of the session.
+  clearMarks()
   measureRuns = allNotes.map((measureData, i) => ({
     sourceMeasureIndex: measureData.sourceMeasureIndex,
     startMs: countInMs + tsToSeconds(measureStartTimes[i], bpm) * 1000,
@@ -186,16 +190,15 @@ function start({
   }))
   const cursorTimes = buildCursorTimeline(allNotes, measureStartTimes, bpm, countInMs)
 
-  // Single pass: look up each notehead once, clear residual strict-mode classes
-  // from prior runs, and sort each note into what the run asks for
-  // (pendingEvents) or merely lets through (graceNotes).
+  // Single pass: look up each notehead once, keep it for clearMarks(), and
+  // sort each note into what the run asks for (pendingEvents) or merely lets
+  // through (graceNotes).
   for (let i = 0; i < allNotes.length; i++) {
     const measureData = allNotes[i]
     const measureOffset = measureStartTimes[i] - measureData.measureIndex
 
     for (const noteData of measureData.notes) {
       const noteheadEl = svgNoteheadFor(activeOsmd, noteData)
-      noteheadEl?.classList.remove(...STRICT_CLASSES)
       if (noteheadEl) markedNoteheads.push(noteheadEl)
 
       if (!isNoteActiveForHands(noteData, activeHands)) continue
