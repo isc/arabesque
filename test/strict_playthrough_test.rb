@@ -12,9 +12,15 @@ class StrictPlaythroughTest < CapybaraTestBase
     click_on '⏱ Mode strict'
     click_on '▶ Démarrer'
     assert_text '⏸ Pause'
+    # Frozen for the length of a run, like the tempo beside them: the hands a
+    # run asks for are fixed when it starts, and changing one mid-run would
+    # clear the marks the run is still collecting.
+    assert_field 'Main gauche', type: 'checkbox', disabled: true
+    assert_field 'Main droite', type: 'checkbox', disabled: true
 
     click_on '⏸ Pause'
     assert_text '▶ Démarrer'
+    assert_field 'Main gauche', type: 'checkbox', disabled: false
     # Aborted runs do not surface the result modal
     assert_no_text 'Playthrough strict terminé'
   end
@@ -33,17 +39,28 @@ class StrictPlaythroughTest < CapybaraTestBase
     assert_no_text 'hors tempo'
   end
 
+  # The verdict is a verdict on the hands the run asked for as much as on the
+  # passage it covered (see updateActiveHands).
+  def test_changing_hands_clears_the_last_run_s_marks
+    # Two staves, so the marks the run leaves cover both hands.
+    load_score('one-hand-rest-measure.xml', 6)
+    start_strict_mode
+
+    # Three 4/4 measures at 120 BPM, the last one held to the end.
+    play_silent_run(9000)
+    within('dialog.pt-result-dialog') { click_on 'Fermer' }
+    assert_selector 'svg g.vf-notehead.missed-note', count: 5
+
+    uncheck 'Main gauche'
+
+    assert_no_selector 'svg g.vf-notehead.missed-note'
+  end
+
   def test_no_input_marks_all_notes_missed
     load_score('chord.xml', 1)
     start_strict_mode
 
-    with_clock_control do
-      trigger_click_on('▶ Démarrer')
-
-      # Count-in 2s + off-tempo window 450ms + 300ms tail.
-      advance_clock(3000)
-      assert_text 'Playthrough strict terminé', wait: 4
-    end
+    play_silent_run(3000)
 
     assert_text '0%'
     assert_text '3 manquées'
@@ -363,6 +380,19 @@ class StrictPlaythroughTest < CapybaraTestBase
 
       advance_clock(1000)
       assert_text 'Playthrough strict terminé', wait: 2
+    end
+  end
+
+  # A run nobody plays a note of, from ▶ Démarrer to the result modal — every
+  # note of it missed. `budget_ms` is the virtual time the whole run costs: the
+  # 2s count-in, the passage at the tempo start_strict_mode set, then the last
+  # event's off-tempo window (450ms) and the engine's 300ms tail.
+  def play_silent_run(budget_ms)
+    with_clock_control do
+      trigger_click_on('▶ Démarrer')
+
+      advance_clock(budget_ms)
+      assert_text 'Playthrough strict terminé', wait: 4
     end
   end
 
