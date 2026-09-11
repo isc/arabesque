@@ -186,3 +186,23 @@ export function pickPassageMeasure({ measureIndex, start, armed, loop }) {
   if (armed && measureIndex >= start) return { start, end: measureIndex, armed: false }
   return { start: measureIndex, end: null, armed: loop }
 }
+
+// The words a text offers the search box: accents folded away, punctuation
+// dropped, so "Burgmüller" is filed under "burgmuller" and found by someone
+// whose keyboard has no umlaut (feedback 928aef27).
+export function searchWords(text) {
+  return text
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '')
+    .split(/[^\p{L}\p{N}]+/u)
+    .filter(Boolean)
+}
+
+// Does a text answer a search? Both sides are searchWords() output: a query
+// word matches when it starts one of the text's, in any order. The text's
+// words come in already folded because the caller has a whole catalog of them
+// to weigh against one query, and folding is the expensive half.
+export function matchesSearch(words, query) {
+  return query.every((q) => words.some((w) => w.startsWith(q)))
+}
