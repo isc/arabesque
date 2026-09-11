@@ -771,7 +771,10 @@ button.pt-topbar__pill:disabled { opacity: 0.4; cursor: default; }
    lets strict mode and playback share the whole component. */
 .pt-band-controls {
   display: inline-flex;
-  align-items: center;
+  /* No align-items: every item stretches to the line (see the rule below), so
+     a cross-axis default here would say nothing — except to the next reader,
+     who would take it for the thing keeping the cluster aligned and feel free
+     to give an item a height of its own. That is 91bf14f9. */
   height: 34px;
   flex: 0 0 auto;
   background: var(--pt-bg-elevated);
@@ -805,9 +808,10 @@ button.pt-topbar__pill:disabled { opacity: 0.4; cursor: default; }
 /* Sized to its longest option, so a progression reads in full, the chevron
    close by; hovered and focused like the buttons beside it, with their
    tint rather than the base ring. The selector outweighs the base layer's
-   select:not([multiple], [size]), which sets the chevron's padding. */
+   select:not([multiple], [size]), which sets the chevron's padding. No height
+   here: a definite one opts the box out of the cluster's align-self: stretch
+   (feedback 91bf14f9). */
 .pt-band-controls .pt-band-select {
-  height: 28px;
   width: auto;
   margin: 0;
   padding: 0 28px 0 10px;
