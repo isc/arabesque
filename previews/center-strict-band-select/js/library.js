@@ -9,7 +9,7 @@ import {
   REINFORCEMENT_CLEAN_STREAK,
 } from './practiceTracker.js'
 import { initStorage } from './storage.js'
-import { formatDuration, formatDate, formatRelativeDate, statusLabel, scorePageUrl } from './utils.js'
+import { formatDuration, formatDate, formatRelativeDate, statusLabel, scorePageUrl, searchWords, matchesSearch } from './utils.js'
 import { journalEntryHelpers } from './journalEntries.js'
 import { PERIODS, periodLabel, getPeriodForComposer } from './musicalPeriods.js'
 import { headerMenu } from './headerMenu.js'
@@ -51,6 +51,20 @@ const FILTER_KEYS = Object.keys(FILTER_MATCHERS)
 // Synthesized collection aggregates, keyed by the catalog entry. Cleared
 // whenever the practice data behind them is reloaded — see refreshPracticeData.
 const collectionAggregates = new Map()
+
+// A score's searchable words, folded once. searchResults is read many times
+// per render — every facet option asks it for a count — and a catalog entry's
+// title and composer never change, so the folding is cached under the very
+// text it folds: no key to keep in step, and Alpine's proxies (a different
+// object each time it wraps one) can't miss it.
+const scoreSearchWords = new Map()
+
+function scoreWords(score) {
+  const text = `${score.title} ${score.composer}`
+  let words = scoreSearchWords.get(text)
+  if (!words) scoreSearchWords.set(text, (words = searchWords(text)))
+  return words
+}
 
 // The ways to release some of `keys`, fewest first — [a], [b], [a, b] — so a
 // pick gives up as little as it can. At most three filters are ever in play
@@ -334,11 +348,8 @@ export function libraryApp() {
 
     get searchResults() {
       if (!this.searchQuery) return this.scores
-      const regexes = this.searchQuery.toLowerCase().trim().split(/\s+/).filter(Boolean).map((w) => new RegExp(`\\b${w}`))
-      return this.scores.filter((score) => {
-        const text = `${score.title} ${score.composer}`.toLowerCase()
-        return regexes.every((r) => r.test(text))
-      })
+      const query = searchWords(this.searchQuery)
+      return this.scores.filter((score) => matchesSearch(scoreWords(score), query))
     },
 
     // The scores a given set of filter values leaves, the search box always
