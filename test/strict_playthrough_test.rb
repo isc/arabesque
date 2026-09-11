@@ -165,9 +165,6 @@ class StrictPlaythroughTest < CapybaraTestBase
     assert_no_selector 'svg g.vf-notehead.played-note'
   end
 
-  # The tempo trainer: the passage between two clicked measures, run after run
-  # with a pause between them, the tempo moving with the results — and a
-  # summary of the runs when ⏸ ends it.
   # The band's controls are one panel, so everything in it shares a midline.
   # The progression picker used to carry a height of its own, which opted it
   # out of the cluster's align-self: stretch and left its text 2px high
@@ -190,6 +187,9 @@ class StrictPlaythroughTest < CapybaraTestBase
                     'The progression picker should be centred like the buttons beside it'
   end
 
+  # The tempo trainer: the passage between two clicked measures, run after run
+  # with a pause between them, the tempo moving with the results — and a
+  # summary of the runs when ⏸ ends it.
   def test_loop_replays_the_passage_and_sums_the_runs_up
     load_score('two-measures.xml', 2)
     start_strict_mode
