@@ -171,19 +171,14 @@ class StrictPlaythroughTest < CapybaraTestBase
   # (feedback 91bf14f9).
   def test_the_progression_picker_sits_on_the_band_controls_midline
     load_score('two-measures.xml', 2)
-    start_strict_mode
+    click_on '⏱ Mode strict'
     click_on '🔁 Boucle'
+    # evaluate_script does not wait, so this is what makes the measurement
+    # below stable: the picker is revealed by x-show, not present from the
+    # start.
     assert_selector '.pt-band-select'
 
-    select_mid, button_mid = page.evaluate_script(<<~JS)
-      (() => {
-        const mid = (el) => { const r = el.getBoundingClientRect(); return r.top + r.height / 2 }
-        return [mid(document.querySelector('.pt-band-select')),
-                mid(document.querySelector('.pt-band-controls .pt-band-button'))]
-      })()
-    JS
-
-    assert_in_delta button_mid, select_mid, 1,
+    assert_in_delta midline_of('.pt-band-controls .pt-band-button'), midline_of('.pt-band-select'), 1,
                     'The progression picker should be centred like the buttons beside it'
   end
 
@@ -351,6 +346,12 @@ class StrictPlaythroughTest < CapybaraTestBase
 
   def score_top
     page.evaluate_script("document.querySelector('.pt-score-main').getBoundingClientRect().top")
+  end
+
+  def midline_of(selector)
+    page.evaluate_script(
+      "(() => { const r = document.querySelector('#{selector}').getBoundingClientRect(); return r.top + r.height / 2 })()"
+    )
   end
 
   # BPM=120 → 2s count-in, ±150ms strict window, ±450ms off-tempo. The window
