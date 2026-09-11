@@ -26,6 +26,13 @@ class LibraryTest < CapybaraTestBase
     assert_selector 'tr td', text: 'Chopin'
   end
 
+  def test_search_ignores_accents
+    fill_in 'Rechercher une partition', with: 'burgmuller'
+
+    assert_selector 'tbody tr', count: 3
+    assert_selector 'tr td', text: 'Burgmüller'
+  end
+
   def test_clicking_score_navigates_to_score_page
     page.driver.set_cookie('test-env', 'true')
     fill_in 'Rechercher une partition', with: 'Carol of the Bells'
