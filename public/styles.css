@@ -623,7 +623,7 @@ button.pt-topbar__pill:disabled { opacity: 0.4; cursor: default; }
    <label>) otherwise interact with flex-wrap to push items to different
    vertical positions even when they share the same height. */
 .pt-modebar button, .pt-topbar button { margin: 0; width: auto; }
-.pt-modebar input, .pt-topbar input { margin: 0; }
+.pt-modebar input { margin: 0; }
 .pt-modebar > * { flex: 0 0 auto; margin: 0; align-self: center; }
 .pt-modebar__spacer { flex: 1 1 auto !important; min-width: var(--pt-space-3); }
 
@@ -633,8 +633,7 @@ button.pt-topbar__pill:disabled { opacity: 0.4; cursor: default; }
    them overflow the outer container. */
 .pt-modebar > .pt-segmented,
 .pt-modebar > .pt-hands,
-.pt-modebar > .pt-action-button { height: 34px; align-items: center; box-sizing: border-box; }
-.pt-modebar > .pt-action-button { display: inline-flex; padding-block: 0; }
+.pt-modebar > .pt-action-button { display: inline-flex; align-items: center; box-sizing: border-box; height: 34px; padding-block: 0; }
 .pt-modebar .pt-segmented button { height: 28px; padding-block: 0; line-height: 28px; }
 .pt-modebar .pt-hands__option { height: 28px; padding-block: 0; line-height: 28px; }
 /* The reinforce badge stays inline-block (no flex) so the screen-reader
@@ -700,30 +699,17 @@ button.pt-topbar__pill:disabled { opacity: 0.4; cursor: default; }
 .pt-hands__option input[type="checkbox"] { margin: 0; width: 14px; height: 14px; }
 .pt-hands__option:has(input:checked) { background: var(--pt-bg-elevated); color: var(--pt-text); box-shadow: var(--pt-shadow-sm); }
 
-.pt-bpm-field {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  background: var(--pt-bg-elevated);
-  border: 1px solid var(--pt-border);
-  border-radius: var(--pt-radius-md);
-  padding: 2px 6px 2px 4px;
-}
+/* The field's box lives with the band cluster it is always a child of, below.
+   What is left here is what holds wherever it is put. */
 .pt-bpm-field input[type="number"] {
-  width: 56px;
   margin: 0;
-  padding: 4px 6px;
-  border: none;
-  background: transparent;
   font-family: var(--pt-font-mono);
   font-size: 0.85rem;
-  color: var(--pt-text);
-  height: auto;
   text-align: right;
 }
 .pt-bpm-field input[type="number"]:focus { outline: none; }
 .pt-bpm-field input[type="number"]:disabled { opacity: 0.5; }
-.pt-bpm-field__suffix { color: var(--pt-text-muted); font-size: 0.78rem; padding-right: 4px; }
+.pt-bpm-field__suffix { font-size: 0.78rem; padding-right: var(--pt-space-1); }
 
 .pt-reinforce-badge {
   display: inline-block;
@@ -830,11 +816,11 @@ button.pt-topbar__pill:disabled { opacity: 0.4; cursor: default; }
   background-color: color-mix(in srgb, var(--pt-band-bg) 70%, var(--pt-band) 12%);
 }
 .pt-band-controls .pt-bpm-field {
+  /* Not a border being undone: this outweighs the cluster's `> * + *`
+     divider, which the field is the one item not to take. */
   border: none;
-  border-radius: 0;
-  background: transparent;
+  gap: var(--pt-space-1);
   padding: 0 10px;
-  color: inherit;
 }
 .pt-band-controls .pt-bpm-field input[type="number"] {
   width: 80px;
@@ -844,7 +830,6 @@ button.pt-topbar__pill:disabled { opacity: 0.4; cursor: default; }
   background: var(--pt-bg-elevated);
   color: var(--pt-band);
   height: 28px;
-  line-height: 28px;
 }
 .pt-band-controls .pt-bpm-field__suffix { color: color-mix(in srgb, var(--pt-band) 75%, transparent); }
 /* Setting a tempo with a thumb: the spinner a number input draws is a few
@@ -962,36 +947,11 @@ button.pt-topbar__pill:disabled { opacity: 0.4; cursor: default; }
   gap: var(--pt-space-3);
 }
 .pt-popover h4 { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--pt-text-subtle); margin: 0 0 var(--pt-space-2); font-weight: 600; }
-.pt-popover label { display: flex; align-items: center; gap: 8px; padding: 4px 0; font-size: 0.9rem; cursor: pointer; }
-.pt-popover label input[type="checkbox"] { margin: 0; }
 .pt-popover hr { border: none; border-top: 1px solid var(--pt-border); margin: 0; }
 .pt-popover__section { display: flex; flex-direction: column; gap: var(--pt-space-2); }
-.pt-popover select {
-  margin: 0;
-  padding: 6px 8px;
-  border-radius: var(--pt-radius-sm);
-  font-size: 0.85rem;
-  height: auto;
-  flex: 1;
-  min-width: 0;
-}
-.pt-popover button {
-  margin: 0;
-  padding: 6px 12px;
-  border: 1px solid var(--pt-border);
-  border-radius: var(--pt-radius-sm);
-  background: var(--pt-surface);
-  color: var(--pt-text);
-  font-size: 0.85rem;
-  cursor: pointer;
-  width: auto;
-}
-.pt-popover button:hover { background: var(--pt-surface-2); }
-.pt-popover small { color: var(--pt-text-muted); font-size: 0.78rem; }
 
-/* Full-width menu rows inside the ⚙️ popover (links, buttons, the import
-   <label>). More specific than the generic .pt-popover button/label above so
-   they read as a flat menu list rather than bordered buttons. */
+/* Full-width menu rows inside the ⚙️ popover — every link and button in it is
+   one, so a row needs no other class and the menu no other rule. */
 .pt-popover .pt-menu-item {
   display: flex;
   align-items: center;
@@ -1008,7 +968,12 @@ button.pt-topbar__pill:disabled { opacity: 0.4; cursor: default; }
   text-decoration: none;
   cursor: pointer;
 }
-.pt-popover .pt-menu-item:hover { background: var(--pt-surface-2); }
+/* Everything the menu offers a pointer hovers the same way — the FR/EN pill
+   included, which has no hover of its own outside the menu. The language in
+   use is spared: it holds the accent, and this selector is heavy enough to
+   take it off, where the .pt-popover button rule it replaces was not. */
+.pt-popover .pt-menu-item:hover,
+.pt-popover .pt-langswitch button:not([aria-pressed="true"]):hover { background: var(--pt-surface-2); }
 .pt-menu-dot { margin-left: auto; width: 8px; height: 8px; border-radius: 50%; background: var(--pt-accent); }
 
 /* Keep the FR/EN pill compact instead of stretching to the popover's full
