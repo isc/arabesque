@@ -187,6 +187,23 @@ class StrictPlaythroughTest < CapybaraTestBase
     assert_no_selector 'svg g.vf-notehead.played-note'
   end
 
+  # The band's controls are one panel, so everything in it shares a midline.
+  # The progression picker used to carry a height of its own, which opted it
+  # out of the cluster's align-self: stretch and left its text 2px high
+  # (feedback 91bf14f9).
+  def test_the_progression_picker_sits_on_the_band_controls_midline
+    load_score('two-measures.xml', 2)
+    click_on '⏱ Mode strict'
+    click_on '🔁 Boucle'
+    # evaluate_script does not wait, so this is what makes the measurement
+    # below stable: the picker is revealed by x-show, not present from the
+    # start.
+    assert_selector '.pt-band-select'
+
+    assert_in_delta midline_of('.pt-band-controls .pt-band-button'), midline_of('.pt-band-select'), 1,
+                    'The progression picker should be centred like the buttons beside it'
+  end
+
   # The tempo trainer: the passage between two clicked measures, run after run
   # with a pause between them, the tempo moving with the results — and a
   # summary of the runs when ⏸ ends it.
@@ -351,6 +368,12 @@ class StrictPlaythroughTest < CapybaraTestBase
 
   def score_top
     page.evaluate_script("document.querySelector('.pt-score-main').getBoundingClientRect().top")
+  end
+
+  def midline_of(selector)
+    page.evaluate_script(
+      "(() => { const r = document.querySelector('#{selector}').getBoundingClientRect(); return r.top + r.height / 2 })()"
+    )
   end
 
   # BPM=120 → 2s count-in, ±150ms strict window, ±450ms off-tempo. The window
