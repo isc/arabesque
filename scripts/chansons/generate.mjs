@@ -51,13 +51,73 @@ function parseMeasure(text) {
   return { time, events: tokens.map(parseEvent) }
 }
 
-function parseStaff(text) {
-  return text.split('|').map(parseMeasure)
+// A staff's words: measures split by `|` like its notes, syllables by spaces.
+// A syllable ending in `-` is hyphenated to the next one, across a barline
+// too ("et Mon- | sieur"), so the syllabic type is read off the whole staff
+// rather than one measure at a time.
+function parseWords(text) {
+  let open = false
+  return text.split('|').map((measure) =>
+    measure
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean)
+      .map((syllable) => {
+        const opens = syllable.endsWith('-')
+        const syllabic = opens ? (open ? 'middle' : 'begin') : open ? 'end' : 'single'
+        open = opens
+        return { syllabic, text: syllable.replace(/-$/, '') }
+      }),
+  )
+}
+
+function parseStaff(text, words = '') {
+  const sungWords = parseWords(words)
+  return text.split('|').map((measure, i) => ({ ...parseMeasure(measure), syllables: sungWords[i] ?? [] }))
+}
+
+// Divisions of one unit of the meter's denominator: the 4 in "3/4" is a
+// quarter. A measure is that many times the numerator.
+function unitDuration(time) {
+  return (4 * DIVISIONS) / Number(time.split('/')[1])
 }
 
 function measureDuration(time) {
-  const [beats, unit] = time.split('/').map(Number)
-  return (beats * 4 * DIVISIONS) / unit
+  return Number(time.split('/')[0]) * unitDuration(time)
+}
+
+// Two eighths filling a beat come out beamed, the way the book beams them; a
+// lone eighth keeps its flag. OSMD draws no beam the MusicXML does not ask
+// for, hence the rule. Every meter in the collection counts in quarters, so
+// the beat is the meter's unit and holds the pair and nothing longer — a
+// compound meter beams in threes instead, and is refused rather than guessed
+// at, which would print no beam at all and say nothing.
+function beamed(events, time) {
+  if (!time.endsWith('/4')) throw new Error(`No beaming rule for ${time}: a compound meter groups eighths in threes`)
+  const beat = unitDuration(time)
+  const pairable = (event) => event?.kind === 'notes' && event.type === 'eighth' && !event.dot
+  const beamedEvents = [...events]
+  let at = 0
+  events.forEach((event, k) => {
+    if (at % beat === 0 && pairable(event) && pairable(events[k + 1])) {
+      beamedEvents[k] = { ...event, beam: 'begin' }
+      beamedEvents[k + 1] = { ...events[k + 1], beam: 'end' }
+    }
+    // A measure rest is alone in its measure, so the cursor never passes it.
+    at += event.duration ?? 0
+  })
+  return beamedEvents
+}
+
+// The syllables of a measure land on its notes in order — a rest is not sung,
+// and a measure may run out of words before it runs out of notes.
+function sung(events, syllables) {
+  const notes = events.filter((event) => event.kind === 'notes').length
+  if (syllables.length > notes) {
+    throw new Error(`${syllables.length} syllables for ${notes} notes: "${syllables.map((syllable) => syllable.text).join(' ')}"`)
+  }
+  let k = 0
+  return events.map((event) => (event.kind === 'notes' && k < syllables.length ? { ...event, lyric: syllables[k++] } : event))
 }
 
 function noteXml(event, staff, voice, total) {
@@ -72,20 +132,26 @@ function noteXml(event, staff, voice, total) {
     .map((p, i) => {
       const alter = p.alter ? `<alter>${p.alter}</alter>` : ''
       const accidental = p.alter === 1 ? '<accidental>sharp</accidental>' : p.alter === -1 ? '<accidental>flat</accidental>' : ''
+      // A beam and a syllable belong to the chord, so to its first head only.
+      const beam = event.beam && i === 0 ? `<beam number="1">${event.beam}</beam>` : ''
+      const lyric =
+        event.lyric && i === 0
+          ? `<lyric number="1"><syllabic>${event.lyric.syllabic}</syllabic><text>${esc(event.lyric.text)}</text></lyric>`
+          : ''
       // The fingering goes on the last head listed: the book writes it above
       // the chord, which is the top note's.
       const fingering =
         event.fingering && i === event.pitches.length - 1
           ? `<notations><technical><fingering>${event.fingering}</fingering></technical></notations>`
           : ''
-      return `<note>${i ? '<chord/>' : ''}<pitch><step>${p.step}</step>${alter}<octave>${p.octave}</octave></pitch><duration>${event.duration}</duration><voice>${voice}</voice><type>${event.type}</type>${dot}${accidental}${staff ? `<staff>${staff}</staff>` : ''}${fingering}</note>`
+      return `<note>${i ? '<chord/>' : ''}<pitch><step>${p.step}</step>${alter}<octave>${p.octave}</octave></pitch><duration>${event.duration}</duration><voice>${voice}</voice><type>${event.type}</type>${dot}${accidental}${staff ? `<staff>${staff}</staff>` : ''}${beam}${fingering}${lyric}</note>`
     })
     .join('')
 }
 
 function songXml(song) {
-  const staves = [parseStaff(song.rh)]
-  if (song.lh) staves.push(parseStaff(song.lh))
+  const staves = [parseStaff(song.rh, song.rhWords)]
+  if (song.lh) staves.push(parseStaff(song.lh, song.lhWords))
   if (song.lh && staves[0].length !== staves[1].length) {
     throw new Error(`${song.slug}: ${staves[0].length} measures in the right hand, ${staves[1].length} in the left`)
   }
@@ -134,7 +200,8 @@ function songXml(song) {
       const written = writtenIn(measure, total)
       if (written !== expected) throw new Error(`${song.slug}, measure ${number}, staff ${s + 1}: ${written} instead of ${expected} divisions`)
       if (s > 0) parts.push(`<backup><duration>${written}</duration></backup>`)
-      for (const event of measure.events) parts.push(noteXml(event, staffNumber, voice, total))
+      const events = sung(beamed(measure.events, time), measure.syllables)
+      for (const event of events) parts.push(noteXml(event, staffNumber, voice, total))
     })
 
     const last = i === staves[0].length - 1
