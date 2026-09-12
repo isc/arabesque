@@ -505,9 +505,9 @@ export function initPracticeTracker(storageInstance = null) {
     for (const session of stranded) {
       const closed = { ...session, endedAt: getLastMeasureEndTime(session).toISOString() }
       await storage.saveSession(closed)
-      // No meta: the aggregate keeps whatever title it already has, and every
-      // stranded session belongs to a score that has been played properly since.
-      await updateAggregates(closed)
+      // No title to give: the aggregate keeps whatever it already has, and
+      // every stranded session belongs to a score played properly since.
+      await updateAggregates(closed, {})
     }
 
     try {
@@ -527,6 +527,22 @@ export function initPracticeTracker(storageInstance = null) {
   async function rebuildAggregates(metaFor = () => null) {
     const sessions = await storage.getSessions()
     sessions.sort((a, b) => (a.startedAt || '').localeCompare(b.startedAt || ''))
+    // What the aggregates already knew, before they are thrown away — all a
+    // session stored before sessions carried their own name can offer.
+    const known = new Map(
+      (await storage.getAllAggregates()).map((a) => [a.scoreId, { title: a.scoreTitle, composer: a.composer }])
+    )
+    // Where a replayed session gets its name: the catalog first, so a score
+    // renamed there is renamed here; then the session's own record; then the
+    // snapshot. The catalog alone is not enough — it does not hold a file the
+    // player opened from disk, nor a score added since this device cached
+    // data/scores.json, and the rebuild used to leave those untitled for good
+    // (feedback 401b88bf).
+    const nameFor = (session) =>
+      metaFor(session.scoreId) ??
+      (session.scoreTitle ? { title: session.scoreTitle, composer: session.composer } : null) ??
+      known.get(session.scoreId) ??
+      {}
     await storage.clearAggregates()
     for (const session of sessions) {
       if (!session.measures || session.measures.length === 0) continue
@@ -539,7 +555,7 @@ export function initPracticeTracker(storageInstance = null) {
       // Ended but not yet aggregated: endSession() saves the session, then
       // credits it. A sync landing between the two would count it twice.
       if (session.id === currentSession?.id) continue
-      await updateAggregates(session, metaFor(session.scoreId))
+      await updateAggregates(session, nameFor(session))
     }
   }
 
@@ -555,7 +571,6 @@ export function initPracticeTracker(storageInstance = null) {
   function startSession(scoreId, scoreTitle, composer, mode, totalMeasures = null) {
     if (!scoreId) return null
 
-    // Store metadata separately (used for updating aggregates, not stored in session)
     currentScoreTitle = scoreTitle || null
     currentComposer = composer || null
     aggregateTitleEnsured = false
@@ -564,6 +579,15 @@ export function initPracticeTracker(storageInstance = null) {
     currentSession = {
       id: generateId(),
       scoreId,
+      // The score's name travels with the session that played it. Aggregates
+      // are what the journal reads, and a sync throws them away and rebuilds
+      // them from the sessions — so a session that names nothing can only be
+      // re-titled from this device's catalog, which does not hold a file
+      // opened from disk, nor a score added since the catalog was cached
+      // (feedback 401b88bf). Sessions push to the cloud as they are, so this
+      // reaches the other devices too.
+      scoreTitle: scoreTitle || null,
+      composer: composer || null,
       totalMeasures: totalMeasures || null,
       mode,
       startedAt: now,
@@ -710,7 +734,7 @@ export function initPracticeTracker(storageInstance = null) {
     // Don't save sessions with no completed measures
     if (sessionToSave.measures.length > 0) {
       await storage.saveSession(sessionToSave)
-      await updateAggregates(sessionToSave)
+      await updateAggregates(sessionToSave, { title: currentScoreTitle, composer: currentComposer })
     }
     // Committed: whatever a pagehide stashed for *this* session is redundant.
     clearPendingSession(sessionToSave.id)
@@ -760,12 +784,13 @@ export function initPracticeTracker(storageInstance = null) {
     await storage.saveAggregate(aggregate)
   }
 
-  // `meta` ({ title, composer }) overrides the live-session metadata — used when
-  // rebuilding aggregates from synced sessions, whose title/composer come from
-  // the score catalog rather than the current playing session.
-  async function updateAggregates(session, meta = null) {
-    const title = meta?.title ?? currentScoreTitle
-    const composer = meta?.composer ?? currentComposer
+  // `meta` ({ title, composer }) is where the score's name comes from, and it
+  // is always the caller's to give: a rebuild replays sessions that are not
+  // the one being played, so reaching for the live session's title here would
+  // file the open score's name under somebody else's scoreId. `{}` says there
+  // is no name to give, and the aggregate keeps the one it has.
+  async function updateAggregates(session, meta) {
+    const { title = null, composer = null } = meta
 
     let aggregate = await storage.getAggregate(session.scoreId)
 
