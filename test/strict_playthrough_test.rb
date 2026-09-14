@@ -187,6 +187,30 @@ class StrictPlaythroughTest < CapybaraTestBase
     assert_no_selector 'svg g.vf-notehead.played-note'
   end
 
+  # The cluster clips what overflows it, so an item naming its own height in
+  # the band's *outer* 34px loses two of them — the top of the −/+ buttons'
+  # corners, and of the tint they take under a pointer.
+  def test_the_tempo_steps_fit_inside_the_band_controls
+    load_score('two-measures.xml', 2)
+    start_strict_mode
+    assert_selector '.pt-bpm-field__step'
+
+    overflow = page.evaluate_script(<<~JS)
+      (() => {
+        const cluster = document.querySelector('.pt-band-controls')
+        const inner = cluster.getBoundingClientRect()
+        const border = parseFloat(getComputedStyle(cluster).borderTopWidth)
+        return [...cluster.querySelectorAll('.pt-bpm-field__step')].map((step) => {
+          const r = step.getBoundingClientRect()
+          return Math.max(inner.top + border - r.top, r.bottom - (inner.bottom - border), 0)
+        })
+      })()
+    JS
+
+    assert_equal [0, 0], overflow,
+                 'The −/+ buttons should fit the line the cluster gives them, not overflow it'
+  end
+
   # The band's controls are one panel, so everything in it shares a midline.
   # The progression picker used to carry a height of its own, which opted it
   # out of the cluster's align-self: stretch and left its text 2px high
