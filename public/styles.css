@@ -844,11 +844,14 @@ button.pt-topbar__pill:disabled { opacity: 0.4; cursor: default; }
   align-items: center;
   justify-content: center;
   flex: 0 0 auto;
-  /* A square the height of the band, so both buttons are the same box and the
-     glyph is centred in it — sized on the glyph, − and + land at different
-     heights and neither lines up with the field. */
+  /* One box for both buttons, so the glyph is centred in it — sized on the
+     glyph, − and + land at different heights and neither lines up with the
+     field. The height is the line's, taken by stretching rather than named:
+     34px is the band's *outer* height, and inside its 1px border there are
+     only 32, so a named 34 spent two of them under the cluster's
+     overflow: hidden — along with the top of these corners. */
   width: 40px;
-  height: 34px;
+  align-self: stretch;
   padding: 0;
   border-radius: var(--pt-radius-sm);
   font-size: 1.15rem;
@@ -857,10 +860,12 @@ button.pt-topbar__pill:disabled { opacity: 0.4; cursor: default; }
      double-tap zoom. */
   touch-action: manipulation;
 }
-/* 34px is what the band is tall and 44 is what a thumb needs, so the target is
-   grown with a pseudo-element rather than the box, the way the modal's back
-   arrow is — the band keeps its height, and the 2px of overhang on the field
-   side stay well clear of the input's own padding. */
+/* 44px is what a thumb needs, so the target is grown with a pseudo-element
+   rather than the box, the way the modal's back arrow is — the 2px of overhang
+   on the field side stay well clear of the input's own padding. Sideways only,
+   in practice: the cluster's overflow: hidden clips the vertical overhang, hit
+   testing included, so the target is 44 wide and the band's 32 tall. Growing
+   it would take a taller band or a cluster that does not clip. */
 .pt-band-controls .pt-bpm-field__step::after { content: ""; position: absolute; inset: -5px -2px; }
 
 /* =============================================================================
