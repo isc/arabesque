@@ -2,6 +2,7 @@
 export default {
   common: {
     openLibrary: 'Ouvrir la bibliothèque',
+    appStore: 'Arabesque pour iPhone et iPad, sur l’App Store',
     close: 'Fermer',
     cancel: 'Annuler',
     privacy: 'Confidentialité',

@@ -2,6 +2,7 @@
 export default {
   common: {
     openLibrary: 'Open the library',
+    appStore: 'Arabesque for iPhone and iPad, on the App Store',
     close: 'Close',
     cancel: 'Cancel',
     privacy: 'Privacy',
