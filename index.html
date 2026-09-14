@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="app-version" content="378dcaa5d631" />
+    <meta name="app-version" content="4010ce20d7b9" />
     <title data-i18n="landing.pageTitle">Arabesque · Apprenez le piano avec un retour en temps réel</title>
     <meta
       name="description"
@@ -33,6 +33,7 @@
     </script>
     <link rel="stylesheet" href="styles.css" />
     <script type="module" src="js/version.js"></script>
+    <script type="module" src="js/appStore.js"></script>
     <script type="module">
       import { initI18n, getLang } from './js/i18n.js'
       initI18n()
@@ -165,6 +166,9 @@
         <div class="pt-section__cta">
           <a href="library.html" role="button" data-i18n="common.openLibrary">Ouvrir la bibliothèque</a>
         </div>
+        <p class="pt-section__store" data-app-store hidden>
+          <a href="https://apps.apple.com/app/id6800314187" data-i18n="common.appStore">Arabesque pour iPhone et iPad, sur l'App Store</a>
+        </p>
       </section>
 
       <footer class="pt-landing__footer">
