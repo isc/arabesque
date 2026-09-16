@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE score-partwise PUBLIC "-//Recordare//DTD MusicXML 3.0 Partwise//EN" "http://www.musicxml.org/dtds/partwise.dtd">
+<!-- One whole note per measure, the sixth three ledger lines above the staff,
+     then enough measures after it that its system can be scrolled to the top of
+     the window. The training dots hang over a measure's own noteheads, so that
+     sixth bar carries them far higher than the staff line the autoscroll
+     anchors on. -->
+<score-partwise version="3.0">
+  <work><work-title>High Note Measure</work-title></work>
+  <part-list><score-part id="P1"><part-name/></score-part></part-list>
+  <part id="P1">
+    <measure number="1">
+      <attributes>
+        <divisions>4</divisions>
+        <key><fifths>0</fifths><mode>major</mode></key>
+        <time><beats>4</beats><beat-type>4</beat-type></time>
+        <clef><sign>G</sign><line>2</line></clef>
+      </attributes>
+      <note><duration>16</duration><pitch><step>C</step><octave>4</octave></pitch><type>whole</type></note>
+    </measure>
+    <measure number="2">
+      <note><duration>16</duration><pitch><step>D</step><octave>4</octave></pitch><type>whole</type></note>
+    </measure>
+    <measure number="3">
+      <note><duration>16</duration><pitch><step>E</step><octave>4</octave></pitch><type>whole</type></note>
+    </measure>
+    <measure number="4">
+      <note><duration>16</duration><pitch><step>F</step><octave>4</octave></pitch><type>whole</type></note>
+    </measure>
+    <measure number="5">
+      <note><duration>16</duration><pitch><step>G</step><octave>4</octave></pitch><type>whole</type></note>
+    </measure>
+    <measure number="6">
+      <note><duration>16</duration><pitch><step>C</step><octave>7</octave></pitch><type>whole</type></note>
+    </measure>
+    <measure number="7">
+      <note><duration>16</duration><pitch><step>E</step><octave>4</octave></pitch><type>whole</type></note>
+    </measure>
+    <measure number="8">
+      <note><duration>16</duration><pitch><step>F</step><octave>4</octave></pitch><type>whole</type></note>
+    </measure>
+    <measure number="9">
+      <note><duration>16</duration><pitch><step>G</step><octave>4</octave></pitch><type>whole</type></note>
+    </measure>
+    <measure number="10">
+      <note><duration>16</duration><pitch><step>A</step><octave>4</octave></pitch><type>whole</type></note>
+    </measure>
+    <measure number="11">
+      <note><duration>16</duration><pitch><step>B</step><octave>4</octave></pitch><type>whole</type></note>
+    </measure>
+    <measure number="12">
+      <note><duration>16</duration><pitch><step>C</step><octave>5</octave></pitch><type>whole</type></note>
+    </measure>
+    <measure number="13">
+      <note><duration>16</duration><pitch><step>E</step><octave>4</octave></pitch><type>whole</type></note>
+    </measure>
+    <measure number="14">
+      <note><duration>16</duration><pitch><step>F</step><octave>4</octave></pitch><type>whole</type></note>
+    </measure>
+    <measure number="15">
+      <note><duration>16</duration><pitch><step>G</step><octave>4</octave></pitch><type>whole</type></note>
+    </measure>
+    <measure number="16">
+      <note><duration>16</duration><pitch><step>A</step><octave>4</octave></pitch><type>whole</type></note>
+    </measure>
+    <measure number="17">
+      <note><duration>16</duration><pitch><step>B</step><octave>4</octave></pitch><type>whole</type></note>
+    </measure>
+    <measure number="18">
+      <note><duration>16</duration><pitch><step>C</step><octave>5</octave></pitch><type>whole</type></note>
+    </measure>
+    <measure number="19">
+      <note><duration>16</duration><pitch><step>E</step><octave>4</octave></pitch><type>whole</type></note>
+    </measure>
+    <measure number="20">
+      <note><duration>16</duration><pitch><step>F</step><octave>4</octave></pitch><type>whole</type></note>
+    </measure>
+    <measure number="21">
+      <note><duration>16</duration><pitch><step>G</step><octave>4</octave></pitch><type>whole</type></note>
+    </measure>
+    <measure number="22">
+      <note><duration>16</duration><pitch><step>A</step><octave>4</octave></pitch><type>whole</type></note>
+    </measure>
+    <measure number="23">
+      <note><duration>16</duration><pitch><step>B</step><octave>4</octave></pitch><type>whole</type></note>
+    </measure>
+    <measure number="24">
+      <note><duration>16</duration><pitch><step>C</step><octave>5</octave></pitch><type>whole</type></note>
+    </measure>
+  </part>
+</score-partwise>

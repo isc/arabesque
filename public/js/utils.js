@@ -62,6 +62,14 @@ function getStickyOffset() {
   return offset
 }
 
+// True when something at viewport y `top` falls inside the headroom the sticky
+// bars own — where scrollSystemIntoView refuses to leave anything it is asked
+// to keep in view. One owner for that arithmetic: the callers ask the question
+// rather than recomputing the offset.
+export function isUnderStickyBars(top) {
+  return top < getStickyOffset()
+}
+
 export function applyStickyOffset() {
   document.documentElement.style.setProperty('--pt-sticky-offset', `${getStickyOffset()}px`)
 }
@@ -93,9 +101,14 @@ function findSystemTopAnchor(referenceTop, svg) {
 // sticky bars, leaving getStickyOffset() of headroom for the above-staff
 // markings. Shared by the measure cursor (musicxml.js) and the playback cursor
 // (playback.js) so both autoscroll paths behave identically.
-export function scrollSystemIntoView(referenceTop, svg) {
+// `hangingTop` (viewport space, optional) is anything drawn higher than the
+// scanned band and owed the same headroom — the training dots, which hang over
+// the noteheads rather than over the staff, and so can go further up than the
+// <text> this scan was written for ever does.
+export function scrollSystemIntoView(referenceTop, svg, hangingTop = null) {
   if (!svg) return
-  const anchorTop = findSystemTopAnchor(referenceTop, svg)
+  let anchorTop = findSystemTopAnchor(referenceTop, svg)
+  if (hangingTop != null) anchorTop = Math.min(anchorTop, hangingTop)
   const targetY = window.scrollY + anchorTop - getStickyOffset()
   window.scrollTo({ top: Math.max(0, targetY), behavior: 'smooth' })
 }
