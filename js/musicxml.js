@@ -9,7 +9,7 @@ import {
   svgNoteheadFor,
   carryOverNoteStates,
 } from './noteExtraction.js'
-import { scrollSystemIntoView } from './utils.js'
+import { scrollSystemIntoView, isUnderStickyBars } from './utils.js'
 import { arrayBufferToXml, isMusicXml } from './mxlLoader.js'
 import { stripPlaybackTempoMarks } from './tempoMarks.js'
 import { t } from './i18n.js'
@@ -618,34 +618,51 @@ function updateMeasureCursor() {
 
   currentRect.classList.add('selected')
 
-  const measureData = allNotes[currentMeasureIndex]
-  if (!measureData?.notes?.length) return
-
-  const noteElements = measureData.notes.map((n) => svgNote(n.note))
-  const svg = noteElements[0]?.ownerSVGElement
-  if (svg) createRepeatIndicators(noteElements, svg)
+  const measured = measureNoteBounds(currentMeasureIndex)
+  if (measured) createRepeatIndicators(measured)
 }
 
-function createRepeatIndicators(noteElements, svg) {
+// The dots are centred over the measure's noteheads, hanging
+// REPEAT_INDICATOR_RISE above the topmost one — so how high they fly is the
+// measure's business, not the staff's: over a bar that climbs above the staff
+// they end up well above the top staff line the autoscroll anchors on, which is
+// what left them under the sticky bars.
+const REPEAT_INDICATOR_RISE = 40
+const REPEAT_INDICATOR_RADIUS = 6
+const REPEAT_INDICATOR_SPACING = 18
+
+// A measure's noteheads as one box in SVG user space, with the SVG holding
+// them. Null when the measure has no notes on the page. The dots are drawn from
+// it and the autoscroll predicts them from it, so both read one geometry.
+function measureNoteBounds(measureIndex) {
+  const notes = allNotes[measureIndex]?.notes
+  if (!notes?.length) return null
+
+  const noteElements = notes.map((n) => svgNote(n.note))
+  const svg = noteElements[0]?.ownerSVGElement
+  if (!svg) return null
+
   const boxes = getBoundingBoxesForNotes(noteElements)
+  if (boxes.length === 0) return null
 
-  if (boxes.length === 0) return
+  return { svg, bounds: calculateCombinedBounds(boxes) }
+}
 
-  const bounds = calculateCombinedBounds(boxes)
+const repeatIndicatorCenterY = (bounds) => bounds.minY - REPEAT_INDICATOR_RISE
+
+function createRepeatIndicators({ svg, bounds }) {
   const centerX = (bounds.minX + bounds.maxX) / 2
-  const circleY = bounds.minY - 40
-  const circleRadius = 6
-  const circleSpacing = 18
+  const circleY = repeatIndicatorCenterY(bounds)
 
   const indicatorsGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g')
   indicatorsGroup.id = 'repeat-indicators'
 
   for (let i = 0; i < targetRepeatCount; i++) {
     const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle')
-    const offsetX = (i - (targetRepeatCount - 1) / 2) * circleSpacing
+    const offsetX = (i - (targetRepeatCount - 1) / 2) * REPEAT_INDICATOR_SPACING
     circle.setAttribute('cx', centerX + offsetX)
     circle.setAttribute('cy', circleY)
-    circle.setAttribute('r', circleRadius)
+    circle.setAttribute('r', REPEAT_INDICATOR_RADIUS)
     circle.className.baseVal = repeatIndicatorClass(i, repeatCount, currentRepetitionIsClean)
     circle.dataset.index = i
     indicatorsGroup.appendChild(circle)
@@ -877,7 +894,20 @@ function scrollToMeasure(measureIndex) {
   // repeat jumped back to the top.
   const note = allNotes[measureIndex]?.notes?.[0]?.note
   const referenceTop = systemTopStaffLineY(note) ?? rect.getBoundingClientRect().top
-  scrollSystemIntoView(referenceTop, rect.ownerSVGElement)
+  scrollSystemIntoView(referenceTop, rect.ownerSVGElement, repeatIndicatorsTopY(measureIndex))
+}
+
+// Viewport y of the top of the dots `measureIndex` carries — predicted from the
+// noteheads rather than read off the SVG, because the scroll is decided before
+// the cursor is drawn there. Null outside training mode, which has no dots.
+function repeatIndicatorsTopY(measureIndex) {
+  if (!trainingMode) return null
+
+  const measured = measureNoteBounds(measureIndex)
+  if (!measured) return null
+
+  const top = repeatIndicatorCenterY(measured.bounds) - REPEAT_INDICATOR_RADIUS
+  return svgYToViewport(top, measured.svg)
 }
 
 // A held key can't be re-struck. A note is covered by a currently-held key when a tie
@@ -1090,14 +1120,23 @@ function deactivateNote(midiNote) {
 // Scroll to next measure if it's on a different system, positioning it near the top
 function scrollToNextMeasureIfNeeded(nextIndex) {
   if (nextIndex >= allNotes.length) return
+  // A repetition in place leaves the dots where they already stood: measuring
+  // them again would spend a getBBox per notehead on a scroll that cannot be owed.
+  if (nextIndex === currentMeasureIndex) return
 
   const nextMeasureData = allNotes[nextIndex]
   if (!nextMeasureData || !nextMeasureData.notes || nextMeasureData.notes.length === 0) return
 
   const nextMeasureFirstNote = nextMeasureData.notes[0].note
   const nextSystemIndex = getSystemIndexForNote(nextMeasureFirstNote)
+  const systemChanged = currentSystemIndex !== null && nextSystemIndex !== currentSystemIndex
 
-  if (currentSystemIndex !== null && nextSystemIndex !== currentSystemIndex) {
+  // Staying on the system is not staying put: a bar that climbs above the staff
+  // carries its dots under the sticky bars, with nothing else to bring them back.
+  const dotsTop = repeatIndicatorsTopY(nextIndex)
+  const dotsHidden = dotsTop !== null && isUnderStickyBars(dotsTop)
+
+  if (systemChanged || dotsHidden) {
     scrollToMeasure(nextIndex)
     currentSystemIndex = nextSystemIndex
   }
@@ -1284,13 +1323,16 @@ function systemTopStaffLineY(note) {
   try {
     const system = graphicalMeasureForNote(note).parentMusicSystem
     const svgY = system.graphicalMeasures[0][0].stave.getYForLine(0)
-    const svg = svgNote(note).ownerSVGElement
-    const point = svg.createSVGPoint()
-    point.y = svgY
-    return point.matrixTransform(svg.getScreenCTM()).y
+    return svgYToViewport(svgY, svgNote(note).ownerSVGElement)
   } catch {
     return null
   }
+}
+
+function svgYToViewport(svgY, svg) {
+  const point = svg.createSVGPoint()
+  point.y = svgY
+  return point.matrixTransform(svg.getScreenCTM()).y
 }
 
 function getSystemIndexForNote(note) {
