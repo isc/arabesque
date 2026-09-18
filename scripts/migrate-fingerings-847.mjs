@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // scripts/migrate-fingerings-847.mjs — one-off, delete once it has run.
 //
-// The staff fixes to Bach's Prelude in C minor (BWV 847), bars 25–36, move
+// The staff fixes to Bach's Prelude in C minor (BWV 847), bars 25–38, move
 // notes between staves and voices. Fingerings are keyed by
 // `measure:staff:voice:noteIndex` (0-based staff and voice straight from the
 // MusicXML, noteIndex counted per staff+voice over the visible pitched notes,
@@ -49,6 +49,13 @@ function remap(key) {
       if (s === 0 && v === 4) return k(m, 1, 4, i)
       if (s === 1 && v === 4) return k(m, 1, 4, i + 13)
       break
+    case 37: // right hand from the lower staff to the upper one
+      if (s === 1 && v === 0) return k(m, 0, 0, i)
+      break
+    case 38: // its first note, A♭3, joins the rest of the right hand upstairs
+      if (s === 1 && v === 0) return k(m, 0, 0, i)
+      if (s === 0 && v === 0) return k(m, 0, 0, i + 1)
+      break
     case 34: // three left-hand voices -> one voice of two chords, C–G–B♭ then C–F–A♭
       if (s === 1 && v >= 4 && v <= 6 && i <= 1) return k(m, 1, 4, i * 3 + [2, 0, 1][v - 4])
       break
@@ -58,7 +65,7 @@ function remap(key) {
 
 // Staff+voice pairs with no note left in the new layout: a key there can only
 // be an old one, which is what tells a record still to migrate.
-const OLD_ONLY = /^(?:(?:25|26|35|36):1:0|26:0:4|31:0:4|32:0:4|34:1:[56]):\d+$/
+const OLD_ONLY = /^(?:(?:25|26|35|36|37|38):1:0|26:0:4|31:0:4|32:0:4|34:1:[56]):\d+$/
 
 const quote = (value) => `'${String(value).replace(/'/g, "''")}'`
 
