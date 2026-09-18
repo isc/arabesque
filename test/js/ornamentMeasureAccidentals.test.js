@@ -1,13 +1,12 @@
 import { describe, it, expect } from 'vitest'
 import { expandOrnamentNotes } from '../../public/js/noteExtraction.js'
-import { ORNAMENT } from './support/ornamentedNote.js'
+import { ACCIDENTAL, ORNAMENT, noteWithOrnament } from './support/ornamentedNote.js'
 
 // An accidental holds to the end of its measure, on its line or space, and an
 // ornament's neighbour is a note like any other. Bach's C minor prelude, bar
 // 34: an E natural, then a mordent on F -- the mordent dips to E natural, not
 // to the E flat of the key.
 
-const NONE = 2
 const C_MINOR = -3
 const F4 = 65
 const E_FLAT_4 = 63
@@ -23,13 +22,11 @@ const written = (midiNumber, letter, { timestamp = 1.25, staffIndex = 0, tied = 
   note: { pitch: { fundamentalNote: LETTER[letter], halfTone: midiNumber - 12 } },
 })
 
-const mordentOnF = {
-  ...written(F4, 'F', { timestamp: 1.5 }),
-  measureIndex: 1,
-  noteheadIndex: 0,
-  note: { ...written(F4, 'F').note, Length: { RealValue: 0.125 } },
-  voiceEntry: { OrnamentContainer: { GetOrnament: ORNAMENT.MORDENT, AccidentalAbove: NONE, AccidentalBelow: NONE } },
-}
+const mordentOnF = noteWithOrnament(ORNAMENT.MORDENT, {
+  midiNumber: F4,
+  pitch: written(F4, 'F').note.pitch,
+  accidental: ACCIDENTAL.NONE,
+})
 
 const mordentAfter = (...earlier) =>
   expandOrnamentNotes([...earlier, mordentOnF], C_MINOR)

@@ -3,9 +3,12 @@
 // -- as note.Length.RealValue was, when delayed turns learned to hold their
 // principal -- is added in one place instead of drifting between test files.
 //
-// Explicit accidentals keep getOrnamentAuxiliaryNotes off the diatonic path
-// (NATURAL: +2 above, -1 below), so no real pitch or key data is needed.
-const NATURAL = 3
+// By default explicit accidentals keep getOrnamentAuxiliaryNotes off the
+// diatonic path (NATURAL: +2 above, -1 below), so no real pitch or key data is
+// needed. Pass `accidental: ACCIDENTAL.NONE` and a `pitch` to take that path.
+
+// OSMD's AccidentalEnum, the values the extractor compares against.
+export const ACCIDENTAL = { NONE: 2, NATURAL: 3 }
 
 // OSMD's OrnamentEnum.
 export const ORNAMENT = {
@@ -18,16 +21,20 @@ export const ORNAMENT = {
   INVERTED_MORDENT: 6,
 }
 
-export function noteWithOrnament(ornamentType, { tied = false, midiNumber = 72, noteheadIndex = 0 } = {}) {
+export function noteWithOrnament(
+  ornamentType,
+  { tied = false, midiNumber = 72, noteheadIndex = 0, accidental = ACCIDENTAL.NATURAL, pitch, staffIndex = 0 } = {},
+) {
   return {
     midiNumber,
     timestamp: 1.5,
     measureIndex: 1,
+    staffIndex,
     isTieContinuation: tied,
     noteheadIndex,
-    note: { Length: { RealValue: 0.5 } },
+    note: { pitch, Length: { RealValue: 0.5 } },
     voiceEntry: {
-      OrnamentContainer: { GetOrnament: ornamentType, AccidentalAbove: NATURAL, AccidentalBelow: NATURAL },
+      OrnamentContainer: { GetOrnament: ornamentType, AccidentalAbove: accidental, AccidentalBelow: accidental },
     },
   }
 }
