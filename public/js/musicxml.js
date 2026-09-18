@@ -504,6 +504,37 @@ function areSideBySide({ hiddenPath, visiblePath }) {
   return boxes.length === 2 && Math.abs(boxes[0].x - boxes[1].x) >= 1
 }
 
+// OSMD finds the graphical note at each end of a tie by pitch and timestamp alone, taking the
+// first head of the staff entry that matches. When another voice writes the same pitch at the
+// same time and hides it — MuseScore's way of letting one head serve both voices — that first
+// match can be the hidden note, and handleTie then drops the segment, since it draws no tie to
+// an invisible note. In BWV 847 bar 35 the held bass C lost its first tie that way. The tie's
+// own note is looked up first; the pitch match stays as the fallback for anything else.
+// The staff entry class is not exported, so the patch goes onto its prototype from the first
+// handleTie call, which is handed an instance — before any tie of the first render is drawn.
+// A stopgap for GraphicalStaffEntry.findTieGraphicalNoteFromNote in stock OSMD 2.1.2: drop it
+// once a release matches the tie's own note first.
+let tieLookupHooked = false
+function matchTiesToTheirOwnNotes(calculator) {
+  if (tieLookupHooked) return
+  tieLookupHooked = true
+  const calculatorPrototype = Object.getPrototypeOf(calculator)
+  calculatorPrototype.handleTie = function (tie, staffEntry, ...rest) {
+    if (staffEntry) {
+      const entryPrototype = Object.getPrototypeOf(staffEntry)
+      const findByPitch = entryPrototype.findTieGraphicalNoteFromNote
+      entryPrototype.findTieGraphicalNoteFromNote = function (note) {
+        const own = this.graphicalVoiceEntries
+          .flatMap((voiceEntry) => voiceEntry.notes)
+          .find((graphicalNote) => graphicalNote.sourceNote === note)
+        return own ?? findByPitch.call(this, note)
+      }
+      delete calculatorPrototype.handleTie
+    }
+    return this.handleTie(tie, staffEntry, ...rest)
+  }
+}
+
 async function renderMusicXML(xmlContent) {
   try {
     const scoreContainer = document.getElementById('score')
@@ -518,6 +549,7 @@ async function renderMusicXML(xmlContent) {
     })
     osmd.rules.MetronomeMarkYShift = -2.8;
     await osmd.load(xmlContent)
+    matchTiesToTheirOwnNotes(osmd.graphic.GetCalculator)
     stripPlaybackTempoMarks(osmd.Sheet.SourceMeasures)
     osmdInstance = osmd
     window.osmdInstance = osmd
