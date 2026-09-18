@@ -513,7 +513,8 @@ function areSideBySide({ hiddenPath, visiblePath }) {
 // The staff entry class is not exported, so the patch goes onto its prototype from the first
 // handleTie call, which is handed an instance — before any tie of the first render is drawn.
 // A stopgap for GraphicalStaffEntry.findTieGraphicalNoteFromNote in stock OSMD 2.1.2: drop it
-// once a release matches the tie's own note first.
+// once a release carries the upstream fix,
+// https://github.com/opensheetmusicdisplay/opensheetmusicdisplay/pull/1731.
 let tieLookupHooked = false
 function matchTiesToTheirOwnNotes(calculator) {
   if (tieLookupHooked) return
