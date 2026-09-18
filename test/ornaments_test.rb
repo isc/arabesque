@@ -127,6 +127,24 @@ class OrnamentsTest < CapybaraTestBase
     assert_selector 'svg circle.repeat-indicator.filled', count: 1
   end
 
+  def test_mordent_takes_an_accidental_earlier_in_the_measure
+    # C minor: E natural, then a mordent on F with nothing on the sign. The
+    # natural holds to the end of the measure, so the mordent dips to E natural
+    # -- not to the E flat of the key (Bach's C minor prelude, bar 34).
+    load_score('mordent-after-accidental.xml', 3)
+
+    click_on 'Mode Entraînement'
+    assert_text 'Mode Entraînement Actif'
+
+    play_note("E4")
+    play_note("F4")
+    play_note("E4")   # E natural, NOT Eb
+    play_note("F4")
+    play_note("G4")
+
+    assert_selector 'svg circle.repeat-indicator.filled', count: 1
+  end
+
   def test_trill_wrong_note_marks_dirty_then_clean_rep_fills_circle
     # Trill on Ab4 in Eb major: minimum sequence is Ab4, Bb4, Ab4 (+ sentinel)
     # The upper note is Bb4 (not B natural) because B is flatted in Eb major.

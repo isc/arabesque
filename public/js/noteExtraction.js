@@ -118,12 +118,33 @@ function hasExplicitAccidental(accidental) {
   return accidental !== undefined && accidental !== AccidentalEnum.NONE
 }
 
+// The neighbour an ornament reaches for, as the measure so far has altered it.
+// An accidental holds for the rest of the measure on its line or space, so a
+// mordent on F just after an E natural in C minor dips to E natural, not the
+// E flat of the key (Bach's C minor prelude, bar 34). The key's neighbour is
+// the default; the last earlier note written on the same staff with the same
+// letter overrides it -- same letter within a whole tone is the same line or
+// space. A note tied in from the previous measure sets nothing: its accidental
+// was written there.
+function neighbourInForce(keyMidi, pitch, direction, priorNotes) {
+  const index = getDiatonicIndex(pitch?.fundamentalNote)
+  if (index === -1) return keyMidi
+  const letter = DIATONIC_NOTES[(index + (direction > 0 ? 1 : 6)) % 7]
+  const carrier = priorNotes.findLast((n) =>
+    !n.isTieContinuation &&
+    n.note?.pitch?.fundamentalNote === letter &&
+    Math.abs(n.midiNumber - keyMidi) <= 2
+  )
+  return carrier?.midiNumber ?? keyMidi
+}
+
 // Calculate upper/lower MIDI notes for ornaments
 // When accidentals are explicitly marked, they modify the note chromatically:
 // - FLAT lowers the note (upper: +1, lower: -2)
 // - SHARP/NATURAL raises the note (upper: +2, lower: -1)
-// Without explicit accidentals, use diatonic intervals (follow the scale)
-function getOrnamentAuxiliaryNotes(mainMidi, ornamentContainer, pitch, fifths = 0) {
+// Without explicit accidentals, use diatonic intervals (follow the scale),
+// altered by any accidental earlier in the measure (neighbourInForce).
+function getOrnamentAuxiliaryNotes(mainMidi, ornamentContainer, pitch, fifths = 0, priorNotes = []) {
   const { AccidentalAbove, AccidentalBelow } = ornamentContainer
 
   let upperMidi, lowerMidi
@@ -131,13 +152,13 @@ function getOrnamentAuxiliaryNotes(mainMidi, ornamentContainer, pitch, fifths = 
   if (hasExplicitAccidental(AccidentalAbove)) {
     upperMidi = AccidentalAbove === AccidentalEnum.FLAT ? mainMidi + 1 : mainMidi + 2
   } else {
-    upperMidi = mainMidi + getDiatonicOffset(pitch, 1, fifths)
+    upperMidi = neighbourInForce(mainMidi + getDiatonicOffset(pitch, 1, fifths), pitch, 1, priorNotes)
   }
 
   if (hasExplicitAccidental(AccidentalBelow)) {
     lowerMidi = AccidentalBelow === AccidentalEnum.FLAT ? mainMidi - 2 : mainMidi - 1
   } else {
-    lowerMidi = mainMidi + getDiatonicOffset(pitch, -1, fifths)
+    lowerMidi = neighbourInForce(mainMidi + getDiatonicOffset(pitch, -1, fifths), pitch, -1, priorNotes)
   }
 
   return { upperMidi, lowerMidi }
@@ -145,10 +166,10 @@ function getOrnamentAuxiliaryNotes(mainMidi, ornamentContainer, pitch, fifths = 
 
 // Build the MIDI note sequence for an ornament
 // Returns { sequence, flag } where flag is the property name to mark expanded notes
-function getOrnamentSequence(mainMidi, ornamentContainer, pitch, fifths = 0) {
+function getOrnamentSequence(mainMidi, ornamentContainer, pitch, fifths = 0, priorNotes = []) {
   const ornamentType = ornamentContainer.GetOrnament
 
-  const { upperMidi, lowerMidi } = getOrnamentAuxiliaryNotes(mainMidi, ornamentContainer, pitch, fifths)
+  const { upperMidi, lowerMidi } = getOrnamentAuxiliaryNotes(mainMidi, ornamentContainer, pitch, fifths, priorNotes)
 
   // Turn ornaments: 4-5 notes alternating around the main note.
   // Delayed turns sound the principal on the beat, then play the turn proper late
@@ -191,7 +212,10 @@ export function expandOrnamentNotes(measureNotes, fifths = 0) {
   for (const noteData of measureNotes) {
     const ornamentContainer = noteData.voiceEntry?.OrnamentContainer
     const pitch = noteData.note?.pitch
-    const ornamentInfo = ornamentContainer ? getOrnamentSequence(noteData.midiNumber, ornamentContainer, pitch, fifths) : null
+    const priorNotes = ornamentContainer
+      ? measureNotes.filter((n) => n.staffIndex === noteData.staffIndex && n.timestamp < noteData.timestamp)
+      : []
+    const ornamentInfo = ornamentContainer ? getOrnamentSequence(noteData.midiNumber, ornamentContainer, pitch, fifths, priorNotes) : null
 
     if (!ornamentInfo) {
       expandedNotes.push(noteData)
