@@ -422,6 +422,7 @@ export default {
     step3Title: 'Jouez et progressez',
     step3Body:
       'Suivez les notes qui défilent, laissez le retour en temps réel vous guider, et retrouvez vos progrès dans le journal de pratique.',
+    android: 'Sur Android, ouvrez la bibliothèque dans Chrome, puis ⚙️ → Installer l’application.',
     footer: 'Arabesque · partitions du domaine public · vos données restent sur votre appareil, sauf à les synchroniser.',
   },
   privacy: {

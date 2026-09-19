@@ -422,6 +422,7 @@ export default {
     step3Title: 'Play and progress',
     step3Body:
       'Follow the scrolling notes, let the real-time feedback guide you, and find your progress in the practice journal.',
+    android: 'On Android, open the library in Chrome, then ⚙️ → Install the app.',
     footer: 'Arabesque · public-domain scores · your data stays on your device unless you sync it.',
   },
   privacy: {
