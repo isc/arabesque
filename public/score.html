@@ -152,13 +152,19 @@
         >⏱ Mode strict</button>
       </div>
 
+      <!-- Disabled for the length of a run rather than aborting it, like the
+           tempo and the trainer mode below: which hands a run asks for is a
+           setting it froze at its start, and a mis-tap on a 14px box has no
+           business throwing away the run. The controls that abort instead
+           (the loop, a click on a measure) are the ones whose whole point is
+           to say where to play. -->
       <div class="pt-hands">
         <label class="pt-hands__option">
-          <input type="checkbox" x-model="rightHandActive" @change="updateActiveHands" />
+          <input type="checkbox" x-model="rightHandActive" @change="updateActiveHands" :disabled="isStrictPlaying" />
           <span x-text="$t('score.rightHand')">Main droite</span>
         </label>
         <label class="pt-hands__option">
-          <input type="checkbox" x-model="leftHandActive" @change="updateActiveHands" />
+          <input type="checkbox" x-model="leftHandActive" @change="updateActiveHands" :disabled="isStrictPlaying" />
           <span x-text="$t('score.leftHand')">Main gauche</span>
         </label>
       </div>
