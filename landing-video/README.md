@@ -18,7 +18,7 @@ landing-video/
     fetch-backup.mjs   practice history from Supabase → .work/backup.json (gitignored)
     build-assets.mjs   seed the app from a backup, capture every screenshot
   composition/
-    index.html         the HyperFrames composition (5 scenes + GSAP timeline)
+    index.html         the HyperFrames composition (6 scenes + GSAP timeline)
     design.md          brand/design system (colours, type, motion)
     assets/            generated screenshots (gitignored)
   encode.sh            newest render → public/video/hero.mp4 + poster
@@ -27,6 +27,10 @@ landing-video/
 ## Prerequisites
 
 - Node 22+ and FFmpeg (`ffmpeg -version`)
+- The Inter font installed (`fonts-inter` on Debian/Ubuntu). The capture puts it
+  first in the app's UI font stack, so a Linux run doesn't come out in DejaVu.
+  `app.rb` isn't required either: any static server of `public/` on port 4567
+  (`cd public && python3 -m http.server 4567`) does.
 - `npm install` here, then `npx playwright install chromium`
   (or set `PT_CHROMIUM=/path/to/Chromium` to reuse an existing binary)
 - A practice history, either:
@@ -81,7 +85,13 @@ from the running app, so the UI's own i18n keeps them in sync.
 ## Notes
 
 - **Scenes** (see `composition/index.html`): library → real-time note feedback →
-  training mode (3× per measure) → practice history → brand lockup.
+  training mode (3× per measure) → strict mode (a passage looped to the
+  metronome) → practice history → brand lockup.
+- **Strict mode** is played by an auto-player that strikes each notehead the
+  moment the engine lights it, so the verdict is the engine's own; one note is
+  let go on the third run so the capture shows a miss among the hits.
+- **Each capture starts from a fresh browser profile**: what the captures play
+  is filed in the practice journal, and would show up in the next run's library.
 - **Real engine feedback**: `build-assets.mjs` sets the `test-env` cookie to
   enable the in-app mock MIDI keyboard, reads expected pitches from the OSMD
   cursor (`Pitch.halfTone + 12`), and dispatches real `mock-midi-input` events

@@ -114,7 +114,7 @@
       id="root"
       data-composition-id="main"
       data-start="0"
-      data-duration="17.4"
+      data-duration="20.8"
       data-width="1920"
       data-height="1080"
     >
@@ -150,28 +150,38 @@
         <div class="card shot" id="s3-card"><img src="assets/training.png" alt="" /></div>
       </div>
 
-      <!-- Scene 4 — History (card left) -->
+      <!-- Scene 4 — Strict mode (card left) -->
       <div class="scene clip" id="s4" data-start="10.2" data-duration="3.6" data-track-index="4">
-        <div class="card shot" id="s4-card"><img src="assets/history.png" alt="" /></div>
+        <div class="card shot" id="s4-card"><img src="assets/strict.png" alt="" /></div>
         <div class="copy" id="s4-copy">
-          <span class="chip" data-cap="s4.chip">Historique</span>
-          <h1 data-cap="s4.title">Votre progression,<br /><span class="accent">noir sur blanc.</span></h1>
-          <p data-cap="s4.body">Le temps de jeu complet baisse, séance après séance.</p>
+          <span class="chip" data-cap="s4.chip">Mode strict</span>
+          <h1 data-cap="s4.title">Au métronome,<br /><span class="accent">en boucle.</span></h1>
+          <p data-cap="s4.body">Le tempo monte après trois passages propres.</p>
         </div>
       </div>
 
-      <!-- Scene 5 — Brand lockup -->
-      <div class="brand clip" id="s5" data-start="13.6" data-duration="3.8" data-track-index="5">
-        <div class="brand__montage" id="s5-montage">
+      <!-- Scene 5 — History (copy left) -->
+      <div class="scene clip" id="s5" data-start="13.6" data-duration="3.6" data-track-index="5">
+        <div class="copy" id="s5-copy">
+          <span class="chip" data-cap="s5.chip">Historique</span>
+          <h1 data-cap="s5.title">Votre progression,<br /><span class="accent">noir sur blanc.</span></h1>
+          <p data-cap="s5.body">Chaque passage en entier, chronométré et daté.</p>
+        </div>
+        <div class="card shot" id="s5-card"><img src="assets/history.png" alt="" /></div>
+      </div>
+
+      <!-- Scene 6 — Brand lockup -->
+      <div class="brand clip" id="s6" data-start="17.0" data-duration="3.8" data-track-index="6">
+        <div class="brand__montage" id="s6-montage">
           <img src="assets/library.png" alt="" />
           <img src="assets/score-feedback.png" alt="" />
         </div>
-        <div class="brand__lockup" id="s5-lockup">
+        <div class="brand__lockup" id="s6-lockup">
           <img src="assets/favicon.svg" alt="" />
           <span>Arabesque</span>
         </div>
-        <h2 id="s5-tag" data-cap="brand.tag">Travaillez votre piano avec un retour en temps réel.</h2>
-        <div class="brand__cta" id="s5-cta" data-cap="brand.cta">Commencer à jouer</div>
+        <h2 id="s6-tag" data-cap="brand.tag">Travaillez votre piano avec un retour en temps réel.</h2>
+        <div class="brand__cta" id="s6-cta" data-cap="brand.cta">Commencer à jouer</div>
       </div>
     </div>
 
@@ -190,12 +200,13 @@
       window.__timelines = window.__timelines || {}
       const tl = gsap.timeline({ paused: true })
 
-      // Four content scenes share the same entrance/hold/exit choreography.
+      // Five content scenes share the same entrance/hold/exit choreography.
       const SCENES = [
         { id: "s1", t: 0.0, dx: 120 },
         { id: "s2", t: 3.4, dx: -120 },
         { id: "s3", t: 6.8, dx: 120 },
         { id: "s4", t: 10.2, dx: -120 },
+        { id: "s5", t: 13.6, dx: 120 },
       ]
       SCENES.forEach((sc) => {
         const first = sc.id === "s1"
@@ -209,14 +220,14 @@
       })
 
       // Brand scene
-      const b = 13.6
-      tl.fromTo("#s5", { opacity: 0 }, { opacity: 1, duration: 0.5, ease: "power2.out" }, b + 0.05)
-      tl.fromTo("#s5-montage", { opacity: 0, scale: 1.12 }, { opacity: 0.5, scale: 1.04, duration: 1.2, ease: "power2.out" }, b + 0.1)
-      tl.fromTo("#s5-lockup", { y: 40, opacity: 0 }, { y: 0, opacity: 1, duration: 0.7, ease: "power3.out" }, b + 0.3)
-      tl.fromTo("#s5-tag", { y: 44, opacity: 0 }, { y: 0, opacity: 1, duration: 0.7, ease: "power3.out" }, b + 0.48)
-      tl.fromTo("#s5-cta", { y: 36, opacity: 0, scale: 0.94 }, { y: 0, opacity: 1, scale: 1, duration: 0.6, ease: "back.out(1.7)" }, b + 0.68)
-      tl.to("#s5-montage", { opacity: 0.28, duration: 1.6, ease: "sine.inOut" }, b + 1.3)
-      tl.to("#s5", { opacity: 0, duration: 0.7, ease: "power2.inOut" }, b + 3.1)
+      const b = 17.0
+      tl.fromTo("#s6", { opacity: 0 }, { opacity: 1, duration: 0.5, ease: "power2.out" }, b + 0.05)
+      tl.fromTo("#s6-montage", { opacity: 0, scale: 1.12 }, { opacity: 0.5, scale: 1.04, duration: 1.2, ease: "power2.out" }, b + 0.1)
+      tl.fromTo("#s6-lockup", { y: 40, opacity: 0 }, { y: 0, opacity: 1, duration: 0.7, ease: "power3.out" }, b + 0.3)
+      tl.fromTo("#s6-tag", { y: 44, opacity: 0 }, { y: 0, opacity: 1, duration: 0.7, ease: "power3.out" }, b + 0.48)
+      tl.fromTo("#s6-cta", { y: 36, opacity: 0, scale: 0.94 }, { y: 0, opacity: 1, scale: 1, duration: 0.6, ease: "back.out(1.7)" }, b + 0.68)
+      tl.to("#s6-montage", { opacity: 0.28, duration: 1.6, ease: "sine.inOut" }, b + 1.3)
+      tl.to("#s6", { opacity: 0, duration: 0.7, ease: "power2.inOut" }, b + 3.1)
 
       window.__timelines["main"] = tl
     </script>
