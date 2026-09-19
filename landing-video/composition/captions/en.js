@@ -12,7 +12,7 @@ export default {
   's3.body': 'Each bar repeats until you’ve mastered it.',
   's4.chip': 'History',
   's4.title': 'Your progress,<br /><span class="accent">in black and white.</span>',
-  's4.body': 'Your full run-through time drops, session after session.',
+  's4.body': 'Every full run-through, timed and dated.',
   'brand.tag': 'Practise the piano with real-time feedback.',
   'brand.cta': 'Start playing',
 }

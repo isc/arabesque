@@ -27,6 +27,10 @@ landing-video/
 ## Prerequisites
 
 - Node 22+ and FFmpeg (`ffmpeg -version`)
+- The Inter font installed (`fonts-inter` on Debian/Ubuntu). The capture puts it
+  first in the app's UI font stack, so a Linux run doesn't come out in DejaVu.
+  `app.rb` isn't required either: any static server of `public/` on port 4567
+  (`cd public && python3 -m http.server 4567`) does.
 - `npm install` here, then `npx playwright install chromium`
   (or set `PT_CHROMIUM=/path/to/Chromium` to reuse an existing binary)
 - A practice history, either:

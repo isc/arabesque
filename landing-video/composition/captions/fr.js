@@ -12,7 +12,7 @@ export default {
   's3.body': 'Chaque mesure se répète jusqu\'à la maîtrise.',
   's4.chip': 'Historique',
   's4.title': 'Votre progression,<br /><span class="accent">noir sur blanc.</span>',
-  's4.body': 'Le temps de jeu complet baisse, séance après séance.',
+  's4.body': 'Chaque passage en entier, chronométré et daté.',
   'brand.tag': 'Travaillez votre piano avec un retour en temps réel.',
   'brand.cta': 'Commencer à jouer',
 }
