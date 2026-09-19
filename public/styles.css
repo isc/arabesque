@@ -2123,7 +2123,7 @@ img[id^="cursorImg"] { scroll-margin-top: var(--pt-sticky-offset, 100px); }
 }
 .pt-section__cta { display: flex; justify-content: center; margin-top: var(--pt-space-8); }
 .pt-section__cta a[role="button"] { margin: 0; }
-.pt-section__store { text-align: center; margin: var(--pt-space-4) 0 0; }
+.pt-section__store { text-align: center; margin: var(--pt-space-4) 0 0; color: var(--pt-text-muted); }
 .pt-hero__visual {
   display: block;
   width: 100%;
