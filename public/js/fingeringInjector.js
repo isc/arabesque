@@ -3,6 +3,23 @@ function getElementInt(parent, tagName, defaultValue) {
   return el ? parseInt(el.textContent, 10) : defaultValue
 }
 
+// The name a fingering is stored under: the measure as the XML numbers it, the
+// staff and voice 0-based, and how many pitched notes of that staff and voice
+// the measure has already spent. `counters` is one Map per measure, and every
+// pitched note has to be offered to this function in document order — the
+// index is a running count, so skipping a note shifts every key after it.
+//
+// Exported because scripts/import-fingerings.mjs walks the same MusicXML as
+// text, to write a fingering into a score file rather than over it, and the two
+// walks must name the same note: a promoted fingering that lands one note along
+// is worse than no fingering at all.
+export function nextFingeringKey(counters, measureNumber, staff, voice) {
+  const counterKey = `${staff}:${voice}`
+  const noteIndex = counters.get(counterKey) || 0
+  counters.set(counterKey, noteIndex + 1)
+  return `${measureNumber}:${staff}:${voice}:${noteIndex}`
+}
+
 // Returns whatever costs least to hand to osmd.load(), which accepts either a
 // MusicXML string or an already-parsed Document: the untouched string when
 // there is nothing to inject, and otherwise the Document this function had to
@@ -29,11 +46,7 @@ export function injectFingerings(xmlString, fingerings) {
         const staff = getElementInt(note, 'staff', 1) - 1
         const voice = getElementInt(note, 'voice', 1) - 1
 
-        const counterKey = `${staff}:${voice}`
-        const noteIndex = noteCounters.get(counterKey) || 0
-        noteCounters.set(counterKey, noteIndex + 1)
-
-        const fingeringKey = `${measureNumber}:${staff}:${voice}:${noteIndex}`
+        const fingeringKey = nextFingeringKey(noteCounters, measureNumber, staff, voice)
         if (fingerings[fingeringKey] !== undefined) {
           injectFingeringIntoNote(doc, note, fingerings[fingeringKey])
         }
