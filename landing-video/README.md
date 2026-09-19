@@ -7,12 +7,15 @@ app**, captured with Playwright while driving the app's own MIDI engine.
 
 Only the final MP4 + poster are committed (under `public/`). The intermediate
 screenshots live in `composition/assets/` and are **gitignored** — they're
-derived from a personal practice-data backup, and regenerable from it.
+derived from a real practice history, and regenerable from it. That history is
+fetched from Supabase (what cloud sync keeps), so any checkout with the
+Management API token can rebuild the video.
 
 ```
 landing-video/
   capture/
     lib.mjs            shared Playwright helpers (launch, openScore, mock-MIDI cookie)
+    fetch-backup.mjs   practice history from Supabase → .work/backup.json (gitignored)
     build-assets.mjs   seed the app from a backup, capture every screenshot
   composition/
     index.html         the HyperFrames composition (5 scenes + GSAP timeline)
@@ -26,8 +29,16 @@ landing-video/
 - Node 22+ and FFmpeg (`ffmpeg -version`)
 - `npm install` here, then `npx playwright install chromium`
   (or set `PT_CHROMIUM=/path/to/Chromium` to reuse an existing binary)
-- A backup export: in the app, **Bibliothèque → ⚙️ Gestion des données →
-  Exporter sauvegarde**. It lands in `~/Downloads/arabesque-backup-*.json`.
+- A practice history, either:
+  - `npm run backup` — reads the synced sessions from Supabase with the
+    Management API token (`~/.supabase/access-token`, see
+    `scripts/lib/supabase.mjs`). Takes the account with the most sessions on the
+    `main` profile; `-- --email <e> --profile <id>` picks another.
+  - or an export from the app (**⚙️ → Gestion des données → Exporter
+    sauvegarde**), passed as `PT_BACKUP=~/Downloads/arabesque-backup-*.json`.
+
+  Aggregates are rebuilt from the sessions after the import either way, so
+  statuses follow the current rules.
 
 ## Regenerate
 
@@ -42,12 +53,13 @@ language and pointing `caps.active.js` at the matching caption catalog.
 bundle exec ruby app.rb            # serves http://localhost:4567
 
 cd landing-video && npm install
+npm run backup                     # once, not per language
 
 # 2. Point the composition at this language's captions
 echo "export { default as CAPS } from './captions/en.js'" > composition/caps.active.js
 
 # 3. Capture the app states (in that language) into composition/assets/
-PT_LANG=en PT_BACKUP=~/Downloads/arabesque-backup-*.json npm run capture
+PT_LANG=en npm run capture
 
 # 4. Render (composition/renders/*.mp4)
 npm run render
