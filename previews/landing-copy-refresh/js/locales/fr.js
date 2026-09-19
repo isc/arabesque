@@ -384,7 +384,7 @@ export default {
     heroLead:
       "Connectez votre clavier MIDI, ouvrez une partition et jouez. Chaque note se colore selon que vous l'avez réussie, manquée ou anticipée — et votre progression se note toute seule, mesure après mesure.",
     featuresTitle: 'Tout ce qu’il faut pour pratiquer sérieusement',
-    featuresSubtitle: 'Dans le navigateur ou dans l’app iPhone et iPad. Un compte ne sert qu’à synchroniser vos appareils.',
+    featuresSubtitle: 'Dans le navigateur, sur iPhone et iPad ou installée sur Android. Un compte ne sert qu’à synchroniser vos appareils.',
     f1Title: 'Clavier MIDI en un clic',
     f1Body: 'USB ou Bluetooth. Le navigateur détecte le clavier tout seul ; sur iPad, l’appairage Bluetooth s’ouvre depuis l’app.',
     f2Title: 'Retour note par note',
