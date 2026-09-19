@@ -384,7 +384,7 @@ export default {
     heroLead:
       'Connect your MIDI keyboard, open a score and play. Every note lights up depending on whether you nailed it, missed it or jumped ahead — and your progress is logged on its own, bar after bar.',
     featuresTitle: 'Everything you need to practise seriously',
-    featuresSubtitle: 'In your browser or in the iPhone and iPad app. An account is only for syncing your devices.',
+    featuresSubtitle: 'In your browser, on iPhone and iPad, or installed on Android. An account is only for syncing your devices.',
     f1Title: 'MIDI keyboard in one click',
     f1Body: 'USB or Bluetooth. The browser detects your keyboard on its own; on iPad, Bluetooth pairing opens from the app.',
     f2Title: 'Note-by-note feedback',
