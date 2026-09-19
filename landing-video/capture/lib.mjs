@@ -7,6 +7,9 @@ import path from 'path'
 export const ROOT = path.dirname(fileURLToPath(import.meta.url))
 export const ASSETS = path.resolve(ROOT, '../composition/assets')
 export const WORKDIR = path.resolve(ROOT, '.work') // userdata + recorded clips (gitignored)
+// Where fetch-backup.mjs writes the practice history, and where build-assets.mjs
+// looks for it when PT_BACKUP is not set.
+export const BACKUP_PATH = path.join(WORKDIR, 'backup.json')
 
 export const BASE = process.env.PT_BASE || 'http://localhost:4567'
 export const VIEWPORT = { width: 1280, height: 800 }

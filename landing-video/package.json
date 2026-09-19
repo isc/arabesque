@@ -4,6 +4,7 @@
   "type": "module",
   "description": "Build pipeline for the landing-page hero video (capture app states → HyperFrames → MP4).",
   "scripts": {
+    "backup": "node capture/fetch-backup.mjs",
     "capture": "node capture/build-assets.mjs",
     "render": "cd composition && npm run render",
     "encode": "bash encode.sh"

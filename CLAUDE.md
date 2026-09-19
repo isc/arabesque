@@ -247,6 +247,12 @@ It is committed at `public/video/review-demo.mp4`, and the review notes in
 video. `scripts/demo/README.md` has what a re-film must show and how to
 compress it.
 
+The landing page's hero video (`public/video/hero.{fr,en}.mp4`) is built by
+`landing-video/` — a HyperFrames composition over real app screenshots, seeded
+from the practice history on Supabase (`npm run backup`). Its README has the
+whole run; nothing it needs lives outside the repo except the Supabase token
+and ffmpeg. `tmp/cap/`, if a checkout has one, is a superseded prototype.
+
 `scripts/appstore/push_listing.py` writes the listing itself — description,
 keywords, URLs, categories, age rating, screenshots — through the App Store
 Connect API, from the copy in `scripts/appstore/listing_fr.py`. It never

@@ -1,17 +1,18 @@
 // Seed the app with a practice-data backup, then capture every screenshot the
 // landing hero video needs, writing them into ../composition/assets/.
 //
+//   node capture/build-assets.mjs     # the backup `npm run backup` fetched
 //   PT_BACKUP=~/Downloads/arabesque-backup-YYYY-MM-DD.json \
-//     node capture/build-assets.mjs
+//     node capture/build-assets.mjs   # or an export from the app
 //
 // Requires the app running locally (default http://localhost:4567). See README.
 import fs from 'fs'
 import path from 'path'
-import { launch, openScore, sleep, ASSETS, BASE, ROOT } from './lib.mjs'
+import { launch, openScore, sleep, ASSETS, BACKUP_PATH, BASE, ROOT } from './lib.mjs'
 
-const BACKUP = process.env.PT_BACKUP
-if (!BACKUP || !fs.existsSync(BACKUP)) {
-  console.error('Set PT_BACKUP to an Arabesque backup export (Library → Exporter sauvegarde).')
+const BACKUP = process.env.PT_BACKUP || BACKUP_PATH
+if (!fs.existsSync(BACKUP)) {
+  console.error(`No backup at ${BACKUP}. Run \`npm run backup\` (from Supabase), or set PT_BACKUP to an export.`)
   process.exit(1)
 }
 fs.mkdirSync(ASSETS, { recursive: true })
@@ -47,6 +48,17 @@ await page.goto(`${BASE}/data.html`, { waitUntil: 'networkidle' })
 const imported = page.waitForEvent('dialog')
 await page.setInputFiles('#backup-import', BACKUP)
 await imported
+// An export carries its aggregates, a Supabase fetch has none: rebuild them from
+// the sessions either way, as sync does, so the statuses match today's rules.
+await page.evaluate(async () => {
+  const { initStorage } = await import('/js/storage.js')
+  const { initPracticeTracker } = await import('/js/practiceTracker.js')
+  const { fetchCatalogMeta } = await import('/js/sync.js')
+  const storage = initStorage()
+  await storage.init()
+  const meta = await fetchCatalogMeta()
+  await initPracticeTracker(storage).rebuildAggregates((scoreId) => meta[scoreId] ?? null)
+})
 await page.goto(`${BASE}/library.html`, { waitUntil: 'networkidle' })
 await page.waitForFunction(() => document.querySelectorAll('tbody tr').length > 10)
 await sleep(700)
