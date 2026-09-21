@@ -358,7 +358,7 @@ async function loadMusicXML(file) {
 // with its own floor: at the factor that brings the title down to a sensible 20px,
 // the composer and arranger land on 10px, which is not readable.
 //
-// The font is not ours to change: OSMD 2.1.2 exposes a single DefaultFontFamily,
+// The font is not ours to change: OSMD exposes a single DefaultFontFamily,
 // which also draws dynamics, tempo marks and directions — all of which want the
 // serif they have. Size is the only lever, and it is the one that was wrong.
 const TITLE_RULES = {
@@ -419,13 +419,13 @@ async function renderScore({ reextract = true, afterDraw = null } = {}) {
 // silently does nothing. Clearing the attribute on the group and its tagged descendants lets
 // the click fall through to the visible note below.
 //
-// Ink: a note hidden only because another voice writes the same pitch at the same time — how
-// MuseScore asks for one head to serve both voices — still gets its stem and its beam, which
-// OSMD draws for it since our sharesNoteheadWithVisibleUnisonNote() fix upstream. Where the
-// two heads cannot be merged, that leaves a beam hanging off a bare stem, so the head is
-// inked back in — see unisonNoteheadPair() and areSideBySide(). Choosing the fill belongs
-// upstream too, in the same routine that already spares the stem; reparenting the head does
-// not, since the colouring it buys is ours.
+// Colour: a note hidden only because another voice writes the same pitch at the same time — how
+// MuseScore asks for one head to serve both voices — gets its head, stem and beam from OSMD,
+// inked like the visible note it shares its head with. Where VexFlow gives the two heads places
+// of their own, the hidden one moves into the visible note's notehead group — see
+// unisonNoteheadPair() — so our played/active colouring reaches it. Where it merges them, OSMD
+// inks the hidden head anyway, on top of the visible one: a filled eighth over an open half note
+// reads as a quarter (Liebestraum bar 42). That head goes back to transparent — see areSideBySide().
 function fixUpInvisibleNotes() {
   const groups = []
   const pairs = []
@@ -451,7 +451,7 @@ function fixUpInvisibleNotes() {
   // Measure before touching anything: a getBBox() that follows a DOM write forces a layout
   // flush, and one per hidden note would re-lay the whole score dozens of times over. Same
   // read-then-write split as alignFingeringLabelsToNoteheads().
-  const toReveal = pairs.filter(areSideBySide)
+  const sideBySide = pairs.map(areSideBySide)
 
   for (const group of groups) {
     group.setAttribute('pointer-events', 'none')
@@ -460,39 +460,27 @@ function fixUpInvisibleNotes() {
   // The head moves into the visible note's notehead group so the played/active colouring
   // reaches it: the CSS paints every path inside the group, so both heads light up together
   // under the single keypress that validates the pitch.
-  for (const { hiddenPath, visibleHead, visiblePath } of toReveal) {
-    hiddenPath.setAttribute('fill', visiblePath.getAttribute('fill'))
-    visibleHead.appendChild(hiddenPath)
-  }
+  pairs.forEach(({ hiddenPath, visibleHead }, i) => {
+    if (sideBySide[i]) visibleHead.appendChild(hiddenPath)
+    else hiddenPath.setAttribute('fill', '#00000000')
+  })
 }
 
-// The head of an invisible note and the head of the visible unison it hides behind, or null
-// when the note is not one of those unisons — OSMD's own sharesNoteheadWithVisibleUnisonNote()
-// decides that, the predicate our upstream fix added and draws the stem and beam from. Only a
-// beamed note has ink to account for: an unbeamed one keeps its stem and flag transparent, and
-// a head on its own would be a note nobody plays.
+// The head of an invisible note and the notehead group of the visible unison it hides behind,
+// or null when the note is not one of those unisons — OSMD's visibleUnisonNoteSharingNotehead()
+// decides that, and inks the head from it. Only a beamed note gets a head: an unbeamed one
+// keeps its stem and flag transparent, and a head on its own would be a note nobody plays.
 function unisonNoteheadPair(note, noteheadIndex) {
-  if (!note.NoteBeam || !note.sharesNoteheadWithVisibleUnisonNote?.()) return null
+  if (!note.NoteBeam) return null
+  const partner = note.visibleUnisonNoteSharingNotehead?.()
+  if (!partner) return null
   const hiddenPath = svgNotehead({ note, noteheadIndex })?.querySelector('path')
-  const visibleHead = visibleUnisonNotehead(note)
+  const visibleHead = svgNotehead({
+    note: partner,
+    noteheadIndex: partner.ParentVoiceEntry.Notes.indexOf(partner),
+  })
   const visiblePath = visibleHead?.querySelector('path')
   return hiddenPath && visiblePath ? { hiddenPath, visibleHead, visiblePath } : null
-}
-
-// The rendered notehead of the visible note another voice writes at the same pitch in the same
-// staff entry — the one MuseScore means to serve both voices.
-function visibleUnisonNotehead(note) {
-  for (const other of note.ParentStaffEntry?.VoiceEntries ?? []) {
-    if (other === note.ParentVoiceEntry || other.IsGrace) continue
-    const noteheadIndex = (other.Notes ?? []).findIndex(
-      (candidate) =>
-        candidate.PrintObject &&
-        candidate.Pitch?.FundamentalNote === note.Pitch.FundamentalNote &&
-        candidate.Pitch?.Octave === note.Pitch.Octave,
-    )
-    if (noteheadIndex >= 0) return svgNotehead({ note: other.Notes[noteheadIndex], noteheadIndex })
-  }
-  return null
 }
 
 // Whether VexFlow gave the two heads places of their own rather than merging them into one.
@@ -502,38 +490,6 @@ function areSideBySide({ hiddenPath, visiblePath }) {
   const boxes = getBoundingBoxesForNotes([hiddenPath, visiblePath])
   // A head that cannot be measured (a detached or hidden SVG) is one we leave hidden.
   return boxes.length === 2 && Math.abs(boxes[0].x - boxes[1].x) >= 1
-}
-
-// OSMD finds the graphical note at each end of a tie by pitch and timestamp alone, taking the
-// first head of the staff entry that matches. When another voice writes the same pitch at the
-// same time and hides it — MuseScore's way of letting one head serve both voices — that first
-// match can be the hidden note, and handleTie then drops the segment, since it draws no tie to
-// an invisible note. In BWV 847 bar 35 the held bass C lost its first tie that way. The tie's
-// own note is looked up first; the pitch match stays as the fallback for anything else.
-// The staff entry class is not exported, so the patch goes onto its prototype from the first
-// handleTie call, which is handed an instance — before any tie of the first render is drawn.
-// A stopgap for GraphicalStaffEntry.findTieGraphicalNoteFromNote in stock OSMD 2.1.2: drop it
-// once a release carries the upstream fix,
-// https://github.com/opensheetmusicdisplay/opensheetmusicdisplay/pull/1731.
-let tieLookupHooked = false
-function matchTiesToTheirOwnNotes(calculator) {
-  if (tieLookupHooked) return
-  tieLookupHooked = true
-  const calculatorPrototype = Object.getPrototypeOf(calculator)
-  calculatorPrototype.handleTie = function (tie, staffEntry, ...rest) {
-    if (staffEntry) {
-      const entryPrototype = Object.getPrototypeOf(staffEntry)
-      const findByPitch = entryPrototype.findTieGraphicalNoteFromNote
-      entryPrototype.findTieGraphicalNoteFromNote = function (note) {
-        const own = this.graphicalVoiceEntries
-          .flatMap((voiceEntry) => voiceEntry.notes)
-          .find((graphicalNote) => graphicalNote.sourceNote === note)
-        return own ?? findByPitch.call(this, note)
-      }
-      delete calculatorPrototype.handleTie
-    }
-    return this.handleTie(tie, staffEntry, ...rest)
-  }
 }
 
 async function renderMusicXML(xmlContent) {
@@ -550,7 +506,6 @@ async function renderMusicXML(xmlContent) {
     })
     osmd.rules.MetronomeMarkYShift = -2.8;
     await osmd.load(xmlContent)
-    matchTiesToTheirOwnNotes(osmd.graphic.GetCalculator)
     stripPlaybackTempoMarks(osmd.Sheet.SourceMeasures)
     osmdInstance = osmd
     window.osmdInstance = osmd

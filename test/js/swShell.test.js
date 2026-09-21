@@ -22,7 +22,7 @@ describe('the service worker shell', () => {
     expect(shell).toContain('js/version.js')
     expect(shell).toContain('js/swRegister.js')
     expect(shell).toContain('js/locales/fr.js')
-    expect(shell).toContain('vendor/opensheetmusicdisplay.2.1.2.min.js')
+    expect(shell).toContain('vendor/opensheetmusicdisplay.2.1.3.min.js')
     // Without the catalog, the library opens offline with no scores in it.
     expect(shell).toContain('data/scores.json')
     expect(shell).toContain('data/fingerprints.json')
