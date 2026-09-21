@@ -115,13 +115,13 @@ class LibraryTest < CapybaraTestBase
   def test_search_filters_scores_by_multiple_words_in_any_order
     # Test "Bach INV"
     fill_in 'Rechercher une partition', with: 'Bach INV'
-    assert_selector 'tbody tr', count: 3
+    assert_selector 'tbody tr', count: 4
     assert_selector 'tr td', text: 'Invention'
     assert_selector 'tr td', text: 'J.S. Bach'
 
     # Test "INV Bach" - word order doesn't matter
     fill_in 'Rechercher une partition', with: 'INV Bach'
-    assert_selector 'tbody tr', count: 3
+    assert_selector 'tbody tr', count: 4
   end
 
   private
