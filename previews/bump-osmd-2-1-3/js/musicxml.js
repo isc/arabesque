@@ -426,6 +426,9 @@ async function renderScore({ reextract = true, afterDraw = null } = {}) {
 // unisonNoteheadPair() — so our played/active colouring reaches it. Where it merges them, OSMD
 // inks the hidden head anyway, on top of the visible one: a filled eighth over an open half note
 // reads as a quarter (Liebestraum bar 42). That head goes back to transparent — see areSideBySide().
+// A stopgap for OSMD 2.1.3: once a release carries the upstream fix,
+// https://github.com/opensheetmusicdisplay/opensheetmusicdisplay/pull/1732, OSMD leaves that head
+// transparent itself and the else branch below has nothing left to do.
 function fixUpInvisibleNotes() {
   const groups = []
   const pairs = []
