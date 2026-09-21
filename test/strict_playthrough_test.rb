@@ -388,6 +388,39 @@ class StrictPlaythroughTest < CapybaraTestBase
     assert_no_text 'fausses notes'
   end
 
+  # A trill on a tied note lasts as long as the sound does: into the next
+  # bar and to the end of the tie, not only through the first notehead — and
+  # the other hand goes on meanwhile.
+  def test_a_trill_on_a_tied_note_alternates_to_the_end_of_the_tie
+    load_score('tied-trill.xml', 11)
+    start_strict_mode
+
+    with_clock_control do
+      trigger_click_on('▶ Démarrer')
+
+      # Right hand: C5, a whole note tied into a half (3s at 120 BPM), trilled,
+      # then E5. Left hand: a quarter every 500ms from the first beat.
+      advance_clock(2000)
+      assert_selector 'svg g.vf-notehead.expected-note', minimum: 1, wait: 4
+      play_notes(%w[C5 C3 D5 C5])
+      { 'D3' => %w[D5 C5], 'E3' => %w[D5 C5], 'F3' => %w[D5 C5], 'G3' => %w[D5 C5], 'A3' => %w[D5 C5] }.each do |left, trill|
+        advance_clock(500)
+        play_notes([left] + trill)
+      end
+
+      advance_clock(500)
+      play_notes(%w[E5 B3])
+      advance_clock(500)
+      play_note('C4')
+
+      advance_clock(1000)
+      assert_text 'Playthrough strict terminé', wait: 2
+    end
+
+    assert_text '100%'
+    assert_no_text 'fausse'
+  end
+
   private
 
   def score_top
