@@ -21,6 +21,15 @@ class InvisibleNotesTest < CapybaraTestBase
     assert_selector 'svg g.vf-notehead.played-note path', count: 2
   end
 
+  def test_a_hidden_note_whose_head_is_merged_with_its_unison_stays_invisible
+    load_score('hidden-unison-merged-notehead.xml', 7)
+
+    # Eight notes, seven heads with ink: VexFlow put the hidden quaver's head right on the
+    # dotted minim's, and inking it would fill the minim's open head. OSMD inks it anyway.
+    assert_selector 'svg g.vf-notehead path:not([fill="#00000000"])', count: 7
+    assert_selector 'svg g.vf-notehead path[fill="#00000000"]', count: 1
+  end
+
   def test_a_hidden_note_with_no_unison_to_stand_in_for_it_stays_invisible
     # The Pathétique's gruppetto: the turn's realized notes are written as hidden notes
     # in a second voice, and nothing visible sounds with them. They must stay unseen --
