@@ -901,6 +901,23 @@ function repeatIndicatorsTopY(measureIndex) {
   return svgYToViewport(top, measured.svg)
 }
 
+const isTrillPitch = (sentinel, midiNote) => midiNote === sentinel.trillMidi || midiNote === sentinel.trillUpperMidi
+
+// Whether `midiNote` belongs to a trill still sounding at `timestamp` — which
+// covers whatever the other hand plays meanwhile. See trillSentinel.
+function isTrillStillSounding(notes, midiNote, timestamp) {
+  return notes.some(
+    (n) => n.isTrillEnd && isTrillPitch(n, midiNote) && n.trillFrom <= timestamp && timestamp < n.trillUntil,
+  )
+}
+
+// Where the player is in the measure: the latest note validated, or the note
+// due when none is yet.
+function lastValidatedTimestamp(notes, expectedTimestamp) {
+  const latest = notes.reduce((max, n) => (n.played ? Math.max(max, n.timestamp) : max), -Infinity)
+  return latest === -Infinity ? expectedTimestamp : latest
+}
+
 // A held key can't be re-struck. A note is covered by a currently-held key when a tie
 // holds that pitch across this timestamp - either the note is itself the tie continuation,
 // or it's a unison with a tie continuation in another voice (e.g. a triplet note on the
@@ -935,8 +952,7 @@ function activateNote(midiNote) {
   // should become one rule; see the note over requiredSequence.
   // The sentinel is consumed when the player presses the next real note after the trill.
   if (expectedNote.isTrillEnd) {
-    const { trillMidi, trillUpperMidi } = expectedNote
-    const isTrillNote = midiNote === trillMidi || midiNote === trillUpperMidi
+    const isTrillNote = isTrillPitch(expectedNote, midiNote)
 
     // Find the next non-sentinel note to decide whether the trill should end
     const nextAfterTrill = activeNotes.find(
@@ -992,6 +1008,11 @@ function activateNote(midiNote) {
   }
 
   if (matchingIndices.length === 0) {
+    // A trill going on is not a wrong note, and advances nothing. It is judged
+    // where the player is, not at the note due next, which may already lie
+    // past the trill's end.
+    if (isTrillStillSounding(activeNotes, midiNote, lastValidatedTimestamp(activeNotes, expectedTimestamp))) return true
+
     // Wrong note - mark repetition as dirty in training mode, and redden its dot
     // right away rather than leaving the player to discover at the bar line that
     // it won't fill. Only the first wrong note of a repetition changes anything.

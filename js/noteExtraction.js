@@ -206,12 +206,46 @@ const DELAYED_TURN_FILL_WN = 1 / 16
 const notesBefore = (noteData, measureNotes) =>
   measureNotes.filter((n) => n.staffIndex === noteData.staffIndex && n.timestamp < noteData.timestamp)
 
+// A trill written on the first note of a tie goes on through every note tied
+// on from it (bars 19-22 of Bach's fourth invention: a C trilled for three
+// bars while the left hand runs in sixteenths). Each of those notes gets a
+// sentinel of its own rather than one span for the whole chain, because a
+// timestamp is a measure index plus a position in whole notes: a length does
+// not carry across a bar line outside 4/4. This keeps each trill's pitches by
+// tie, for the later measures — expanded one at a time, in order — to find.
+const trilledTies = new WeakMap()
+
+const ORNAMENT_NOTE_OFFSET = 0.00001
+
+// A trill sentinel: where free play accepts the trill's two pitches, over the
+// span the note it stands on sounds in its measure (trillFrom-trillUntil, the
+// matcher's isTrillStillSounding). Its own timestamp is offset past the note's
+// so it never shares one with another note — the matcher would wait for both
+// together, and nothing presses a sentinel.
+function trillSentinel(noteData, trillPitches, offsetSteps, noteheadIndex) {
+  return {
+    ...noteData,
+    timestamp: noteData.timestamp + offsetSteps * ORNAMENT_NOTE_OFFSET,
+    isTrillEnd: true,
+    ...trillPitches,
+    trillFrom: noteData.timestamp,
+    trillUntil: noteData.timestamp + (noteData.note?.Length?.RealValue ?? 0),
+    noteheadIndex,
+  }
+}
+
 // Expand ornament notes (turns, mordents, and trills) into their constituent notes
 export function expandOrnamentNotes(measureNotes, fifths = 0) {
-  const ORNAMENT_NOTE_OFFSET = 0.00001
   const expandedNotes = []
 
   for (const noteData of measureNotes) {
+    // A tied note under a trill is the trill going on, not a key to hold.
+    const trillPitches = noteData.isTieContinuation && trilledTies.get(noteData.note?.NoteTie)
+    if (trillPitches) {
+      expandedNotes.push(trillSentinel(noteData, trillPitches, 1, noteData.noteheadIndex))
+      continue
+    }
+
     const ornamentContainer = noteData.voiceEntry?.OrnamentContainer
     const pitch = noteData.note?.pitch
     const ornamentInfo = ornamentContainer
@@ -249,10 +283,14 @@ export function expandOrnamentNotes(measureNotes, fifths = 0) {
     // again; the turn proper still is, and falls due when the held principal
     // gives way to it.
     const tied = delayed && noteData.isTieContinuation
+    // The note being decorated ends where its sound does: at the end of the
+    // tie it starts, if it starts one.
+    const tie = noteData.note?.NoteTie
+    const startsTie = tie && !noteData.isTieContinuation
     const ornamentAsk = {
       sequence: tied ? sequence.slice(1) : sequence,
       delayTs: tied ? turnDelay : 0,
-      holdTs: parentDurationWN,
+      holdTs: startsTie ? tie.Duration.RealValue : parentDurationWN,
       alternating: flag === 'isTrillNote',
     }
 
@@ -292,14 +330,9 @@ export function expandOrnamentNotes(measureNotes, fifths = 0) {
 
     // Trills get a sentinel note that allows free alternation until the next real note
     if (flag === 'isTrillNote') {
-      expandedNotes.push({
-        ...noteData,
-        timestamp: noteData.timestamp + sequence.length * ORNAMENT_NOTE_OFFSET,
-        isTrillEnd: true,
-        trillMidi: sequence[0],
-        trillUpperMidi: sequence[1],
-        noteheadIndex: -1,
-      })
+      const trillPitches = { trillMidi: sequence[0], trillUpperMidi: sequence[1] }
+      expandedNotes.push(trillSentinel(noteData, trillPitches, sequence.length, -1))
+      if (startsTie) trilledTies.set(tie, trillPitches)
     }
   }
 
