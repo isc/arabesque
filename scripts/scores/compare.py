@@ -155,8 +155,9 @@ class Score(Source):
         elif p is not None:
             midi = 12 * (int(text(p, 'octave')) + 1) + STEPS[text(p, 'step')] + int(float(text(p, 'alter') or 0)) + transpose
             self.counts['notes'] += 1
-            # A tie's continuation is the same sound held: count it once.
-            if el.find('tie[@type="start"]') is not None or el.find('tie[@type="stop"]') is None:
+            # A tie's continuation is the same sound held, even when it ties on
+            # again into the next bar: only the attack counts.
+            if el.find('tie[@type="stop"]') is None:
                 self.notes[mi].append((onset, midi, staff, (pi, text(el, 'voice') or '1')))
         if chord or grace:
             return t, last_onset
