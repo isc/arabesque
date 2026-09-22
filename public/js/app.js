@@ -1270,6 +1270,7 @@ export function midiApp() {
     updateActiveHands() {
       musicxml.setActiveHands(this.activeHands)
       strictPlaythrough.setActiveHands(this.activeHands)
+      practiceTracker.setActiveHands(this.activeHands)
     },
 
     async openScoreHistory() {
