@@ -133,6 +133,10 @@ export function initMusicXML() {
     setCallbacks,
     setActiveHands: (hands) => {
       activeHands = { ...activeHands, ...hands }
+      // The measure under way starts over with the new hands: a hand ticked
+      // back would otherwise owe every note it missed since the downbeat, the
+      // other hand's already green and unplayable again.
+      resetNotesFromIndex(currentMeasureIndex, currentMeasureIndex)
       // Dropping a hand can leave the cursor on a measure only that hand plays.
       const landing = cursorMeasureFor(currentMeasureIndex)
       if (landing === currentMeasureIndex) return
