@@ -2,6 +2,7 @@
 export default {
   common: {
     openLibrary: 'Open the library',
+    appStore: 'Arabesque for iPhone and iPad, on the App Store',
     close: 'Close',
     cancel: 'Cancel',
     privacy: 'Privacy',
@@ -383,9 +384,9 @@ export default {
     heroLead:
       'Connect your MIDI keyboard, open a score and play. Every note lights up depending on whether you nailed it, missed it or jumped ahead — and your progress is logged on its own, bar after bar.',
     featuresTitle: 'Everything you need to practise seriously',
-    featuresSubtitle: 'A practice workshop in your browser — no install, no account.',
+    featuresSubtitle: 'In your browser, on iPhone and iPad, or installed on Android. An account is only for syncing your devices.',
     f1Title: 'MIDI keyboard in one click',
-    f1Body: 'USB or Bluetooth over Web MIDI. Your keyboard is detected automatically — nothing to configure.',
+    f1Body: 'USB or Bluetooth. The browser detects your keyboard on its own; on iPad, Bluetooth pairing opens from the app.',
     f2Title: 'Note-by-note feedback',
     f2Body:
       'Notes colour in live: nailed, expected, off-tempo or missed. You see your mistakes without looking up.',
@@ -394,25 +395,35 @@ export default {
       'Practice time, reworked bars and full run-throughs are all logged in a daily journal.',
     f4Title: 'Practice modes',
     f4Body:
-      'Free sight-reading, bar-by-bar training, or strict mode with no wrong notes: pick how demanding you want it.',
+      'Free sight-reading, training on a passage, or strict mode to the metronome, looped, the tempo rising with every clean run.',
     f5Title: 'Built-in fingerings',
     f5Body:
       'Show and edit fingerings right on the score, stacked in pitch order for chords.',
     f6Title: 'Classical library',
     f6Body:
       '70+ public-domain scores, from Bach inventions to Hanon, searchable by playing their opening notes.',
+    f7Title: 'Listen before you play',
+    f7Body:
+      '▶ Listen plays the piece at the tempo you pick, from any bar you choose.',
+    f8Title: 'Offline, on all your devices',
+    f8Body:
+      'A score opened once stays available without a network. Signed in, your practice follows you from iPad to phone.',
+    f9Title: 'A profile per pianist',
+    f9Body:
+      'On a shared device, everyone keeps their own journal, statuses and fingerings.',
     howTitle: 'How to get started',
     howSubtitle: 'Three steps, and you’re playing.',
     step1Title: 'Connect your keyboard',
     step1Body:
-      'Connect a MIDI keyboard over USB or Bluetooth and allow access when the browser asks. No keyboard? You can still follow the score on screen.',
+      'Connect a MIDI keyboard over USB or Bluetooth: allow access when the browser asks, or pair it from the app on iPad. No keyboard? You can still follow the score on screen.',
     step2Title: 'Pick a score',
     step2Body:
       'Choose from the library, or drop your own MusicXML file (<code>.xml</code>, <code>.mxl</code>) straight onto the page.',
     step3Title: 'Play and progress',
     step3Body:
       'Follow the scrolling notes, let the real-time feedback guide you, and find your progress in the practice journal.',
-    footer: 'Arabesque · public-domain scores · your data stays in your browser.',
+    android: 'On Android, open the library in Chrome, then ⚙️ → Install the app.',
+    footer: 'Arabesque · public-domain scores · your data stays on your device unless you sync it.',
   },
   privacy: {
     pageTitle: 'Arabesque · Privacy',

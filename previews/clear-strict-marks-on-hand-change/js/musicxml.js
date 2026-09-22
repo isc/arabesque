@@ -9,7 +9,7 @@ import {
   svgNoteheadFor,
   carryOverNoteStates,
 } from './noteExtraction.js'
-import { scrollSystemIntoView } from './utils.js'
+import { scrollSystemIntoView, isUnderStickyBars } from './utils.js'
 import { arrayBufferToXml, isMusicXml } from './mxlLoader.js'
 import { stripPlaybackTempoMarks } from './tempoMarks.js'
 import { t } from './i18n.js'
@@ -358,7 +358,7 @@ async function loadMusicXML(file) {
 // with its own floor: at the factor that brings the title down to a sensible 20px,
 // the composer and arranger land on 10px, which is not readable.
 //
-// The font is not ours to change: OSMD 2.1.2 exposes a single DefaultFontFamily,
+// The font is not ours to change: OSMD exposes a single DefaultFontFamily,
 // which also draws dynamics, tempo marks and directions — all of which want the
 // serif they have. Size is the only lever, and it is the one that was wrong.
 const TITLE_RULES = {
@@ -419,13 +419,16 @@ async function renderScore({ reextract = true, afterDraw = null } = {}) {
 // silently does nothing. Clearing the attribute on the group and its tagged descendants lets
 // the click fall through to the visible note below.
 //
-// Ink: a note hidden only because another voice writes the same pitch at the same time — how
-// MuseScore asks for one head to serve both voices — still gets its stem and its beam, which
-// OSMD draws for it since our sharesNoteheadWithVisibleUnisonNote() fix upstream. Where the
-// two heads cannot be merged, that leaves a beam hanging off a bare stem, so the head is
-// inked back in — see unisonNoteheadPair() and areSideBySide(). Choosing the fill belongs
-// upstream too, in the same routine that already spares the stem; reparenting the head does
-// not, since the colouring it buys is ours.
+// Colour: a note hidden only because another voice writes the same pitch at the same time — how
+// MuseScore asks for one head to serve both voices — gets its head, stem and beam from OSMD,
+// inked like the visible note it shares its head with. Where VexFlow gives the two heads places
+// of their own, the hidden one moves into the visible note's notehead group — see
+// unisonNoteheadPair() — so our played/active colouring reaches it. Where it merges them, OSMD
+// inks the hidden head anyway, on top of the visible one: a filled eighth over an open half note
+// reads as a quarter (Liebestraum bar 42). That head goes back to transparent — see areSideBySide().
+// A stopgap for OSMD 2.1.3: once a release carries the upstream fix,
+// https://github.com/opensheetmusicdisplay/opensheetmusicdisplay/pull/1732, OSMD leaves that head
+// transparent itself and the else branch below has nothing left to do.
 function fixUpInvisibleNotes() {
   const groups = []
   const pairs = []
@@ -451,7 +454,7 @@ function fixUpInvisibleNotes() {
   // Measure before touching anything: a getBBox() that follows a DOM write forces a layout
   // flush, and one per hidden note would re-lay the whole score dozens of times over. Same
   // read-then-write split as alignFingeringLabelsToNoteheads().
-  const toReveal = pairs.filter(areSideBySide)
+  const sideBySide = pairs.map(areSideBySide)
 
   for (const group of groups) {
     group.setAttribute('pointer-events', 'none')
@@ -460,39 +463,27 @@ function fixUpInvisibleNotes() {
   // The head moves into the visible note's notehead group so the played/active colouring
   // reaches it: the CSS paints every path inside the group, so both heads light up together
   // under the single keypress that validates the pitch.
-  for (const { hiddenPath, visibleHead, visiblePath } of toReveal) {
-    hiddenPath.setAttribute('fill', visiblePath.getAttribute('fill'))
-    visibleHead.appendChild(hiddenPath)
-  }
+  pairs.forEach(({ hiddenPath, visibleHead }, i) => {
+    if (sideBySide[i]) visibleHead.appendChild(hiddenPath)
+    else hiddenPath.setAttribute('fill', '#00000000')
+  })
 }
 
-// The head of an invisible note and the head of the visible unison it hides behind, or null
-// when the note is not one of those unisons — OSMD's own sharesNoteheadWithVisibleUnisonNote()
-// decides that, the predicate our upstream fix added and draws the stem and beam from. Only a
-// beamed note has ink to account for: an unbeamed one keeps its stem and flag transparent, and
-// a head on its own would be a note nobody plays.
+// The head of an invisible note and the notehead group of the visible unison it hides behind,
+// or null when the note is not one of those unisons — OSMD's visibleUnisonNoteSharingNotehead()
+// decides that, and inks the head from it. Only a beamed note gets a head: an unbeamed one
+// keeps its stem and flag transparent, and a head on its own would be a note nobody plays.
 function unisonNoteheadPair(note, noteheadIndex) {
-  if (!note.NoteBeam || !note.sharesNoteheadWithVisibleUnisonNote?.()) return null
+  if (!note.NoteBeam) return null
+  const partner = note.visibleUnisonNoteSharingNotehead?.()
+  if (!partner) return null
   const hiddenPath = svgNotehead({ note, noteheadIndex })?.querySelector('path')
-  const visibleHead = visibleUnisonNotehead(note)
+  const visibleHead = svgNotehead({
+    note: partner,
+    noteheadIndex: partner.ParentVoiceEntry.Notes.indexOf(partner),
+  })
   const visiblePath = visibleHead?.querySelector('path')
   return hiddenPath && visiblePath ? { hiddenPath, visibleHead, visiblePath } : null
-}
-
-// The rendered notehead of the visible note another voice writes at the same pitch in the same
-// staff entry — the one MuseScore means to serve both voices.
-function visibleUnisonNotehead(note) {
-  for (const other of note.ParentStaffEntry?.VoiceEntries ?? []) {
-    if (other === note.ParentVoiceEntry || other.IsGrace) continue
-    const noteheadIndex = (other.Notes ?? []).findIndex(
-      (candidate) =>
-        candidate.PrintObject &&
-        candidate.Pitch?.FundamentalNote === note.Pitch.FundamentalNote &&
-        candidate.Pitch?.Octave === note.Pitch.Octave,
-    )
-    if (noteheadIndex >= 0) return svgNotehead({ note: other.Notes[noteheadIndex], noteheadIndex })
-  }
-  return null
 }
 
 // Whether VexFlow gave the two heads places of their own rather than merging them into one.
@@ -618,34 +609,51 @@ function updateMeasureCursor() {
 
   currentRect.classList.add('selected')
 
-  const measureData = allNotes[currentMeasureIndex]
-  if (!measureData?.notes?.length) return
-
-  const noteElements = measureData.notes.map((n) => svgNote(n.note))
-  const svg = noteElements[0]?.ownerSVGElement
-  if (svg) createRepeatIndicators(noteElements, svg)
+  const measured = measureNoteBounds(currentMeasureIndex)
+  if (measured) createRepeatIndicators(measured)
 }
 
-function createRepeatIndicators(noteElements, svg) {
+// The dots are centred over the measure's noteheads, hanging
+// REPEAT_INDICATOR_RISE above the topmost one — so how high they fly is the
+// measure's business, not the staff's: over a bar that climbs above the staff
+// they end up well above the top staff line the autoscroll anchors on, which is
+// what left them under the sticky bars.
+const REPEAT_INDICATOR_RISE = 40
+const REPEAT_INDICATOR_RADIUS = 6
+const REPEAT_INDICATOR_SPACING = 18
+
+// A measure's noteheads as one box in SVG user space, with the SVG holding
+// them. Null when the measure has no notes on the page. The dots are drawn from
+// it and the autoscroll predicts them from it, so both read one geometry.
+function measureNoteBounds(measureIndex) {
+  const notes = allNotes[measureIndex]?.notes
+  if (!notes?.length) return null
+
+  const noteElements = notes.map((n) => svgNote(n.note))
+  const svg = noteElements[0]?.ownerSVGElement
+  if (!svg) return null
+
   const boxes = getBoundingBoxesForNotes(noteElements)
+  if (boxes.length === 0) return null
 
-  if (boxes.length === 0) return
+  return { svg, bounds: calculateCombinedBounds(boxes) }
+}
 
-  const bounds = calculateCombinedBounds(boxes)
+const repeatIndicatorCenterY = (bounds) => bounds.minY - REPEAT_INDICATOR_RISE
+
+function createRepeatIndicators({ svg, bounds }) {
   const centerX = (bounds.minX + bounds.maxX) / 2
-  const circleY = bounds.minY - 40
-  const circleRadius = 6
-  const circleSpacing = 18
+  const circleY = repeatIndicatorCenterY(bounds)
 
   const indicatorsGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g')
   indicatorsGroup.id = 'repeat-indicators'
 
   for (let i = 0; i < targetRepeatCount; i++) {
     const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle')
-    const offsetX = (i - (targetRepeatCount - 1) / 2) * circleSpacing
+    const offsetX = (i - (targetRepeatCount - 1) / 2) * REPEAT_INDICATOR_SPACING
     circle.setAttribute('cx', centerX + offsetX)
     circle.setAttribute('cy', circleY)
-    circle.setAttribute('r', circleRadius)
+    circle.setAttribute('r', REPEAT_INDICATOR_RADIUS)
     circle.className.baseVal = repeatIndicatorClass(i, repeatCount, currentRepetitionIsClean)
     circle.dataset.index = i
     indicatorsGroup.appendChild(circle)
@@ -877,7 +885,37 @@ function scrollToMeasure(measureIndex) {
   // repeat jumped back to the top.
   const note = allNotes[measureIndex]?.notes?.[0]?.note
   const referenceTop = systemTopStaffLineY(note) ?? rect.getBoundingClientRect().top
-  scrollSystemIntoView(referenceTop, rect.ownerSVGElement)
+  scrollSystemIntoView(referenceTop, rect.ownerSVGElement, repeatIndicatorsTopY(measureIndex))
+}
+
+// Viewport y of the top of the dots `measureIndex` carries — predicted from the
+// noteheads rather than read off the SVG, because the scroll is decided before
+// the cursor is drawn there. Null outside training mode, which has no dots.
+function repeatIndicatorsTopY(measureIndex) {
+  if (!trainingMode) return null
+
+  const measured = measureNoteBounds(measureIndex)
+  if (!measured) return null
+
+  const top = repeatIndicatorCenterY(measured.bounds) - REPEAT_INDICATOR_RADIUS
+  return svgYToViewport(top, measured.svg)
+}
+
+const isTrillPitch = (sentinel, midiNote) => midiNote === sentinel.trillMidi || midiNote === sentinel.trillUpperMidi
+
+// Whether `midiNote` belongs to a trill still sounding at `timestamp` — which
+// covers whatever the other hand plays meanwhile. See trillSentinel.
+function isTrillStillSounding(notes, midiNote, timestamp) {
+  return notes.some(
+    (n) => n.isTrillEnd && isTrillPitch(n, midiNote) && n.trillFrom <= timestamp && timestamp < n.trillUntil,
+  )
+}
+
+// Where the player is in the measure: the latest note validated, or the note
+// due when none is yet.
+function lastValidatedTimestamp(notes, expectedTimestamp) {
+  const latest = notes.reduce((max, n) => (n.played ? Math.max(max, n.timestamp) : max), -Infinity)
+  return latest === -Infinity ? expectedTimestamp : latest
 }
 
 // A held key can't be re-struck. A note is covered by a currently-held key when a tie
@@ -914,8 +952,7 @@ function activateNote(midiNote) {
   // should become one rule; see the note over requiredSequence.
   // The sentinel is consumed when the player presses the next real note after the trill.
   if (expectedNote.isTrillEnd) {
-    const { trillMidi, trillUpperMidi } = expectedNote
-    const isTrillNote = midiNote === trillMidi || midiNote === trillUpperMidi
+    const isTrillNote = isTrillPitch(expectedNote, midiNote)
 
     // Find the next non-sentinel note to decide whether the trill should end
     const nextAfterTrill = activeNotes.find(
@@ -971,6 +1008,11 @@ function activateNote(midiNote) {
   }
 
   if (matchingIndices.length === 0) {
+    // A trill going on is not a wrong note, and advances nothing. It is judged
+    // where the player is, not at the note due next, which may already lie
+    // past the trill's end.
+    if (isTrillStillSounding(activeNotes, midiNote, lastValidatedTimestamp(activeNotes, expectedTimestamp))) return true
+
     // Wrong note - mark repetition as dirty in training mode, and redden its dot
     // right away rather than leaving the player to discover at the bar line that
     // it won't fill. Only the first wrong note of a repetition changes anything.
@@ -1090,14 +1132,23 @@ function deactivateNote(midiNote) {
 // Scroll to next measure if it's on a different system, positioning it near the top
 function scrollToNextMeasureIfNeeded(nextIndex) {
   if (nextIndex >= allNotes.length) return
+  // A repetition in place leaves the dots where they already stood: measuring
+  // them again would spend a getBBox per notehead on a scroll that cannot be owed.
+  if (nextIndex === currentMeasureIndex) return
 
   const nextMeasureData = allNotes[nextIndex]
   if (!nextMeasureData || !nextMeasureData.notes || nextMeasureData.notes.length === 0) return
 
   const nextMeasureFirstNote = nextMeasureData.notes[0].note
   const nextSystemIndex = getSystemIndexForNote(nextMeasureFirstNote)
+  const systemChanged = currentSystemIndex !== null && nextSystemIndex !== currentSystemIndex
 
-  if (currentSystemIndex !== null && nextSystemIndex !== currentSystemIndex) {
+  // Staying on the system is not staying put: a bar that climbs above the staff
+  // carries its dots under the sticky bars, with nothing else to bring them back.
+  const dotsTop = repeatIndicatorsTopY(nextIndex)
+  const dotsHidden = dotsTop !== null && isUnderStickyBars(dotsTop)
+
+  if (systemChanged || dotsHidden) {
     scrollToMeasure(nextIndex)
     currentSystemIndex = nextSystemIndex
   }
@@ -1284,13 +1335,16 @@ function systemTopStaffLineY(note) {
   try {
     const system = graphicalMeasureForNote(note).parentMusicSystem
     const svgY = system.graphicalMeasures[0][0].stave.getYForLine(0)
-    const svg = svgNote(note).ownerSVGElement
-    const point = svg.createSVGPoint()
-    point.y = svgY
-    return point.matrixTransform(svg.getScreenCTM()).y
+    return svgYToViewport(svgY, svgNote(note).ownerSVGElement)
   } catch {
     return null
   }
+}
+
+function svgYToViewport(svgY, svg) {
+  const point = svg.createSVGPoint()
+  point.y = svgY
+  return point.matrixTransform(svg.getScreenCTM()).y
 }
 
 function getSystemIndexForNote(note) {
