@@ -327,6 +327,26 @@ class ArabesqueTest < CapybaraTestBase
     assert_selector 'svg g.vf-notehead.played-note', count: 1
   end
 
+  def test_changing_hands_starts_the_measure_under_way_over
+    load_score('schumann-melodie.xml', 256)
+
+    # Measure 1's first two right-hand notes, the left hand unticked.
+    uncheck 'Main gauche'
+    play_notes(%w[E5 D5])
+    assert_selector 'svg g.vf-notehead.played-note', count: 2
+
+    # Ticked back, the left hand's notes from the start of the bar are owed
+    # again; the half-bar played without them would leave the right hand ahead
+    # and the measure asking for notes the player has left behind.
+    check 'Main gauche'
+    assert_no_selector 'svg g.vf-notehead.played-note'
+
+    simulate_midi_input('ON E5')
+    simulate_midi_input('ON C4')
+    assert_selector 'svg g.vf-notehead.played-note', count: 2
+    assert_no_selector 'svg g.vf-notehead.wrong-note'
+  end
+
   def test_score_that_cannot_be_fetched_says_so_instead_of_spinning
     # A score that never arrives used to leave the page loading for good.
     visit '/score.html?url=scores/does-not-exist.mxl'
