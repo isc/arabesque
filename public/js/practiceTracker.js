@@ -731,7 +731,7 @@ export function initPracticeTracker(storageInstance = null) {
   // turn a right-hand run into a mixed one. Past that measure, the change is
   // part of the run and the attempts keep the hands they started with.
   function setActiveHands(activeHands) {
-    if (!currentMeasureAttempt || !currentSession?.playthroughStartedAt) return
+    if (!currentMeasureAttempt || !currentSession.playthroughStartedAt) return
     const start = new Date(currentSession.playthroughStartedAt).getTime()
     if (sessionAttempts(currentSession, start).length > 0) return
     currentMeasureAttempt.hands = handsKey(activeHands)
