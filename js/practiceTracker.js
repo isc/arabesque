@@ -386,6 +386,7 @@ export function initPracticeTracker(storageInstance = null) {
     recordStrictRun,
     markScoreCompleted,
     restartPlaythrough,
+    setActiveHands,
     endSession,
     getScoreStats,
     getMeasuresToReinforce,
@@ -722,6 +723,18 @@ export function initPracticeTracker(storageInstance = null) {
   function restartPlaythrough(at = new Date().toISOString()) {
     if (!currentSession) return
     currentSession.playthroughStartedAt = at
+  }
+
+  // A hand ticked or unticked before the run has finished its first measure
+  // is a false start, not a run played with both selections: the measure under
+  // way takes the new hands, and the notes played before the change don't
+  // turn a right-hand run into a mixed one. Past that measure, the change is
+  // part of the run and the attempts keep the hands they started with.
+  function setActiveHands(activeHands) {
+    if (!currentMeasureAttempt || !currentSession.playthroughStartedAt) return
+    const start = new Date(currentSession.playthroughStartedAt).getTime()
+    if (sessionAttempts(currentSession, start).length > 0) return
+    currentMeasureAttempt.hands = handsKey(activeHands)
   }
 
   async function endSession() {
