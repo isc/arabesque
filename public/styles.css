@@ -698,6 +698,9 @@ button.pt-topbar__pill:disabled { opacity: 0.4; cursor: default; }
 .pt-hands__option:hover { color: var(--pt-text); }
 .pt-hands__option input[type="checkbox"] { margin: 0; width: 14px; height: 14px; }
 .pt-hands__option:has(input:checked) { background: var(--pt-bg-elevated); color: var(--pt-text); box-shadow: var(--pt-shadow-sm); }
+/* Frozen for the length of a strict run: the checkbox dims on its own (base
+   layer), the label has to stop offering itself. */
+.pt-hands__option:has(input:disabled) { cursor: not-allowed; color: var(--pt-text-muted); }
 
 /* The field's box lives with the band cluster it is always a child of, below.
    What is left here is what holds wherever it is put. */
