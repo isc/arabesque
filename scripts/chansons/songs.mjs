@@ -1,21 +1,36 @@
 // The twelve songs that close Sophie Allerme's "Méthode de piano pour les
-// 4-7 ans" (pp. 58-61), transcribed note for note from the book: same
-// keys, same registers, same hand positions, same fingerings. The tunes are
-// all traditional and in the public domain; the bass here is the one-note
-// kind there is only one way to write.
+// 4-7 ans" (pp. 58-61), then "Trompette et tambour" from earlier in the same
+// book, all transcribed note for note: same keys, same registers, same hand
+// positions, same fingerings. The tunes are all traditional and in the public
+// domain; the bass here is the one-note kind there is only one way to write.
 //
-// Both hands sit in the middle-C position (each thumb on C4), so the left
-// hand often carries the tune while the right rests. Songs the book writes
-// without a time signature are cut into measures here — the app tracks
-// practice by the measure — but the signature is not shown (showTime).
+// IMPORTANT: the order of this list is the file numbering — song 13 is
+// written to Chansons_13_…, and practice aggregates and fingerings are keyed
+// to that name. A new song goes at the END, whatever its page in the book.
+// Inserting one renumbers every song after it and silently re-points the data
+// of everyone who has played them.
+//
+// Most songs sit in the middle-C position (each thumb on C4), so the left
+// hand often carries the tune while the right rests; a few move a hand, and
+// the fingerings in the strings are the authority on where it goes. Songs the
+// book writes without a time signature are cut into measures here — the app
+// tracks practice by the measure — but the signature is not shown (showTime).
 //
 // One string per staff, measures separated by `|`, events by spaces:
 //   E4q   a pitch (C4 = middle C, F#4 for a sharp) and a value:
-//         w whole, h half, q quarter, e eighth; a trailing `.` dots it
+//         w whole, h half, q quarter, e eighth; a trailing `.` dots it.
+//         Two eighths filling a beat come out beamed; grouping cannot be
+//         asked for per song.
 //   -3    a fingering, appended to the note
 //   F#4+A4q   a chord
 //   r     a hidden rest of any value (rq, rh, rw); R alone: the whole measure
 //   @5/4  at the start of a measure: this measure's time signature
+//
+// rhWords and lhWords sing that staff: same `|` measures, syllables separated
+// by spaces, landing on the measure's notes in order (a rest is not sung, and
+// a measure may be left blank). A syllable ending in `-` is hyphenated to the
+// next, across a barline too ("et Mon- | sieur"). Only the first verse is
+// written; the book prints the others as prose under the score.
 //
 // A first measure shorter than the meter is a pickup and is numbered 0.
 // Repeats, Fin and D.C. sit on measures by number.
@@ -134,5 +149,15 @@ export const SONGS = [
     repeatStart: 1,
     repeatEnd: 16,
     fine: 7,
+  },
+  {
+    slug: 'trompette-et-tambour',
+    title: 'Trompette et tambour',
+    time: '4/4',
+    showTime: true,
+    rh: 'C4q C4e C4e C4q C4e E4e | G4q E4q C4q rq | G4q G4q G4q rq | R | C4q C4e C4e C4q C4e E4e | G4q E4q C4q rq | G4q G4q G4q rq | rq rq C5q-5 rq',
+    lh: 'R | R | R | G3q-4 G3q G3q rq | R | R | rq rq rq G3q-4 | C4q-1 rq rh',
+    rhWords: "Ma- dam' trom- pette et Mon- | sieur tam- bour | ta ta ta | | Ma- dam' trom- pette et Mon- | sieur tam- bour | ta ta ta | ho!",
+    lhWords: '| | | boum boum boum | | | boum | boum',
   },
 ]

@@ -62,6 +62,14 @@ function getStickyOffset() {
   return offset
 }
 
+// True when something at viewport y `top` falls inside the headroom the sticky
+// bars own — where scrollSystemIntoView refuses to leave anything it is asked
+// to keep in view. One owner for that arithmetic: the callers ask the question
+// rather than recomputing the offset.
+export function isUnderStickyBars(top) {
+  return top < getStickyOffset()
+}
+
 export function applyStickyOffset() {
   document.documentElement.style.setProperty('--pt-sticky-offset', `${getStickyOffset()}px`)
 }
@@ -93,9 +101,14 @@ function findSystemTopAnchor(referenceTop, svg) {
 // sticky bars, leaving getStickyOffset() of headroom for the above-staff
 // markings. Shared by the measure cursor (musicxml.js) and the playback cursor
 // (playback.js) so both autoscroll paths behave identically.
-export function scrollSystemIntoView(referenceTop, svg) {
+// `hangingTop` (viewport space, optional) is anything drawn higher than the
+// scanned band and owed the same headroom — the training dots, which hang over
+// the noteheads rather than over the staff, and so can go further up than the
+// <text> this scan was written for ever does.
+export function scrollSystemIntoView(referenceTop, svg, hangingTop = null) {
   if (!svg) return
-  const anchorTop = findSystemTopAnchor(referenceTop, svg)
+  let anchorTop = findSystemTopAnchor(referenceTop, svg)
+  if (hangingTop != null) anchorTop = Math.min(anchorTop, hangingTop)
   const targetY = window.scrollY + anchorTop - getStickyOffset()
   window.scrollTo({ top: Math.max(0, targetY), behavior: 'smooth' })
 }
@@ -185,4 +198,24 @@ export function formatDate(date) {
 export function pickPassageMeasure({ measureIndex, start, armed, loop }) {
   if (armed && measureIndex >= start) return { start, end: measureIndex, armed: false }
   return { start: measureIndex, end: null, armed: loop }
+}
+
+// The words a text offers the search box: accents folded away, punctuation
+// dropped, so "Burgmüller" is filed under "burgmuller" and found by someone
+// whose keyboard has no umlaut (feedback 928aef27).
+export function searchWords(text) {
+  return text
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '')
+    .split(/[^\p{L}\p{N}]+/u)
+    .filter(Boolean)
+}
+
+// Does a text answer a search? Both sides are searchWords() output: a query
+// word matches when it starts one of the text's, in any order. The text's
+// words come in already folded because the caller has a whole catalog of them
+// to weigh against one query, and folding is the expensive half.
+export function matchesSearch(words, query) {
+  return query.every((q) => words.some((w) => w.startsWith(q)))
 }

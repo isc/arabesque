@@ -37,6 +37,9 @@ function getDiatonicIndex(fundamentalNote) {
 // names here are always built from the MIDI number.
 const octaveOfMidi = (midiNumber) => Math.floor(midiNumber / 12) - 1
 
+// The next or previous letter's index in DIATONIC_NOTES (+6 is -1 mod 7).
+const adjacentDiatonicIndex = (index, direction) => (index + (direction > 0 ? 1 : 6)) % 7
+
 // Diatonic indices affected by flats/sharps in the circle of fifths
 // Flat order:  B(6), E(2), A(5), D(1), G(4), C(0), F(3)
 // Sharp order: F(3), C(0), G(4), D(1), A(5), E(2), B(6)
@@ -57,10 +60,7 @@ function getDiatonicOffset(pitch, direction, fifths = 0) {
   const currentIndex = getDiatonicIndex(fundamentalNote)
   if (currentIndex === -1) return direction > 0 ? 2 : -2 // fallback if not found
 
-  // Calculate next/previous diatonic note index
-  const adjacentIndex = direction > 0
-    ? (currentIndex + 1) % 7
-    : (currentIndex + 6) % 7 // +6 is same as -1 mod 7
+  const adjacentIndex = adjacentDiatonicIndex(currentIndex, direction)
 
   // Calculate halfTone for the adjacent diatonic note
   let adjacentHalfTone = octave * 12 + DIATONIC_NOTES[adjacentIndex]
@@ -118,12 +118,31 @@ function hasExplicitAccidental(accidental) {
   return accidental !== undefined && accidental !== AccidentalEnum.NONE
 }
 
+// The neighbour an ornament reaches for, as the measure so far has altered it:
+// the key's neighbour, unless an earlier note on the same staff wrote that
+// letter on the same line or space (same letter within a whole tone) -- an
+// accidental holds to the end of the measure. A note tied in from the previous
+// measure sets nothing: its accidental was written there.
+function neighbourInForce(mainMidi, pitch, direction, fifths, priorNotes) {
+  const keyMidi = mainMidi + getDiatonicOffset(pitch, direction, fifths)
+  const index = getDiatonicIndex(pitch?.fundamentalNote)
+  if (index === -1) return keyMidi
+  const letter = DIATONIC_NOTES[adjacentDiatonicIndex(index, direction)]
+  const carrier = priorNotes.findLast((n) =>
+    !n.isTieContinuation &&
+    n.note?.pitch?.fundamentalNote === letter &&
+    Math.abs(n.midiNumber - keyMidi) <= 2
+  )
+  return carrier?.midiNumber ?? keyMidi
+}
+
 // Calculate upper/lower MIDI notes for ornaments
 // When accidentals are explicitly marked, they modify the note chromatically:
 // - FLAT lowers the note (upper: +1, lower: -2)
 // - SHARP/NATURAL raises the note (upper: +2, lower: -1)
-// Without explicit accidentals, use diatonic intervals (follow the scale)
-function getOrnamentAuxiliaryNotes(mainMidi, ornamentContainer, pitch, fifths = 0) {
+// Without explicit accidentals, use diatonic intervals (follow the scale),
+// altered by any accidental earlier in the measure (neighbourInForce).
+function getOrnamentAuxiliaryNotes(mainMidi, ornamentContainer, pitch, fifths, priorNotes) {
   const { AccidentalAbove, AccidentalBelow } = ornamentContainer
 
   let upperMidi, lowerMidi
@@ -131,13 +150,13 @@ function getOrnamentAuxiliaryNotes(mainMidi, ornamentContainer, pitch, fifths = 
   if (hasExplicitAccidental(AccidentalAbove)) {
     upperMidi = AccidentalAbove === AccidentalEnum.FLAT ? mainMidi + 1 : mainMidi + 2
   } else {
-    upperMidi = mainMidi + getDiatonicOffset(pitch, 1, fifths)
+    upperMidi = neighbourInForce(mainMidi, pitch, 1, fifths, priorNotes)
   }
 
   if (hasExplicitAccidental(AccidentalBelow)) {
     lowerMidi = AccidentalBelow === AccidentalEnum.FLAT ? mainMidi - 2 : mainMidi - 1
   } else {
-    lowerMidi = mainMidi + getDiatonicOffset(pitch, -1, fifths)
+    lowerMidi = neighbourInForce(mainMidi, pitch, -1, fifths, priorNotes)
   }
 
   return { upperMidi, lowerMidi }
@@ -145,10 +164,10 @@ function getOrnamentAuxiliaryNotes(mainMidi, ornamentContainer, pitch, fifths = 
 
 // Build the MIDI note sequence for an ornament
 // Returns { sequence, flag } where flag is the property name to mark expanded notes
-function getOrnamentSequence(mainMidi, ornamentContainer, pitch, fifths = 0) {
+function getOrnamentSequence(mainMidi, ornamentContainer, pitch, fifths, priorNotes) {
   const ornamentType = ornamentContainer.GetOrnament
 
-  const { upperMidi, lowerMidi } = getOrnamentAuxiliaryNotes(mainMidi, ornamentContainer, pitch, fifths)
+  const { upperMidi, lowerMidi } = getOrnamentAuxiliaryNotes(mainMidi, ornamentContainer, pitch, fifths, priorNotes)
 
   // Turn ornaments: 4-5 notes alternating around the main note.
   // Delayed turns sound the principal on the beat, then play the turn proper late
@@ -183,15 +202,55 @@ function getOrnamentSequence(mainMidi, ornamentContainer, pitch, fifths = 0) {
 // instead of forcing the whole turn before them.
 const DELAYED_TURN_FILL_WN = 1 / 16
 
+// The notes written earlier than noteData on its staff in the same measure.
+const notesBefore = (noteData, measureNotes) =>
+  measureNotes.filter((n) => n.staffIndex === noteData.staffIndex && n.timestamp < noteData.timestamp)
+
+// A trill written on the first note of a tie goes on through every note tied
+// on from it (bars 19-22 of Bach's fourth invention: a C trilled for three
+// bars while the left hand runs in sixteenths). Each of those notes gets a
+// sentinel of its own rather than one span for the whole chain, because a
+// timestamp is a measure index plus a position in whole notes: a length does
+// not carry across a bar line outside 4/4. This keeps each trill's pitches by
+// tie, for the later measures — expanded one at a time, in order — to find.
+const trilledTies = new WeakMap()
+
+const ORNAMENT_NOTE_OFFSET = 0.00001
+
+// A trill sentinel: where free play accepts the trill's two pitches, over the
+// span the note it stands on sounds in its measure (trillFrom-trillUntil, the
+// matcher's isTrillStillSounding). Its own timestamp is offset past the note's
+// so it never shares one with another note — the matcher would wait for both
+// together, and nothing presses a sentinel.
+function trillSentinel(noteData, trillPitches, offsetSteps, noteheadIndex) {
+  return {
+    ...noteData,
+    timestamp: noteData.timestamp + offsetSteps * ORNAMENT_NOTE_OFFSET,
+    isTrillEnd: true,
+    ...trillPitches,
+    trillFrom: noteData.timestamp,
+    trillUntil: noteData.timestamp + (noteData.note?.Length?.RealValue ?? 0),
+    noteheadIndex,
+  }
+}
+
 // Expand ornament notes (turns, mordents, and trills) into their constituent notes
 export function expandOrnamentNotes(measureNotes, fifths = 0) {
-  const ORNAMENT_NOTE_OFFSET = 0.00001
   const expandedNotes = []
 
   for (const noteData of measureNotes) {
+    // A tied note under a trill is the trill going on, not a key to hold.
+    const trillPitches = noteData.isTieContinuation && trilledTies.get(noteData.note?.NoteTie)
+    if (trillPitches) {
+      expandedNotes.push(trillSentinel(noteData, trillPitches, 1, noteData.noteheadIndex))
+      continue
+    }
+
     const ornamentContainer = noteData.voiceEntry?.OrnamentContainer
     const pitch = noteData.note?.pitch
-    const ornamentInfo = ornamentContainer ? getOrnamentSequence(noteData.midiNumber, ornamentContainer, pitch, fifths) : null
+    const ornamentInfo = ornamentContainer
+      ? getOrnamentSequence(noteData.midiNumber, ornamentContainer, pitch, fifths, notesBefore(noteData, measureNotes))
+      : null
 
     if (!ornamentInfo) {
       expandedNotes.push(noteData)
@@ -224,10 +283,14 @@ export function expandOrnamentNotes(measureNotes, fifths = 0) {
     // again; the turn proper still is, and falls due when the held principal
     // gives way to it.
     const tied = delayed && noteData.isTieContinuation
+    // The note being decorated ends where its sound does: at the end of the
+    // tie it starts, if it starts one.
+    const tie = noteData.note?.NoteTie
+    const startsTie = tie && !noteData.isTieContinuation
     const ornamentAsk = {
       sequence: tied ? sequence.slice(1) : sequence,
       delayTs: tied ? turnDelay : 0,
-      holdTs: parentDurationWN,
+      holdTs: startsTie ? tie.Duration.RealValue : parentDurationWN,
       alternating: flag === 'isTrillNote',
     }
 
@@ -267,14 +330,9 @@ export function expandOrnamentNotes(measureNotes, fifths = 0) {
 
     // Trills get a sentinel note that allows free alternation until the next real note
     if (flag === 'isTrillNote') {
-      expandedNotes.push({
-        ...noteData,
-        timestamp: noteData.timestamp + sequence.length * ORNAMENT_NOTE_OFFSET,
-        isTrillEnd: true,
-        trillMidi: sequence[0],
-        trillUpperMidi: sequence[1],
-        noteheadIndex: -1,
-      })
+      const trillPitches = { trillMidi: sequence[0], trillUpperMidi: sequence[1] }
+      expandedNotes.push(trillSentinel(noteData, trillPitches, sequence.length, -1))
+      if (startsTie) trilledTies.set(tie, trillPitches)
     }
   }
 

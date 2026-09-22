@@ -8,7 +8,7 @@ const measure = (staves) => ({ notes: staves.map((staffIndex) => ({ staffIndex }
 const BOTH = { right: true, left: true }
 const RIGHT_ONLY = { right: true, left: false }
 
-// The shape of bars 23-26 of BWV 847: 25 is a whole rest in the right hand.
+// Four bars, the third a whole rest in the right hand.
 const SCORE = [measure([0, 1]), measure([0, 1]), measure([1]), measure([0, 1])]
 
 describe('nextPlayableMeasure', () => {

@@ -478,6 +478,59 @@ class ArabesqueTest < CapybaraTestBase
     end
   end
 
+  # The repeat dots hang over the measure's own noteheads, so a bar that climbs
+  # above the staff carries them higher than the top staff line the autoscroll
+  # anchors on — high enough to leave them under the sticky bars, with the
+  # cursor sitting on a measure whose count of three cannot be read.
+  def test_training_mode_autoscroll_keeps_the_repeat_dots_clear_of_the_sticky_bars
+    original_size = page.current_window.size
+
+    begin
+      page.current_window.resize_to(500, 500)
+
+      # Measure 6 is three ledger lines above the staff; the measures after it
+      # are what gives the page somewhere left to scroll.
+      load_score('high-note-measure.xml', 24)
+
+      click_on 'Mode Entraînement'
+      assert_text 'Mode Entraînement Actif'
+
+      # Measure 4 closes its system, so filling its dots scrolls the next system
+      # up — the position the dots of measure 6 then have to survive.
+      click_measure(4)
+      3.times do
+        play_note('F4')
+        assert_no_selector 'svg g.vf-notehead.played-note'
+      end
+      wait_for_stable_scroll
+
+      3.times do
+        play_note('G4')
+        assert_no_selector 'svg g.vf-notehead.played-note'
+      end
+
+      # Waits for the cursor to land rather than sampling where it is: the
+      # geometry below is only worth reading once the high measure is the one
+      # carrying the dots.
+      assert_selector 'svg rect.measure-click-area.selected[data-measure-index="5"]'
+      wait_for_stable_scroll
+
+      # The headroom the page reserves for itself: what the sticky bars cover,
+      # plus the breathing above the staff.
+      offset = page.evaluate_script(
+        "parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--pt-sticky-offset'))"
+      )
+      dots_top = page.evaluate_script(
+        "document.getElementById('repeat-indicators').getBoundingClientRect().top"
+      )
+
+      assert dots_top >= offset - 1,
+             "Repeat dots should sit below the sticky bars (dots: #{dots_top}, reserved: #{offset})"
+    ensure
+      page.current_window.resize_to(*original_size)
+    end
+  end
+
   def test_training_mode_autoscroll_works_when_starting_from_non_first_measure
     # This test verifies that auto-scroll works even when jumping to a measure > 0
     # (regression test: currentSystemIndex was null when not starting from measure 0)

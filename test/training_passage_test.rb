@@ -74,6 +74,26 @@ class TrainingPassageTest < CapybaraTestBase
     JS
   end
 
+  # A trill written on a tied note goes on through the bar line, and under
+  # the other hand: the tie in the second measure continues the same sound,
+  # and a trill pitch struck between two left-hand notes is still the trill.
+  # (tied-trill.xml: C5 trilled, a whole note tied into a half, then E5, over
+  # left-hand quarters.)
+  def test_a_trill_goes_on_through_the_tie_and_under_the_other_hand
+    visit '/score.html?url=/test-fixtures/tied-trill.xml'
+    wait_for_score_render(11)
+    enter_training_mode
+    pick_passage(1, 2)
+
+    play_chord(%w[C5 C3])
+    play_notes(%w[D5 C5 D5 D3 C5 E3 D5 F3])
+    wait_for_training_cursor(2)
+    play_notes(%w[G3 D5 A3 C5])
+    play_chord(%w[E5 B3])
+    play_note('C4')
+    assert_selector 'svg circle.repeat-indicator.filled', count: 1
+  end
+
   def test_turning_the_passage_off_puts_the_work_back_on_one_measure
     open_two_measures
     enter_training_mode

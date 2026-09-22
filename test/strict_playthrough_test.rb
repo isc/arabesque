@@ -72,6 +72,28 @@ class StrictPlaythroughTest < CapybaraTestBase
     assert_no_selector 'svg g.vf-notehead.missed-note'
   end
 
+  # The verdict is a verdict on the passage that was selected: picking another
+  # one takes it off the score, or notes marked wrong in a bar the new passage
+  # leaves out stay lit over work nobody is doing (feedback b9d60a2b).
+  def test_picking_another_passage_clears_the_last_run_s_marks
+    load_score('two-measures.xml', 2)
+    start_strict_mode
+
+    with_clock_control do
+      trigger_click_on('▶ Démarrer')
+
+      # Count-in 2s, then both measures at 120 BPM, plus the off-tempo tail.
+      advance_clock(7000)
+      assert_text 'Playthrough strict terminé', wait: 4
+    end
+    within('dialog.pt-result-dialog') { click_on 'Fermer' }
+    assert_selector 'svg g.vf-notehead.missed-note', minimum: 1
+
+    click_measure(1)
+
+    assert_no_selector 'svg g.vf-notehead.missed-note'
+  end
+
   # Regression: a strict run used to leave no trace at all — its notes go to the
   # strict engine instead of the score's cursor, so nothing ever fed the
   # practice tracker and a piece played end to end in strict mode was missing
@@ -180,6 +202,47 @@ class StrictPlaythroughTest < CapybaraTestBase
 
     click_on '⏱ Mode strict'
     assert_no_selector 'svg g.vf-notehead.played-note'
+  end
+
+  # The cluster clips what overflows it, so an item naming its own height in
+  # the band's *outer* 34px loses two of them — the top of the −/+ buttons'
+  # corners, and of the tint they take under a pointer.
+  def test_the_tempo_steps_fit_inside_the_band_controls
+    load_score('two-measures.xml', 2)
+    start_strict_mode
+    assert_selector '.pt-bpm-field__step'
+
+    overflow = page.evaluate_script(<<~JS)
+      (() => {
+        const cluster = document.querySelector('.pt-band-controls')
+        const inner = cluster.getBoundingClientRect()
+        const border = parseFloat(getComputedStyle(cluster).borderTopWidth)
+        return [...cluster.querySelectorAll('.pt-bpm-field__step')].map((step) => {
+          const r = step.getBoundingClientRect()
+          return Math.max(inner.top + border - r.top, r.bottom - (inner.bottom - border), 0)
+        })
+      })()
+    JS
+
+    assert_equal [0, 0], overflow,
+                 'The −/+ buttons should fit the line the cluster gives them, not overflow it'
+  end
+
+  # The band's controls are one panel, so everything in it shares a midline.
+  # The progression picker used to carry a height of its own, which opted it
+  # out of the cluster's align-self: stretch and left its text 2px high
+  # (feedback 91bf14f9).
+  def test_the_progression_picker_sits_on_the_band_controls_midline
+    load_score('two-measures.xml', 2)
+    click_on '⏱ Mode strict'
+    click_on '🔁 Boucle'
+    # evaluate_script does not wait, so this is what makes the measurement
+    # below stable: the picker is revealed by x-show, not present from the
+    # start.
+    assert_selector '.pt-band-select'
+
+    assert_in_delta midline_of('.pt-band-controls .pt-band-button'), midline_of('.pt-band-select'), 1,
+                    'The progression picker should be centred like the buttons beside it'
   end
 
   # The tempo trainer: the passage between two clicked measures, run after run
@@ -342,10 +405,49 @@ class StrictPlaythroughTest < CapybaraTestBase
     assert_no_text 'fausses notes'
   end
 
+  # A trill on a tied note lasts as long as the sound does: into the next
+  # bar and to the end of the tie, not only through the first notehead — and
+  # the other hand goes on meanwhile.
+  def test_a_trill_on_a_tied_note_alternates_to_the_end_of_the_tie
+    load_score('tied-trill.xml', 11)
+    start_strict_mode
+
+    with_clock_control do
+      trigger_click_on('▶ Démarrer')
+
+      # Right hand: C5, a whole note tied into a half (3s at 120 BPM), trilled,
+      # then E5. Left hand: a quarter every 500ms from the first beat.
+      advance_clock(2000)
+      assert_selector 'svg g.vf-notehead.expected-note', minimum: 1, wait: 4
+      play_notes(%w[C5 C3 D5 C5])
+      { 'D3' => %w[D5 C5], 'E3' => %w[D5 C5], 'F3' => %w[D5 C5], 'G3' => %w[D5 C5], 'A3' => %w[D5 C5] }.each do |left, trill|
+        advance_clock(500)
+        play_notes([left] + trill)
+      end
+
+      advance_clock(500)
+      play_notes(%w[E5 B3])
+      advance_clock(500)
+      play_note('C4')
+
+      advance_clock(1000)
+      assert_text 'Playthrough strict terminé', wait: 2
+    end
+
+    assert_text '100%'
+    assert_no_text 'fausse'
+  end
+
   private
 
   def score_top
     page.evaluate_script("document.querySelector('.pt-score-main').getBoundingClientRect().top")
+  end
+
+  def midline_of(selector)
+    page.evaluate_script(
+      "(() => { const r = document.querySelector('#{selector}').getBoundingClientRect(); return r.top + r.height / 2 })()"
+    )
   end
 
   # BPM=120 → 2s count-in, ±150ms strict window, ±450ms off-tempo. The window
