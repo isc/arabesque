@@ -426,6 +426,35 @@ describe('practiceTracker', () => {
       expect(day.fullPlaythroughs[0].hands).toBe('mixed')
       expect(day.timesPlayedInFull).toBe(0)
     })
+
+    it('gives the first measure the new hands when one is unticked before it is finished', async () => {
+      tracker.startSession('/scores/test.xml', 'Test', 'Composer', 'free', 2)
+      tracker.startMeasureAttempt(0, true, BOTH)
+      advanceClock(20_000)
+      tracker.setActiveHands(RIGHT)
+      advanceClock(20_000)
+      await tracker.endMeasureAttempt(true)
+      await playMeasure(1, 40_000, RIGHT)
+      tracker.markScoreCompleted()
+      await tracker.endSession()
+
+      const [day] = await tracker.getScoreHistory('/scores/test.xml')
+      expect(day.fullPlaythroughs[0].hands).toBe('right')
+    })
+
+    it('leaves the hands alone once the first measure is finished', async () => {
+      tracker.startSession('/scores/test.xml', 'Test', 'Composer', 'free', 2)
+      await playMeasure(0, 40_000, BOTH)
+      tracker.startMeasureAttempt(1, false, RIGHT)
+      tracker.setActiveHands(BOTH)
+      advanceClock(40_000)
+      await tracker.endMeasureAttempt(true)
+      tracker.markScoreCompleted()
+      await tracker.endSession()
+
+      const [day] = await tracker.getScoreHistory('/scores/test.xml')
+      expect(day.fullPlaythroughs[0].hands).toBe('mixed')
+    })
   })
 
   describe('measures to reinforce', () => {
