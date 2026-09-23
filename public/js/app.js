@@ -58,6 +58,9 @@ function runKind(strict) {
   return strict ? RUN_KINDS.strict : RUN_KINDS.free
 }
 
+// How many measures the result modal names before it only counts them.
+const WRONG_MEASURES_LISTED = 6
+
 // Redrawing a full score costs ~200ms, and dragging a window edge fires resize
 // continuously — wait for the drag to settle before paying for it once.
 const RESIZE_RELAYOUT_DEBOUNCE_MS = 250
@@ -1185,8 +1188,21 @@ export function midiApp() {
       return this.previousPlaythroughs[0]?.hands ?? TWO_HANDS
     },
 
-    get currentPlaythroughDuration() {
-      return this.previousPlaythroughs.find((p) => p.isCurrent)?.durationMs ?? null
+    // A free run's wrong notes, beside its time in the ranking. Runs filed
+    // before the count was shown carry it too: every measure attempt has
+    // always recorded its wrong notes.
+    wrongNotesText(n) {
+      return n ? tn('score.wrongNotes', n) : t('score.noWrongNote')
+    },
+
+    // Where the run just finished went wrong, by measure number — past a
+    // handful of them, only how many: a list that long says nothing more.
+    get wrongMeasuresText() {
+      const measures = this.previousPlaythroughs.find((p) => p.isCurrent)?.wrongMeasures ?? []
+      if (measures.length === 0) return ''
+      if (measures.length > WRONG_MEASURES_LISTED) return t('score.wrongMeasuresMany', { n: measures.length })
+      const list = PLAYTHROUGH_LIST_FORMATTER.format(measures.map((m) => String(m + 1)))
+      return tn('score.wrongMeasures', measures.length, { list })
     },
 
     // One evolution chart per kind of run and hand selection — play time for

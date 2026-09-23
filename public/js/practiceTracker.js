@@ -176,10 +176,11 @@ function median(values) {
 
 // Measure attempts overlapping [start, end], in chronological order, flattened
 // to what their readers need: when it started, how long it took, which hands
-// played it. Bounds are inclusive — a measure played faster than the clock
-// ticks would otherwise fall out of the very run it belongs to, and an attempt
-// touching a bound with no overlap adds nothing to the time either way.
-// Defaults to every attempt in the session.
+// played it, which measure it was and how many wrong notes it took. Bounds are
+// inclusive — a measure played faster than the clock ticks would otherwise fall
+// out of the very run it belongs to, and an attempt touching a bound with no
+// overlap adds nothing to the time either way. Defaults to every attempt in the
+// session.
 function sessionAttempts(session, start = -Infinity, end = Infinity) {
   const attempts = []
   for (const measure of session.measures || []) {
@@ -188,7 +189,13 @@ function sessionAttempts(session, start = -Infinity, end = Infinity) {
       const s = new Date(attempt.startedAt).getTime()
       const durationMs = attempt.durationMs || 0
       if (s + durationMs >= start && s <= end) {
-        attempts.push({ start: s, durationMs, hands: attempt.hands })
+        attempts.push({
+          start: s,
+          durationMs,
+          hands: attempt.hands,
+          sourceMeasureIndex: measure.sourceMeasureIndex,
+          wrongNotes: attempt.wrongNotes || 0,
+        })
       }
     }
   }
@@ -266,6 +273,19 @@ export function computePlaythroughDuration(session) {
 function playthroughDuration(attempts, start, end) {
   if (attempts.length === 0) return end - start
   return normalizedPlayingTime(attempts, start, end)
+}
+
+// The wrong notes a run took, and the measures they fell in (source indices,
+// in score order, each once however many times it was played).
+function playthroughWrongNotes(attempts) {
+  let wrongNotes = 0
+  const measures = new Set()
+  for (const a of attempts) {
+    if (!a.wrongNotes) continue
+    wrongNotes += a.wrongNotes
+    measures.add(a.sourceMeasureIndex)
+  }
+  return { wrongNotes, wrongMeasures: [...measures].sort((a, b) => a - b) }
 }
 
 // The hands the run held by a completed session was played with.
@@ -956,6 +976,7 @@ export function initPracticeTracker(storageInstance = null) {
         startedAt: session.playthroughStartedAt,
         durationMs: playthroughDuration(attempts, start, end),
         hands: playthroughHands(attempts),
+        ...playthroughWrongNotes(attempts),
         // The strict engine's verdict on the run, for a run played to the
         // metronome; a free run has none.
         strict: session.strict ?? null,
