@@ -11,6 +11,7 @@ import { loadMxlAsXml } from './mxlLoader.js'
 import { injectFingerings } from './fingeringInjector.js'
 import { initPlayback, getBPM } from './playback.js'
 import { initStrictPlaythrough } from './strictPlaythrough.js'
+import { initKeyboardHint } from './keyboardHint.js'
 import { createTempoPlan, createTempoTrainer, GRADUATED, BPM_STEP, STREAK } from './tempoTrainer.js'
 import { stepBpm, holdToRepeat, BPM_MIN, BPM_MAX, BPM_DEFAULT } from './bpmStepper.js'
 import { headerMenu } from './headerMenu.js'
@@ -91,6 +92,8 @@ export function midiApp() {
   const practiceTracker = initPracticeTracker(storage)
   const playback = initPlayback(midi.state)
   const strictPlaythrough = initStrictPlaythrough()
+  // The on-screen keyboard; built in init(), where the page's state it reads is.
+  let keyHint = null
   // The browser drops this on its own whenever the page is hidden; kept so the
   // page can tell whether it still holds one (see requestWakeLock).
   let wakeLock = null
@@ -282,6 +285,18 @@ export function midiApp() {
     selectedNoteKey: null,
     selectedNoteLabel: '',
     fingeringSequence: '',
+    // The on-screen keyboard (keyboardHint.js): whether it has come up, and the
+    // notes it is showing, by name.
+    keyHintVisible: false,
+    keyHintCaption: [],
+    // Where the player is asked for notes at their own pace — the only place
+    // the keyboard has a use.
+    get keyHintContext() {
+      return !!this.osmdInstance && this.currentMode !== 'strict' && !this.isListening && !this.isReplaying
+    },
+    get keyHintShown() {
+      return this.keyHintVisible && this.keyHintContext
+    },
     fingeringKeydownHandler: null,
 
     async init() {
@@ -314,6 +329,14 @@ export function midiApp() {
         this.$nextTick(applyStickyOffset)
       })
       this.$watch('reinforcementMode', () => this.$nextTick(applyStickyOffset))
+      keyHint = initKeyboardHint({
+        expectedGroup: musicxml.getExpectedGroup,
+        eligible: () => this.keyHintContext && document.visibilityState === 'visible',
+        onVisibleChange: (visible) => { this.keyHintVisible = visible },
+        onCaptionChange: (caption) => { this.keyHintCaption = caption },
+      })
+      // A new mode is a new start: a wait only counts again from the next key.
+      this.$watch('currentMode', () => keyHint.rest())
       // The playback band appears and disappears with the listening, and it is
       // as tall as the strict one — so the sticky offset has to follow it too.
       this.$watch('isListening', () => this.$nextTick(applyStickyOffset))
@@ -357,10 +380,12 @@ export function midiApp() {
             return
           }
           musicxml.activateNote(midiNote)
+          keyHint.keyDown(midiNote)
         },
         onNoteReleased: (noteName, midiNote) => {
           if (strictPlaythrough.isPlaying) return
           musicxml.deactivateNote(midiNote)
+          keyHint.keyUp(midiNote)
         },
         // Without this the notes came through while the header still offered
         // to connect, and only pressing that button again refreshed it.
@@ -396,8 +421,9 @@ export function midiApp() {
           traced('endMeasureAttempt', () => practiceTracker.endMeasureAttempt(data.clean))
           this.refreshReinforcementSuggestions()
         },
-        onWrongNote: () => {
+        onWrongNote: (midiNote) => {
           practiceTracker.recordWrongNote()
+          keyHint.wrongNote(midiNote)
         },
         onPlaythroughRestart: () => {
           practiceTracker.restartPlaythrough()
@@ -679,6 +705,10 @@ export function midiApp() {
         },
       })
       fingeringEditor.alignFingeringLabelsToNoteheads()
+      keyHint.mount(
+        document.getElementById('key-hint-keys'),
+        musicxml.getAllNotes().flatMap((m) => m.notes.map((n) => n.midiNumber)),
+      )
       this.lastRelayoutWidth = document.getElementById('score').clientWidth
       // The tempo the piece is written at is where both fields start, until the
       // player has said otherwise for this score.
@@ -1230,6 +1260,10 @@ export function midiApp() {
     closeResultModal() {
       this.showResultModal = false
       this.resultMode = null
+    },
+
+    dismissKeyHint() {
+      keyHint.dismiss()
     },
 
     // Close whichever modal is currently open when Escape is pressed.
