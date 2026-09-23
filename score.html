@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="app-version" content="e5828fdea791" />
+    <meta name="app-version" content="3b43ad07ffa9" />
     <title data-i18n="score.pageTitle">Arabesque</title>
     <link rel="icon" href="favicon.svg" type="image/svg+xml" />
     <link rel="manifest" href="manifest.webmanifest" />
@@ -419,9 +419,7 @@
           <!-- Free / Training: playthrough rankings + evolution chart -->
           <template x-if="resultMode === 'free' || resultMode === 'training'">
             <div>
-              <p x-show="currentPlaythroughDuration && previousPlaythroughs.length === 0" class="pt-modal-stat pt-modal-stat--accent">
-                <span x-text="$t('score.resultTime')">Temps : </span><strong x-text="formatDuration(currentPlaythroughDuration)"></strong>
-              </p>
+              <p x-show="resultMode === 'free' && wrongMeasuresText" class="pt-modal-note pt-modal-note--lead" x-text="wrongMeasuresText"></p>
               <div class="pt-result-cols">
                 <div class="pt-playthrough-scroll" x-show="previousPlaythroughs.length > 0">
                   <table class="pt-playthrough-table">
@@ -433,6 +431,7 @@
                             <span x-show="!pt.isCurrent" x-text="formatDuration(pt.durationMs)"></span>
                           </td>
                           <td><small x-text="pt.isCurrent ? $t('score.now') : formatDate(pt.startedAt)"></small></td>
+                          <td><small x-text="wrongNotesText(pt.wrongNotes)"></small></td>
                         </tr>
                       </template>
                     </tbody>
