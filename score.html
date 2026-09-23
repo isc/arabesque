@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="app-version" content="46685b481536" />
+    <meta name="app-version" content="e5828fdea791" />
     <title data-i18n="score.pageTitle">Arabesque</title>
     <link rel="icon" href="favicon.svg" type="image/svg+xml" />
     <link rel="manifest" href="manifest.webmanifest" />
@@ -174,7 +174,7 @@
         class="pt-reinforce-badge"
         x-show="measuresToReinforce.length > 0 && !trainingMode && !isStrictPlaying"
         @click.prevent="startReinforcementMode()"
-        x-text="$t(measuresToReinforce.length > 1 ? 'score.reinforceMany' : 'score.reinforceOne', { n: measuresToReinforce.length })"
+        x-text="reinforceLabel()"
       ></a>
 
       <div class="pt-modebar__spacer"></div>
@@ -511,7 +511,7 @@
             class="pt-action-button is-primary"
             x-show="resultMode !== 'reinforcement' && measuresToReinforce.length > 0"
             @click="closeResultModal(); startReinforcementMode()"
-            x-text="$t(measuresToReinforce.length > 1 ? 'score.reinforceMany' : 'score.reinforceOne', { n: measuresToReinforce.length })"
+            x-text="reinforceLabel()"
           ></button>
         </footer>
       </article>
