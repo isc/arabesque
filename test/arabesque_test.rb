@@ -382,6 +382,31 @@ class ArabesqueTest < CapybaraTestBase
     assert_selector 'svg g.vf-notehead.played-note', count: 2
   end
 
+  def test_a_measure_is_clickable_on_the_staff_its_hand_rests_on
+    # Measure 2 is a whole rest in the right hand. Its click area used to be
+    # built from the staves holding notes only, so the treble staff above the
+    # rest was dead to the click that picks where to play from.
+    load_score('one-hand-rest-measure.xml', 6)
+
+    # Just under the top staff line of the treble staff, at the middle of the
+    # measure's click area: above the whole rest, which hangs from line 4.
+    x, y = page.evaluate_script(<<~JS)
+      (() => {
+        const rect = document.querySelector('rect.measure-click-area[data-measure-index="1"]').getBoundingClientRect()
+        const lines = [...document.querySelectorAll('g.vf-measure[id="2"] > path')]
+          .map((p) => p.getBoundingClientRect())
+          .filter((r) => r.height < 1 && r.width > 0)
+        return [rect.left + rect.width / 2, Math.min(...lines.map((r) => r.top)) + 2]
+      })()
+    JS
+    page.driver.browser.mouse.click(x: x, y: y)
+
+    # Measure 2's left-hand D3 is only the next note if the click landed there.
+    play_note('D3')
+    assert_selector 'svg g.vf-notehead.played-note', count: 1
+    assert_no_selector 'svg g.vf-notehead.wrong-note'
+  end
+
   def test_repeat_endings_playback_sequence
     # Score has:
     # - Measure 1: C4 (repeat start)
