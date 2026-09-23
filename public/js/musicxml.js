@@ -145,6 +145,7 @@ export function initMusicXML() {
     },
     getOsmdInstance: () => osmdInstance,
     getAllNotes: () => allNotes,
+    getExpectedGroup: () => expectedGroup(),
     getScoreMetadata: () => ({
       title: osmdInstance?.Sheet?.Title?.text || null,
       composer: osmdInstance?.Sheet?.Composer?.text || null,
@@ -915,6 +916,22 @@ function isTrillStillSounding(notes, midiNote, timestamp) {
   )
 }
 
+// What the player owes next: the notes of the active hands at the earliest
+// timestamp not yet played in the measure under the cursor, keyed by where they
+// sit so a caller can tell one wait from the next. Null between the last note
+// of a measure and the beat that moves the cursor on. A note already held down
+// stays in the group, flagged active, until the rest of the chord joins it.
+function expectedGroup() {
+  const pending = allNotes[currentMeasureIndex]?.notes.filter((n) => isNoteActiveForHands(n) && !n.played) ?? []
+  if (pending.length === 0) return null
+  const timestamp = Math.min(...pending.map((n) => n.timestamp))
+  return {
+    key: `${currentMeasureIndex}:${timestamp}`,
+    timestamp,
+    notes: pending.filter((n) => n.timestamp === timestamp),
+  }
+}
+
 // Where the player is in the measure: the latest note validated, or the note
 // due when none is yet.
 function lastValidatedTimestamp(notes, expectedTimestamp) {
@@ -1033,7 +1050,7 @@ function activateNote(midiNote) {
     }
 
     measureWrongNotes++
-    callbacks.onWrongNote?.()
+    callbacks.onWrongNote?.(midiNote)
 
     const expected = activeNotes.find((n) => !n.played && !n.active)
     if (expected) flashWrongNote(expected)
@@ -1097,12 +1114,11 @@ function cascadeHeldTieValidations() {
     const measureData = allNotes[currentMeasureIndex]
     if (!measureData?.notes?.length) return
 
-    const pending = measureData.notes.filter((n) => isNoteActiveForHands(n) && !n.played)
-    if (pending.length === 0) return
+    const next = expectedGroup()
+    if (!next) return
 
-    const nextTimestamp = Math.min(...pending.map((n) => n.timestamp))
     const group = measureData.notes.filter(
-      (n) => isNoteActiveForHands(n) && n.timestamp === nextTimestamp,
+      (n) => isNoteActiveForHands(n) && n.timestamp === next.timestamp,
     )
     // Only auto-advance when every note is already held by a tie - otherwise the
     // player still owes a fresh keypress for this group.

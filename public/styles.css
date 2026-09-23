@@ -113,6 +113,9 @@
 
   /* Z-layers */
   --pt-z-sticky: 20;
+  /* The on-screen keyboard's keys; the spacer under the score makes room for
+     them. */
+  --pt-keyhint-keys: 96px;
   --pt-z-popover: 50;
   --pt-z-modal: 100;
 
@@ -1944,6 +1947,95 @@ svg g.vf-notehead.missed-note path { fill: var(--pt-note-missed); }
   from, to { fill: var(--pt-note-missed); }
 }
 svg g.vf-notehead.wrong-note path { animation: pt-wrong-note-flash 700ms; }
+
+/* =============================================================================
+   On-screen keyboard (keyboardHint.js)
+   ========================================================================== */
+
+/* Pinned to the bottom of the screen, where the hands are, rather than after
+   the score: the measure being played is kept near the top, and the keyboard
+   has to be in view whichever system that is. The spacer after the score lets
+   its last system scroll clear of it. */
+.pt-keyhint {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: var(--pt-z-sticky);
+  background: var(--pt-bg-elevated);
+  border-top: 1px solid var(--pt-border);
+  box-shadow: var(--pt-shadow-lg);
+  padding: var(--pt-space-2) var(--pt-space-4) calc(var(--pt-space-2) + env(safe-area-inset-bottom));
+  animation: pt-keyhint-in 250ms ease-out;
+}
+/* A fade rather than a slide: the ✕ has to be where it is drawn from the
+   first frame, for a thumb as much as for a test. */
+@keyframes pt-keyhint-in {
+  from { opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pt-keyhint { animation: none; }
+}
+.pt-keyhint-spacer { height: calc(var(--pt-keyhint-keys) + 5rem); }
+.pt-keyhint__bar {
+  display: flex;
+  align-items: center;
+  gap: var(--pt-space-3);
+  margin-bottom: var(--pt-space-2);
+  font-size: 0.85rem;
+  color: var(--pt-text-muted);
+}
+.pt-keyhint__caption { flex: 1; min-width: 0; }
+.pt-keyhint__caption strong { color: var(--pt-note-expected); }
+.pt-keyhint__close { width: 32px; height: 32px; }
+/* A score spanning more keys than a phone is wide scrolls sideways inside the
+   strip, never the page; keyboardHint.js keeps the lit keys in the middle. */
+.pt-keyhint__scroll { overflow-x: auto; overscroll-behavior-x: contain; }
+/* The white keys share the width, down to what three octaves take on a phone
+   — they are read, never touched; the black keys sit over the gaps, placed
+   from the white keys' count. */
+.pt-keyhint__keys {
+  position: relative;
+  display: flex;
+  height: var(--pt-keyhint-keys);
+  min-width: calc(var(--whites) * 16px);
+}
+.pt-keyhint__key {
+  position: relative;
+  flex: 1 1 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 2px;
+  padding-bottom: 4px;
+  background: var(--pt-surface);
+  border: 1px solid var(--pt-border-strong);
+  border-left-width: 0;
+  border-radius: 0 0 var(--pt-radius-sm) var(--pt-radius-sm);
+  font-size: 0.7rem;
+  line-height: 1;
+  transition: background-color var(--pt-transition-fast);
+}
+.pt-keyhint__key:first-child { border-left-width: 1px; }
+.pt-keyhint__key.is-black {
+  position: absolute;
+  top: 0;
+  z-index: 1;
+  height: 60%;
+  width: calc(60% / var(--whites));
+  left: calc((var(--at) * 100% - 30%) / var(--whites));
+  background: var(--pt-text);
+  border: none;
+  color: var(--pt-text-inverse);
+}
+.pt-keyhint__c { color: var(--pt-text-subtle); font-size: 0.65rem; }
+.pt-keyhint__name { font-weight: 700; }
+.pt-keyhint__key:is(.is-owed, .is-right, .is-wrong) { color: var(--pt-text-inverse); }
+.pt-keyhint__key:is(.is-owed, .is-right, .is-wrong) .pt-keyhint__c { color: inherit; }
+.pt-keyhint__key.is-owed { background: var(--pt-note-expected); }
+.pt-keyhint__key.is-right { background: var(--pt-note-played); }
+.pt-keyhint__key.is-wrong { background: var(--pt-note-missed); }
 
 /* Clickable measure areas */
 .measure-click-area {

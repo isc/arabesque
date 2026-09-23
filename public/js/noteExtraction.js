@@ -105,12 +105,22 @@ const ACCIDENTAL_SIGNS = {
 // which is the hand that plays it everywhere but a deliberate cross-hand
 // passage — where the staff is what the player reads anyway.
 export function noteLabel(noteData) {
-  const { note, midiNumber } = noteData
+  const spelled = spelledNote(noteData)
+  return spelled && withHands(spelled, handOfNote(noteData))
+}
+
+// The same without the hand: "sol♯4".
+export function spelledNote(noteData) {
+  const name = noteName(noteData)
+  return name && `${name}${octaveOfMidi(noteData.midiNumber)}`
+}
+
+// The letter and its sign alone, "sol♯": what a key of the on-screen keyboard
+// carries, where the key's place already says the octave.
+export function noteName({ note }) {
   const pitch = note?.pitch
   const letter = t('score.noteLetters').split(' ')[getDiatonicIndex(pitch?.fundamentalNote)]
-  if (!letter) return ''
-  const spelled = `${letter}${ACCIDENTAL_SIGNS[pitch.accidental] ?? ''}${octaveOfMidi(midiNumber)}`
-  return withHands(spelled, handOfNote(noteData))
+  return letter ? `${letter}${ACCIDENTAL_SIGNS[pitch.accidental] ?? ''}` : ''
 }
 
 // Check if an accidental is explicitly specified (not undefined or NONE)
