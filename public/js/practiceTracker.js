@@ -47,11 +47,15 @@ export const REINFORCEMENT_CLEAN_STREAK = 3
 // Sessions a measure must span before its error rate can be called stagnant.
 const STAGNATION_MIN_SESSIONS = 3
 
-// What "à renforcer" means, for the score page and the library alike. Given a
-// score's sessions in any order, the measures reinforcement mode would offer
-// right now, best candidates first — so the library's 🎯 chip is exactly
-// "pieces this returns something for", rather than a second rule of its own
-// reading the cumulative aggregates, which never forget.
+// What makes a bar stand out from the rest of its piece, for the library's 🎯
+// chip: fumbled at least HOT_SPOT_FACTOR times as often as the piece as a
+// whole over the same window, on at least HOT_SPOT_MIN_ATTEMPTS attempts — one
+// unlucky pass proves nothing.
+export const HOT_SPOT_FACTOR = 2
+export const HOT_SPOT_MIN_ATTEMPTS = 3
+
+// What reinforcement mode offers on the score page. Given a score's sessions
+// in any order, the measures it would drill right now, best candidates first.
 //
 // Each hand selection keeps a list of its own (feedback 0868d96f): a bar
 // fumbled with the left hand alone is not a bar to drill two-handed, and clean
@@ -69,27 +73,52 @@ export function measuresToReinforce(sessions, { hands, limit = 5 } = {}) {
     .slice(0, limit)
 }
 
-// The same rule, asked as a yes or no. The library asks it of every score it
-// lists before it can draw anything, and ranking a score's measures only to
-// count them was most of what that cost: this stops at the first one. Without
-// `hands`, it asks whether any hand selection has something to offer.
-export function hasMeasuresToReinforce(sessions, hands) {
-  return !reinforceCandidates(sessions, hands).next().done
+// The library's question, asked of every score it lists: is this piece worth
+// opening to reinforce? Not "does reinforcement mode offer anything" — at the
+// error rates real practice runs at (a bar fumbled four times in ten is
+// ordinary), some bar is always short of its clean streak, and a chip asking
+// that held every piece ever played. What earns the chip is a hot spot: a bar
+// reinforcement would offer that also stands out from the rest of the piece.
+// A piece fumbled everywhere has none — the whole piece is the work there, not
+// a handful of bars — and neither does one played evenly well.
+//
+// Asked of both hands by default: the score page opens with both ticked, so
+// that is the badge the chip sends the player to, and a hand practised alone
+// is not pooled with passes it had no part in.
+export function hasHotSpots(sessions, hands = TWO_HANDS) {
+  const recent = recentSessions(sessions)
+  let attempts = 0
+  let fumbles = 0
+  for (const { bySession } of measureHistories(recent, hands)) {
+    for (const session of bySession) {
+      attempts += session.length
+      fumbles += countFumbles(session)
+    }
+  }
+  const threshold = (HOT_SPOT_FACTOR * fumbles) / attempts
+
+  for (const bar of reinforceCandidates(recent, hands)) {
+    if (bar.attempts >= HOT_SPOT_MIN_ATTEMPTS && bar.fumbles / bar.attempts >= threshold) return true
+  }
+  return false
 }
 
-// The measures worth offering, unranked, over the window that makes the rule
-// forget: only the last REINFORCEMENT_WINDOW_SESSIONS sessions of that score
-// count, so a bar massacred six months ago and left alone says nothing today.
+// The window that makes both rules forget: only the last
+// REINFORCEMENT_WINDOW_SESSIONS sessions of a score count, so a bar massacred
+// six months ago and left alone says nothing today.
 //
 // `startedAt` is always an ISO string in UTC, so it sorts as text — and a
 // comparator building two Dates per comparison was most of the cost of a call
 // that runs at every measure boundary.
-function* reinforceCandidates(sessions, hands) {
-  const recent = [...sessions]
+function recentSessions(sessions) {
+  return [...sessions]
     .sort((a, b) => (a.startedAt < b.startedAt ? -1 : a.startedAt > b.startedAt ? 1 : 0))
     .slice(-REINFORCEMENT_WINDOW_SESSIONS)
+}
 
-  for (const { sourceMeasureIndex, hands: selection, bySession } of measureHistories(recent, hands)) {
+// The measures worth offering, unranked, over that window.
+function* reinforceCandidates(sessions, hands) {
+  for (const { sourceMeasureIndex, hands: selection, bySession } of measureHistories(recentSessions(sessions), hands)) {
     const attempts = bySession.flat()
     if (!attempts.some(fumbled)) continue
     // Settled: the measure has since been played cleanly as many times in a
@@ -99,6 +128,8 @@ function* reinforceCandidates(sessions, hands) {
     yield {
       sourceMeasureIndex,
       hands: selection,
+      attempts: attempts.length,
+      fumbles: countFumbles(attempts),
       wrongNotes: attempts.reduce((sum, a) => sum + (a.wrongNotes || 0), 0),
       durationMs: attempts[attempts.length - 1].durationMs || 0,
       stagnant: isStagnant(bySession),
@@ -143,6 +174,10 @@ function fumbled(attempt) {
   return attempt.clean === false || (attempt.wrongNotes || 0) > 0
 }
 
+function countFumbles(attempts) {
+  return attempts.filter(fumbled).length
+}
+
 function cleanStreak(attempts) {
   let streak = 0
   for (let i = attempts.length - 1; i >= 0 && !fumbled(attempts[i]); i--) streak++
@@ -155,7 +190,7 @@ function cleanStreak(attempts) {
 // the noise of a good day and a bad one.
 function isStagnant(bySession) {
   if (bySession.length < STAGNATION_MIN_SESSIONS) return false
-  const rates = bySession.map((attempts) => attempts.filter(fumbled).length / attempts.length)
+  const rates = bySession.map((attempts) => countFumbles(attempts) / attempts.length)
   const split = Math.floor(rates.length / 2)
   return mean(rates.slice(split)) >= mean(rates.slice(0, split))
 }
