@@ -2073,18 +2073,18 @@ svg g.vf-notehead.wrong-note path { animation: pt-wrong-note-flash 700ms; }
 .pt-keyhint__name { font-weight: 700; }
 /* A lit key glows from inside in its colour — blue for owed, green for right,
    red for wrong — rather than turning into a flat block, so it still reads as
-   the key it is. Each state names its colour once. */
+   the key it is. Each state names its colour once. Nothing here raises a white
+   key: the black keys over it have to stay on top, lit or not, and its glow
+   stays inside its own edges for the same reason. */
 .pt-keyhint__key.is-owed { --lit: var(--pt-note-expected); }
 .pt-keyhint__key.is-right { --lit: var(--pt-note-played); }
 .pt-keyhint__key.is-wrong { --lit: var(--pt-note-missed); }
 .pt-keyhint__key:is(.is-owed, .is-right, .is-wrong) {
-  z-index: 2;
   background: linear-gradient(to bottom, color-mix(in srgb, var(--lit) 22%, #fff), color-mix(in srgb, var(--lit) 78%, #fff));
   box-shadow: inset -1px 0 0 color-mix(in srgb, var(--lit) 35%, #fff), inset 0 -5px 0 var(--lit);
   color: color-mix(in srgb, var(--lit) 45%, black);
 }
 .pt-keyhint__key.is-black:is(.is-owed, .is-right, .is-wrong) {
-  z-index: 3;
   background: linear-gradient(to bottom, color-mix(in srgb, var(--lit) 45%, black), var(--lit));
   box-shadow: 0 2px 3px rgba(0, 0, 0, 0.35), inset 0 -3px 0 rgba(255, 255, 255, 0.25);
   color: var(--pt-text-inverse);
@@ -2097,7 +2097,7 @@ svg g.vf-notehead.wrong-note path { animation: pt-wrong-note-flash 700ms; }
   inset: 0;
   border-radius: inherit;
   pointer-events: none;
-  box-shadow: 0 0 12px 2px var(--lit);
+  box-shadow: inset 0 0 14px 2px var(--lit);
   animation: pt-keyhint-glow 1.6s ease-in-out infinite;
 }
 @keyframes pt-keyhint-glow {

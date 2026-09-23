@@ -29,6 +29,21 @@ class KeyboardHintTest < CapybaraTestBase
     assert_selector '.pt-keyhint__chip', text: 'ré4'
   end
 
+  # A lit white key must not climb over the black keys that sit across it.
+  def test_the_black_keys_stay_on_top_of_a_lit_white_key
+    open_two_measures
+    3.times { play_note('G4') }
+    assert_selector '.pt-keyhint__key.is-owed[data-midi="60"]'
+
+    on_top = page.evaluate_script(<<~JS)
+      (() => {
+        const black = document.querySelector('.pt-keyhint__key[data-midi="61"]').getBoundingClientRect()
+        return document.elementFromPoint(black.left + 2, black.top + black.height / 2)?.closest('.pt-keyhint__key')?.dataset.midi
+      })()
+    JS
+    assert_equal '61', on_top
+  end
+
   # Training replays the measure a beat after its last note: the keyboard
   # follows the cursor back to the note owed again, with no key pressed.
   def test_it_follows_the_cursor_through_a_training_repetition
