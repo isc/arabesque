@@ -35,6 +35,11 @@ let playbackBpm = null
 
 const GRACE_NOTE_DURATION_S = 0.08
 
+// The gap between two notes of a rolled chord, bottom to top. A fixed time, not
+// a share of the beat: a roll is a gesture of the hand, about as quick at any
+// tempo — only squeezed when the chord is too short to hold it (rollOffsetMs).
+const ARPEGGIO_STEP_MS = 40
+
 // How hard playback presses each key. The engine has no dynamics of its own, so
 // this one value *is* the playback level, and it has to sit under the touch of
 // someone practising — it was a forte, so ▶ Écouter came out of the player's own
@@ -166,11 +171,14 @@ const ORNAMENT_NOTE_DURATION_WN = 1 / 16
 //   audio and the keyboard matcher realize the delayed turn the same way.
 // - isTrillEnd sentinels: skipped (only used by the keyboard matching engine)
 //
+// Arpeggiated chords: each note is marked with its place in the roll (markArpeggioRolls).
+//
 // Grace notes: the extractor places them GRACE_NOTE_OFFSET_WN before their main note
 // (≈0.2ms at 120 BPM — effectively simultaneous). Here we schedule them so the last
 // grace note ends exactly at the main note's start time.
 export function expandOrnamentTimings(notes) {
   const ornamentGroups = new Map()
+  const arpeggioChords = new Map()
   const result = []
   let graceGroup = []
 
@@ -196,6 +204,14 @@ export function expandOrnamentTimings(notes) {
       group.push(noteData)
     } else if (noteData.isGrace) {
       graceGroup.push(noteData)
+    } else if (noteData.note?.Arpeggio && !noteData.isTieContinuation) {
+      // A copy, as the roll is marked on it: the extractor's own objects stay clean.
+      flushGraceGroup()
+      const rolled = { ...noteData }
+      const chord = arpeggioChords.get(rolled.timestamp) ?? []
+      if (chord.length === 0) arpeggioChords.set(rolled.timestamp, chord)
+      chord.push(rolled)
+      result.push(rolled)
     } else {
       flushGraceGroup()
       result.push(noteData)
@@ -230,7 +246,41 @@ export function expandOrnamentTimings(notes) {
   }
 
   result.sort((a, b) => a.timestamp - b.timestamp)
+  markArpeggioRolls(arpeggioChords)
   return result
+}
+
+// OSMD's ArpeggioType for <arpeggiate direction="down"/>. Every other kind —
+// up, or no direction at all — rolls from the bottom.
+const ROLL_DOWN = 3
+
+// Chords written with an arpeggio sign (<arpeggiate/>) are rolled, not struck:
+// each note gets `_roll`, its place in the roll, which startPlayback turns into
+// a delay. OSMD sets `note.Arpeggio` only on notes carrying the sign, so a
+// <non-arpeggiate/> bracket, which it does not parse into one, stays a block.
+//
+// Every arpeggiated note sounding at the same instant rolls as one, across both
+// staves. MusicXML tells simultaneous arpeggios apart with a `number`, which
+// OSMD does not keep — and no score in the library writes one, so a sign drawn
+// over both staves and a sign on each come out of the file the same. One sweep
+// from the bass to the top is the reading that is right for the first and still
+// sounds like the second.
+function markArpeggioRolls(chords) {
+  for (const chord of chords.values()) {
+    if (chord.length < 2) continue
+    const down = chord.some((n) => n.note.Arpeggio.type === ROLL_DOWN)
+    chord.sort((a, b) => (down ? b.midiNumber - a.midiNumber : a.midiNumber - b.midiNumber))
+    const shortestWn = Math.min(...chord.map((n) => n.note.Length.RealValue))
+    chord.forEach((n, index) => { n._roll = { index, steps: chord.length - 1, shortestWn } })
+  }
+}
+
+// How late a rolled note sounds after the chord's beat. The whole roll takes at
+// most half the chord's shortest note, so the top of a quick chord still sounds
+// before the next one — and every note is held to the chord's end.
+export function rollOffsetMs({ index, steps, shortestWn }, bpm) {
+  const room = tsToSeconds(shortestWn, bpm) * 1000 / 2
+  return index * Math.min(ARPEGGIO_STEP_MS, room / steps)
 }
 
 // Fix two OSMD cursor issues that can't be solved with CSS alone:
@@ -423,6 +473,11 @@ function startPlayback(allNotes, osmdInstance, startMeasureIndex = 0) {
       } else {
         startMs = tsToSeconds(measureOffset + n.timestamp, bpm) * 1000
         durationMs = tsToSeconds(n._ornamentDuration ?? n.note.Length.RealValue, bpm) * 1000
+        if (n._roll) {
+          const offset = rollOffsetMs(n._roll, bpm)
+          startMs += offset
+          durationMs -= offset
+        }
       }
 
       if (!n.isTieContinuation) {

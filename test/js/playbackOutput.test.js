@@ -24,11 +24,11 @@ vi.mock('@tonejs/piano', () => ({
 
 // One measure holding one quarter note, plus the OSMD sheet playback reads the
 // tempo and measure lengths off.
-function score() {
+function score(notes = [{ midiNumber: 60, timestamp: 0, note: { Length: { RealValue: 0.25 } } }]) {
   const allNotes = [{
     measureIndex: 0,
     sourceMeasureIndex: 0,
-    notes: [{ midiNumber: 60, timestamp: 0, note: { Length: { RealValue: 0.25 } } }],
+    notes,
     cursorStops: [],
   }]
   const osmd = { Sheet: { SourceMeasures: [{ Duration: { RealValue: 1 }, TempoInBPM: 120 }] } }
@@ -88,5 +88,22 @@ describe('playback output', () => {
     await Promise.all([pb.play(...score()), pb.play(...score())])
 
     expect(sampler.built).toBe(1)
+  })
+
+  // Feedback b067270f: an arpeggio sign was played as a block chord. A quarter
+  // at 120 BPM lasts 500ms, room for the full 40ms step; each note is let go
+  // at the chord's end, not 500ms after its own late start.
+  it('rolls an arpeggiated chord and holds every note to its end', async () => {
+    const arpeggio = { type: 7 }
+    const chord = [67, 60, 64].map((midiNumber) => ({ midiNumber, timestamp: 0, note: { Length: { RealValue: 0.25 }, Arpeggio: arpeggio } }))
+    const sent = []
+    const pb = await load({ midiOutput: { send: (bytes) => sent.push([performance.now(), ...bytes]) } })
+    const t0 = performance.now()
+    await pb.play(...score(chord))
+    vi.advanceTimersByTime(600)
+
+    const at = (status) => sent.filter(([, s]) => s === status).map(([t, , midi]) => [t - t0, midi])
+    expect(at(0x90)).toEqual([[0, 60], [40, 64], [80, 67]])
+    expect(at(0x80).sort(([, a], [, b]) => a - b)).toEqual([[500, 60], [500, 64], [500, 67]])
   })
 })
