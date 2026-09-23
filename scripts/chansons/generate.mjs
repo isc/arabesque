@@ -131,6 +131,8 @@ function noteXml(event, staff, voice, total) {
   return event.pitches
     .map((p, i) => {
       const alter = p.alter ? `<alter>${p.alter}</alter>` : ''
+      // Every altered note prints its accidental, under a key signature too:
+      // the book writes the sharp of the F it has just taught each time.
       const accidental = p.alter === 1 ? '<accidental>sharp</accidental>' : p.alter === -1 ? '<accidental>flat</accidental>' : ''
       // A beam and a syllable belong to the chord, so to its first head only.
       const beam = event.beam && i === 0 ? `<beam number="1">${event.beam}</beam>` : ''
@@ -175,7 +177,7 @@ function songXml(song) {
     }
     if (isFirst || timeChanged) {
       const attrs = [`<divisions>${DIVISIONS}</divisions>`]
-      if (isFirst) attrs.push('<key><fifths>0</fifths></key>')
+      if (isFirst) attrs.push(`<key><fifths>${song.fifths ?? 0}</fifths></key>`)
       const [beats, beatType] = time.split('/')
       attrs.push(`<time${song.showTime ? '' : ' print-object="no"'}><beats>${beats}</beats><beat-type>${beatType}</beat-type></time>`)
       if (isFirst) {

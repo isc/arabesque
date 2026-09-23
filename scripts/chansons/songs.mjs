@@ -1,6 +1,6 @@
 // The twelve songs that close Sophie Allerme's "Méthode de piano pour les
-// 4-7 ans" (pp. 58-61), then "Trompette et tambour" from earlier in the same
-// book, all transcribed note for note: same keys, same registers, same hand
+// 4-7 ans" (pp. 58-61), then "Trompette et tambour" and "Sur le chemin de
+// l'école" from earlier in the same book, all transcribed note for note: same keys, same registers, same hand
 // positions, same fingerings. The tunes are all traditional and in the public
 // domain; the bass here is the one-note kind there is only one way to write.
 //
@@ -31,6 +31,9 @@
 // a measure may be left blank). A syllable ending in `-` is hyphenated to the
 // next, across a barline too ("et Mon- | sieur"). Only the first verse is
 // written; the book prints the others as prose under the score.
+//
+// `fifths` is the key signature (1 for one sharp); it defaults to none. It
+// changes nothing about the pitches: a sharp is still written F#4.
 //
 // A first measure shorter than the meter is a pickup and is numbered 0.
 // Repeats, Fin and D.C. sit on measures by number.
@@ -159,5 +162,16 @@ export const SONGS = [
     lh: 'R | R | R | G3q-4 G3q G3q rq | R | R | rq rq rq G3q-4 | C4q-1 rq rh',
     rhWords: "Ma- dam' trom- pette et Mon- | sieur tam- bour | ta ta ta | | Ma- dam' trom- pette et Mon- | sieur tam- bour | ta ta ta | ho!",
     lhWords: '| | | boum boum boum | | | boum | boum',
+  },
+  {
+    slug: 'sur-le-chemin-de-l-ecole',
+    title: "Sur le chemin de l'école",
+    time: '4/4',
+    showTime: true,
+    fifths: 1,
+    rh: 'R | R | D4h-2 G4q G4q | G4q F#4q G4h | R | R | D4h-2 G4q G4q | G4q F#4q G4h | R | R | G4q F#4q G4h | G4q F#4q G4h | R | R | D4h G4q G4q | G4q F#4q G4h | rh rq D4q-2 | E4q F#4q G4h | G4q F#4q G4h | G4q F#4q G4h',
+    lh: 'G3q-5 B3q D4q D4q | D4q C4q B3h | R | R | G3q-5 B3q D4q D4q | D4q C4q B3h | R | R | A3q-4 B3q C4q C4q | B3q A3q B3q B3q | R | R | G3q B3q D4q D4q | D4q C4q B3h | R | R | G3q-5 B3q D4q rq | R | R | R',
+    rhWords: "| | je chan- te | Sol Fa Sol | | | en chan- tant | Sol Fa Sol | | | Sol Fa Sol | Sol Fa Sol | | | je chan- te | Sol Fa Sol | sou- | cis s'en- volent | Sol Fa Sol | Sol Fa Sol",
+    lhWords: "sur le che- min | de l'é- cole, | | | et tous mes sou- | cis s'en- volent, | | | la mu- si- que | c'est ma- gi- que, | | | sur le che- min | de l'é- cole, | | | et tous mes | | |",
   },
 ]
