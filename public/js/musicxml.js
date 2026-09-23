@@ -697,49 +697,19 @@ function getBoundingBoxesForNotes(noteElements) {
     .filter(Boolean)
 }
 
-// The 5 horizontal staff lines of one vf-measure group. VexFlow renders
-// these as plain <path> elements with zero height (horizontal segments).
-function staffLineBoxes(measureGroup) {
+// The top and bottom staff line of every staff of a source measure, as
+// zero-size boxes in SVG units. They stretch the measure highlight up to the
+// top staff line / down to the bottom one, *without* picking up tempo
+// markings, clefs, key signatures etc. that render above the staff — and
+// cover every staff, not just those holding notes, so a bar the right hand
+// sits out can still be clicked on its treble staff.
+function staffLineBoxes(sourceMeasureIndex) {
   const boxes = []
-  for (const child of measureGroup.children) {
-    if (child.tagName !== 'path') continue
-    try {
-      const box = child.getBBox()
-      if (box.height === 0 && box.width > 0) boxes.push(box)
-    } catch { /* getBBox may throw on detached elements */ }
-  }
-  return boxes
-}
-
-// Bounding boxes of the staff lines of every staff of the measure holding the
-// given notes. We use them to stretch the measure highlight up to the top
-// staff line / down to the bottom one, *without* picking up tempo markings,
-// clefs, key signatures etc. that also live inside vf-measure but render
-// above the staff.
-//
-// Every staff, not just those holding notes: a bar the right hand sits out
-// must still be clickable on its treble staff. OSMD ids each staff's group
-// with the measure number, but numbers repeat (voltas, restarted numbering),
-// so a sibling only counts when its staff starts where the notes' does — the
-// staves of one bar on one system are drawn from the same x.
-function getStaffLineBoxes(noteElements) {
-  const boxes = []
-  const seen = new Set()
-  for (const el of noteElements) {
-    const measure = el.closest('g.vf-measure')
-    if (!measure || seen.has(measure)) continue
-    const ownLines = staffLineBoxes(measure)
-    if (ownLines.length === 0) continue
-    const x = ownLines[0].x
-    const siblings = measure.id && measure.ownerSVGElement
-      ? measure.ownerSVGElement.querySelectorAll(`g.vf-measure[id="${CSS.escape(measure.id)}"]`)
-      : [measure]
-    for (const group of siblings) {
-      if (seen.has(group)) continue
-      const lines = group === measure ? ownLines : staffLineBoxes(group)
-      if (lines.length === 0 || Math.abs(lines[0].x - x) > 1) continue
-      seen.add(group)
-      boxes.push(...lines)
+  for (const graphicalMeasure of osmdInstance.graphic.MeasureList[sourceMeasureIndex] || []) {
+    const stave = graphicalMeasure?.stave
+    if (!stave) continue
+    for (const line of [0, stave.getNumLines() - 1]) {
+      boxes.push({ x: stave.getX(), y: stave.getYForLine(line), width: 0, height: 0 })
     }
   }
   return boxes
@@ -846,12 +816,10 @@ function setupMeasureClickHandlers() {
 
     // Horizontal bounds come from the noteheads (so the rect hugs the
     // notes). Vertical bounds are the union of the noteheads (catches
-    // low ledger-line notes below the bass staff) and the staff lines of
-    // every staff of the measure (so the rect covers the treble staff even
-    // when the right hand has nothing to play there).
+    // low ledger-line notes below the bass staff) and the outer staff
+    // lines of every staff of the measure.
     const hBounds = calculateCombinedBounds(noteBoxes)
-    const staffBoxes = getStaffLineBoxes(noteElements)
-    const vBounds = calculateCombinedBounds([...noteBoxes, ...staffBoxes])
+    const vBounds = calculateCombinedBounds([...noteBoxes, ...staffLineBoxes(measureData.sourceMeasureIndex)])
     const bounds = { minX: hBounds.minX, maxX: hBounds.maxX, minY: vBounds.minY, maxY: vBounds.maxY }
     const rect = createMeasureRectangle(bounds, measureIndex)
 
