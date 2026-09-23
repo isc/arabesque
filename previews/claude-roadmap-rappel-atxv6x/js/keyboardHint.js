@@ -11,7 +11,7 @@
 // hintStep is the whole of that decision, kept pure so it can be tested
 // without a clock or a page; initKeyboardHint wires it to a timer, the engine
 // and the DOM.
-import { noteName, spelledNote, handOfNote } from './noteExtraction.js'
+import { noteName, spelledNote, handOfNote, cLabel } from './noteExtraction.js'
 import { withHands } from './utils.js'
 
 // Wrong keys tried for the same note before it is shown.
@@ -45,7 +45,7 @@ export function initialHint() {
 }
 
 const engage = (state, now) => (state.engaged ? state : { ...state, engaged: true, since: now })
-const reveal = (state) => (state.visible || state.dismissed ? state : { ...state, visible: true, streak: 0 })
+const reveal = (state) => (state.visible || state.dismissed ? state : { ...state, visible: true })
 
 // Events:
 //   tick  { key, now, eligible } — where the player is; eligible is false
@@ -98,9 +98,6 @@ const A0 = 21
 const C8 = 108
 const MIDDLE_C = 60
 const BLACK_PITCH_CLASSES = new Set([1, 3, 6, 8, 10])
-// A C as noteExtraction spells it (OSMD's fundamentalNote is the semitone
-// offset of the letter), for the landmark labels.
-const C_NOTE = { pitch: { fundamentalNote: 0 } }
 const isBlackKey = (midi) => BLACK_PITCH_CLASSES.has(midi % 12)
 
 // The keys to draw for a score: whole octaves, C to B, around every note it
@@ -124,8 +121,8 @@ export function keyLayout({ low, high }) {
   const keys = []
   let whites = 0
   for (let midi = low; midi <= high; midi++) {
-    if (isBlackKey(midi)) keys.push({ midi, black: true, at: whites })
-    else keys.push({ midi, black: false, at: whites++ })
+    const black = isBlackKey(midi)
+    keys.push({ midi, black, at: black ? whites : whites++ })
   }
   return { keys, whites }
 }
@@ -154,14 +151,15 @@ export function initKeyboardHint({ expectedGroup, eligible, onVisibleChange, onC
   let keyElements = new Map()
   // Keys down right now, and whether each was right.
   const held = new Map()
+  // The notes the caption and the scroll were last set for.
   let paintedOwed = ''
-  let paintedHeld = ''
+  let centring = 0
 
   function dispatch(event) {
     const before = state.visible
     state = hintStep(state, event)
     if (state.visible === before) return
-    paintedOwed = paintedHeld = ''
+    paintedOwed = ''
     clearInterval(following)
     following = state.visible ? setInterval(tick, TICK_MS) : null
     onVisibleChange(state.visible)
@@ -169,9 +167,12 @@ export function initKeyboardHint({ expectedGroup, eligible, onVisibleChange, onC
 
   function tick() {
     const group = expectedGroup()
-    dispatch({ type: 'tick', key: group?.key ?? null, now: now(), eligible: eligible() })
-    if (state.visible) paint(group)
-    else armWait()
+    const asked = eligible()
+    dispatch({ type: 'tick', key: group?.key ?? null, now: now(), eligible: asked })
+    // Up but out of sight (strict mode, listening): nothing to draw.
+    if (state.visible) {
+      if (asked) paint(group)
+    } else armWait()
   }
 
   // Looks again when the note waited on would have been waited on too long —
@@ -187,42 +188,44 @@ export function initKeyboardHint({ expectedGroup, eligible, onVisibleChange, onC
   function paint(group) {
     if (!container) return
     const owed = new Map((group?.notes ?? []).map((n) => [n.midiNumber, n]))
-    const owedSignature = [...owed.keys()].join()
-    const heldSignature = [...held].join()
-    if (owedSignature === paintedOwed && heldSignature === paintedHeld) return
-    const owedChanged = owedSignature !== paintedOwed
-    paintedOwed = owedSignature
-    paintedHeld = heldSignature
     for (const [midi, { key, name }] of keyElements) {
       const note = owed.get(midi)
       const press = held.get(midi)
       key.classList.toggle('is-owed', !!note && press !== 'ok')
       key.classList.toggle('is-right', press === 'ok')
       key.classList.toggle('is-wrong', press === 'wrong')
-      name.textContent = note ? noteName(note) : ''
+      const text = note ? noteName(note) : ''
+      if (name.textContent !== text) name.textContent = text
     }
     // Between two measures nothing is owed for a moment: the caption keeps
     // the last note rather than blinking empty.
-    if (!owedChanged || !owed.size) return
+    const owedSignature = [...owed.keys()].join()
+    if (owedSignature === paintedOwed || !owed.size) return
+    paintedOwed = owedSignature
     onCaptionChange(caption([...owed.values()]))
     centre([...owed.keys()])
   }
 
   // On a phone the score's range can be wider than the screen: keep what is
-  // owed in the middle of the strip. The strip may not be laid out yet on the
-  // tick that brings it up — the page shows it in its own time — so a strip
-  // with no width is looked at again on the next frame.
+  // owed in the middle of the strip. Measured at the next frame rather than in
+  // the keypress that called for it, where reading a layout would force one
+  // for the whole score. The strip may not be laid out yet on the tick that
+  // brings it up — the page shows it in its own time — so a strip with no
+  // width is looked at again, for as long as it is meant to be seen.
   function centre(midis) {
-    const scroller = container.parentElement
-    if (!scroller.clientWidth) {
-      if (state.visible) requestAnimationFrame(() => centre(midis))
-      return
-    }
-    if (scroller.scrollWidth <= scroller.clientWidth) return
-    const keys = midis.map((m) => keyElements.get(m).key)
-    const left = Math.min(...keys.map((el) => el.offsetLeft))
-    const right = Math.max(...keys.map((el) => el.offsetLeft + el.offsetWidth))
-    scroller.scrollLeft = (left + right) / 2 - scroller.clientWidth / 2
+    cancelAnimationFrame(centring)
+    centring = requestAnimationFrame(() => {
+      const scroller = container.parentElement
+      if (!scroller.clientWidth) {
+        if (state.visible && eligible()) centre(midis)
+        return
+      }
+      if (scroller.scrollWidth <= scroller.clientWidth) return
+      const keys = midis.map((m) => keyElements.get(m).key)
+      const left = Math.min(...keys.map((el) => el.offsetLeft))
+      const right = Math.max(...keys.map((el) => el.offsetLeft + el.offsetWidth))
+      scroller.scrollLeft = (left + right) / 2 - scroller.clientWidth / 2
+    })
   }
 
   return {
@@ -246,7 +249,7 @@ export function initKeyboardHint({ expectedGroup, eligible, onVisibleChange, onC
           c.className = 'pt-keyhint__c'
           // C, with its octave, is written on every C key: the landmark a
           // beginner counts from.
-          c.textContent = spelledNote({ note: C_NOTE, midiNumber: midi })
+          c.textContent = cLabel(midi)
           key.append(c)
         }
         keyElements.set(midi, { key, name })
@@ -263,16 +266,20 @@ export function initKeyboardHint({ expectedGroup, eligible, onVisibleChange, onC
     // wrong note is already known by then, through wrongNote.
     // Keys only count where the keyboard could come up: a wrong note tried
     // while strict mode is selected must not have it waiting on the next tab.
+    // Once put away it never comes back, so they are not followed at all.
     keyDown(midi) {
+      if (state.dismissed) return
       if (!held.has(midi)) held.set(midi, 'ok')
       if (eligible()) dispatch({ type: 'press', now: now() })
       tick()
     },
     wrongNote(midi) {
+      if (state.dismissed) return
       held.set(midi, 'wrong')
       if (eligible()) dispatch({ type: 'wrong', now: now() })
     },
     keyUp(midi) {
+      if (state.dismissed) return
       held.delete(midi)
       if (state.visible) tick()
     },

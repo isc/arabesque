@@ -113,15 +113,18 @@
 
   /* Z-layers */
   --pt-z-sticky: 20;
-  /* The on-screen keyboard's keys; the spacer under the score makes room for
-     them. */
-  --pt-keyhint-keys: 96px;
   --pt-z-popover: 50;
   --pt-z-modal: 100;
 
   /* Motion */
   --pt-transition-fast: 120ms ease;
   --pt-transition-med: 220ms ease;
+
+  /* On-screen keyboard (keyboardHint.js): its caption bar and its keys. The
+     spacer under the score is sized from them, so the last system can always
+     be scrolled clear of the strip. */
+  --pt-keyhint-bar: 32px;
+  --pt-keyhint-keys: 96px;
 
   /* Typography */
   --pt-font-ui: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
@@ -1966,7 +1969,7 @@ svg g.vf-notehead.wrong-note path { animation: pt-wrong-note-flash 700ms; }
   border-top: 1px solid var(--pt-border);
   box-shadow: var(--pt-shadow-lg);
   padding: var(--pt-space-2) var(--pt-space-4) calc(var(--pt-space-2) + env(safe-area-inset-bottom));
-  animation: pt-keyhint-in 250ms ease-out;
+  animation: pt-keyhint-in var(--pt-transition-med);
 }
 /* A fade rather than a slide: the ✕ has to be where it is drawn from the
    first frame, for a thumb as much as for a test. */
@@ -1976,18 +1979,21 @@ svg g.vf-notehead.wrong-note path { animation: pt-wrong-note-flash 700ms; }
 @media (prefers-reduced-motion: reduce) {
   .pt-keyhint { animation: none; }
 }
-.pt-keyhint-spacer { height: calc(var(--pt-keyhint-keys) + 5rem); }
+.pt-keyhint-spacer {
+  height: calc(var(--pt-keyhint-bar) + var(--pt-keyhint-keys) + 3 * var(--pt-space-2) + env(safe-area-inset-bottom) + var(--pt-space-4));
+}
 .pt-keyhint__bar {
   display: flex;
   align-items: center;
   gap: var(--pt-space-3);
+  height: var(--pt-keyhint-bar);
   margin-bottom: var(--pt-space-2);
   font-size: 0.85rem;
   color: var(--pt-text-muted);
 }
 .pt-keyhint__caption { flex: 1; min-width: 0; }
 .pt-keyhint__caption strong { color: var(--pt-note-expected); }
-.pt-keyhint__close { width: 32px; height: 32px; }
+.pt-keyhint__close { width: var(--pt-keyhint-bar); height: var(--pt-keyhint-bar); }
 /* A score spanning more keys than a phone is wide scrolls sideways inside the
    strip, never the page; keyboardHint.js keeps the lit keys in the middle. */
 .pt-keyhint__scroll { overflow-x: auto; overscroll-behavior-x: contain; }

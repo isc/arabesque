@@ -109,6 +109,11 @@ export function noteLabel(noteData) {
   return spelled && withHands(spelled, handOfNote(noteData))
 }
 
+// A C key by name, "do4": the landmark the on-screen keyboard labels.
+export function cLabel(midiNumber) {
+  return `${t('score.noteLetters').split(' ')[0]}${octaveOfMidi(midiNumber)}`
+}
+
 // The same without the hand: "sol♯4".
 export function spelledNote(noteData) {
   const name = noteName(noteData)
