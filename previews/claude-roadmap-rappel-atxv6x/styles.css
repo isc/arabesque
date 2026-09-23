@@ -125,6 +125,15 @@
      be scrolled clear of the strip. */
   --pt-keyhint-bar: 32px;
   --pt-keyhint-keys: 96px;
+  --pt-keyhint-case: 4px;
+  /* The instrument itself: its case, its keys, the lip along a white key's
+     front edge and the shadow a black key casts. */
+  --pt-key-case: #1c1f29;
+  --pt-key-white: var(--pt-surface);
+  --pt-key-shade: color-mix(in srgb, var(--pt-border) 70%, var(--pt-surface));
+  --pt-key-lip: color-mix(in srgb, var(--pt-border-strong) 60%, var(--pt-surface));
+  --pt-key-black: #2d3140;
+  --pt-key-shadow: 0 2px 3px rgba(15, 18, 30, 0.35);
 
   /* Typography */
   --pt-font-ui: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
@@ -1980,7 +1989,7 @@ svg g.vf-notehead.wrong-note path { animation: pt-wrong-note-flash 700ms; }
   .pt-keyhint { animation: none; }
 }
 .pt-keyhint-spacer {
-  height: calc(var(--pt-keyhint-bar) + var(--pt-keyhint-keys) + 8px + 3 * var(--pt-space-2) + env(safe-area-inset-bottom) + var(--pt-space-4));
+  height: calc(var(--pt-keyhint-bar) + var(--pt-keyhint-keys) + 2 * var(--pt-keyhint-case) + 3 * var(--pt-space-2) + env(safe-area-inset-bottom) + var(--pt-space-4));
 }
 .pt-keyhint__bar {
   display: flex;
@@ -2001,20 +2010,15 @@ svg g.vf-notehead.wrong-note path { animation: pt-wrong-note-flash 700ms; }
   gap: var(--pt-space-3);
   white-space: nowrap;
   overflow: hidden;
-}
-.pt-keyhint__prompt {
-  font-size: 0.72rem;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--pt-text-subtle);
+  --lit: var(--pt-note-expected);
 }
 .pt-keyhint__group { display: inline-flex; align-items: center; gap: var(--pt-space-1); }
+/* In the ink and the tint of the keys they name. */
 .pt-keyhint__chip {
-  padding: 2px 9px;
+  padding: 2px var(--pt-space-2);
   border-radius: var(--pt-radius-pill);
-  background: color-mix(in srgb, var(--pt-note-expected) 14%, transparent);
-  color: color-mix(in srgb, var(--pt-note-expected) 75%, black);
+  background: color-mix(in srgb, var(--lit) 14%, transparent);
+  color: var(--lit-ink);
   font-weight: 700;
 }
 .pt-keyhint__hand { color: var(--pt-text-subtle); font-size: 0.78rem; }
@@ -2026,9 +2030,9 @@ svg g.vf-notehead.wrong-note path { animation: pt-wrong-note-flash 700ms; }
 .pt-keyhint__scroll {
   overflow-x: auto;
   overscroll-behavior-x: contain;
-  padding: 5px 3px 3px;
+  padding: var(--pt-keyhint-case);
   border-radius: var(--pt-radius-md);
-  background: var(--pt-text);
+  background: var(--pt-key-case);
 }
 /* The white keys share the width, down to what three octaves take on a phone
    — they are read, never touched; the black keys sit over the gaps, placed
@@ -2039,8 +2043,12 @@ svg g.vf-notehead.wrong-note path { animation: pt-wrong-note-flash 700ms; }
   height: var(--pt-keyhint-keys);
   min-width: calc(var(--whites) * 16px);
 }
+/* Every white key is a stacking context of its own at level 0 and every black
+   key sits at level 1, so nothing a white key draws — a lit state, the pulse
+   on the owed one — can ever land over the black keys across it. */
 .pt-keyhint__key {
   position: relative;
+  z-index: 0;
   flex: 1 1 0;
   display: flex;
   flex-direction: column;
@@ -2050,13 +2058,14 @@ svg g.vf-notehead.wrong-note path { animation: pt-wrong-note-flash 700ms; }
   padding-bottom: 7px;
   /* Shaded at both ends and with a lip along the front edge, like a key seen
      from the player's seat. */
-  background: linear-gradient(to bottom, #e9ebf0, #fff 16%, #fff 80%, #f0f1f5);
-  box-shadow: inset -1px 0 0 var(--pt-border-strong), inset 0 -4px 0 #dcdfe7;
+  background: linear-gradient(to bottom, var(--pt-key-shade), var(--pt-key-white) 16%, var(--pt-key-white) 80%, var(--pt-key-shade));
+  box-shadow: inset -1px 0 0 var(--pt-border-strong), inset 0 -4px 0 var(--pt-key-lip);
   border-radius: 0 0 var(--pt-radius-sm) var(--pt-radius-sm);
   font-size: 0.7rem;
   line-height: 1;
 }
 .pt-keyhint__key.is-black {
+  --lip: 0.1;
   position: absolute;
   top: 0;
   z-index: 1;
@@ -2064,32 +2073,32 @@ svg g.vf-notehead.wrong-note path { animation: pt-wrong-note-flash 700ms; }
   width: calc(60% / var(--whites));
   left: calc((var(--at) * 100% - 30%) / var(--whites));
   padding-bottom: 5px;
-  background: linear-gradient(to bottom, #11131a, #2d3140 85%, #3b4052);
-  box-shadow: 0 2px 3px rgba(0, 0, 0, 0.35), inset 0 -3px 0 rgba(255, 255, 255, 0.1);
-  border-radius: 0 0 3px 3px;
+  background: linear-gradient(to bottom, color-mix(in srgb, var(--pt-key-black) 60%, black), var(--pt-key-black) 85%, color-mix(in srgb, var(--pt-key-black) 85%, white));
+  box-shadow: var(--pt-key-shadow), inset 0 -3px 0 rgb(255 255 255 / var(--lip));
   color: var(--pt-text-inverse);
 }
-.pt-keyhint__c { color: var(--pt-text-subtle); font-size: 0.62rem; }
+.pt-keyhint__c { color: var(--pt-text-subtle); font-size: 0.65rem; }
 .pt-keyhint__name { font-weight: 700; }
 /* A lit key glows from inside in its colour — blue for owed, green for right,
    red for wrong — rather than turning into a flat block, so it still reads as
-   the key it is. Each state names its colour once. Nothing here raises a white
-   key: the black keys over it have to stay on top, lit or not, and its glow
-   stays inside its own edges for the same reason. */
+   the key it is. Each state names its colour once; keyboardHint.js marks all
+   three .is-lit. */
 .pt-keyhint__key.is-owed { --lit: var(--pt-note-expected); }
 .pt-keyhint__key.is-right { --lit: var(--pt-note-played); }
 .pt-keyhint__key.is-wrong { --lit: var(--pt-note-missed); }
-.pt-keyhint__key:is(.is-owed, .is-right, .is-wrong) {
-  background: linear-gradient(to bottom, color-mix(in srgb, var(--lit) 22%, #fff), color-mix(in srgb, var(--lit) 78%, #fff));
-  box-shadow: inset -1px 0 0 color-mix(in srgb, var(--lit) 35%, #fff), inset 0 -5px 0 var(--lit);
-  color: color-mix(in srgb, var(--lit) 45%, black);
+:is(.pt-keyhint__key.is-lit, .pt-keyhint__caption) { --lit-ink: color-mix(in srgb, var(--lit) 45%, var(--pt-text)); }
+.pt-keyhint__key.is-lit {
+  background: linear-gradient(to bottom, color-mix(in srgb, var(--lit) 22%, var(--pt-key-white)), color-mix(in srgb, var(--lit) 78%, var(--pt-key-white)));
+  box-shadow: inset -1px 0 0 color-mix(in srgb, var(--lit) 35%, var(--pt-key-white)), inset 0 -5px 0 var(--lit);
+  color: var(--lit-ink);
 }
-.pt-keyhint__key.is-black:is(.is-owed, .is-right, .is-wrong) {
+.pt-keyhint__key.is-black.is-lit {
+  --lip: 0.25;
   background: linear-gradient(to bottom, color-mix(in srgb, var(--lit) 45%, black), var(--lit));
-  box-shadow: 0 2px 3px rgba(0, 0, 0, 0.35), inset 0 -3px 0 rgba(255, 255, 255, 0.25);
+  box-shadow: var(--pt-key-shadow), inset 0 -3px 0 rgb(255 255 255 / var(--lip));
   color: var(--pt-text-inverse);
 }
-.pt-keyhint__key:is(.is-owed, .is-right, .is-wrong) .pt-keyhint__c { color: inherit; }
+.pt-keyhint__key.is-lit .pt-keyhint__c { color: inherit; }
 /* The key owed breathes, gently, to catch an eye that is on the score. */
 .pt-keyhint__key.is-owed::after {
   content: "";

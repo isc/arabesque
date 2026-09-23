@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="app-version" content="bd686c53ef42" />
+    <meta name="app-version" content="5d9c940de13c" />
     <title data-i18n="score.pageTitle">Arabesque</title>
     <link rel="icon" href="favicon.svg" type="image/svg+xml" />
     <link rel="manifest" href="manifest.webmanifest" />
@@ -683,7 +683,7 @@
     <aside class="pt-keyhint" x-show="keyHintShown" x-cloak :aria-label="$t('score.keyHintAria')">
       <div class="pt-keyhint__bar">
         <span class="pt-keyhint__caption">
-          <span class="pt-keyhint__prompt" x-text="$t('score.keyHintPlay')"></span>
+          <span class="pt-eyebrow" x-text="$t('score.keyHintPlay')"></span>
           <template x-for="group in keyHintCaption" :key="group.hand">
             <span class="pt-keyhint__group">
               <template x-for="note in group.notes" :key="note">
