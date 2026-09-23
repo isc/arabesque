@@ -661,6 +661,11 @@ export function midiApp() {
 
     async afterScoreLoad() {
       this.osmdInstance = musicxml.getOsmdInstance()
+      // A verdict is a verdict on the piece it was played on. Another score
+      // dropped in is another piece, and the notes the marks were keyed to are
+      // not in it — so they go before the module can be asked to paint them
+      // back onto it.
+      strictPlaythrough.clearMarks()
       // As soon as OSMD has parsed the sheet — the title and composer are read
       // straight off it, and waiting for the render meant the topbar sat on its
       // "Partition" placeholder for the whole of it.
@@ -1480,7 +1485,8 @@ export function midiApp() {
     },
 
     // Every redraw replaces the SVG, taking with it everything painted on it:
-    // note colours, fingering handlers, the training cursor, the strict marker.
+    // note colours, fingering handlers, the training cursor, the strict marker,
+    // the marks a strict run left.
     // What the redraw cannot take is the session behind those marks — renderScore
     // keeps it across a rebuild of the note model — so this only paints it back.
     repaintScore() {
@@ -1488,6 +1494,10 @@ export function midiApp() {
       fingeringEditor.alignFingeringLabelsToNoteheads()
       this.setupFingeringHandlers()
       fingeringEditor.paintNoteStates(currentMeasureIndex)
+      // After paintNoteStates, which owns played-note for the free and training
+      // modes: a strict hit wears the same class, and the two paint it from
+      // stores of their own.
+      strictPlaythrough.repaintMarks()
       musicxml.updateMeasureCursor()
       // The click rectangles are rebuilt by the redraw, so the marker went with them.
       this.paintStrictRange()

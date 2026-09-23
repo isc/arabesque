@@ -41,6 +41,9 @@ const STRICT_CLASSES = [CLS_EXPECTED, CLS_PLAYED, CLS_OFFTEMPO, CLS_MISSED]
 
 let timeouts = []
 let isRunning = false
+// The score the module works on. Outlives the run that set it — the marks a run
+// leaves are read off it long after teardown(), by clearMarks and repaintMarks —
+// and is dropped with them, never before.
 let activeOsmd = null
 let pendingEvents = []
 // Grace pitches with the beat each leans on: let through, never asked for.
@@ -67,15 +70,20 @@ let runWholeScore = true
 let runBpm = 0
 let currentToleranceMs = DEFAULT_TOLERANCE_MS
 let currentOffTempoWindowMs = DEFAULT_OFFTEMPO_WINDOW_MS
-// The noteheads the last run marked, kept past teardown() so the marks can be
-// cleared once the player leaves strict mode (see clearMarks).
-let markedNoteheads = []
+// The last run's verdict: one strict class per note, keyed by the note itself
+// rather than by the element it is drawn on. Every redraw replaces that element
+// — a phone turned, a window widened, a fingering entered — so a cached node is
+// a node the next relayout detaches, marks and all. Kept as data instead, the
+// verdict is re-applied by repaintMarks() and taken off by clearMarks(), both
+// of which look the notehead up again.
+let markedNotes = new Map()
 
 export function initStrictPlaythrough() {
   return {
     start,
     stop,
     clearMarks,
+    repaintMarks,
     handleNoteOn,
     setActiveHands,
     get isPlaying() { return isRunning },
@@ -87,11 +95,10 @@ export function initStrictPlaythrough() {
 // changing a hand takes the last one's marks off: a hand dropped, the notes it
 // missed would stay red over notes the next run will not ask for.
 //
-// Not mid-run — clearing empties markedNoteheads, and everything the run marks
-// afterwards would be stranded past the reach of clearMarks() for the rest of
-// the session. The hand checkboxes are disabled for the length of a run
-// (score.html) so this should not arise; the guard is here because only this
-// module can see why it matters.
+// Not mid-run — it would wipe the verdict the run is still collecting, leaving
+// the notes already judged bare and the ones after them marked. The hand
+// checkboxes are disabled for the length of a run (score.html) so this should
+// not arise; the guard is here because only this module can see why it matters.
 function setActiveHands(hands) {
   if (!isRunning) clearMarks()
   activeHands = { ...activeHands, ...hands }
@@ -171,6 +178,9 @@ function start({
   }
 
   prepareClick()
+  // Off with the last run's verdict, against the score it was earned on, before
+  // this run adopts its own.
+  clearMarks()
   activeOsmd = osmdInstance
   onCompleteCb = onComplete
   onProgressCb = onProgress
@@ -192,11 +202,6 @@ function start({
 
   pendingEvents = []
   graceNotes = []
-  // Off with the last run's marks before this one's are collected: scrubbing
-  // them note by note below would only reach the notes this run covers, and
-  // a shorter passage would leave the ones beyond it lit *and* forgotten,
-  // past the reach of clearMarks() for the rest of the session.
-  clearMarks()
   measureRuns = allNotes.map((measureData, i) => ({
     sourceMeasureIndex: measureData.sourceMeasureIndex,
     startMs: countInMs + tsToSeconds(measureStartTimes[i], bpm) * 1000,
@@ -205,17 +210,14 @@ function start({
   }))
   const cursorTimes = buildCursorTimeline(allNotes, measureStartTimes, bpm, countInMs)
 
-  // Single pass: look up each notehead once, keep it for clearMarks(), and
-  // sort each note into what the run asks for (pendingEvents) or merely lets
-  // through (graceNotes).
+  // Each note sorted into what the run asks for (pendingEvents) or merely lets
+  // through (graceNotes), the former carrying the notehead it lights up — looked
+  // up here, once, rather than at every strike.
   for (let i = 0; i < allNotes.length; i++) {
     const measureData = allNotes[i]
     const measureOffset = measureStartTimes[i] - measureData.measureIndex
 
     for (const noteData of measureData.notes) {
-      const noteheadEl = svgNoteheadFor(activeOsmd, noteData)
-      if (noteheadEl) markedNoteheads.push(noteheadEl)
-
       if (!isNoteActiveForHands(noteData, activeHands)) continue
 
       const ts = measureOffset + noteData.timestamp
@@ -231,7 +233,7 @@ function start({
         timeMs: noteTimeMs,
         bpm,
         offTempoWindow,
-        noteheadEl,
+        noteheadEl: svgNoteheadFor(activeOsmd, noteData),
         measureIndex: i,
         sourceMeasureIndex: measureData.sourceMeasureIndex,
       })
@@ -284,9 +286,7 @@ function start({
   for (const { atMs, sources } of planRepeatResets(allNotes, measureRuns)) {
     timeouts.push(setTimeout(() => {
       for (const event of pendingEvents) {
-        if (sources.has(event.sourceMeasureIndex)) {
-          event.noteheadEl?.classList.remove(...STRICT_CLASSES)
-        }
+        if (sources.has(event.sourceMeasureIndex)) unmarkNote(event)
       }
     }, atMs))
   }
@@ -324,11 +324,27 @@ function start({
   timeouts.push(setTimeout(() => finish(false), lastCloseMs + TAIL_PADDING_MS))
 }
 
+// The verdict a note ends on: painted on the score in place of the highlight
+// that was asking for it, and recorded so a redraw can paint it again. The
+// highlight itself is not recorded — it says where the music is, not how it
+// went, and no redraw should bring it back.
+function markNote(event, cls) {
+  event.noteheadEl?.classList.remove(CLS_EXPECTED)
+  event.noteheadEl?.classList.add(cls)
+  markedNotes.set(event.noteData, cls)
+}
+
+// A verdict taken back — the class off the score and out of the model, or the
+// next redraw would put it straight back on.
+function unmarkNote(event) {
+  event.noteheadEl?.classList.remove(...STRICT_CLASSES)
+  markedNotes.delete(event.noteData)
+}
+
 function missEvent(event) {
   event.status = EVENT_STATUS.MISSED
   stats.missed++
-  event.noteheadEl?.classList.remove(CLS_EXPECTED)
-  event.noteheadEl?.classList.add(CLS_MISSED)
+  markNote(event, CLS_MISSED)
   onProgressCb?.({ ...stats })
 }
 
@@ -356,15 +372,14 @@ function handleNoteOn(midiNumber) {
   // More of the ornament to come, or a trill still alternating past the
   // realization it was credited for: the note is taken, nothing is settled yet.
   if (!classification) return true
-  event.noteheadEl?.classList.remove(CLS_EXPECTED)
   if (classification === CLASSIFICATION.HIT) {
     stats.hit++
-    event.noteheadEl?.classList.add(CLS_PLAYED)
+    markNote(event, CLS_PLAYED)
   } else {
     // Single offtempo status; early vs late is captured in the stats only.
     if (classification === CLASSIFICATION.OFFTEMPO_EARLY) stats.offTempoEarly++
     else stats.offTempoLate++
-    event.noteheadEl?.classList.add(CLS_OFFTEMPO)
+    markNote(event, CLS_OFFTEMPO)
   }
   onProgressCb?.({ ...stats })
   return true
@@ -428,7 +443,6 @@ function teardown() {
       event.noteheadEl?.classList.remove(CLS_EXPECTED)
     }
   }
-  activeOsmd = null
   pendingEvents = []
   graceNotes = []
   measureRuns = []
@@ -437,8 +451,19 @@ function teardown() {
 // Wipes the last run's marks off the score — what teardown() leaves for the
 // player to read, and what has no business staying once another mode is on.
 function clearMarks() {
-  for (const el of markedNoteheads) el.classList.remove(...STRICT_CLASSES)
-  markedNoteheads = []
+  for (const noteData of markedNotes.keys()) {
+    svgNoteheadFor(activeOsmd, noteData)?.classList.remove(...STRICT_CLASSES)
+  }
+  markedNotes.clear()
+  activeOsmd = null
+}
+
+// Puts the last run's verdict back on a score that has just been redrawn.
+// Called from the page's repaint, beside the other marks a redraw costs.
+function repaintMarks() {
+  for (const [noteData, cls] of markedNotes) {
+    svgNoteheadFor(activeOsmd, noteData)?.classList.add(cls)
+  }
 }
 
 function finish(aborted) {

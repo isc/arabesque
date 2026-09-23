@@ -94,6 +94,38 @@ class StrictPlaythroughTest < CapybaraTestBase
     assert_no_selector 'svg g.vf-notehead.missed-note'
   end
 
+  # A relayout rebuilds the SVG, and the verdict used to live only as classes on
+  # the noteheads it replaced: rotating the phone after a run wiped the marks and
+  # left the module holding detached nodes, which made clearMarks() a silent
+  # no-op for the rest of the session — including the one leaving strict mode
+  # relies on. Held as data, the verdict is painted back by repaintScore().
+  def test_the_marks_survive_a_relayout
+    original_size = page.current_window.size
+    load_score('two-measures.xml', 2)
+    start_strict_mode
+
+    # Count-in 2s, then both measures at 120 BPM, plus the off-tempo tail.
+    play_silent_run(7000)
+    within('dialog.pt-result-dialog') { click_on 'Fermer' }
+    assert_selector 'svg g.vf-notehead.missed-note', count: 2
+
+    # Stamped so what follows cannot be satisfied by the drawing that is up now:
+    # a relayout engraves every notehead afresh, stamp and all.
+    page.execute_script(
+      "document.querySelectorAll('svg g.vf-notehead').forEach((n) => (n.dataset.beforeRelayout = '1'))"
+    )
+    page.current_window.resize_to(500, 900)
+    # Our own resize handler drives the redraw, 250ms after the last event.
+    assert_no_selector 'svg g.vf-notehead[data-before-relayout]', wait: 5
+
+    assert_selector 'svg g.vf-notehead.missed-note', count: 2
+    # And reachable, rather than stranded on the nodes the redraw took away.
+    click_measure(1)
+    assert_no_selector 'svg g.vf-notehead.missed-note'
+  ensure
+    page.current_window.resize_to(*original_size)
+  end
+
   # Regression: a strict run used to leave no trace at all — its notes go to the
   # strict engine instead of the score's cursor, so nothing ever fed the
   # practice tracker and a piece played end to end in strict mode was missing
