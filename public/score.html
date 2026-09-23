@@ -683,7 +683,7 @@
     <aside class="pt-keyhint" x-show="keyHintShown" x-cloak :aria-label="$t('score.keyHintAria')">
       <div class="pt-keyhint__bar">
         <span class="pt-keyhint__caption">
-          <span class="pt-keyhint__prompt" x-text="$t('score.keyHintPlay')"></span>
+          <span class="pt-eyebrow" x-text="$t('score.keyHintPlay')"></span>
           <template x-for="group in keyHintCaption" :key="group.hand">
             <span class="pt-keyhint__group">
               <template x-for="note in group.notes" :key="note">

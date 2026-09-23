@@ -198,6 +198,7 @@ export function initKeyboardHint({ expectedGroup, eligible, onVisibleChange, onC
       key.classList.toggle('is-owed', !!note && press !== 'ok')
       key.classList.toggle('is-right', press === 'ok')
       key.classList.toggle('is-wrong', press === 'wrong')
+      key.classList.toggle('is-lit', !!note || !!press)
       const text = note ? noteName(note) : ''
       if (name.textContent !== text) name.textContent = text
     }
