@@ -120,6 +120,21 @@
   --pt-transition-fast: 120ms ease;
   --pt-transition-med: 220ms ease;
 
+  /* On-screen keyboard (keyboardHint.js): its caption bar and its keys. The
+     spacer under the score is sized from them, so the last system can always
+     be scrolled clear of the strip. */
+  --pt-keyhint-bar: 32px;
+  --pt-keyhint-keys: 96px;
+  --pt-keyhint-case: 4px;
+  /* The instrument itself: its case, its keys, the lip along a white key's
+     front edge and the shadow a black key casts. */
+  --pt-key-case: #1c1f29;
+  --pt-key-white: var(--pt-surface);
+  --pt-key-shade: color-mix(in srgb, var(--pt-border) 70%, var(--pt-surface));
+  --pt-key-lip: color-mix(in srgb, var(--pt-border-strong) 60%, var(--pt-surface));
+  --pt-key-black: #2d3140;
+  --pt-key-shadow: 0 2px 3px rgba(15, 18, 30, 0.35);
+
   /* Typography */
   --pt-font-ui: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --pt-font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
@@ -1944,6 +1959,163 @@ svg g.vf-notehead.missed-note path { fill: var(--pt-note-missed); }
   from, to { fill: var(--pt-note-missed); }
 }
 svg g.vf-notehead.wrong-note path { animation: pt-wrong-note-flash 700ms; }
+
+/* =============================================================================
+   On-screen keyboard (keyboardHint.js)
+   ========================================================================== */
+
+/* Pinned to the bottom of the screen, where the hands are, rather than after
+   the score: the measure being played is kept near the top, and the keyboard
+   has to be in view whichever system that is. The spacer after the score lets
+   its last system scroll clear of it. */
+.pt-keyhint {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: var(--pt-z-sticky);
+  background: var(--pt-bg-elevated);
+  border-top: 1px solid var(--pt-border);
+  box-shadow: var(--pt-shadow-lg);
+  padding: var(--pt-space-2) var(--pt-space-4) calc(var(--pt-space-2) + env(safe-area-inset-bottom));
+  animation: pt-keyhint-in var(--pt-transition-med);
+}
+/* A fade rather than a slide: the ✕ has to be where it is drawn from the
+   first frame, for a thumb as much as for a test. */
+@keyframes pt-keyhint-in {
+  from { opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pt-keyhint { animation: none; }
+}
+.pt-keyhint-spacer {
+  height: calc(var(--pt-keyhint-bar) + var(--pt-keyhint-keys) + 2 * var(--pt-keyhint-case) + 3 * var(--pt-space-2) + env(safe-area-inset-bottom) + var(--pt-space-4));
+}
+.pt-keyhint__bar {
+  display: flex;
+  align-items: center;
+  gap: var(--pt-space-3);
+  height: var(--pt-keyhint-bar);
+  margin-bottom: var(--pt-space-2);
+  font-size: 0.85rem;
+  color: var(--pt-text-muted);
+}
+/* The notes owed, as chips in the colour their keys are lit, each hand's
+   named after them. */
+.pt-keyhint__caption {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--pt-space-3);
+  white-space: nowrap;
+  overflow: hidden;
+  --lit: var(--pt-note-expected);
+}
+.pt-keyhint__group { display: inline-flex; align-items: center; gap: var(--pt-space-1); }
+/* In the ink and the tint of the keys they name. */
+.pt-keyhint__chip {
+  padding: 2px var(--pt-space-2);
+  border-radius: var(--pt-radius-pill);
+  background: color-mix(in srgb, var(--lit) 14%, transparent);
+  color: var(--lit-ink);
+  font-weight: 700;
+}
+.pt-keyhint__hand { color: var(--pt-text-subtle); font-size: 0.78rem; }
+.pt-keyhint__close { width: var(--pt-keyhint-bar); height: var(--pt-keyhint-bar); }
+/* A score spanning more keys than a phone is wide scrolls sideways inside the
+   strip, never the page; keyboardHint.js keeps the lit keys in the middle.
+   The dark frame is the instrument's case: it is what makes a row of
+   rectangles read as a keyboard at a glance. */
+.pt-keyhint__scroll {
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  padding: var(--pt-keyhint-case);
+  border-radius: var(--pt-radius-md);
+  background: var(--pt-key-case);
+}
+/* The white keys share the width, down to what three octaves take on a phone
+   — they are read, never touched; the black keys sit over the gaps, placed
+   from the white keys' count. */
+.pt-keyhint__keys {
+  position: relative;
+  display: flex;
+  height: var(--pt-keyhint-keys);
+  min-width: calc(var(--whites) * 16px);
+}
+/* Every white key is a stacking context of its own at level 0 and every black
+   key sits at level 1, so nothing a white key draws — a lit state, the pulse
+   on the owed one — can ever land over the black keys across it. */
+.pt-keyhint__key {
+  position: relative;
+  z-index: 0;
+  flex: 1 1 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 2px;
+  padding-bottom: 7px;
+  /* Shaded at both ends and with a lip along the front edge, like a key seen
+     from the player's seat. */
+  background: linear-gradient(to bottom, var(--pt-key-shade), var(--pt-key-white) 16%, var(--pt-key-white) 80%, var(--pt-key-shade));
+  box-shadow: inset -1px 0 0 var(--pt-border-strong), inset 0 -4px 0 var(--pt-key-lip);
+  border-radius: 0 0 var(--pt-radius-sm) var(--pt-radius-sm);
+  font-size: 0.7rem;
+  line-height: 1;
+}
+.pt-keyhint__key.is-black {
+  --lip: 0.1;
+  position: absolute;
+  top: 0;
+  z-index: 1;
+  height: 60%;
+  width: calc(60% / var(--whites));
+  left: calc((var(--at) * 100% - 30%) / var(--whites));
+  padding-bottom: 5px;
+  background: linear-gradient(to bottom, color-mix(in srgb, var(--pt-key-black) 60%, black), var(--pt-key-black) 85%, color-mix(in srgb, var(--pt-key-black) 85%, white));
+  box-shadow: var(--pt-key-shadow), inset 0 -3px 0 rgb(255 255 255 / var(--lip));
+  color: var(--pt-text-inverse);
+}
+.pt-keyhint__c { color: var(--pt-text-subtle); font-size: 0.65rem; }
+.pt-keyhint__name { font-weight: 700; }
+/* A lit key glows from inside in its colour — blue for owed, green for right,
+   red for wrong — rather than turning into a flat block, so it still reads as
+   the key it is. Each state names its colour once; keyboardHint.js marks all
+   three .is-lit. */
+.pt-keyhint__key.is-owed { --lit: var(--pt-note-expected); }
+.pt-keyhint__key.is-right { --lit: var(--pt-note-played); }
+.pt-keyhint__key.is-wrong { --lit: var(--pt-note-missed); }
+:is(.pt-keyhint__key.is-lit, .pt-keyhint__caption) { --lit-ink: color-mix(in srgb, var(--lit) 45%, var(--pt-text)); }
+.pt-keyhint__key.is-lit {
+  background: linear-gradient(to bottom, color-mix(in srgb, var(--lit) 22%, var(--pt-key-white)), color-mix(in srgb, var(--lit) 78%, var(--pt-key-white)));
+  box-shadow: inset -1px 0 0 color-mix(in srgb, var(--lit) 35%, var(--pt-key-white)), inset 0 -5px 0 var(--lit);
+  color: var(--lit-ink);
+}
+.pt-keyhint__key.is-black.is-lit {
+  --lip: 0.25;
+  background: linear-gradient(to bottom, color-mix(in srgb, var(--lit) 45%, black), var(--lit));
+  box-shadow: var(--pt-key-shadow), inset 0 -3px 0 rgb(255 255 255 / var(--lip));
+  color: var(--pt-text-inverse);
+}
+.pt-keyhint__key.is-lit .pt-keyhint__c { color: inherit; }
+/* The key owed breathes, gently, to catch an eye that is on the score. */
+.pt-keyhint__key.is-owed::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  box-shadow: inset 0 0 14px 2px var(--lit);
+  animation: pt-keyhint-glow 1.6s ease-in-out infinite;
+}
+@keyframes pt-keyhint-glow {
+  from, to { opacity: 0.25; }
+  50% { opacity: 0.9; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pt-keyhint__key.is-owed::after { animation: none; opacity: 0.6; }
+}
 
 /* Clickable measure areas */
 .measure-click-area {

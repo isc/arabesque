@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="app-version" content="f08d0f8812d3" />
+    <meta name="app-version" content="367621a2f849" />
     <title data-i18n="score.pageTitle">Arabesque</title>
     <link rel="icon" href="favicon.svg" type="image/svg+xml" />
     <link rel="manifest" href="manifest.webmanifest" />
@@ -384,6 +384,9 @@
 
       <!-- Score (full-bleed) -->
       <section id="score" x-show="!!osmdInstance"></section>
+      <!-- Room for the on-screen keyboard below, so the end of the score can
+           still be scrolled clear of it. -->
+      <div class="pt-keyhint-spacer" x-show="keyHintShown" x-cloak></div>
 
       <!-- Cassettes MIDI (compact bottom strip) -->
       <template x-if="cassetteApiAvailable && !!osmdInstance">
@@ -675,5 +678,26 @@
       </article>
     </dialog>
 
+    <!-- The on-screen keyboard (keyboardHint.js): comes up by itself when a
+         note is taking too long to find, with that note lit. -->
+    <aside class="pt-keyhint" x-show="keyHintShown" x-cloak :aria-label="$t('score.keyHintAria')">
+      <div class="pt-keyhint__bar">
+        <span class="pt-keyhint__caption">
+          <span class="pt-eyebrow" x-text="$t('score.keyHintPlay')"></span>
+          <template x-for="group in keyHintCaption" :key="group.hand">
+            <span class="pt-keyhint__group">
+              <template x-for="note in group.notes" :key="note">
+                <span class="pt-keyhint__chip" x-text="note"></span>
+              </template>
+              <span class="pt-keyhint__hand" x-text="group.hand"></span>
+            </span>
+          </template>
+        </span>
+        <button type="button" class="pt-icon-button pt-keyhint__close" @click="dismissKeyHint()" :aria-label="$t('score.keyHintHide')">✕</button>
+      </div>
+      <div class="pt-keyhint__scroll">
+        <div class="pt-keyhint__keys" id="key-hint-keys"></div>
+      </div>
+    </aside>
   </body>
 </html>

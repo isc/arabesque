@@ -332,6 +332,10 @@ export default {
     // The seven letters, from do to si — the only part of a note's name that is
     // language's business; the ♯ and ♭ that go with them are music's own signs.
     noteLetters: 'do ré mi fa sol la si',
+    // The on-screen keyboard that comes up when a note is hard to find.
+    keyHintAria: 'Clavier d’aide',
+    keyHintPlay: 'À jouer',
+    keyHintHide: 'Masquer le clavier',
     midiHelpTitle: 'Connexion clavier MIDI',
     midiHelpIntro: 'Aucun périphérique MIDI détecté. Voici comment connecter votre clavier :',
     macTwoCases: 'Selon votre piano, deux cas de figure :',
