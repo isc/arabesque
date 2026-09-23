@@ -974,6 +974,30 @@ describe('practiceTracker', () => {
       expect(history[0].fullPlaythroughs[0].durationMs).toBe(100)
     })
 
+    it("counts a run's wrong notes and the measures they fell in, from its restart on", async () => {
+      tracker.startSession('/scores/test.xml', 'Test', 'Composer', 'free', 3)
+      // Fumbled before the run restarts: not the run's.
+      tracker.startMeasureAttempt(1, false)
+      tracker.recordWrongNote()
+      advanceClock(50)
+      await tracker.endMeasureAttempt()
+
+      advanceClock(10)
+      tracker.restartPlaythrough()
+      for (const [measure, wrong] of [[0, 0], [2, 2], [1, 1], [2, 1]]) {
+        tracker.startMeasureAttempt(measure, measure === 0)
+        for (let i = 0; i < wrong; i++) tracker.recordWrongNote()
+        advanceClock(30)
+        await tracker.endMeasureAttempt()
+      }
+      tracker.markScoreCompleted()
+      await tracker.endSession()
+
+      const [run] = (await tracker.getScoreHistory('/scores/test.xml'))[0].fullPlaythroughs
+      expect(run.wrongNotes).toBe(4)
+      expect(run.wrongMeasures).toEqual([1, 2])
+    })
+
     it('does not track measuresReinforced for free mode', async () => {
       await playSession('/scores/test.xml', [0], 'free')
 

@@ -29,6 +29,20 @@ class PracticeTrackingTest < CapybaraTestBase
     assert_selector 'dialog[open]'
     assert_selector 'table tbody tr', minimum: 2
     assert_text 'maintenant'
+    assert_selector 'tr.is-current', text: 'sans faute'
+  end
+
+  # A free run's wrong notes sit beside its time in the ranking, and the
+  # measures they fell in are named above it (feedback a01bf6cb).
+  def test_score_complete_modal_shows_wrong_notes
+    visit "/score.html?url=/test-fixtures/two-measures.xml"
+    wait_for_score_render(2)
+
+    # E4 is wrong in measure 2, which owes a D4.
+    play_notes(%w[C4 E4 D4])
+
+    assert_selector 'dialog[open] tr.is-current', text: '1 fausse note'
+    assert_text 'Fausses notes à la mesure 2.'
   end
 
   def test_history_modal_shows_playthrough_evolution_chart

@@ -1848,6 +1848,7 @@ dialog > article > footer button { margin: 0; }
 
 .pt-modal-note { color: var(--pt-text-muted); margin-top: var(--pt-space-3); font-size: 0.9rem; }
 .pt-modal-note--inline { margin-left: var(--pt-space-2); margin-top: 0; }
+.pt-modal-note--lead { margin-top: 0; }
 
 /* Changelog ("Nouveautés") */
 .pt-changelog-btn { position: relative; }
