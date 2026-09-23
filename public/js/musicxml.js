@@ -145,7 +145,7 @@ export function initMusicXML() {
     },
     getOsmdInstance: () => osmdInstance,
     getAllNotes: () => allNotes,
-    getExpectedGroup: () => expectedGroup(),
+    getExpectedGroup: expectedGroup,
     getScoreMetadata: () => ({
       title: osmdInstance?.Sheet?.Title?.text || null,
       composer: osmdInstance?.Sheet?.Composer?.text || null,
@@ -1112,8 +1112,6 @@ function markTimestampGroupPlayed(group) {
 function cascadeHeldTieValidations() {
   for (;;) {
     const measureData = allNotes[currentMeasureIndex]
-    if (!measureData?.notes?.length) return
-
     const next = expectedGroup()
     if (!next) return
 
