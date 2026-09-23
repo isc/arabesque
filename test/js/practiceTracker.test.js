@@ -6,7 +6,7 @@ import {
   computeSessionDuration,
   MIN_PRACTICE_MS_FOR_STATUS,
   measuresToReinforce,
-  hasMeasuresToReinforce,
+  hasHotSpots,
 } from '../../public/js/practiceTracker.js'
 import { playthroughHands, playthroughGroups } from '../../public/js/hands.js'
 import { initStorage } from '../../public/js/storage.js'
@@ -535,13 +535,12 @@ describe('practiceTracker', () => {
       })
 
       it('ignores bars played with neither hand ticked', () => {
-        expect(hasMeasuresToReinforce([played([[2, 'none']])])).toBe(false)
+        expect(measuresToReinforce([played([[2, 'none']])])).toEqual([])
       })
 
       it('answers for every selection when none is asked about', () => {
         const sessions = [played([[2, 'left'], [0, 'both'], [0, 'both'], [0, 'both']])]
-        expect(hasMeasuresToReinforce(sessions)).toBe(true)
-        expect(hasMeasuresToReinforce(sessions, 'both')).toBe(false)
+        expect(measuresToReinforce(sessions, { hands: 'both' })).toEqual([])
         expect(measuresToReinforce(sessions).map((m) => m.hands)).toEqual(['left'])
       })
     })
@@ -604,6 +603,50 @@ describe('practiceTracker', () => {
       expect(await tracker.getMeasuresToReinforce('/scores/test.xml')).toEqual([])
       const left = await tracker.getMeasuresToReinforce('/scores/test.xml', 'left')
       expect(left.map((m) => m.sourceMeasureIndex)).toEqual([1])
+    })
+
+    // The library's 🎯 chip: a bar reinforcement would offer that also stands
+    // out from the rest of the piece.
+    describe('hot spots', () => {
+      const clean = [[0], [0], [0]]
+
+      it('finds a bar fumbled far more often than the rest of the piece', () => {
+        expect(hasHotSpots([session({ 0: clean, 1: clean, 2: [[1], [1], [0]] })])).toBe(true)
+      })
+
+      it('finds none in a piece fumbled evenly, though reinforcement has bars to offer', () => {
+        const even = [session({ 0: [[1], [0], [1]], 1: [[1], [1], [0]], 2: [[0], [1], [1]] })]
+        expect(measuresToReinforce(even)).not.toEqual([])
+        expect(hasHotSpots(even)).toBe(false)
+      })
+
+      it('needs more than one unlucky attempt', () => {
+        expect(hasHotSpots([session({ 0: [[0]], 1: [[0]], 2: [[1]] })])).toBe(false)
+        expect(hasHotSpots([session({ 0: clean, 1: clean, 2: [[1], [1], [1]] })])).toBe(true)
+      })
+
+      it('lets a bar go once it has been played cleanly three times in a row', () => {
+        const steady = [[0], [0], [0], [0], [0], [0]]
+        expect(hasHotSpots([session({ 0: steady, 1: [[1], [1], [0], [0]] })])).toBe(true)
+        expect(hasHotSpots([session({ 0: steady, 1: [[1], [1], [0], [0], [0]] })])).toBe(false)
+      })
+
+      it('finds none without sessions or without a fumble', () => {
+        expect(hasHotSpots([])).toBe(false)
+        expect(hasHotSpots([session({ 0: clean })])).toBe(false)
+      })
+
+      it('asks of both hands unless told otherwise', () => {
+        const attempts = (wrongNotes, hands) => wrongNotes.map((w) => ({ wrongNotes: w, clean: w === 0, hands }))
+        const sessions = [{
+          measures: [
+            { sourceMeasureIndex: 0, attempts: [...attempts([0, 0, 0], 'both'), ...attempts([0, 0, 0], 'left')] },
+            { sourceMeasureIndex: 1, attempts: [...attempts([0, 0, 0], 'both'), ...attempts([1, 1, 1], 'left')] },
+          ],
+        }]
+        expect(hasHotSpots(sessions)).toBe(false)
+        expect(hasHotSpots(sessions, 'left')).toBe(true)
+      })
     })
   })
 

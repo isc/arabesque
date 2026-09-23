@@ -1,7 +1,9 @@
 import { initMidi } from './midi.js'
 import {
   initPracticeTracker,
-  hasMeasuresToReinforce,
+  hasHotSpots,
+  HOT_SPOT_FACTOR,
+  HOT_SPOT_MIN_ATTEMPTS,
   STATUS_THRESHOLDS,
   hasMinimumPractice,
   MIN_PRACTICE_MS_FOR_STATUS,
@@ -132,7 +134,7 @@ export function libraryApp() {
     refreshingPractice: null,
     lastPlayedByScore: {},
     aggregatesByScore: {},
-    // The score files reinforcement mode would offer something on, settled once
+    // The score files with a bar that stands out (hasHotSpots), settled once
     // per practice-data reload rather than per render: the answer needs a
     // score's sessions, and the filter bar asks it of every score for every
     // option it offers. A component property like the two above — what the
@@ -286,13 +288,13 @@ export function libraryApp() {
         }
       }
 
-      // The 🎯 chip asks the very question the score page answers with its
-      // "Renforcer N mesures" badge, so it asks it of the same rule and the
-      // same data — the score's own recent sessions, not the aggregates, whose
-      // counters have never forgotten anything.
+      // The 🎯 chip reads the score's own recent sessions, not the aggregates,
+      // whose counters have never forgotten anything. Every piece it lists
+      // also has a "Renforcer N mesures" badge on its page, but not the other
+      // way round: see hasHotSpots for why the badge alone selected everything.
       this.reinforceFiles = new Set()
       for (const [file, forFile] of sessionsByFile) {
-        if (hasMeasuresToReinforce(forFile)) this.reinforceFiles.add(file)
+        if (hasHotSpots(forFile)) this.reinforceFiles.add(file)
       }
 
       // Aggregates power the status filter, status pills, and practice-focus banner.
@@ -604,7 +606,8 @@ export function libraryApp() {
         return {
           heading: t('criteria.filterHeading', { filter: focusLabel('reinforce') }),
           items: [
-            t('criteria.reinforceFumbled', { n: REINFORCEMENT_WINDOW_SESSIONS }),
+            t('criteria.reinforceHotSpot', { factor: HOT_SPOT_FACTOR, n: REINFORCEMENT_WINDOW_SESSIONS }),
+            t('criteria.reinforceAttempts', { n: HOT_SPOT_MIN_ATTEMPTS }),
             t('criteria.reinforceClean', { n: REINFORCEMENT_CLEAN_STREAK }),
           ],
         }
