@@ -12,7 +12,7 @@
 // without a clock or a page; initKeyboardHint wires it to a timer, the engine
 // and the DOM.
 import { noteName, spelledNote, handOfNote, cLabel } from './noteExtraction.js'
-import { withHands } from './utils.js'
+import { t } from './i18n.js'
 
 // Wrong keys tried for the same note before it is shown.
 export const HINT_WRONG_NOTES = 3
@@ -128,13 +128,17 @@ export function keyLayout({ low, high }) {
 }
 
 // The notes owed, by name, a hand at a time and low to high within it:
-// "mi5 · main droite, do2 + do3 · main gauche".
+// [{ hand: 'main droite', notes: ['mi5'] }, { hand: 'main gauche', notes: ['do2', 'do3'] }].
 function caption(notes) {
   return ['right', 'left']
-    .map((hand) => notes.filter((n) => handOfNote(n) === hand).sort((a, b) => a.midiNumber - b.midiNumber))
-    .filter((group) => group.length)
-    .map((group) => withHands(group.map(spelledNote).join(' + '), handOfNote(group[0])))
-    .join(', ')
+    .map((hand) => ({
+      hand: t(`hands.${hand}`),
+      notes: notes
+        .filter((n) => handOfNote(n) === hand)
+        .sort((a, b) => a.midiNumber - b.midiNumber)
+        .map(spelledNote),
+    }))
+    .filter((group) => group.notes.length)
 }
 
 export function initKeyboardHint({ expectedGroup, eligible, onVisibleChange, onCaptionChange, now = () => performance.now() }) {

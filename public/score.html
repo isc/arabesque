@@ -683,8 +683,15 @@
     <aside class="pt-keyhint" x-show="keyHintShown" x-cloak :aria-label="$t('score.keyHintAria')">
       <div class="pt-keyhint__bar">
         <span class="pt-keyhint__caption">
-          <span x-text="$t('score.keyHintPlay')"></span>
-          <strong x-text="keyHintCaption"></strong>
+          <span class="pt-keyhint__prompt" x-text="$t('score.keyHintPlay')"></span>
+          <template x-for="group in keyHintCaption" :key="group.hand">
+            <span class="pt-keyhint__group">
+              <template x-for="note in group.notes" :key="note">
+                <span class="pt-keyhint__chip" x-text="note"></span>
+              </template>
+              <span class="pt-keyhint__hand" x-text="group.hand"></span>
+            </span>
+          </template>
         </span>
         <button type="button" class="pt-icon-button pt-keyhint__close" @click="dismissKeyHint()" :aria-label="$t('score.keyHintHide')">✕</button>
       </div>

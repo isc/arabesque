@@ -18,14 +18,15 @@ class KeyboardHintTest < CapybaraTestBase
     assert_no_selector '.pt-keyhint'
 
     play_note('G4')
-    assert_selector '.pt-keyhint', text: 'À jouer : do4 · main droite'
+    assert_selector '.pt-keyhint__chip', text: 'do4'
+    assert_selector '.pt-keyhint__hand', text: 'main droite'
     assert_selector '.pt-keyhint__key.is-owed[data-midi="60"]', text: 'do'
     assert_selector '.pt-keyhint__key.is-owed', count: 1
 
     # Found: the keyboard moves on to the next note.
     play_note('C4')
     assert_selector '.pt-keyhint__key.is-owed[data-midi="62"]', text: 'ré'
-    assert_selector '.pt-keyhint', text: 'À jouer : ré4 · main droite'
+    assert_selector '.pt-keyhint__chip', text: 'ré4'
   end
 
   # Training replays the measure a beat after its last note: the keyboard

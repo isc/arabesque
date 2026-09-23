@@ -288,7 +288,7 @@ export function midiApp() {
     // The on-screen keyboard (keyboardHint.js): whether it has come up, and the
     // notes it is showing, by name.
     keyHintVisible: false,
-    keyHintCaption: '',
+    keyHintCaption: [],
     // Where the player is asked for notes at their own pace — the only place
     // the keyboard has a use.
     get keyHintContext() {

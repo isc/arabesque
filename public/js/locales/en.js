@@ -332,7 +332,7 @@ export default {
     noteLetters: 'C D E F G A B',
     // The on-screen keyboard that comes up when a note is hard to find.
     keyHintAria: 'Helper keyboard',
-    keyHintPlay: 'Play:',
+    keyHintPlay: 'Play',
     keyHintHide: 'Hide the keyboard',
     midiHelpTitle: 'Connecting a MIDI keyboard',
     midiHelpIntro: 'No MIDI device detected. Here is how to connect your keyboard:',

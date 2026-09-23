@@ -332,7 +332,7 @@ export default {
     noteLetters: 'do ré mi fa sol la si',
     // The on-screen keyboard that comes up when a note is hard to find.
     keyHintAria: 'Clavier d’aide',
-    keyHintPlay: 'À jouer :',
+    keyHintPlay: 'À jouer',
     keyHintHide: 'Masquer le clavier',
     midiHelpTitle: 'Connexion clavier MIDI',
     midiHelpIntro: 'Aucun périphérique MIDI détecté. Voici comment connecter votre clavier :',
