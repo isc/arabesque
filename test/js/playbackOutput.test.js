@@ -5,8 +5,9 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 // Playback drives the player's own MIDI instrument when one is connected and
 // the sampler otherwise, at a velocity that has to stay below a practising
 // touch — an instrument answering ▶ Écouter louder than its own keys is what
-// feedback 15ae51f5 reported. And when it is the sampler, it is built at most
-// once however many times it is asked for while its samples are still coming.
+// feedbacks 15ae51f5 and 70a4f378 reported. And when it is the sampler, it is
+// built at most once however many times it is asked for while its samples are
+// still coming.
 
 const sampler = vi.hoisted(() => ({ keysDown: [], built: 0 }))
 
@@ -67,16 +68,17 @@ describe('playback output', () => {
     const sent = []
     await playOneNote({ midiOutput: { send: (bytes) => sent.push([...bytes]) } })
 
-    // Velocity 64, a step under a practising touch — the mock keyboard the
-    // system tests play with presses at 80 (test_helper.rb), and playback used
-    // to send 89, a forte.
-    expect(sent.filter(([status]) => status === 0x90)).toEqual([[0x90, 60, 64]])
+    // Velocity 40, a piano — well under the mock keyboard the system tests
+    // play with, which presses at 80 (test_helper.rb). Playback used to send
+    // 89, a forte, then 64, which was still loud enough to have the player
+    // turning the instrument down (feedback 70a4f378).
+    expect(sent.filter(([status]) => status === 0x90)).toEqual([[0x90, 60, 40]])
   })
 
   it('plays the sampler at the same level', async () => {
     await playOneNote(null)
 
-    expect(sampler.keysDown).toEqual([{ midi: 60, velocity: 0.5 }])
+    expect(sampler.keysDown).toEqual([{ midi: 60, velocity: 40 / 127 }])
   })
 
   // The sampler is only assigned once its samples are in, so a second caller
