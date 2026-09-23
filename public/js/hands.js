@@ -7,24 +7,31 @@
 // others are recorded and shown, but counted apart.
 export const TWO_HANDS = 'both'
 
+// Neither hand ticked. A measure played so has nothing to validate, so it
+// can't be part of what was played and says nothing about the hands.
+export const NO_HANDS = 'none'
+
 // How a hand selection is stored on a measure attempt.
 export function handsKey({ right, left }) {
   if (right && left) return TWO_HANDS
   if (right) return 'right'
   if (left) return 'left'
-  return 'none'
+  return NO_HANDS
+}
+
+// The hands a measure attempt was played with. One recorded before the app
+// tracked hands carries no value at all, which reads as two hands: that is
+// all a run could have been back then.
+export function attemptHands(attempt) {
+  return attempt.hands || TWO_HANDS
 }
 
 // The hands a run was played with. Two hands only when both were on for every
 // one of its measures: unticking one halfway leaves a run that covered the
 // whole score without ever playing all of it two-handed.
 export function playthroughHands(attempts) {
-  // An attempt recorded before the app tracked hands carries no value at all,
-  // which reads as two hands: that is all a run could have been back then.
-  const used = new Set(attempts.map((a) => a.hands || TWO_HANDS))
-  // A measure with neither hand ticked has nothing to validate, so it can't be
-  // part of what was played and says nothing about the hands that played it.
-  used.delete('none')
+  const used = new Set(attempts.map(attemptHands))
+  used.delete(NO_HANDS)
   if (used.size === 0) return TWO_HANDS
   return used.size === 1 ? [...used][0] : 'mixed'
 }

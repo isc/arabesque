@@ -3,7 +3,7 @@ import { initMusicXML } from './musicxml.js'
 import { initFingeringEditor } from './fingeringEditor.js'
 import { initCassettes } from './cassettes.js'
 import { initPracticeTracker } from './practiceTracker.js'
-import { playthroughGroups, TWO_HANDS } from './hands.js'
+import { playthroughGroups, TWO_HANDS, handsKey } from './hands.js'
 import { formatDuration, formatDate, applyStickyOffset, scorePageUrl, onIdle, onForeground, withHands, withRunKind, pickPassageMeasure, loopRangeText } from './utils.js'
 import { noteLabel } from './noteExtraction.js'
 import { initStorage } from './storage.js'
@@ -1244,10 +1244,20 @@ export function midiApp() {
     // passage has been fumbled rather than at the end of a playthrough. Reads
     // are ordered by sequence number: at that rate a slow one could otherwise
     // land on top of a fresher result.
+    //
+    // The list belongs to the hands ticked (feedback 0868d96f): what was
+    // fumbled with the left hand alone is offered when the left hand alone is
+    // on, and the label says so whenever it is not both.
     async refreshReinforcementSuggestions() {
       const seq = ++reinforcementRefreshSeq
-      const measures = await practiceTracker.getMeasuresToReinforce(this.scoreUrl)
+      const measures = await practiceTracker.getMeasuresToReinforce(this.scoreUrl, handsKey(this.activeHands))
       if (seq === reinforcementRefreshSeq) this.measuresToReinforce = measures
+    },
+
+    // Shown only over a list, all of whose measures share the hands it was read for.
+    reinforceLabel() {
+      const measures = this.measuresToReinforce
+      return withHands(tn('score.reinforce', measures.length), measures[0]?.hands ?? TWO_HANDS)
     },
 
     async startReinforcementMode() {
@@ -1271,6 +1281,7 @@ export function midiApp() {
       musicxml.setActiveHands(this.activeHands)
       strictPlaythrough.setActiveHands(this.activeHands)
       practiceTracker.setActiveHands(this.activeHands)
+      this.refreshReinforcementSuggestions()
     },
 
     async openScoreHistory() {

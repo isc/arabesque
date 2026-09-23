@@ -1,5 +1,5 @@
 import { initStorage } from './storage.js'
-import { TWO_HANDS, handsKey, playthroughHands } from './hands.js'
+import { TWO_HANDS, NO_HANDS, attemptHands, handsKey, playthroughHands } from './hands.js'
 import { scopedKey } from './profiles.js'
 
 // Where a session interrupted by a page teardown waits to be closed properly
@@ -52,8 +52,14 @@ const STAGNATION_MIN_SESSIONS = 3
 // right now, best candidates first — so the library's 🎯 chip is exactly
 // "pieces this returns something for", rather than a second rule of its own
 // reading the cumulative aggregates, which never forget.
-export function measuresToReinforce(sessions, limit = 5) {
-  return [...reinforceCandidates(sessions)]
+//
+// Each hand selection keeps a list of its own (feedback 0868d96f): a bar
+// fumbled with the left hand alone is not a bar to drill two-handed, and clean
+// right-hand passes don't retire a bar still fumbled with both. `hands` is the
+// selection asked about, as handsKey() stores it; left out, every selection
+// answers on its own and each candidate says which one it came from.
+export function measuresToReinforce(sessions, { hands, limit = 5 } = {}) {
+  return [...reinforceCandidates(sessions, hands)]
     .sort(
       (a, b) =>
         Number(b.stagnant) - Number(a.stagnant) ||
@@ -65,9 +71,10 @@ export function measuresToReinforce(sessions, limit = 5) {
 
 // The same rule, asked as a yes or no. The library asks it of every score it
 // lists before it can draw anything, and ranking a score's measures only to
-// count them was most of what that cost: this stops at the first one.
-export function hasMeasuresToReinforce(sessions) {
-  return !reinforceCandidates(sessions).next().done
+// count them was most of what that cost: this stops at the first one. Without
+// `hands`, it asks whether any hand selection has something to offer.
+export function hasMeasuresToReinforce(sessions, hands) {
+  return !reinforceCandidates(sessions, hands).next().done
 }
 
 // The measures worth offering, unranked, over the window that makes the rule
@@ -77,12 +84,12 @@ export function hasMeasuresToReinforce(sessions) {
 // `startedAt` is always an ISO string in UTC, so it sorts as text — and a
 // comparator building two Dates per comparison was most of the cost of a call
 // that runs at every measure boundary.
-function* reinforceCandidates(sessions) {
+function* reinforceCandidates(sessions, hands) {
   const recent = [...sessions]
     .sort((a, b) => (a.startedAt < b.startedAt ? -1 : a.startedAt > b.startedAt ? 1 : 0))
     .slice(-REINFORCEMENT_WINDOW_SESSIONS)
 
-  for (const { sourceMeasureIndex, bySession } of measureHistories(recent)) {
+  for (const { sourceMeasureIndex, hands: selection, bySession } of measureHistories(recent, hands)) {
     const attempts = bySession.flat()
     if (!attempts.some(fumbled)) continue
     // Settled: the measure has since been played cleanly as many times in a
@@ -91,6 +98,7 @@ function* reinforceCandidates(sessions) {
 
     yield {
       sourceMeasureIndex,
+      hands: selection,
       wrongNotes: attempts.reduce((sum, a) => sum + (a.wrongNotes || 0), 0),
       durationMs: attempts[attempts.length - 1].durationMs || 0,
       stagnant: isStagnant(bySession),
@@ -98,24 +106,35 @@ function* reinforceCandidates(sessions) {
   }
 }
 
-// Attempts per measure across the given sessions, kept grouped by session:
-// the totals answer "how badly", the grouping answers "is it getting better".
-function measureHistories(sessions) {
-  const histories = new Map()
+// Attempts per hand selection and measure across the given sessions — only
+// the `hands` selection when one is given — kept grouped by session: the
+// totals answer "how badly", the grouping answers "is it getting better".
+function measureHistories(sessions, hands) {
+  const bySelection = new Map()
 
   for (const session of sessions) {
     for (const measure of session.measures || []) {
-      if (!measure.attempts?.length) continue
-      let history = histories.get(measure.sourceMeasureIndex)
-      if (!history) {
-        history = { sourceMeasureIndex: measure.sourceMeasureIndex, bySession: [] }
-        histories.set(measure.sourceMeasureIndex, history)
+      for (const attempt of measure.attempts || []) {
+        const selection = attemptHands(attempt)
+        if (selection === NO_HANDS || (hands && selection !== hands)) continue
+
+        let histories = bySelection.get(selection)
+        if (!histories) bySelection.set(selection, (histories = new Map()))
+        let history = histories.get(measure.sourceMeasureIndex)
+        if (!history) {
+          history = { sourceMeasureIndex: measure.sourceMeasureIndex, hands: selection, bySession: [], session: null }
+          histories.set(measure.sourceMeasureIndex, history)
+        }
+        if (history.session !== session) {
+          history.session = session
+          history.bySession.push([])
+        }
+        history.bySession.at(-1).push(attempt)
       }
-      history.bySession.push(measure.attempts)
     }
   }
 
-  return [...histories.values()]
+  return [...bySelection.values()].flatMap((histories) => [...histories.values()])
 }
 
 // A wrong note always fails the attempt, but the matcher can fail one on its
@@ -916,9 +935,9 @@ export function initPracticeTracker(storageInstance = null) {
   // measure has been fumbled, without waiting for the piece to be played from
   // end to end: on a long score, the first half gets worked on long before the
   // rest has even been sight-read.
-  async function getMeasuresToReinforce(scoreId, limit = 5) {
+  async function getMeasuresToReinforce(scoreId, hands = TWO_HANDS) {
     if (!scoreId) return []
-    return measuresToReinforce(await scoreSessions(scoreId), limit)
+    return measuresToReinforce(await scoreSessions(scoreId), { hands })
   }
 
   // The score's sessions, with the in-memory one substituted for the copy

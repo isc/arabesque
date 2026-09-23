@@ -6,6 +6,7 @@ import {
   computeSessionDuration,
   MIN_PRACTICE_MS_FOR_STATUS,
   measuresToReinforce,
+  hasMeasuresToReinforce,
 } from '../../public/js/practiceTracker.js'
 import { playthroughHands, playthroughGroups } from '../../public/js/hands.js'
 import { initStorage } from '../../public/js/storage.js'
@@ -501,8 +502,48 @@ describe('practiceTracker', () => {
     })
 
     it('respects the limit', () => {
-      const result = measuresToReinforce([session({ 0: [[3]], 1: [[2]], 2: [[1]] })], 2)
+      const result = measuresToReinforce([session({ 0: [[3]], 1: [[2]], 2: [[1]] })], { limit: 2 })
       expect(result.map((m) => m.sourceMeasureIndex)).toEqual([0, 1])
+    })
+
+    describe('per hand selection', () => {
+      // One measure's attempts, each [wrongNotes, hands].
+      const played = (attempts) => ({
+        measures: [{
+          sourceMeasureIndex: 0,
+          attempts: attempts.map(([wrongNotes, hands]) => ({ wrongNotes, clean: wrongNotes === 0, hands })),
+        }],
+      })
+
+      it('offers a bar fumbled with one hand only for that hand', () => {
+        const sessions = [played([[2, 'left']])]
+        expect(measuresToReinforce(sessions, { hands: 'left' })).toHaveLength(1)
+        expect(measuresToReinforce(sessions, { hands: 'right' })).toEqual([])
+        expect(measuresToReinforce(sessions, { hands: 'both' })).toEqual([])
+      })
+
+      it('reads an attempt recorded before hands were tracked as two-handed', () => {
+        const sessions = [played([[2, undefined]])]
+        expect(measuresToReinforce(sessions, { hands: 'both' })).toHaveLength(1)
+        expect(measuresToReinforce(sessions, { hands: 'right' })).toEqual([])
+      })
+
+      it('does not retire a two-hand fumble on clean one-hand passes', () => {
+        const sessions = [played([[2, 'both'], [0, 'right'], [0, 'right'], [0, 'right']])]
+        expect(measuresToReinforce(sessions, { hands: 'both' })).toHaveLength(1)
+        expect(measuresToReinforce(sessions, { hands: 'right' })).toEqual([])
+      })
+
+      it('ignores bars played with neither hand ticked', () => {
+        expect(hasMeasuresToReinforce([played([[2, 'none']])])).toBe(false)
+      })
+
+      it('answers for every selection when none is asked about', () => {
+        const sessions = [played([[2, 'left'], [0, 'both'], [0, 'both'], [0, 'both']])]
+        expect(hasMeasuresToReinforce(sessions)).toBe(true)
+        expect(hasMeasuresToReinforce(sessions, 'both')).toBe(false)
+        expect(measuresToReinforce(sessions).map((m) => m.hands)).toEqual(['left'])
+      })
     })
 
     it('flags a measure whose error rate stops falling, and ranks it first', () => {
@@ -552,6 +593,17 @@ describe('practiceTracker', () => {
 
       expect(await tracker.getMeasuresToReinforce('/scores/test.xml')).toEqual([])
       expect(await tracker.getMeasuresToReinforce(null)).toEqual([])
+    })
+
+    it('suggests for the hands asked about', async () => {
+      tracker.startSession('/scores/test.xml', 'Test', 'Composer', 'free')
+      tracker.startMeasureAttempt(1, false, { right: false, left: true })
+      tracker.recordWrongNote()
+      await tracker.endMeasureAttempt()
+
+      expect(await tracker.getMeasuresToReinforce('/scores/test.xml')).toEqual([])
+      const left = await tracker.getMeasuresToReinforce('/scores/test.xml', 'left')
+      expect(left.map((m) => m.sourceMeasureIndex)).toEqual([1])
     })
   })
 

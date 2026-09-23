@@ -174,7 +174,7 @@
         class="pt-reinforce-badge"
         x-show="measuresToReinforce.length > 0 && !trainingMode && !isStrictPlaying"
         @click.prevent="startReinforcementMode()"
-        x-text="$t(measuresToReinforce.length > 1 ? 'score.reinforceMany' : 'score.reinforceOne', { n: measuresToReinforce.length })"
+        x-text="reinforceLabel()"
       ></a>
 
       <div class="pt-modebar__spacer"></div>
@@ -511,7 +511,7 @@
             class="pt-action-button is-primary"
             x-show="resultMode !== 'reinforcement' && measuresToReinforce.length > 0"
             @click="closeResultModal(); startReinforcementMode()"
-            x-text="$t(measuresToReinforce.length > 1 ? 'score.reinforceMany' : 'score.reinforceOne', { n: measuresToReinforce.length })"
+            x-text="reinforceLabel()"
           ></button>
         </footer>
       </article>
