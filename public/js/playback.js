@@ -36,9 +36,12 @@ let playbackBpm = null
 const GRACE_NOTE_DURATION_S = 0.08
 
 // How hard playback presses each key. The engine has no dynamics of its own, so
-// this one value *is* the playback level, and it has to sit under the touch of
-// someone practising — it was a forte, so ▶ Écouter came out of the player's own
-// piano much louder than their own playing.
+// this one value *is* the playback level, and it has to sit well under the touch
+// of someone practising: the piece is there to be heard *under* the player, who
+// should never have to reach for the instrument's volume knob before ▶ Écouter
+// and again before playing. It was 89, a forte (feedback 15ae51f5); then 64, an
+// mp, which still had the player turning the piano down every time (feedback
+// 70a4f378). 40 is a piano.
 //
 // Deliberately a velocity and not a volume (CC 7) or expression (CC 11)
 // message: a CC turns the instrument itself down, and would have to be restored
@@ -46,8 +49,8 @@ const GRACE_NOTE_DURATION_S = 0.08
 // pulled cable — any one of them missed leaving the piano quiet under the
 // player's own hands. A velocity only describes the note it is sent with, so
 // there is nothing to put back.
-const PLAYBACK_VELOCITY = 0.5
-const PLAYBACK_VELOCITY_BYTE = Math.round(PLAYBACK_VELOCITY * 127) // 64
+const PLAYBACK_VELOCITY_BYTE = 40
+const PLAYBACK_VELOCITY = PLAYBACK_VELOCITY_BYTE / 127
 
 // Must match GRACE_NOTE_OFFSET in noteExtraction.js adjustGraceNoteTimestamps
 const GRACE_NOTE_OFFSET_WN = 0.0001
