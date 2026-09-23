@@ -250,7 +250,7 @@ export default {
     rightHand: 'Right hand',
     leftHand: 'Left hand',
     reinforceOne: '🎯 Reinforce {n} bar',
-    reinforceMany: '🎯 Reinforce {n} bars',
+    reinforce: '🎯 Reinforce {n} bars',
     stop: '⏹ Stop',
     listen: '▶ Listen',
     playbackHint: 'Click a bar to listen from there.',

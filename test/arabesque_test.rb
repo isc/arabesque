@@ -611,6 +611,25 @@ class ArabesqueTest < CapybaraTestBase
     wait_for_records('sessions', where: 'record.endedAt')
   end
 
+  def test_reinforcement_follows_the_hands_ticked
+    visit '/score.html?url=/test-fixtures/repeat-endings.xml'
+    wait_for_score_render(4)
+
+    # Measure 1 fumbled with the right hand alone: offered for the right hand,
+    # and saying so, since it is not the piece played in full.
+    uncheck 'Main gauche'
+    play_note('D4')
+    play_note('C4')
+    assert_selector '.pt-reinforce-badge', text: 'Renforcer 1 mesure · main droite'
+
+    # Both hands back: nothing was fumbled two-handed (feedback 0868d96f).
+    check 'Main gauche'
+    assert_no_selector '.pt-reinforce-badge'
+
+    uncheck 'Main gauche'
+    assert_selector '.pt-reinforce-badge', text: 'Renforcer 1 mesure · main droite'
+  end
+
   def test_reinforcement_mode_after_playthrough_with_mistakes
     visit '/score.html?url=/test-fixtures/repeat-endings.xml'
     wait_for_score_render(4)

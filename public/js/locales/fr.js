@@ -250,7 +250,7 @@ export default {
     rightHand: 'Main droite',
     leftHand: 'Main gauche',
     reinforceOne: '🎯 Renforcer {n} mesure',
-    reinforceMany: '🎯 Renforcer {n} mesures',
+    reinforce: '🎯 Renforcer {n} mesures',
     stop: '⏹ Stop',
     listen: '▶ Écouter',
     playbackHint: 'Cliquez sur une mesure pour écouter à partir de là.',
