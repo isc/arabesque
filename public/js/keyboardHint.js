@@ -128,7 +128,7 @@ export function keyLayout({ low, high }) {
 }
 
 // The notes owed, by name, a hand at a time and low to high within it:
-// [{ hand: 'main droite', notes: ['mi5'] }, { hand: 'main gauche', notes: ['do2', 'do3'] }].
+// [{ hand: 'MD', notes: ['mi5'] }, { hand: 'MG', notes: ['do2', 'do3'] }].
 function caption(notes) {
   return ['right', 'left']
     .map((hand) => ({
