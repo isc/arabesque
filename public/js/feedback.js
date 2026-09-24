@@ -14,6 +14,7 @@ import { CHANGELOG } from './changelog.js'
 import { getLang } from './i18n.js'
 import { KEY_PREFIX } from './legacyKeys.js'
 import { APP_VERSION as BUILD } from './version.js'
+import { recentErrors } from './errorLog.js'
 
 export const feedbackEnabled = Boolean(SUPABASE_URL && SUPABASE_PUBLISHABLE_KEY)
 
@@ -54,7 +55,10 @@ function rememberFeedbackEmail(address) {
 
 // Non-identifying environment captured with every submission, so a bug report
 // carries the context to reproduce it. No personal data, no stored identifiers.
+// The errors the app ran into lately ride along (errorLog.js), and are left
+// out when there were none.
 export function buildBaseContext() {
+  const errors = recentErrors()
   return {
     app_version: APP_VERSION,
     locale: getLang(),
@@ -63,6 +67,7 @@ export function buildBaseContext() {
       typeof window !== 'undefined'
         ? { w: window.innerWidth, h: window.innerHeight }
         : null,
+    ...(errors.length > 0 && { errors }),
   }
 }
 

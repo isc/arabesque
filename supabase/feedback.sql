@@ -41,7 +41,8 @@ create table if not exists public.feedback (
   message    text not null,
   email      text,
   category   text,          -- 'bug' | 'idea' | 'score' | 'other' (free text; UI-constrained)
-  context    jsonb,         -- app_version, locale, user_agent, viewport, anonymized stats
+  context    jsonb,         -- app_version, locale, user_agent, viewport, anonymized stats,
+                            -- recent JS errors (public/js/errorLog.js bounds their size)
   screenshot text,          -- data URL of the screen as sent, opt-out (see below)
   status     text not null default 'new'   -- constrained just below
 );

@@ -461,7 +461,7 @@ export default {
       'You can delete your account from the Data page. The account and everything synced under it are erased from the servers there and then, without having to ask anyone.',
     feedbackTitle: 'The feedback you send',
     feedbackBody:
-      'The feedback form sends your message, the category you picked, and technical context meant to reproduce problems: app version, browser, screen size, language, and — depending on the page — the title of the open score or your practice totals. It also attaches a picture of the screen as you saw it, minus the feedback window: it is shown in the form before you send it, and a checkbox takes it back off. The email address is optional and is only used to reply. Feedback is never tied to an account.',
+      'The feedback form sends your message, the category you picked, and technical context meant to reproduce problems: app version, browser, screen size, language, any technical errors the app ran into in the past hour, and — depending on the page — the title of the open score or your practice totals. It also attaches a picture of the screen as you saw it, minus the feedback window: it is shown in the form before you send it, and a checkbox takes it back off. The email address is optional and is only used to reply. Feedback is never tied to an account.',
     neverTitle: 'What Arabesque does not do',
     neverBody:
       'No advertising, no analytics, no third-party trackers, no advertising cookies, no profiling. Your data is not sold, rented or shared for commercial purposes. The microphone and camera are never used; the MIDI keyboard only tells the app which notes you play, and that stream never leaves your device.',

@@ -364,7 +364,8 @@ class LibraryFiltersTest < CapybaraTestBase
     context = sent_reports.first['context']
     # What read 0 in be332d4d, with 54 pieces practised.
     assert_equal aggregate_rows.size, context['stats']['scores_practiced']
-    assert_match(/UnknownError/, context['practice_error'])
+    failure = context['errors'].find { |error| error['where'] == 'Practice data could not be read again' }
+    assert_match(/UnknownError/, failure['message'])
   end
 
   private
