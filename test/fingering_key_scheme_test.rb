@@ -121,6 +121,9 @@ class FingeringKeySchemeTest < CapybaraTestBase
     wait_for_score_render
     assert_selector 'svg g.vf-text', text: '2', count: 1
     assert_equal %w[m0:0:0:1], stored_fingering_keys(SIMPLE_SCORE)
+    # A translation, not an edit: stamping it would let this copy outrank a
+    # newer edit made on another device.
+    assert_equal 1, stored_fingering_record(SIMPLE_SCORE)['updatedAt']
 
     # Nothing left to do on the next load, and nothing lost by it.
     visit "/score.html?url=#{SIMPLE_SCORE}"
@@ -141,7 +144,11 @@ class FingeringKeySchemeTest < CapybaraTestBase
   end
 
   def stored_fingering_keys(score_url)
-    keys = page.evaluate_async_script(<<~JS, score_url)
+    (stored_fingering_record(score_url)&.fetch('fingerings') || {}).keys.sort
+  end
+
+  def stored_fingering_record(score_url)
+    page.evaluate_async_script(<<~JS, score_url)
       const [scoreUrl, done] = [arguments[0], arguments[arguments.length - 1]];
       const request = indexedDB.open('arabesque', 3);
       request.onerror = () => done(null);
@@ -149,10 +156,9 @@ class FingeringKeySchemeTest < CapybaraTestBase
         const db = request.result;
         const record = db.transaction('fingerings', 'readonly').objectStore('fingerings').get(scoreUrl);
         record.onerror = () => { db.close(); done(null); };
-        record.onsuccess = () => { db.close(); done(Object.keys(record.result?.fingerings ?? {})); };
+        record.onsuccess = () => { db.close(); done(record.result ?? null); };
       };
     JS
-    (keys || []).sort
   end
 
   CATALOG_FILES = <<~JS.freeze

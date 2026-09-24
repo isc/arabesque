@@ -650,15 +650,15 @@ export function midiApp() {
     async renderScoreWithFingerings() {
       // Independent: one is IndexedDB, the other the score bytes (already in
       // flight since the head script, so this is where its await belongs).
-      const [{ fingerings }, xml] = await Promise.all([
+      const [fingeringRecord, xml] = await Promise.all([
         storage.getFingerings(this.scoreUrl),
         loadMxlAsXml(this.scoreUrl),
       ])
-      const modified = injectFingerings(xml, fingerings)
+      const modified = injectFingerings(xml, fingeringRecord.fingerings)
       await musicxml.renderMusicXML(modified)
       await this.afterScoreLoad()
       this.setupFingeringHandlers()
-      await this.migrateFingeringKeys(fingerings)
+      await this.migrateFingeringKeys(fingeringRecord)
     },
 
     // A fingering used to be stored under the measure number the file printed,
@@ -686,16 +686,18 @@ export function midiApp() {
     // the copies made again, including ones the player has since deleted. That
     // lasts as long as the old build does, and a stored flag would travel no
     // better than the keys themselves.
-    async migrateFingeringKeys(fingerings) {
-      const migrated = migrateLegacyFingerings(fingerings, musicxml.getLegacyFingeringKeyMap())
+    //
+    // The record keeps its updatedAt. The rewrite is a translation, not an
+    // edit: every device makes the same one from the same record, so it has
+    // nothing to send the others. Stamping it now would -- this page never
+    // pulls, so a stale local copy migrated here would outrank a newer edit
+    // made on another device and overwrite it at the next sync. The cloud
+    // keeps the old names until the next real edit, and each device translates
+    // them on its own first open.
+    async migrateFingeringKeys(record) {
+      const migrated = migrateLegacyFingerings(record.fingerings, musicxml.getLegacyFingeringKeyMap())
       if (!migrated) return
-      // A newer updatedAt so the rewrite reaches the player's other devices:
-      // the old keys are ambiguous everywhere, not only here.
-      await storage.putFingeringRecord({
-        scoreUrl: this.scoreUrl,
-        fingerings: migrated.fingerings,
-        updatedAt: Date.now(),
-      })
+      await storage.putFingeringRecord({ ...record, fingerings: migrated.fingerings })
       for (const key of migrated.added) {
         fingeringEditor.addFingeringToDataModel(key, migrated.fingerings[key])
       }
