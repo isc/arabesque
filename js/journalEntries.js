@@ -32,10 +32,9 @@ export const journalEntryHelpers = {
     return entry.composer ? `${title} · ${entry.composer}` : title
   },
 
-  // "Joué 3× en entier · main droite" — one line per hand selection and per
-  // kind of run, so a day spent on the right hand alone doesn't read as the
-  // piece played whole, and a run to the metronome isn't mistaken for a free
-  // one.
+  // "Joué 3× en entier · MD" — one line per hand selection and per kind of
+  // run, so a day spent on the right hand alone doesn't read as the piece
+  // played whole, and a run to the metronome isn't mistaken for a free one.
   playedFullLabel(group) {
     const n = group.playthroughs.length
     return withRunKind(tn('journal.playedFull', n), group)
