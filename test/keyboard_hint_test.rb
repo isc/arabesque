@@ -8,6 +8,15 @@ require_relative 'test_helper'
 class KeyboardHintTest < CapybaraTestBase
   def setup
     page.driver.set_cookie('test-env', 'true')
+    # The strip fades in, and under a parked clock that fade can sit at its
+    # first frame — opacity 0, which Capybara takes for not visible. Reduced
+    # motion drops it: the strip is there the moment x-show reveals it.
+    emulate_media([{ name: 'prefers-reduced-motion', value: 'reduce' }])
+  end
+
+  def teardown
+    emulate_media([])
+    super
   end
 
   def test_wrong_keys_for_a_note_bring_the_keyboard_up_with_that_note_lit
@@ -180,9 +189,12 @@ class KeyboardHintTest < CapybaraTestBase
     assert_no_selector 'svg g.vf-notehead.played-note'
   end
 
-  # Down the way x-show puts it. Not assert_no_selector: under a parked clock
-  # a strip just brought up stays at the first frame of its fade-in, opacity
-  # 0, which Capybara takes for not visible.
+  def emulate_media(features)
+    page.driver.browser.page.command('Emulation.setEmulatedMedia', features: features)
+  end
+
+  # Down the way x-show puts it, rather than merely not visible: a strip
+  # caught mid-fade would pass assert_no_selector.
   def assert_keyboard_down
     assert_selector '.pt-keyhint[style*="display: none"]', visible: :all
   end
