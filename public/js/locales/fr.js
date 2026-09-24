@@ -39,11 +39,15 @@ export default {
     syncNote:
       'Chaque profil se synchronise avec le compte ci-dessous, chacun de son côté : un profil créé ici apparaît sur les autres appareils connectés au même compte, avec son journal.',
   },
-  // Which hands a run through the score was played with.
+  // Which hands a run through the score was played with (see en.js).
   hands: {
+    right: 'MD',
+    left: 'MG',
+    mixed: 'mains changées en cours',
+  },
+  handsFull: {
     right: 'main droite',
     left: 'main gauche',
-    mixed: 'mains changées en cours',
   },
   status: {
     dechiffrage: 'Déchiffrage',

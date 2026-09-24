@@ -304,6 +304,9 @@ class ArabesqueTest < CapybaraTestBase
     # - E5 (MIDI 76) on staff 0 (right hand)
     # - C4 (MIDI 60) on staff 1 (left hand)
 
+    # Short label, full words as its name and tooltip (feedback 0140c7ed).
+    assert_selector '.pt-hands__option[title="Main gauche"]', text: 'MG'
+
     # Uncheck left hand checkbox
     uncheck 'Main gauche'
 
@@ -645,14 +648,15 @@ class ArabesqueTest < CapybaraTestBase
     uncheck 'Main gauche'
     play_note('D4')
     play_note('C4')
-    assert_selector '.pt-reinforce-badge', text: 'Renforcer 1 mesure · main droite'
+    assert_selector '.pt-reinforce-badge', text: 'Renforcer 1 mesure · MD'
+    assert_selector '.pt-reinforce-badge[aria-label="🎯 Renforcer 1 mesure · main droite"]'
 
     # Both hands back: nothing was fumbled two-handed (feedback 0868d96f).
     check 'Main gauche'
     assert_no_selector '.pt-reinforce-badge'
 
     uncheck 'Main gauche'
-    assert_selector '.pt-reinforce-badge', text: 'Renforcer 1 mesure · main droite'
+    assert_selector '.pt-reinforce-badge', text: 'Renforcer 1 mesure · MD'
   end
 
   def test_reinforcement_mode_after_playthrough_with_mistakes

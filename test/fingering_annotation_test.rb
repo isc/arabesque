@@ -31,7 +31,7 @@ class FingeringAnnotationTest < CapybaraTestBase
     # The chord is C4-E4-G4, named in French and with the octave the rest of the
     # world numbers by (middle C is 4, where OSMD's own Pitch says 1). It is
     # written on the treble staff, so every head of it is the right hand's.
-    assert_equal ['do4 · main droite', 'mi4 · main droite', 'sol4 · main droite'], names.sort
+    assert_equal ['do4 · MD', 'mi4 · MD', 'sol4 · MD'], names.sort
   end
 
   # Which hand the note belongs to is the other half of "did I click the one I
@@ -53,8 +53,8 @@ class FingeringAnnotationTest < CapybaraTestBase
     bass, treble = names.partition { |name| name.start_with?(*%w[do3 ré3 mi3 fa3 sol3 la3 si3]) }
     refute_empty bass
     refute_empty treble
-    assert(bass.all? { |name| name.end_with?(' · main gauche') }, "attendu main gauche : #{bass}")
-    assert(treble.all? { |name| name.end_with?(' · main droite') }, "attendu main droite : #{treble}")
+    assert(bass.all? { |name| name.end_with?(' · MG') }, "attendu MG : #{bass}")
+    assert(treble.all? { |name| name.end_with?(' · MD') }, "attendu MD : #{treble}")
   end
 
   def test_add_fingering_and_persist_after_reload
