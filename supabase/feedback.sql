@@ -19,9 +19,9 @@
 --        select vault.create_secret('re_xxxxx', 'resend_api_key');
 --      (rotation: select vault.update_secret(
 --         (select id from vault.secrets where name='resend_api_key'), 're_yyyyy');)
---   4. To send from feedback@<your-domain>: verify the domain in Resend (DNS).
---      Until then, use 'onboarding@resend.dev' as `from` (delivers only to the
---      Resend account email) — see FROM_ADDR below.
+--   4. Verify the sending domain in Resend (DNS) — done for arabesque.app; the
+--      why and the records are in supabase/auth.md and NAMING.md, not repeated
+--      here. FROM_ADDR below must name that same verified domain.
 --
 -- Apply:
 --   psql "$SUPABASE_DB_URL" -f supabase/feedback.sql
@@ -109,7 +109,7 @@ set search_path = public, extensions, vault
 as $$
 declare
   api_key   text;
-  from_addr text := 'Arabesque <onboarding@resend.dev>';  -- test mode; switch to feedback@<domain> once verified in Resend
+  from_addr text := 'Arabesque <bonjour@arabesque.app>';  -- the domain is verified in Resend (supabase/auth.md)
   to_addr   text := 'ivan.schneider@hey.com';
   excerpt   text;
 begin

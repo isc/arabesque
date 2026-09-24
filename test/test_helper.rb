@@ -81,8 +81,16 @@ class CapybaraTestBase < Minitest::Test
   #
   # before_setup, not setup: every test file writes its own setup and none of
   # them calls super, so a setup here would simply be overridden.
+  #
+  # The block is per browser page, not per browser: a window opened later
+  # (visit_with_real_clock) has a CDP session of its own and starts unblocked,
+  # so it has to ask for the block again.
   def before_setup
     super
+    block_cdn
+  end
+
+  def block_cdn
     page.driver.browser.page.command('Network.setBlockedURLs', urls: ['https://esm.sh/*'])
   end
 
@@ -95,6 +103,26 @@ class CapybaraTestBase < Minitest::Test
   def open_menu
     find('.pt-changelog-btn').click
     assert_selector '.pt-popover', visible: true
+  end
+
+  # Empty a filled field from the keyboard, for the tests that need the page to
+  # react to the clearing the way it reacts to a player — Capybara's `fill_in`
+  # with an empty string sets the value from the driver, which leaves x-model
+  # none the wiser.
+  #
+  # One backspace per character, and not the obvious select-all-then-delete,
+  # because no select-all chord survives the trip through the driver on both
+  # platforms. ctrl+A is select-all on Linux but the readline "go to start of
+  # line" on macOS, where it selects nothing and the backspace after it eats a
+  # single character — a green CI and a field left holding all but its last
+  # letter on the machine the test was written on. Reaching for ⌘ instead does
+  # not save it: select-all on macOS is a browser-level command, not something
+  # the page performs, so a ⌘A synthesised through CDP selects nothing either
+  # and truncates by one just the same (⌘⇧← likewise). Counting characters is
+  # dull and works everywhere; please leave it dull.
+  def clear_field(locator)
+    field = find_field(locator)
+    field.send_keys(:end, *([:backspace] * field.value.length))
   end
 
   # Nothing in the suite may reach the real feedback table, so that one POST is
@@ -195,9 +223,41 @@ class CapybaraTestBase < Minitest::Test
     cdp.command('Emulation.setVirtualTimePolicy', policy: 'pause')
     yield
   ensure
-    # Hand the page back to the wall clock so teardown and any later
-    # interaction behave normally.
+    # Let the page's own timers fire again, so teardown and any later
+    # interaction on it behave normally. This is NOT the wall clock: see
+    # visit_with_real_clock for what `advance` actually does and what it costs.
     cdp&.command('Emulation.setVirtualTimePolicy', policy: 'advance')
+  end
+
+  # Carry on the test on a page whose clock has never been driven.
+  #
+  # Chrome cannot turn virtual time back off, and `advance` is not "real time"
+  # — it means "when the page runs out of immediate work, jump the clock to the
+  # next pending timer". So once with_clock_control has returned, the page's
+  # clock runs away as fast as the CPU can spin timers, and it keeps running
+  # away across `visit`, since virtual time belongs to the renderer rather than
+  # to the document. Measured on library.html, whose day-rollover poll is armed
+  # for every virtual minute: 4 days ahead of the wall clock by the time
+  # `visit` returned, 38 days a real second later.
+  #
+  # Anything the page then reads out of `new Date()` is fiction. The practice
+  # journal lays out the last fourteen days from it, so a run recorded seconds
+  # earlier fell off the far end of its own window and every day read "Aucune
+  # pratique" — on the slow runs of a loaded suite, where the drift had longer
+  # to accumulate before the page read the date.
+  #
+  # A window is a renderer of its own, and virtual time is only ever enabled on
+  # the one that asked for it. This one shares the browser context, so the
+  # origin's cookies and IndexedDB — the practice data the test just recorded —
+  # come with it. The driven page is closed rather than left behind: its timers
+  # spin at the speed of the CPU for as long as it exists, and the suite runs
+  # eight of these at once.
+  def visit_with_real_clock(path)
+    driven = page.current_window
+    page.switch_to_window(page.open_new_window)
+    driven.close
+    block_cdn
+    visit path
   end
 
   # Leave every IndexedDB open request unanswered on the page visited next, the
@@ -244,6 +304,54 @@ class CapybaraTestBase < Minitest::Test
     Timeout.timeout(timeout) do
       sleep 0.01 until page.evaluate_script('performance.now()') >= target - 1
     end
+  end
+
+  # Hold every timer the page arms inside the block, and fire them all on the
+  # way out — so a test can *choose* the order of two things the page leaves
+  # unordered instead of racing them.
+  #
+  # with_clock_control cannot do this job. Parking virtual time parks the page's
+  # IndexedDB work along with it, so anything that has to read or write the
+  # practice journal in the meantime — entering reinforcement does both — never
+  # gets there. Here real time runs on untouched and only setTimeout is
+  # deferred, which is all these orderings ever hang on.
+  #
+  # A held timer the page then cancels is dropped rather than fired: cancelling
+  # deferred work is exactly what several of these orderings turn on, and a
+  # harness that fired it anyway would report the bug it was written to rule out.
+  # So the ids handed back are real ones and clearTimeout is held with them.
+  #
+  # setTimeout is restored before the queue is drained, so a callback that arms
+  # another timer gets the real one rather than piling back onto the queue being
+  # walked.
+  def with_timers_held
+    page.execute_script(<<~JS)
+      window.__heldTimers = new Map()
+      // Bound: called off a plain object, the natives throw "Illegal invocation".
+      window.__realTimers = {
+        set: window.setTimeout.bind(window),
+        clear: window.clearTimeout.bind(window),
+      }
+      // Far above anything Chrome has handed out, so a timer armed before the
+      // block and cancelled inside it falls through to the real clearTimeout
+      // instead of matching one of these by accident.
+      let nextId = 1e6
+      window.setTimeout = (fn, _ms, ...args) => {
+        window.__heldTimers.set(++nextId, () => fn(...args))
+        return nextId
+      }
+      window.clearTimeout = (id) => {
+        if (!window.__heldTimers.delete(id)) window.__realTimers.clear(id)
+      }
+    JS
+    yield
+  ensure
+    page.execute_script(<<~JS)
+      window.setTimeout = window.__realTimers.set
+      window.clearTimeout = window.__realTimers.clear
+      for (const fire of window.__heldTimers.values()) fire()
+      window.__heldTimers.clear()
+    JS
   end
 
   # Write records into an IndexedDB store and block until the transaction has

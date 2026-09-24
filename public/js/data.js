@@ -3,9 +3,9 @@
 //
 // This page is the home for everything data-related: who the data belongs to
 // on this device (profiles.js), the export/import that used to live in the ⚙️
-// menu, and signing in by email — with the link or the code it carries, see
-// supabaseClient.js. Signing in is what turns cloud sync on; this page is
-// where that becomes true for the device, every profile on it included.
+// menu, and signing in by email (see supabaseClient.js). Signing in is what
+// turns cloud sync on; this page is where that becomes true for the device,
+// every profile on it included.
 import { initStorage } from './storage.js'
 import { initPracticeTracker } from './practiceTracker.js'
 import { lastSyncAt } from './sync.js'
@@ -43,7 +43,6 @@ export function dataApp() {
   // Loaded lazily in init() so export/import work without waiting on (or even
   // reaching) the @supabase/supabase-js CDN module.
   let supabase = null
-  let authRedirectUrl = null
   let pendingSignIn = () => null
   let setPendingSignIn = () => {}
 
@@ -106,12 +105,12 @@ export function dataApp() {
     authStatus: 'idle', // 'idle' | 'sending' | 'sent' | 'verifying' | 'error'
     authError: '',
     authErrorLabel: '', // i18n key naming which step failed
-    // The code from the sign-in email — the half of it that reaches us wherever
-    // the mail is read (see supabaseClient.js for why a link cannot).
+    // The code from the sign-in email (see supabaseClient.js for why it is a
+    // code and not a link).
     otp: '',
 
     // Whether the email is out and we are waiting for its code. Written once
-    // here rather than as a compound status test in three places of the markup.
+    // here rather than as a compound status test in both branches of the markup.
     get codeSent() {
       return this.authStatus === 'sent' || this.authStatus === 'verifying'
     },
@@ -131,7 +130,6 @@ export function dataApp() {
       try {
         const mod = await import('./supabaseClient.js')
         supabase = mod.supabase
-        authRedirectUrl = mod.authRedirectUrl
         pendingSignIn = mod.pendingSignIn
         setPendingSignIn = mod.setPendingSignIn
         this.cloudConfigured = !!supabase
@@ -142,7 +140,7 @@ export function dataApp() {
       if (supabase) {
         const { data } = await supabase.auth.getSession()
         this.setSession(data.session)
-        // Keep the UI in sync with sign-in/out and the magic-link redirect.
+        // Keep the UI in sync with signing in and out.
         supabase.auth.onAuthStateChange((_event, session) => this.setSession(session))
         // Came back from the mail app (or reloaded): reopen the code form on
         // the address that was asked for, rather than starting over.
@@ -208,16 +206,13 @@ export function dataApp() {
       return new Date(this.lastSync).toLocaleString(locale())
     },
 
-    // Asks for the sign-in email, which carries both a link and a code.
+    // Asks for the sign-in email, which carries a code and nothing else.
     async requestSignInEmail() {
       const email = this.email.trim()
       if (!email || this.authStatus === 'sending') return
       this.authStatus = 'sending'
       this.authError = ''
-      const { error } = await supabase.auth.signInWithOtp({
-        email,
-        options: { emailRedirectTo: authRedirectUrl() },
-      })
+      const { error } = await supabase.auth.signInWithOtp({ email })
       if (error) {
         this.authStatus = 'error'
         this.authError = error.message
@@ -228,7 +223,6 @@ export function dataApp() {
       }
     },
 
-    // Signing in with the code rather than the link (see supabaseClient.js).
     async verifyOtp() {
       const token = this.otp.replace(/\s/g, '')
       if (!token || this.authStatus === 'verifying') return

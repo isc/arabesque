@@ -97,6 +97,16 @@ ruby scripts/generate_fingerprints.rb
 `public/data/fingerprints.json` must stay in sync with the catalog: one
 fingerprint per score file, including each part of a collection.
 
+Correcting a score in place — a wrong trill, a measure re-engraved — does reach
+devices that already opened the piece: the service worker serves `/scores/` from
+the cache and refreshes behind the answer, so the fix lands on the opening after
+the one that fetched it (`public/sw.js`). Nothing to bump, no filename to
+change. What does **not** follow the correction is everything keyed to the old
+notation — fingerings by `measureNumber:staff:voice:noteIndex`, practice
+aggregates by `sourceMeasureIndex`. Adding, removing or renumbering a measure
+silently re-points both, locally and in Supabase. Fixing an accidental is free;
+changing the measure count is not.
+
 A catalog entry with `parts: [{title, file}]` instead of `file` is a
 **collection** (e.g. the Hanon exercises): one library row, a part navigator on
 the score page, and practice data, fingerings and fingerprints kept per part
@@ -118,13 +128,24 @@ for the day it is meant to ship, holding the item in both languages:
 
 ```markdown
 # fr
-Une phrase de titre. Puis ce qu'il y avait avant, ce qui change, et ce que le
-joueur y gagne.
+Le décompte du mode strict se voit. Le bandeau affiche les temps de la mesure
+de départ, celui en cours en évidence.
 
 # en
-A title sentence. Then what it was like before, what changes, and what the
-player gets out of it.
+The strict-mode count-in can be seen. The band shows the beats of the count-in
+bar, the one sounding picked out.
 ```
+
+**IMPORTANT:** That length is the point of the example, not an accident. An
+entry is read in a modal, one of forty, by someone who wants to know what
+changed — **a title sentence, then one or two sentences, and never more than
+320 characters per section**. Cut the justification, the implementation, the
+pixel counts, the second example, and every clause that says the title again in
+other words. Over the limit means the entry is doing the work of a commit
+message: keep the title and the one sentence a player would act on, and let the
+rest live in the PR. `parseFragment` refuses a section over that limit and
+`test/js/changelog.test.js` holds the published entries to the same bar, so it
+fails the pull request rather than reaching the modal.
 
 A file per change is a file git merges; a line at the top of those two files is
 a conflict with every other PR open that day. Both sections are required — one
@@ -169,6 +190,26 @@ Each new feedback also emails ivan.schneider@hey.com, so there is nothing to pol
 `supabase/feedback.sql` is the canonical DDL — the project has no migration
 system, so a schema change is applied by hand **and** written there.
 
+## Supabase auth config
+
+`supabase/auth.md` is the canonical record of how the sign-in email is sent and
+what it says — the SMTP block, the code's length and lifetime, the rate limit,
+and the template itself. **Never PATCH one of those settings by hand:** the
+Management API groups them, and naming one member of a group silently clears the
+rest. That is not theoretical — it wiped SMTP and put the magic link back into
+production on 2026-09-08. Go through the applier, which only sends whole groups
+and checks that nothing else moved:
+
+```bash
+node scripts/apply-auth-config.mjs          # show what differs, change nothing
+node scripts/apply-auth-config.mjs --apply  # push supabase/auth.md
+```
+
+`test/js/authConfig.test.js` guards the file's invariants offline (no token, so
+it runs in CI): the template carries a code and never a link, the settings table
+names exactly what the applier sends, and the sender matches `feedback.sql`.
+`auth.md` also lists the four ways sign-in email has broken silently.
+
 ## Playwright Browser Testing
 
 Use the **Playwright CLI** (`@playwright/cli`, already a devDependency — binary at
@@ -195,10 +236,22 @@ refs, then `click`/`fill`/`eval` against them.
 
 `scripts/demo/capture.sh` regenerates the whole screenshot set from real
 simulators — run it after any UI change the listing shows. `scripts/demo/record.sh`
-records the walkthrough App Review needs, since a reviewer has no MIDI keyboard.
-Both seed a practice history and play a piece through the mock MIDI input, and
-both work on a throwaway copy of `public/` — no demo hook ever ships. See
-`scripts/demo/README.md`, which also has the wording for the review notes.
+records a walkthrough off a simulator. Both seed a practice history and play a
+piece through the mock MIDI input, and both work on a throwaway copy of
+`public/` — no demo hook ever ships.
+
+The video App Review watches is neither: Apple requires a **filmed** one,
+showing a physical device and the MIDI keyboard pairing and playing together.
+It is committed at `public/video/review-demo.mp4`, and the review notes in
+`scripts/appstore/listing_fr.py` link to it — replacing that file replaces the
+video. `scripts/demo/README.md` has what a re-film must show and how to
+compress it.
+
+The landing page's hero video (`public/video/hero.{fr,en}.mp4`) is built by
+`landing-video/` — a HyperFrames composition over real app screenshots, seeded
+from the practice history on Supabase (`npm run backup`). Its README has the
+whole run; nothing it needs lives outside the repo except the Supabase token
+and ffmpeg. `tmp/cap/`, if a checkout has one, is a superseded prototype.
 
 `scripts/appstore/push_listing.py` writes the listing itself — description,
 keywords, URLs, categories, age rating, screenshots — through the App Store

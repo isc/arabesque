@@ -327,6 +327,26 @@ class ArabesqueTest < CapybaraTestBase
     assert_selector 'svg g.vf-notehead.played-note', count: 1
   end
 
+  def test_changing_hands_starts_the_measure_under_way_over
+    load_score('schumann-melodie.xml', 256)
+
+    # Measure 1's first two right-hand notes, the left hand unticked.
+    uncheck 'Main gauche'
+    play_notes(%w[E5 D5])
+    assert_selector 'svg g.vf-notehead.played-note', count: 2
+
+    # Ticked back, the left hand's notes from the start of the bar are owed
+    # again; the half-bar played without them would leave the right hand ahead
+    # and the measure asking for notes the player has left behind.
+    check 'Main gauche'
+    assert_no_selector 'svg g.vf-notehead.played-note'
+
+    simulate_midi_input('ON E5')
+    simulate_midi_input('ON C4')
+    assert_selector 'svg g.vf-notehead.played-note', count: 2
+    assert_no_selector 'svg g.vf-notehead.wrong-note'
+  end
+
   def test_score_that_cannot_be_fetched_says_so_instead_of_spinning
     # A score that never arrives used to leave the page loading for good.
     visit '/score.html?url=scores/does-not-exist.mxl'
@@ -360,6 +380,31 @@ class ArabesqueTest < CapybaraTestBase
     play_notes(%w[E5 G5])
 
     assert_selector 'svg g.vf-notehead.played-note', count: 2
+  end
+
+  def test_a_measure_is_clickable_on_the_staff_its_hand_rests_on
+    # Measure 2 is a whole rest in the right hand. Its click area used to be
+    # built from the staves holding notes only, so the treble staff above the
+    # rest was dead to the click that picks where to play from.
+    load_score('one-hand-rest-measure.xml', 6)
+
+    # Just under the top staff line of the treble staff, at the middle of the
+    # measure's click area: above the whole rest, which hangs from line 4.
+    x, y = page.evaluate_script(<<~JS)
+      (() => {
+        const rect = document.querySelector('rect.measure-click-area[data-measure-index="1"]').getBoundingClientRect()
+        const lines = [...document.querySelectorAll('g.vf-measure[id="2"] > path')]
+          .map((p) => p.getBoundingClientRect())
+          .filter((r) => r.height < 1 && r.width > 0)
+        return [rect.left + rect.width / 2, Math.min(...lines.map((r) => r.top)) + 2]
+      })()
+    JS
+    page.driver.browser.mouse.click(x: x, y: y)
+
+    # Measure 2's left-hand D3 is only the next note if the click landed there.
+    play_note('D3')
+    assert_selector 'svg g.vf-notehead.played-note', count: 1
+    assert_no_selector 'svg g.vf-notehead.wrong-note'
   end
 
   def test_repeat_endings_playback_sequence
@@ -478,6 +523,59 @@ class ArabesqueTest < CapybaraTestBase
     end
   end
 
+  # The repeat dots hang over the measure's own noteheads, so a bar that climbs
+  # above the staff carries them higher than the top staff line the autoscroll
+  # anchors on — high enough to leave them under the sticky bars, with the
+  # cursor sitting on a measure whose count of three cannot be read.
+  def test_training_mode_autoscroll_keeps_the_repeat_dots_clear_of_the_sticky_bars
+    original_size = page.current_window.size
+
+    begin
+      page.current_window.resize_to(500, 500)
+
+      # Measure 6 is three ledger lines above the staff; the measures after it
+      # are what gives the page somewhere left to scroll.
+      load_score('high-note-measure.xml', 24)
+
+      click_on 'Mode Entraînement'
+      assert_text 'Mode Entraînement Actif'
+
+      # Measure 4 closes its system, so filling its dots scrolls the next system
+      # up — the position the dots of measure 6 then have to survive.
+      click_measure(4)
+      3.times do
+        play_note('F4')
+        assert_no_selector 'svg g.vf-notehead.played-note'
+      end
+      wait_for_stable_scroll
+
+      3.times do
+        play_note('G4')
+        assert_no_selector 'svg g.vf-notehead.played-note'
+      end
+
+      # Waits for the cursor to land rather than sampling where it is: the
+      # geometry below is only worth reading once the high measure is the one
+      # carrying the dots.
+      assert_selector 'svg rect.measure-click-area.selected[data-measure-index="5"]'
+      wait_for_stable_scroll
+
+      # The headroom the page reserves for itself: what the sticky bars cover,
+      # plus the breathing above the staff.
+      offset = page.evaluate_script(
+        "parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--pt-sticky-offset'))"
+      )
+      dots_top = page.evaluate_script(
+        "document.getElementById('repeat-indicators').getBoundingClientRect().top"
+      )
+
+      assert dots_top >= offset - 1,
+             "Repeat dots should sit below the sticky bars (dots: #{dots_top}, reserved: #{offset})"
+    ensure
+      page.current_window.resize_to(*original_size)
+    end
+  end
+
   def test_training_mode_autoscroll_works_when_starting_from_non_first_measure
     # This test verifies that auto-scroll works even when jumping to a measure > 0
     # (regression test: currentSystemIndex was null when not starting from measure 0)
@@ -538,6 +636,25 @@ class ArabesqueTest < CapybaraTestBase
     wait_for_records('sessions', where: 'record.endedAt')
   end
 
+  def test_reinforcement_follows_the_hands_ticked
+    visit '/score.html?url=/test-fixtures/repeat-endings.xml'
+    wait_for_score_render(4)
+
+    # Measure 1 fumbled with the right hand alone: offered for the right hand,
+    # and saying so, since it is not the piece played in full.
+    uncheck 'Main gauche'
+    play_note('D4')
+    play_note('C4')
+    assert_selector '.pt-reinforce-badge', text: 'Renforcer 1 mesure · main droite'
+
+    # Both hands back: nothing was fumbled two-handed (feedback 0868d96f).
+    check 'Main gauche'
+    assert_no_selector '.pt-reinforce-badge'
+
+    uncheck 'Main gauche'
+    assert_selector '.pt-reinforce-badge', text: 'Renforcer 1 mesure · main droite'
+  end
+
   def test_reinforcement_mode_after_playthrough_with_mistakes
     visit '/score.html?url=/test-fixtures/repeat-endings.xml'
     wait_for_score_render(4)
@@ -589,6 +706,38 @@ class ArabesqueTest < CapybaraTestBase
     assert_text 'Renforcement terminé'
     assert_no_selector 'svg rect.measure-click-area.selected'
     assert_no_selector 'svg circle.repeat-indicator'
+  end
+
+  # The run above again, with the one thing it cannot make happen on purpose:
+  # the badge clicked inside the beat the finished run holds the sheet for
+  # (afterTheBeat). Held rather than raced, because the two orders are a few
+  # tens of milliseconds apart — CI found the losing one once, and the clear
+  # landing on the drill just armed over it left plain training mode on measure
+  # 1 for good.
+  def test_reinforcement_survives_the_clearing_of_the_run_that_offered_it
+    visit '/score.html?url=/test-fixtures/repeat-endings.xml'
+    wait_for_score_render(4)
+
+    # A fumble in measure 1, then the rest of the piece: the run that puts one
+    # measure on the reinforcement list.
+    %w[D4 C4 D4 E4 C4 D4].each { |note| play_note(note) }
+
+    with_timers_held do
+      play_note('F4') # finishes the score, and arms the clearing of the sheet
+
+      # Through the completion modal rather than after it — closing it is not
+      # what this is about, and a dispatched click does not care what is drawn
+      # over the badge.
+      find('.pt-reinforce-badge').trigger('click')
+      assert_selector 'svg rect.measure-click-area.selected'
+    end
+
+    3.times do
+      play_note('C4')
+      assert_no_selector 'svg g.vf-notehead.played-note'
+    end
+
+    assert_text 'Renforcement terminé'
   end
 
   def test_rests_with_display_position_are_not_treated_as_notes
@@ -706,12 +855,40 @@ class ArabesqueTest < CapybaraTestBase
     assert_text '▶ Écouter'
   end
 
+  # Feedback c586857e: a number input is fine to type a tempo into and awkward
+  # to change with a thumb — its spinner is a few pixels tall where it is drawn
+  # at all. The field keeps its digits and gains a −/+ pair.
+  def test_the_tempo_is_set_by_the_buttons_beside_the_field
+    visit '/score.html?url=/test-fixtures/two-measures.xml'
+    wait_for_score_render(2)
+
+    click_on '⏱ Mode strict'
+    fill_in 'strict-bpm', with: '120'
+    click_on 'Augmenter le tempo'
+    assert_field 'strict-bpm', with: '125'
+    2.times { click_on 'Diminuer le tempo' }
+    assert_field 'strict-bpm', with: '115'
+
+    # The field is bound to the same bounds the buttons step within, so its
+    # arrow keys move the notch they do and neither can drift from the other.
+    assert_selector '#strict-bpm[min="20"][max="300"][step="5"]', visible: :all
+
+    # A press stops at the floor rather than stepping past it, and the last
+    # notch is short rather than skipped.
+    fill_in 'strict-bpm', with: '22'
+    click_on 'Diminuer le tempo'
+    assert_field 'strict-bpm', with: '20'
+
+    # And a tempo pressed in is the player's for this score, like a typed one.
+    wait_for_stored_tempo('/test-fixtures/two-measures.xml', '20', name: 'strictBpm')
+  end
+
   private
 
   # Polls rather than asserting once: the BPM field is debounced, so the value
   # lands in the app a moment after the last keystroke.
-  def wait_for_stored_tempo(score_url, bpm, timeout: 5)
-    key = "arabesque:playbackBpm:#{score_url}"
+  def wait_for_stored_tempo(score_url, bpm, name: 'playbackBpm', timeout: 5)
+    key = "arabesque:#{name}:#{score_url}"
     Timeout.timeout(timeout) do
       sleep 0.05 until page.evaluate_script("localStorage.getItem(#{key.inspect})") == bpm
     end

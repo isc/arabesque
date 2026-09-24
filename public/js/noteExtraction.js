@@ -1,5 +1,7 @@
 import { NOTE_NAMES } from './midi.js'
 import { fingeringKey, legacyFingeringKey, nextNoteIndex } from './fingeringKeys.js'
+import { t } from './i18n.js'
+import { withHands } from './utils.js'
 
 // Ornament types from OSMD
 const OrnamentEnum = {
@@ -31,6 +33,14 @@ function getDiatonicIndex(fundamentalNote) {
   return DIATONIC_NOTES.indexOf(fundamentalNote)
 }
 
+// The octave numbering everything the player sees goes by: middle C (MIDI 60)
+// is C4. OSMD's own Pitch.Octave counts three octaves lower, which is why note
+// names here are always built from the MIDI number.
+const octaveOfMidi = (midiNumber) => Math.floor(midiNumber / 12) - 1
+
+// The next or previous letter's index in DIATONIC_NOTES (+6 is -1 mod 7).
+const adjacentDiatonicIndex = (index, direction) => (index + (direction > 0 ? 1 : 6)) % 7
+
 // Diatonic indices affected by flats/sharps in the circle of fifths
 // Flat order:  B(6), E(2), A(5), D(1), G(4), C(0), F(3)
 // Sharp order: F(3), C(0), G(4), D(1), A(5), E(2), B(6)
@@ -51,10 +61,7 @@ function getDiatonicOffset(pitch, direction, fifths = 0) {
   const currentIndex = getDiatonicIndex(fundamentalNote)
   if (currentIndex === -1) return direction > 0 ? 2 : -2 // fallback if not found
 
-  // Calculate next/previous diatonic note index
-  const adjacentIndex = direction > 0
-    ? (currentIndex + 1) % 7
-    : (currentIndex + 6) % 7 // +6 is same as -1 mod 7
+  const adjacentIndex = adjacentDiatonicIndex(currentIndex, direction)
 
   // Calculate halfTone for the adjacent diatonic note
   let adjacentHalfTone = octave * 12 + DIATONIC_NOTES[adjacentIndex]
@@ -77,17 +84,81 @@ function getDiatonicOffset(pitch, direction, fifths = 0) {
   return adjacentHalfTone - currentHalfTone
 }
 
+// The sign that goes with a letter. NONE and NATURAL get none: a ♮ says "not the
+// sharp you saw earlier", a question the staff has already answered.
+const ACCIDENTAL_SIGNS = {
+  [AccidentalEnum.SHARP]: '♯',
+  [AccidentalEnum.FLAT]: '♭',
+  [AccidentalEnum.DOUBLESHARP]: '𝄪',
+  [AccidentalEnum.DOUBLEFLAT]: '𝄫',
+}
+
+// Names a note for the player, in their language: "sol♯4", "C4". Unlike the
+// noteName each note already carries — a MIDI name, always sharps and always
+// ASCII, which the matcher and the logs go by — this is the note as the score
+// spells it, so the B flat of an invention stays "si♭" instead of turning into
+// the "la♯" the staff never says. The octave is what separates the candidates
+// when the doubt is real: a broken chord passing the same letter through two
+// registers.
+//
+// The hand follows, in the vocabulary and with the separator runs are already
+// captioned with (utils' withHands). It is the staff the note is written on,
+// which is the hand that plays it everywhere but a deliberate cross-hand
+// passage — where the staff is what the player reads anyway.
+export function noteLabel(noteData) {
+  const spelled = spelledNote(noteData)
+  return spelled && withHands(spelled, handOfNote(noteData))
+}
+
+// A C key by name, "do4": the landmark the on-screen keyboard labels.
+export function cLabel(midiNumber) {
+  return `${t('score.noteLetters').split(' ')[0]}${octaveOfMidi(midiNumber)}`
+}
+
+// The same without the hand: "sol♯4".
+export function spelledNote(noteData) {
+  const name = noteName(noteData)
+  return name && `${name}${octaveOfMidi(noteData.midiNumber)}`
+}
+
+// The letter and its sign alone, "sol♯": what a key of the on-screen keyboard
+// carries, where the key's place already says the octave.
+export function noteName({ note }) {
+  const pitch = note?.pitch
+  const letter = t('score.noteLetters').split(' ')[getDiatonicIndex(pitch?.fundamentalNote)]
+  return letter ? `${letter}${ACCIDENTAL_SIGNS[pitch.accidental] ?? ''}` : ''
+}
+
 // Check if an accidental is explicitly specified (not undefined or NONE)
 function hasExplicitAccidental(accidental) {
   return accidental !== undefined && accidental !== AccidentalEnum.NONE
+}
+
+// The neighbour an ornament reaches for, as the measure so far has altered it:
+// the key's neighbour, unless an earlier note on the same staff wrote that
+// letter on the same line or space (same letter within a whole tone) -- an
+// accidental holds to the end of the measure. A note tied in from the previous
+// measure sets nothing: its accidental was written there.
+function neighbourInForce(mainMidi, pitch, direction, fifths, priorNotes) {
+  const keyMidi = mainMidi + getDiatonicOffset(pitch, direction, fifths)
+  const index = getDiatonicIndex(pitch?.fundamentalNote)
+  if (index === -1) return keyMidi
+  const letter = DIATONIC_NOTES[adjacentDiatonicIndex(index, direction)]
+  const carrier = priorNotes.findLast((n) =>
+    !n.isTieContinuation &&
+    n.note?.pitch?.fundamentalNote === letter &&
+    Math.abs(n.midiNumber - keyMidi) <= 2
+  )
+  return carrier?.midiNumber ?? keyMidi
 }
 
 // Calculate upper/lower MIDI notes for ornaments
 // When accidentals are explicitly marked, they modify the note chromatically:
 // - FLAT lowers the note (upper: +1, lower: -2)
 // - SHARP/NATURAL raises the note (upper: +2, lower: -1)
-// Without explicit accidentals, use diatonic intervals (follow the scale)
-function getOrnamentAuxiliaryNotes(mainMidi, ornamentContainer, pitch, fifths = 0) {
+// Without explicit accidentals, use diatonic intervals (follow the scale),
+// altered by any accidental earlier in the measure (neighbourInForce).
+function getOrnamentAuxiliaryNotes(mainMidi, ornamentContainer, pitch, fifths, priorNotes) {
   const { AccidentalAbove, AccidentalBelow } = ornamentContainer
 
   let upperMidi, lowerMidi
@@ -95,13 +166,13 @@ function getOrnamentAuxiliaryNotes(mainMidi, ornamentContainer, pitch, fifths = 
   if (hasExplicitAccidental(AccidentalAbove)) {
     upperMidi = AccidentalAbove === AccidentalEnum.FLAT ? mainMidi + 1 : mainMidi + 2
   } else {
-    upperMidi = mainMidi + getDiatonicOffset(pitch, 1, fifths)
+    upperMidi = neighbourInForce(mainMidi, pitch, 1, fifths, priorNotes)
   }
 
   if (hasExplicitAccidental(AccidentalBelow)) {
     lowerMidi = AccidentalBelow === AccidentalEnum.FLAT ? mainMidi - 2 : mainMidi - 1
   } else {
-    lowerMidi = mainMidi + getDiatonicOffset(pitch, -1, fifths)
+    lowerMidi = neighbourInForce(mainMidi, pitch, -1, fifths, priorNotes)
   }
 
   return { upperMidi, lowerMidi }
@@ -109,10 +180,10 @@ function getOrnamentAuxiliaryNotes(mainMidi, ornamentContainer, pitch, fifths = 
 
 // Build the MIDI note sequence for an ornament
 // Returns { sequence, flag } where flag is the property name to mark expanded notes
-function getOrnamentSequence(mainMidi, ornamentContainer, pitch, fifths = 0) {
+function getOrnamentSequence(mainMidi, ornamentContainer, pitch, fifths, priorNotes) {
   const ornamentType = ornamentContainer.GetOrnament
 
-  const { upperMidi, lowerMidi } = getOrnamentAuxiliaryNotes(mainMidi, ornamentContainer, pitch, fifths)
+  const { upperMidi, lowerMidi } = getOrnamentAuxiliaryNotes(mainMidi, ornamentContainer, pitch, fifths, priorNotes)
 
   // Turn ornaments: 4-5 notes alternating around the main note.
   // Delayed turns sound the principal on the beat, then play the turn proper late
@@ -147,15 +218,55 @@ function getOrnamentSequence(mainMidi, ornamentContainer, pitch, fifths = 0) {
 // instead of forcing the whole turn before them.
 const DELAYED_TURN_FILL_WN = 1 / 16
 
+// The notes written earlier than noteData on its staff in the same measure.
+const notesBefore = (noteData, measureNotes) =>
+  measureNotes.filter((n) => n.staffIndex === noteData.staffIndex && n.timestamp < noteData.timestamp)
+
+// A trill written on the first note of a tie goes on through every note tied
+// on from it (bars 19-22 of Bach's fourth invention: a C trilled for three
+// bars while the left hand runs in sixteenths). Each of those notes gets a
+// sentinel of its own rather than one span for the whole chain, because a
+// timestamp is a measure index plus a position in whole notes: a length does
+// not carry across a bar line outside 4/4. This keeps each trill's pitches by
+// tie, for the later measures — expanded one at a time, in order — to find.
+const trilledTies = new WeakMap()
+
+const ORNAMENT_NOTE_OFFSET = 0.00001
+
+// A trill sentinel: where free play accepts the trill's two pitches, over the
+// span the note it stands on sounds in its measure (trillFrom-trillUntil, the
+// matcher's isTrillStillSounding). Its own timestamp is offset past the note's
+// so it never shares one with another note — the matcher would wait for both
+// together, and nothing presses a sentinel.
+function trillSentinel(noteData, trillPitches, offsetSteps, noteheadIndex) {
+  return {
+    ...noteData,
+    timestamp: noteData.timestamp + offsetSteps * ORNAMENT_NOTE_OFFSET,
+    isTrillEnd: true,
+    ...trillPitches,
+    trillFrom: noteData.timestamp,
+    trillUntil: noteData.timestamp + (noteData.note?.Length?.RealValue ?? 0),
+    noteheadIndex,
+  }
+}
+
 // Expand ornament notes (turns, mordents, and trills) into their constituent notes
 export function expandOrnamentNotes(measureNotes, fifths = 0) {
-  const ORNAMENT_NOTE_OFFSET = 0.00001
   const expandedNotes = []
 
   for (const noteData of measureNotes) {
+    // A tied note under a trill is the trill going on, not a key to hold.
+    const trillPitches = noteData.isTieContinuation && trilledTies.get(noteData.note?.NoteTie)
+    if (trillPitches) {
+      expandedNotes.push(trillSentinel(noteData, trillPitches, 1, noteData.noteheadIndex))
+      continue
+    }
+
     const ornamentContainer = noteData.voiceEntry?.OrnamentContainer
     const pitch = noteData.note?.pitch
-    const ornamentInfo = ornamentContainer ? getOrnamentSequence(noteData.midiNumber, ornamentContainer, pitch, fifths) : null
+    const ornamentInfo = ornamentContainer
+      ? getOrnamentSequence(noteData.midiNumber, ornamentContainer, pitch, fifths, notesBefore(noteData, measureNotes))
+      : null
 
     if (!ornamentInfo) {
       expandedNotes.push(noteData)
@@ -170,10 +281,39 @@ export function expandOrnamentNotes(measureNotes, fifths = 0) {
     const parentDurationWN = noteData.note?.Length?.RealValue ?? 0
     const turnDelay = delayed ? Math.max(0, parentDurationWN - DELAYED_TURN_FILL_WN) : 0
 
+    // The note the score actually writes, sounded on the beat: last of the
+    // sequence, first of a delayed turn. It carries the notehead, so a delayed
+    // turn's head now lights on the held principal rather than at the end of the
+    // gruppetto -- the head draws that pitch, and it has been played.
+    const principalIndex = delayed ? 0 : sequence.length - 1
+
+    // It also carries what the ornament asks the player for, built here because
+    // this is the one scope holding every fact it needs -- the sequence, whether
+    // the turn is delayed, the parent's value and its tie. Re-deriving it from
+    // the expanded notes later means restating those facts, and a rule like
+    // "drop the first pitch of a tied ornament" is only right while
+    // principalIndex === 0 exactly when `delayed`, which is not visible from
+    // there. See requiredSequence, which now only reads this back.
+    //
+    // A tie already holds the delayed turn's principal, so it is not struck
+    // again; the turn proper still is, and falls due when the held principal
+    // gives way to it.
+    const tied = delayed && noteData.isTieContinuation
+    // The note being decorated ends where its sound does: at the end of the
+    // tie it starts, if it starts one.
+    const tie = noteData.note?.NoteTie
+    const startsTie = tie && !noteData.isTieContinuation
+    const ornamentAsk = {
+      sequence: tied ? sequence.slice(1) : sequence,
+      delayTs: tied ? turnDelay : 0,
+      holdTs: startsTie ? tie.Duration.RealValue : parentDurationWN,
+      alternating: flag === 'isTrillNote',
+    }
+
     for (let i = 0; i < sequence.length; i++) {
       const midiNumber = sequence[i]
       const noteNameStd = NOTE_NAMES[midiNumber % 12]
-      const octaveStd = Math.floor(midiNumber / 12) - 1
+      const octaveStd = octaveOfMidi(midiNumber)
 
       // Delayed turn: the principal (i === 0) stays on the beat (offset 0) and the
       // turn proper is pushed out by turnDelay. Otherwise notes follow immediately.
@@ -197,21 +337,18 @@ export function expandOrnamentNotes(measureNotes, fifths = 0) {
         // is held before the turn proper. 0 for on-beat turns, mordents and trills.
         _turnDelay: turnDelay,
         [flag]: true,
-        // Only the last note should highlight the original notehead
-        noteheadIndex: i === sequence.length - 1 ? noteData.noteheadIndex : -1,
+        // What this ornament asks for, on the one note that stands for it.
+        ...(i === principalIndex ? { ornamentAsk } : null),
+        // Only the principal highlights the original notehead
+        noteheadIndex: i === principalIndex ? noteData.noteheadIndex : -1,
       })
     }
 
     // Trills get a sentinel note that allows free alternation until the next real note
     if (flag === 'isTrillNote') {
-      expandedNotes.push({
-        ...noteData,
-        timestamp: noteData.timestamp + sequence.length * ORNAMENT_NOTE_OFFSET,
-        isTrillEnd: true,
-        trillMidi: sequence[0],
-        trillUpperMidi: sequence[1],
-        noteheadIndex: -1,
-      })
+      const trillPitches = { trillMidi: sequence[0], trillUpperMidi: sequence[1] }
+      expandedNotes.push(trillSentinel(noteData, trillPitches, sequence.length, -1))
+      if (startsTie) trilledTies.set(tie, trillPitches)
     }
   }
 
@@ -303,7 +440,7 @@ function buildPlaybackSequence(sourceMeasures) {
 function pitchToMidiFromSourceNote(pitch) {
   const midiNote = pitch.halfTone + 12
   const noteNameStd = NOTE_NAMES[midiNote % 12]
-  const octaveStd = Math.floor(midiNote / 12) - 1
+  const octaveStd = octaveOfMidi(midiNote)
   return { noteName: `${noteNameStd}${octaveStd}`, midiNote: midiNote }
 }
 
@@ -500,8 +637,9 @@ function extractNotesFromSourceMeasures(sourceMeasures) {
   return { notesByMeasure, pedalEventsByMeasure, cursorStopsByMeasure, legacyKeyMap }
 }
 
-// Extract notes from the score and build the playback sequence
-export function isOrnamentOrGrace(noteData) {
+// Every note that decorates another rather than being written as one: grace
+// notes, the notes an ornament expands into, and the trill sentinel.
+function isOrnamentOrGrace(noteData) {
   return Boolean(
     noteData.isGrace ||
     noteData.isTrillNote ||
@@ -511,9 +649,45 @@ export function isOrnamentOrGrace(noteData) {
   )
 }
 
-// Staff 0 = right hand, Staff 1+ = left hand.
+// What this note asks the player for, in whole-note fractions throughout: the
+// pitches in order, how long after its own timestamp the first of them is due,
+// how long the whole of it has to be played in, and whether it may go on
+// alternating past the end of the sequence.
+//
+// A written note asks for itself, on its beat. An ornament is written as one
+// note and realized as several, and the notation determines that realization
+// down to the pitch and the order, so the whole of it is asked for -- once, on
+// the note that carries the sign, the others being its spelling out. It has the
+// written value of that note to be played in, and a trill may alternate between
+// its two pitches for as long: that count is the one thing notation leaves
+// free. Nothing is asked of a grace note, which is struck ahead of the beat and
+// let through instead (see strictPlaythrough).
+//
+// What a tie already holds is dropped from the head of the sequence: on a
+// delayed turn tied into, the principal is sounding and must not be re-struck,
+// but the turn proper is still to play -- and it falls due when the held
+// principal gives way to it.
+// Free mode answers this same question its own way, and differently: musicxml.js
+// walks the expanded notes with played/active flags and a trill sentinel that
+// accepts either of the trill's two pitches in any order and any number, where
+// the cursor here requires strict alternation. The two also count a bar's notes
+// differently — free mode counts the expansion, strict mode the written note.
+// Worth folding into one rule, but that changes free-mode behaviour and wants
+// its own change; until then the divergence is deliberate, not overlooked.
+export function requiredSequence(noteData) {
+  if (noteData.ornamentAsk) return noteData.ornamentAsk
+  const held = isOrnamentOrGrace(noteData) || noteData.isTieContinuation
+  return { sequence: held ? [] : [noteData.midiNumber], delayTs: 0, holdTs: 0, alternating: false }
+}
+
+// Staff 0 = right hand, Staff 1+ = left hand. The one place that rule is
+// written: what a hand selection plays reads it, and so does what names a note.
+export function handOfNote({ staffIndex }) {
+  return staffIndex === 0 ? 'right' : 'left'
+}
+
 export function isNoteActiveForHands(noteData, activeHands) {
-  return noteData.staffIndex === 0 ? activeHands.right : activeHands.left
+  return activeHands[handOfNote(noteData)]
 }
 
 // The first measure at or after `from` that the active hands actually play,

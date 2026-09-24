@@ -17,8 +17,8 @@
 import { CHANGELOG } from './changelog.js'
 import { feedbackEnabled, buildBaseContext, submitFeedback, defaultFeedbackEmail } from './feedback.js'
 import { getLang, locale } from './i18n.js'
-import { listProfiles, currentProfile, profileName, switchProfile } from './profiles.js'
 import { INSTALL_AVAILABLE_EVENT, installAvailable, promptInstall } from './installPrompt.js'
+import { nativePairingAvailable, openNativePairing } from './midi.js'
 
 const CHANGELOG_SEEN_KEY = 'arabesque:changelog-seen'
 const CHANGELOG_DATE_FORMATTER = new Intl.DateTimeFormat(locale(), {
@@ -54,27 +54,15 @@ export function headerMenu() {
       promptInstall()
     },
 
-    // --- Profiles ---
-    // Who is playing, chosen from the modal below (profiles.js). Read once:
-    // the current profile cannot change within a page, switching navigates.
-    profiles: listProfiles(),
-    currentProfile: currentProfile(),
-    profileName,
-    showProfilesModal: false,
-    openProfiles() {
-      this.menuOpen = false
-      this.showProfilesModal = true
-    },
-    switchToProfile(id) {
-      if (id === this.currentProfile.id) {
-        this.showProfilesModal = false
-        return
-      }
-      switchProfile(id)
-      // A fresh start on that profile's data, from the library. Every module
-      // derived its storage names from the profile at import time, so a
-      // navigation is the only honest way to change it (profiles.js).
-      window.location.assign('library.html')
+    // --- Pair a MIDI keyboard (iOS wrapper only) ---
+    // Read once, like canInstall above: the shim offering the sheet is
+    // installed at document start or never (see midi.js). It belongs in the
+    // shared menu rather than a page's own header because everywhere else the
+    // keyboard is connected in the OS, and there is nothing to offer at all.
+    canPairMIDI: nativePairingAvailable(),
+    pairMIDI() {
+      this.closeMenu()
+      openNativePairing()
     },
 
     // --- Changelog ("Nouveautés") ---
@@ -179,12 +167,12 @@ const TRIGGER_HTML = `
     <div class="pt-popover__section">
       <a href="score.html" class="pt-menu-item" @click="closeMenu()" x-text="$t('library.loadScore')">📄 Charger une partition</a>
       <button type="button" class="pt-menu-item" x-show="canInstall" @click="install()" x-text="$t('menu.install')">📲 Installer l'application</button>
+      <button type="button" class="pt-menu-item" x-show="canPairMIDI" @click="pairMIDI()" x-text="$t('score.connectMidi')">🎹 Connecter clavier MIDI</button>
       <button type="button" class="pt-menu-item" @click="openChangelog()">
         <span x-text="$t('library.changelog')">✨ Nouveautés</span>
         <span class="pt-menu-dot" x-show="hasUnseenChangelog" aria-hidden="true"></span>
       </button>
       <button type="button" class="pt-menu-item" x-show="feedbackEnabled" @click="openFeedback()" x-text="$t('library.feedback')">💬 Avis</button>
-      <button type="button" class="pt-menu-item" @click="openProfiles()" x-text="$t('menu.profiles')">👥 Profils</button>
       <a href="practice.html" class="pt-menu-item" @click="closeMenu()" x-text="$t('menu.practice')">📅 Assiduité</a>
       <a href="data.html" class="pt-menu-item" @click="closeMenu()" x-text="$t('menu.data')">🗂 Données</a>
       <a href="support.html" class="pt-menu-item" @click="closeMenu()" x-text="$t('menu.support')">🛟 Assistance</a>
@@ -201,30 +189,9 @@ const TRIGGER_HTML = `
   </div>
 </div>`
 
-// The changelog, feedback and profile dialogs, appended to <body> (inside the
-// page's <html x-data> root, so the bindings resolve against the component).
+// The changelog and feedback dialogs, appended to <body> (inside the page's
+// <html x-data> root, so the bindings resolve against the component).
 const MODALS_HTML = `
-<dialog :open="showProfilesModal">
-  <article>
-    <header>
-      <p><strong x-text="$t('profiles.title')">👥 Qui joue ?</strong></p>
-      <button :aria-label="$t('common.close')" rel="prev" @click="showProfilesModal = false"></button>
-    </header>
-    <div class="pt-modal-body">
-      <div class="pt-profile-tiles">
-        <template x-for="p in profiles" :key="p.id">
-          <button type="button" class="pt-profile-tile" :aria-pressed="p.id === currentProfile.id" @click="switchToProfile(p.id)">
-            <span class="pt-profile-tile__avatar" x-text="p.avatar" aria-hidden="true"></span>
-            <span class="pt-profile-tile__name" x-text="profileName(p)"></span>
-          </button>
-        </template>
-      </div>
-      <footer>
-        <a href="data.html#profiles" role="button" class="outline secondary" x-text="$t('profiles.manage')">Gérer les profils</a>
-      </footer>
-    </div>
-  </article>
-</dialog>
 <dialog class="pt-changelog-dialog" :open="showChangelogModal">
   <article>
     <header>

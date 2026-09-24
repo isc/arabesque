@@ -7,6 +7,9 @@ import path from 'path'
 export const ROOT = path.dirname(fileURLToPath(import.meta.url))
 export const ASSETS = path.resolve(ROOT, '../composition/assets')
 export const WORKDIR = path.resolve(ROOT, '.work') // userdata + recorded clips (gitignored)
+// Where fetch-backup.mjs writes the practice history, and where build-assets.mjs
+// looks for it when PT_BACKUP is not set.
+export const BACKUP_PATH = path.join(WORKDIR, 'backup.json')
 
 export const BASE = process.env.PT_BASE || 'http://localhost:4567'
 export const VIEWPORT = { width: 1280, height: 800 }
@@ -44,6 +47,29 @@ export async function launch({ record = false, now = null } = {}) {
       }
     }, captureLang)
   }
+  // Capture in Inter wherever the machine runs it: on Linux, system-ui resolves to
+  // DejaVu, which reads nothing like the app on an Apple device. And name the
+  // mock keyboard the way a real one would be named — the test hook's own label
+  // is not something a visitor should read.
+  await ctx.addInitScript(() => {
+    const style = () => {
+      const el = document.createElement('style')
+      el.textContent = ':root { --pt-font-ui: Inter, ui-sans-serif, system-ui, sans-serif; }'
+      document.head.append(el)
+    }
+    if (document.head) style()
+    else document.addEventListener('DOMContentLoaded', style)
+    const rename = (root) => {
+      const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT)
+      while (walker.nextNode()) {
+        const n = walker.currentNode
+        if (n.nodeValue.includes('Mock MIDI Keyboard')) n.nodeValue = n.nodeValue.replace('Mock MIDI Keyboard', 'Digital Piano')
+      }
+    }
+    new MutationObserver((records) => {
+      for (const r of records) rename(r.target.nodeType === Node.TEXT_NODE ? r.target.parentNode : r.target)
+    }).observe(document, { subtree: true, childList: true, characterData: true })
+  })
   // Expose one mock-MIDI helper to page context so the feedback and training
   // captures share the same dispatch/timing instead of duplicating it.
   await ctx.addInitScript(() => {

@@ -14,18 +14,24 @@
 // one item, in both languages:
 //
 //     # fr
-//     Une phrase de titre. Puis ce qu'il y avait avant, ce qui change, et ce
-//     que le joueur y gagne.
+//     Le décompte du mode strict se voit. Le bandeau affiche les temps de la
+//     mesure de départ, celui en cours en évidence.
 //
 //     # en
-//     A title sentence. Then what it was like before, what changes, and what
-//     the player gets out of it.
+//     The strict-mode count-in can be seen. The band shows the beats of the
+//     count-in bar, the one sounding picked out.
 //
 // Lines inside a section are joined into one paragraph, so wrap where you
 // like. Both are required and neither may be empty: one item per file is what
 // makes "same count, same order" hold by construction rather than by review,
 // and test/js/changelog.test.js parses every fragment in the repository, so a
 // missing English half fails the pull request instead of shipping.
+//
+// A section is also capped at MAX_ITEM_LENGTH. Entries drifted into paragraphs
+// justifying the implementation — the modal became unreadable and a player
+// said so — and a cap is the only version of "keep it short" that survives
+// contact with the next writer. CLAUDE.md has the wording rule; this is what
+// makes it fail the pull request.
 //
 //   node scripts/changelog.mjs build   # → PENDING in public/js/changelog.js
 //   node scripts/changelog.mjs fold    # fragments → HISTORY + CHANGELOG
@@ -57,7 +63,11 @@ const CHANGELOG_MD = join(ROOT, 'CHANGELOG')
 
 const FRAGMENT_NAME = /^(\d{4}-\d{2}-\d{2})-[a-z0-9]+(?:-[a-z0-9]+)*\.md$/
 const HEADING = /^#\s+(\S+)\s*$/
-const LANGS = ['fr', 'en']
+export const LANGS = ['fr', 'en']
+
+// A title sentence plus one or two sentences, in either language. Everything
+// the modal has ever needed; anything longer was a commit message in disguise.
+export const MAX_ITEM_LENGTH = 320
 
 // The width CHANGELOG has been hand-wrapped at, and the two-space indent its
 // continuation lines carry.
@@ -102,6 +112,8 @@ export function parseFragment(name, text) {
     if (!sections.has(lang)) fail(name, `missing the "# ${lang}" section`)
     const body = collapse(sections.get(lang).join('\n'))
     if (!body) fail(name, `the "# ${lang}" section is empty`)
+    if (body.length > MAX_ITEM_LENGTH)
+      fail(name, `the "# ${lang}" section is ${body.length} characters, over the ${MAX_ITEM_LENGTH} an entry gets — a title sentence and one or two more, see CLAUDE.md`)
     item[lang] = body
   }
   return item
