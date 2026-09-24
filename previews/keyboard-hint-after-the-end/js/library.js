@@ -89,6 +89,8 @@ export function libraryApp() {
   let matchPointers = {}
   let searchResetTimer = null
   let sessionCountByFile = {}
+  // Why the last redraw from practice data failed, or null if it did not.
+  let refreshError = null
 
   return {
     ...headerMenu(),
@@ -252,11 +254,20 @@ export function libraryApp() {
     // this (a bfcache restore, a sync that pulled, the day turning over) and a
     // resume the next morning fires more than one of them, so callers arriving
     // while a refresh is in flight share it rather than walking the store again.
+    //
+    // Nobody awaits it, so a failure stops here: the page keeps what it was
+    // showing, and a report sent from it says why (feedbackContext).
     refreshPracticeViews() {
       this.refreshingPractice ??= Promise.all([
         this.refreshPracticeData(),
         this.reloadDailyLogs(),
-      ]).finally(() => {
+      ]).then(
+        () => { refreshError = null },
+        (error) => {
+          refreshError = `${error?.name}: ${error?.message}`
+          console.warn('Practice data could not be read again:', error)
+        },
+      ).finally(() => {
         this.refreshingPractice = null
       })
       return this.refreshingPractice
@@ -265,23 +276,24 @@ export function libraryApp() {
     // Recomputes lastPlayedByScore/aggregatesByScore/reinforceFiles/sessionCountByFile from
     // storage. Safe to call more than once (each map is rebuilt from
     // scratch), unlike the rest of init() which registers listeners.
+    //
+    // Built aside and swapped in only once both reads are in, so that a read
+    // that fails leaves the page as it was rather than stripped of its
+    // statuses and practice times (feedback be332d4d).
     async refreshPracticeData() {
-      this.lastPlayedByScore = {}
-      this.aggregatesByScore = {}
-      collectionAggregates.clear()
-      sessionCountByFile = {}
-
       const [sessions, aggregates] = await Promise.all([storage.getSessions(), storage.getAllAggregates()])
 
+      const lastPlayedByScore = {}
+      const countByFile = {}
       const sessionsByFile = new Map()
       for (const session of sessions) {
-        const existing = this.lastPlayedByScore[session.scoreId]
+        const existing = lastPlayedByScore[session.scoreId]
         if (!existing || session.startedAt > existing) {
-          this.lastPlayedByScore[session.scoreId] = session.startedAt
+          lastPlayedByScore[session.scoreId] = session.startedAt
         }
         if (session.scoreId.startsWith(this.baseUrl)) {
           const file = session.scoreId.slice(this.baseUrl.length)
-          sessionCountByFile[file] = (sessionCountByFile[file] ?? 0) + 1
+          countByFile[file] = (countByFile[file] ?? 0) + 1
           const forFile = sessionsByFile.get(file)
           if (forFile) forFile.push(session)
           else sessionsByFile.set(file, [session])
@@ -292,16 +304,23 @@ export function libraryApp() {
       // whose counters have never forgotten anything. Every piece it lists
       // also has a "Renforcer N mesures" badge on its page, but not the other
       // way round: see hasHotSpots for why the badge alone selected everything.
-      this.reinforceFiles = new Set()
+      const reinforceFiles = new Set()
       for (const [file, forFile] of sessionsByFile) {
-        if (hasHotSpots(forFile)) this.reinforceFiles.add(file)
+        if (hasHotSpots(forFile)) reinforceFiles.add(file)
       }
 
       // Aggregates power the status filter, status pills, and practice-focus banner.
+      const aggregatesByScore = {}
       for (const agg of aggregates) {
         if (!agg || (agg.practiceDays || []).length === 0) continue
-        this.aggregatesByScore[agg.scoreId] = agg
+        aggregatesByScore[agg.scoreId] = agg
       }
+
+      this.lastPlayedByScore = lastPlayedByScore
+      this.aggregatesByScore = aggregatesByScore
+      this.reinforceFiles = reinforceFiles
+      sessionCountByFile = countByFile
+      collectionAggregates.clear()
     },
 
     handleSearchNote(midiNote) {
@@ -741,7 +760,8 @@ export function libraryApp() {
 
     // Enriches the shared feedback submission (see headerMenu) with aggregate,
     // non-identifying usage stats — how much the reporter actually practises,
-    // without revealing which scores.
+    // without revealing which scores — and, when the last redraw failed, why:
+    // what the page shows is then older than it looks.
     feedbackContext() {
       const aggs = Object.values(this.aggregatesByScore)
       return {
@@ -750,6 +770,7 @@ export function libraryApp() {
           scores_practiced: aggs.length,
           total_practice_time_ms: aggs.reduce((sum, a) => sum + (a.totalPracticeTimeMs || 0), 0),
         },
+        ...(refreshError && { practice_error: refreshError }),
       }
     },
 

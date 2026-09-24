@@ -131,12 +131,14 @@ export function formatDuration(ms) {
 
 // Captions a run of the score with the hands that played it. Two hands is the
 // plain case and captions nothing: an unlabelled run is the piece played whole.
-export function withHands(text, hands) {
-  return hands === TWO_HANDS ? text : `${text} · ${t(`hands.${hands}`)}`
+// The hand is named short, "MD", unless `words` asks for 'handsFull' — what a
+// control whose caption this is should be named when read aloud.
+export function withHands(text, hands, words = 'hands') {
+  return hands === TWO_HANDS ? text : `${text} · ${t(`${words}.${hands}`)}`
 }
 
-// Captions a group of runs (see hands' playthroughGroups): "… · mode strict ·
-// main droite", each qualifier only when it isn't the default.
+// Captions a group of runs (see hands' playthroughGroups): "… · mode strict · MD",
+// each qualifier only when it isn't the default.
 export function withRunKind(text, { hands, strict }) {
   return withHands(strict ? `${text} · ${t('score.strictRuns')}` : text, hands)
 }

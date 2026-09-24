@@ -1367,10 +1367,12 @@ export function midiApp() {
       if (seq === reinforcementRefreshSeq) this.measuresToReinforce = measures
     },
 
-    // Shown only over a list, all of whose measures share the hands it was read for.
-    reinforceLabel() {
+    // Shown only over a list, all of whose measures share the hands it was read
+    // for. `words` as withHands takes it: the visible label says MD, the name
+    // read aloud says the hand in full.
+    reinforceLabel(words) {
       const measures = this.measuresToReinforce
-      return withHands(tn('score.reinforce', measures.length), measures[0]?.hands ?? TWO_HANDS)
+      return withHands(tn('score.reinforce', measures.length), measures[0]?.hands ?? TWO_HANDS, words)
     },
 
     async startReinforcementMode() {
