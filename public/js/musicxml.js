@@ -80,6 +80,15 @@ function afterTheBeat(fn) {
   pendingBeat = setTimeout(fn, TRAINING_RESET_DELAY_MS)
 }
 
+// The end of the score, the run finished or not: a beat later the cursor is
+// back at the top, and the page is told.
+function backToTheTopAfterTheBeat() {
+  afterTheBeat(() => {
+    resetProgress()
+    callbacks.onBackToTop?.()
+  })
+}
+
 function dropPendingBeat() {
   clearTimeout(pendingBeat)
   pendingBeat = null
@@ -109,6 +118,7 @@ let callbacks = {
   onWrongNote: null,
   onPlaythroughRestart: null,
   onReinforcementComplete: null,
+  onBackToTop: null,
   // Return true from this callback to bypass the default jumpToMeasure
   // (strict mode uses it to set its start point instead).
   onMeasureClicked: null,
@@ -1202,7 +1212,7 @@ function advanceTraining() {
 
   if (action === 'scoreDone') {
     callbacks.onTrainingComplete?.()
-    afterTheBeat(() => resetProgress())
+    backToTheTopAfterTheBeat()
     return
   }
   if (action === 'passageDone') callbacks.onTrainingComplete?.()
@@ -1312,7 +1322,7 @@ function handleNoteValidated(measureData, noteData, validatedCount) {
         if (allMeasuresPlayed) {
           callbacks.onScoreCompleted?.(currentMeasureIndex)
         }
-        afterTheBeat(() => resetProgress())
+        backToTheTopAfterTheBeat()
       }
     }
   }
