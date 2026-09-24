@@ -316,13 +316,72 @@ class LibraryFiltersTest < CapybaraTestBase
     assert_match(/depuis plus de 7 jours/, criteria.text)
   end
 
+  # The library the iOS app wakes up the next day is the page that went to
+  # sleep, and WebKit may have closed its database connection in between (see
+  # withDb in storage.js). Its redraw emptied the columns (feedback be332d4d).
+  def test_the_library_reads_its_practice_data_again_after_losing_the_database_connection
+    track_indexeddb_connections
+    visit '/library.html'
+    assert_selector 'tbody .pt-pill--repertoire', count: 1
+
+    lose_indexeddb_connections
+    # Something only a fresh read can show: the Air reached Répertoire while
+    # the page slept.
+    seed_store('aggregates', [aggregate_rows.find { |row| row[:scoreId] == AIR }.merge(status: 'repertoire')])
+    wake_the_library
+
+    assert_selector 'tbody .pt-pill--repertoire', count: 2
+  end
+
+  # And when the database cannot be reopened either — WebKit has been known to
+  # refuse that too — the page keeps what it showed instead of emptying the
+  # columns, and a report sent from it says what failed.
+  def test_a_redraw_that_cannot_read_keeps_what_the_library_showed
+    track_indexeddb_connections
+    visit '/library.html'
+    assert_selector 'tbody .pt-pill--dechiffrage', count: 3
+    capture_submissions
+
+    lose_indexeddb_connections
+    page.execute_script(<<~JS)
+      indexedDB.open = () => {
+        window.__reopened = true
+        throw new DOMException('Connection to Indexed Database server lost.', 'UnknownError')
+      }
+    JS
+    wake_the_library
+    # The reopen is the last thing the redraw waits on: what it does with the
+    # failure is promise callbacks, all run before this test's next script.
+    Timeout.timeout(Capybara.default_max_wait_time) do
+      sleep 0.02 until page.evaluate_script('window.__reopened')
+    end
+
+    assert_selector 'tbody .pt-pill--dechiffrage', count: 3
+    assert_selector 'tbody .pt-pill--repertoire', count: 1
+
+    open_feedback
+    send_feedback 'Plus rien dans les colonnes.'
+    context = sent_reports.first['context']
+    # What read 0 in be332d4d, with 54 pieces practised.
+    assert_equal aggregate_rows.size, context['stats']['scores_practiced']
+    assert_match(/UnknownError/, context['practice_error'])
+  end
+
   private
+
+  # The redraw the app runs on waking up the next day (dayRollover.js), pulled
+  # through the one trigger a test can fire without a day going by: a restore
+  # from the back/forward cache calls the same refreshPracticeViews().
+  def wake_the_library
+    page.execute_script("window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true }))")
+  end
 
   # practiceTracker.js's MIN_PRACTICE_MS_FOR_STATUS, the floor under every status.
   MIN_PRACTICE_MS = 60_000
   BALLADE = 'scores/Chopin_-_Ballade_no._1_in_G_minor_Op._23.mxl'
   PRELUDE = 'scores/Prlude_No._4_in_E_Minor_Op._28_-_Frdric_Chopin.mxl'
   NOCTURNE_20 = 'scores/Nocturne_No._20_in_C_sharp_Minor.mxl'
+  AIR = 'scores/J._S._Bach_-_Air_on_the_G_String_Piano_arrangement.mxl'
 
   # Attempts at one bar, oldest first, true for a fumble — sized to clear or
   # miss practiceTracker.js's hasHotSpots.
