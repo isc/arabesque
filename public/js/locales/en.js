@@ -39,11 +39,18 @@ export default {
     syncNote:
       'Each profile syncs with the account below, separately: a profile made here shows up on the other devices signed in to the same account, journal included.',
   },
-  // Which hands a run through the score was played with.
+  // Which hands a run through the score was played with, short as a score
+  // writes them: they caption runs, bars and notes wherever the app lists them
+  // (feedback 0140c7ed).
   hands: {
+    right: 'RH',
+    left: 'LH',
+    mixed: 'hands changed mid-run',
+  },
+  // The same in full, for a control's name read aloud (utils' withHands).
+  handsFull: {
     right: 'right hand',
     left: 'left hand',
-    mixed: 'hands changed mid-run',
   },
   status: {
     dechiffrage: 'Sight-reading',

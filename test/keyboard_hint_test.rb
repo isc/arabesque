@@ -23,7 +23,7 @@ class KeyboardHintTest < CapybaraTestBase
       # Alpine reveals from a timer of its own.
       advance_clock(100)
       assert_selector '.pt-keyhint__chip', text: 'do4'
-      assert_selector '.pt-keyhint__hand', text: 'main droite'
+      assert_selector '.pt-keyhint__hand', text: 'MD'
       assert_selector '.pt-keyhint__key.is-owed[data-midi="60"]', text: 'do'
       assert_selector '.pt-keyhint__key.is-owed', count: 1
 

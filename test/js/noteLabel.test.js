@@ -23,29 +23,29 @@ const NATURAL = 3
 // test/fingering_annotation_test.rb.
 describe('noteLabel', () => {
   it('names a plain note with its octave', () => {
-    expect(noteLabel(noteData(0, NONE, 60))).toBe('C4 · right hand')
+    expect(noteLabel(noteData(0, NONE, 60))).toBe('C4 · RH')
   })
 
   it('carries the accidental the score is written with', () => {
-    expect(noteLabel(noteData(7, SHARP, 80))).toBe('G♯5 · right hand')
+    expect(noteLabel(noteData(7, SHARP, 80))).toBe('G♯5 · RH')
   })
 
   // The point of reading the written spelling rather than the MIDI number: this
   // note is 58 either way, but the staff says si bémol, not la dièse.
   it('spells a flat as a flat', () => {
-    expect(noteLabel(noteData(11, FLAT, 58))).toBe('B♭3 · right hand')
+    expect(noteLabel(noteData(11, FLAT, 58))).toBe('B♭3 · RH')
   })
 
   // A natural sign says "not the sharp you saw earlier", which the staff has
   // already said; the name of the note is the plain letter.
   it('leaves a natural unmarked', () => {
-    expect(noteLabel(noteData(4, NATURAL, 64))).toBe('E4 · right hand')
+    expect(noteLabel(noteData(4, NATURAL, 64))).toBe('E4 · RH')
   })
 
   // The staff the note is written on is the hand that plays it: staff 1 and
   // below are the bass clef, which is the left hand.
   it('names the hand the note is written for', () => {
-    expect(noteLabel(noteData(0, NONE, 48, 1))).toBe('C3 · left hand')
+    expect(noteLabel(noteData(0, NONE, 48, 1))).toBe('C3 · LH')
   })
 
   it('names nothing when the note has no pitch', () => {
