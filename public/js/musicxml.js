@@ -24,7 +24,6 @@ let noteDataByKey = new Map() // Map<fingeringKey, noteData> for O(1) lookups
 // Map<the key a note used to be filed under, the keys it is filed under now>,
 // built by the same walk that names the notes -- see migrateLegacyFingerings.
 let legacyKeyMap = new Map()
-let playbackSequence = [] // Ordered list of source measure indices for playback (handles repeats)
 let currentMeasureIndex = 0
 let trainingMode = false
 let targetRepeatCount = 3
@@ -41,8 +40,10 @@ let currentRepetitionIsClean = true
 let trainingStart = 0
 let trainingEnd = null
 let currentSystemIndex = null
-// One click rectangle per source measure: a repeated measure is drawn once,
-// so the passes must share a rect instead of stacking identical ones.
+// The click rectangles of each bar, by sourceMeasureIndex: a repeated bar is
+// drawn once, so the passes must share its rects instead of stacking identical
+// ones. One rect per bar, but for a bar split across two systems (see
+// barCounter in fingeringKeys.js), which gets one on each.
 const measureClickRectangles = new Map()
 let playedSourceMeasures = new Set() // Track source measures that have been fully played
 
@@ -209,7 +210,7 @@ export function initMusicXML() {
       clearMeasureClasses('strict-start', 'strict-range')
       if (startIndex == null) return
       if (endIndex == null) {
-        measureRect(startIndex)?.classList.add('strict-start')
+        markMeasure(startIndex, 'strict-start')
         return
       }
       paintMeasureRange('strict-range', startIndex, endIndex)
@@ -225,6 +226,7 @@ export function initMusicXML() {
     getLegacyFingeringKeyMap: () => legacyKeyMap,
     svgNote,
     svgNotehead,
+    graphicalMeasureForNote,
     setReinforcementMode: (measures) => {
       if (!measures || measures.length === 0) return
 
@@ -550,7 +552,6 @@ function extractNotesFromScore() {
     trainingMode = false
     resetPlaybackState()
   }
-  playbackSequence = result.playbackSequence
   // Build fingeringKey -> noteData map for O(1) lookups.
   // Ornament expansions create multiple notes with the same fingeringKey but noteheadIndex=-1.
   // Prefer entries with a valid noteheadIndex so fingering click handlers can match SVG noteheads.
@@ -614,10 +615,10 @@ function updateMeasureCursor() {
   const { first, last, bounded } = trainingPassage()
   if (bounded) paintMeasureRange('training-range', first, last)
 
-  const currentRect = measureRect(currentMeasureIndex)
-  if (!currentRect) return
+  const currentRects = measureRects(currentMeasureIndex)
+  if (currentRects.length === 0) return
 
-  currentRect.classList.add('selected')
+  for (const rect of currentRects) rect.classList.add('selected')
 
   const measured = measureNoteBounds(currentMeasureIndex)
   if (measured) createRepeatIndicators(measured)
@@ -634,12 +635,14 @@ const REPEAT_INDICATOR_SPACING = 18
 
 // A measure's noteheads as one box in SVG user space, with the SVG holding
 // them. Null when the measure has no notes on the page. The dots are drawn from
-// it and the autoscroll predicts them from it, so both read one geometry.
+// it and the autoscroll predicts them from it, so both read one geometry. Only
+// the noteheads of the first system the bar is drawn on: the dots go where the
+// bar starts, not across the gap to the next system.
 function measureNoteBounds(measureIndex) {
   const notes = allNotes[measureIndex]?.notes
   if (!notes?.length) return null
 
-  const noteElements = notes.map((n) => svgNote(n.note))
+  const noteElements = notesBySystem(notes)[0].map((n) => svgNote(n.note))
   const svg = noteElements[0]?.ownerSVGElement
   if (!svg) return null
 
@@ -703,15 +706,15 @@ function getBoundingBoxesForNotes(noteElements) {
     .filter(Boolean)
 }
 
-// The top and bottom staff line of every staff of a source measure, as
-// zero-size boxes in SVG units. They stretch the measure highlight up to the
-// top staff line / down to the bottom one, *without* picking up tempo
-// markings, clefs, key signatures etc. that render above the staff — and
-// cover every staff, not just those holding notes, so a bar the right hand
-// sits out can still be clicked on its treble staff.
-function staffLineBoxes(sourceMeasureIndex) {
+// The top and bottom staff line of every staff of one of OSMD's
+// SourceMeasures, as zero-size boxes in SVG units. They stretch the measure
+// highlight up to the top staff line / down to the bottom one, *without*
+// picking up tempo markings, clefs, key signatures etc. that render above the
+// staff — and cover every staff, not just those holding notes, so a bar the
+// right hand sits out can still be clicked on its treble staff.
+function staffLineBoxes(sourceMeasure) {
   const boxes = []
-  for (const graphicalMeasure of osmdInstance.graphic.MeasureList[sourceMeasureIndex] || []) {
+  for (const graphicalMeasure of osmdInstance.graphic.MeasureList[sourceMeasure.measureListIndex] || []) {
     const stave = graphicalMeasure?.stave
     if (!stave) continue
     for (const line of [0, stave.getNumLines() - 1]) {
@@ -752,24 +755,42 @@ export function measureClickRectDimensions(bounds) {
   }
 }
 
-// The rect drawn for a playback position, i.e. the one of the source measure
-// it plays — the same rect for every pass through a repeated measure.
-function measureRect(measureIndex) {
-  const sourceMeasureIndex = allNotes[measureIndex]?.sourceMeasureIndex
-  if (sourceMeasureIndex == null) return null
-  return measureClickRectangles.get(sourceMeasureIndex)
+// The rects drawn for a playback position, i.e. those of the bar it plays —
+// the same rects for every pass through a repeated bar. Empty when the bar
+// has none on the page.
+function measureRects(measureIndex) {
+  return measureClickRectangles.get(allNotes[measureIndex]?.sourceMeasureIndex) ?? []
 }
 
-// Strips `classes` off every measure rect. The rects are keyed by source
-// measure, so a repeated bar is one rect however many times it is played.
+function markMeasure(measureIndex, className) {
+  for (const rect of measureRects(measureIndex)) rect.classList.add(className)
+}
+
+// Strips `classes` off every measure rect. The rects are keyed by bar, so a
+// repeated bar is one set of rects however many times it is played.
 function clearMeasureClasses(...classes) {
-  measureClickRectangles.forEach((rect) => rect.classList.remove(...classes))
+  for (const rects of measureClickRectangles.values()) {
+    for (const rect of rects) rect.classList.remove(...classes)
+  }
 }
 
 // Shades [from, to] inclusive. Strict mode's picked loop and training mode's
 // passage are the same two-tone reading, so they are drawn by the same code.
 function paintMeasureRange(className, from, to) {
-  for (let i = from; i <= to; i++) measureRect(i)?.classList.add(className)
+  for (let i = from; i <= to; i++) markMeasure(i, className)
+}
+
+// A bar's notes, one array per system it is drawn on, in order: a single one,
+// but for a bar the file splits across two systems (see barCounter in
+// fingeringKeys.js).
+function notesBySystem(notes) {
+  const groups = new Map()
+  for (const noteData of notes) {
+    const system = graphicalMeasureForNote(noteData.note).parentMusicSystem
+    if (!groups.has(system)) groups.set(system, [])
+    groups.get(system).push(noteData)
+  }
+  return [...groups.values()]
 }
 
 function createMeasureRectangle(bounds, measureIndex) {
@@ -813,25 +834,31 @@ function setupMeasureClickHandlers() {
 
   for (const measureIndex of firstPassMeasureIndexes(allNotes)) {
     const measureData = allNotes[measureIndex]
-    const noteElements = measureData.notes.map((n) => svgNote(n.note))
-    const noteBoxes = getBoundingBoxesForNotes(noteElements)
-    if (noteBoxes.length === 0) continue
+    const rects = []
+    for (const notes of notesBySystem(measureData.notes)) {
+      const noteElements = notes.map((n) => svgNote(n.note))
+      const noteBoxes = getBoundingBoxesForNotes(noteElements)
+      if (noteBoxes.length === 0) continue
 
-    const svg = noteElements[0].ownerSVGElement
-    if (!svg) continue
+      const svg = noteElements[0].ownerSVGElement
+      if (!svg) continue
 
-    // Horizontal bounds come from the noteheads (so the rect hugs the
-    // notes). Vertical bounds are the union of the noteheads (catches
-    // low ledger-line notes below the bass staff) and the outer staff
-    // lines of every staff of the measure.
-    const hBounds = calculateCombinedBounds(noteBoxes)
-    const vBounds = calculateCombinedBounds([...noteBoxes, ...staffLineBoxes(measureData.sourceMeasureIndex)])
-    const bounds = { minX: hBounds.minX, maxX: hBounds.maxX, minY: vBounds.minY, maxY: vBounds.maxY }
-    const rect = createMeasureRectangle(bounds, measureIndex)
+      // Horizontal bounds come from the noteheads (so the rect hugs the
+      // notes). Vertical bounds are the union of the noteheads (catches
+      // low ledger-line notes below the bass staff) and the outer staff
+      // lines of every staff of the measure.
+      const hBounds = calculateCombinedBounds(noteBoxes)
+      const sourceMeasures = new Set(notes.map((n) => n.note.SourceMeasure))
+      const staffLines = [...sourceMeasures].flatMap(staffLineBoxes)
+      const vBounds = calculateCombinedBounds([...noteBoxes, ...staffLines])
+      const bounds = { minX: hBounds.minX, maxX: hBounds.maxX, minY: vBounds.minY, maxY: vBounds.maxY }
+      const rect = createMeasureRectangle(bounds, measureIndex)
 
-    if (!rectsBySvg.has(svg)) rectsBySvg.set(svg, [])
-    rectsBySvg.get(svg).push(rect)
-    measureClickRectangles.set(measureData.sourceMeasureIndex, rect)
+      if (!rectsBySvg.has(svg)) rectsBySvg.set(svg, [])
+      rectsBySvg.get(svg).push(rect)
+      rects.push(rect)
+    }
+    measureClickRectangles.set(measureData.sourceMeasureIndex, rects)
   }
 
   for (const [svg, rects] of rectsBySvg) {
@@ -869,7 +896,7 @@ function jumpToMeasure(measureIndex) {
 }
 
 function scrollToMeasure(measureIndex) {
-  const rect = measureRect(measureIndex)
+  const [rect] = measureRects(measureIndex)
   if (!rect) return
 
   // Anchor on the system's top staff line (matching the playback cursor) rather

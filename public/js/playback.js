@@ -448,11 +448,9 @@ function startPlayback(allNotes, osmdInstance, startMeasureIndex = 0) {
   activeOsmd = osmdInstance
   activeAllNotes = allNotes
   const bpm = bpmFor(osmdInstance)
-  const sourceMeasures = osmdInstance.Sheet.SourceMeasures
-
   const cursorSkipSteps = cursorStepsBeforeMeasure(allNotes, startMeasureIndex)
   const playNotes = allNotes.slice(startMeasureIndex)
-  const measureStartTimes = buildMeasureStartTimes(playNotes, sourceMeasures)
+  const measureStartTimes = buildMeasureStartTimes(playNotes)
   // Where this schedule's bar lines fall, for currentMeasure() to read the
   // sounding bar off the clock.
   scheduleStartedAt = performance.now()

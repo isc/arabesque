@@ -13,9 +13,9 @@ function score(measureCount = 4) {
     sourceMeasureIndex: i,
     notes: [{ midiNumber: 60 + i, timestamp: i, note: { Length: { RealValue: 1 } } }],
     cursorStops: [0],
+    duration: 1,
   }))
-  const sourceMeasures = allNotes.map(() => ({ Duration: { RealValue: 1 }, TempoInBPM: 120 }))
-  return [allNotes, { Sheet: { SourceMeasures: sourceMeasures }, cursor }]
+  return [allNotes, { Sheet: { SourceMeasures: [{ TempoInBPM: 120 }] }, cursor }]
 }
 
 // Enough of OSMD's cursor to say where it was left: reset/next is how both

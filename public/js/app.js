@@ -87,6 +87,7 @@ export function midiApp() {
     getNoteDataByKey: musicxml.getNoteDataByKey,
     svgNote: musicxml.svgNote,
     svgNotehead: musicxml.svgNotehead,
+    graphicalMeasureForNote: musicxml.graphicalMeasureForNote,
   })
   const cassettes = initCassettes()
   const storage = initStorage()

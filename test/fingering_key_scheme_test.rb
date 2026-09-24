@@ -143,24 +143,6 @@ class FingeringKeySchemeTest < CapybaraTestBase
     JS
   end
 
-  def stored_fingering_keys(score_url)
-    (stored_fingering_record(score_url)&.fetch('fingerings') || {}).keys.sort
-  end
-
-  def stored_fingering_record(score_url)
-    page.evaluate_async_script(<<~JS, score_url)
-      const [scoreUrl, done] = [arguments[0], arguments[arguments.length - 1]];
-      const request = indexedDB.open('arabesque', 3);
-      request.onerror = () => done(null);
-      request.onsuccess = () => {
-        const db = request.result;
-        const record = db.transaction('fingerings', 'readonly').objectStore('fingerings').get(scoreUrl);
-        record.onerror = () => { db.close(); done(null); };
-        record.onsuccess = () => { db.close(); done(record.result ?? null); };
-      };
-    JS
-  end
-
   CATALOG_FILES = <<~JS.freeze
     const done = arguments[arguments.length - 1];
     fetch('/data/scores.json')

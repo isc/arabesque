@@ -102,10 +102,15 @@ devices that already opened the piece: the service worker serves `/scores/` from
 the cache and refreshes behind the answer, so the fix lands on the opening after
 the one that fetched it (`public/sw.js`). Nothing to bump, no filename to
 change. What does **not** follow the correction is everything keyed to the old
-notation — fingerings by `measureNumber:staff:voice:noteIndex`, practice
-aggregates by `sourceMeasureIndex`. Adding, removing or renumbering a measure
-silently re-points both, locally and in Supabase. Fixing an accidental is free;
-changing the measure count is not.
+notation — fingerings by `m<bar>:staff:voice:noteIndex`, practice aggregates by
+`sourceMeasureIndex`, both counting bars by position. Adding, removing or
+renumbering a measure silently re-points both, locally and in Supabase. Fixing
+an accidental is free; changing the measure count is not.
+
+The one exception is splitting a bar so a system can break inside it: write the
+second half as `<measure number="N" implicit="yes">`, N being the bar it
+completes, and both halves stay one bar — same index, note count running on —
+so nothing re-points (`barCounter` in `public/js/fingeringKeys.js`).
 
 A catalog entry with `parts: [{title, file}]` instead of `file` is a
 **collection** (e.g. the Hanon exercises): one library row, a part navigator on
