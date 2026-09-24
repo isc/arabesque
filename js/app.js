@@ -291,9 +291,17 @@ export function midiApp() {
     keyHintVisible: false,
     keyHintCaption: [],
     // Where the player is asked for notes at their own pace — the only place
-    // the keyboard has a use.
+    // the keyboard has a use. Not under a run's results, where keys do not
+    // count: training opens them from inside its last note, before the
+    // keyboard has had that key, which would otherwise start the next wait.
     get keyHintContext() {
-      return !!this.osmdInstance && this.currentMode !== 'strict' && !this.isListening && !this.isReplaying
+      return (
+        !!this.osmdInstance &&
+        this.currentMode !== 'strict' &&
+        !this.isListening &&
+        !this.isReplaying &&
+        !this.showResultModal
+      )
     },
     get keyHintShown() {
       return this.keyHintVisible && this.keyHintContext
@@ -429,6 +437,9 @@ export function midiApp() {
         onPlaythroughRestart: () => {
           practiceTracker.restartPlaythrough()
         },
+        // A run that reached the end is over, results or not (one started from
+        // a bar further on has none): the next starts as the piece did.
+        onBackToTop: () => keyHint.restart(),
         onReinforcementComplete: async () => {
           this.reinforcementMode = false
           this.trainingMode = false
@@ -1300,6 +1311,8 @@ export function midiApp() {
       mark(`modale résultat (${mode})`) // TEMP: to date the 🔁 resize against
       this.resultMode = mode
       this.showResultModal = true
+      // The next run starts as the piece did (feedback b7682019).
+      keyHint.restart()
       // The ranking is fastest-first and scrolls in its own column, so the run
       // that just ended can sit well below the fold. Bring it into view.
       this.$nextTick(() => {
