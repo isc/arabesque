@@ -72,6 +72,11 @@ describe('hintStep', () => {
     expect(state.visible).toBe(false)
   })
 
+  it('starts over at the end of a run, as on a piece just opened, the ✕ kept', () => {
+    expect(hintStep(revealed(), { type: 'restart' })).toEqual(initialHint())
+    expect(run([{ type: 'dismiss' }, { type: 'restart' }], revealed()).dismissed).toBe(true)
+  })
+
   it('goes away once the notes come promptly and clean for a stretch', () => {
     // The note it came up for, found at last, is not part of the stretch.
     let state = hintStep(revealed(), tick('0:1', 1000))
