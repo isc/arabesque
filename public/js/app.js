@@ -20,6 +20,7 @@ import { initAutoSync, triggerSync } from './autoSync.js'
 import { scopedKey } from './profiles.js'
 import { traced, mark } from './perfTrace.js' // TEMP diagnostic
 import { t, tn, locale } from './i18n.js'
+import { recordError } from './errorLog.js'
 
 // Built once: the active locale is fixed for the page lifetime (switching
 // language reloads), so these don't need rebuilding per call/point.
@@ -710,7 +711,7 @@ export function midiApp() {
     // simply absent — an ordinary outcome offline rather than a fault, and the
     // only one a network fixes. Anything else is a real error.
     reportScoreLoadFailure(error) {
-      console.error('Erreur lors du chargement de la partition:', error)
+      recordError(error, 'Score could not be loaded')
       this.hideScoreSpinner()
       this.scoreLoadError = error?.unreachable ? 'offline' : 'failed'
     },

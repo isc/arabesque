@@ -13,6 +13,7 @@ import { scrollSystemIntoView, isUnderStickyBars } from './utils.js'
 import { arrayBufferToXml, isMusicXml } from './mxlLoader.js'
 import { stripPlaybackTempoMarks } from './tempoMarks.js'
 import { t } from './i18n.js'
+import { recordError } from './errorLog.js'
 
 let osmdInstance = null
 let allNotes = []
@@ -355,7 +356,7 @@ async function loadMusicXML(file) {
 
     await renderMusicXML(xmlContent)
   } catch (error) {
-    console.error('Erreur lors du chargement du MusicXML:', error)
+    recordError(error, 'MusicXML file could not be loaded')
     alert(t('errors.musicXmlLoad'))
   }
 }
@@ -523,7 +524,7 @@ async function renderMusicXML(xmlContent) {
     window.osmdInstance = osmd
     sheetJustLoaded = true
   } catch (error) {
-    console.error('Erreur lors du rendu MusicXML avec OSMD:', error)
+    recordError(error, 'OSMD could not render the score')
   }
 }
 

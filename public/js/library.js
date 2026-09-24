@@ -19,6 +19,7 @@ import { listProfiles, currentProfile, profileName, switchProfile } from './prof
 import { initAutoSync } from './autoSync.js'
 import { onDayChange } from './dayRollover.js'
 import { t, tn, locale } from './i18n.js'
+import { recordError } from './errorLog.js'
 
 const MIN_MATCH = 5
 const STATUS_ORDER = ['dechiffrage', 'perfectionnement', 'repertoire']
@@ -89,8 +90,6 @@ export function libraryApp() {
   let matchPointers = {}
   let searchResetTimer = null
   let sessionCountByFile = {}
-  // Why the last redraw from practice data failed, or null if it did not.
-  let refreshError = null
 
   return {
     ...headerMenu(),
@@ -256,18 +255,12 @@ export function libraryApp() {
     // while a refresh is in flight share it rather than walking the store again.
     //
     // Nobody awaits it, so a failure stops here: the page keeps what it was
-    // showing, and a report sent from it says why (feedbackContext).
+    // showing, and a report sent from it says why (errorLog.js).
     refreshPracticeViews() {
       this.refreshingPractice ??= Promise.all([
         this.refreshPracticeData(),
         this.reloadDailyLogs(),
-      ]).then(
-        () => { refreshError = null },
-        (error) => {
-          refreshError = `${error?.name}: ${error?.message}`
-          console.warn('Practice data could not be read again:', error)
-        },
-      ).finally(() => {
+      ]).catch((error) => recordError(error, 'Practice data could not be read again')).finally(() => {
         this.refreshingPractice = null
       })
       return this.refreshingPractice
@@ -760,8 +753,7 @@ export function libraryApp() {
 
     // Enriches the shared feedback submission (see headerMenu) with aggregate,
     // non-identifying usage stats — how much the reporter actually practises,
-    // without revealing which scores — and, when the last redraw failed, why:
-    // what the page shows is then older than it looks.
+    // without revealing which scores.
     feedbackContext() {
       const aggs = Object.values(this.aggregatesByScore)
       return {
@@ -770,7 +762,6 @@ export function libraryApp() {
           scores_practiced: aggs.length,
           total_practice_time_ms: aggs.reduce((sum, a) => sum + (a.totalPracticeTimeMs || 0), 0),
         },
-        ...(refreshError && { practice_error: refreshError }),
       }
     },
 

@@ -21,6 +21,11 @@
 // An <id> is the 8-character prefix the listing shows; a prefix matching more
 // than one entry is refused rather than guessed at.
 //
+// A report also carries the JavaScript errors the app ran into in the hour
+// before it was sent, if there were any (context.errors, from
+// public/js/errorLog.js). `list` marks those with ⚠ and how many; `show`
+// prints them after the rest of the entry, one stack under each message.
+//
 // ⚠ That token is account-wide, not project-scoped: never print it, never copy
 // it anywhere else. See ~/.claude/SUPABASE.md.
 import { writeFileSync } from 'node:fs'
@@ -58,6 +63,8 @@ async function list({ all, limit }) {
            -- Never the value itself: a few hundred kB of base64 per row would
            -- swamp both the response and the terminal. "shot" fetches one.
            screenshot is not null as has_shot,
+           case when jsonb_typeof(context->'errors') = 'array'
+                then jsonb_array_length(context->'errors') end as error_count,
            context->>'score' as score, context->>'app_version' as app_version
       from public.feedback
      ${all ? '' : "where status = 'new'"}
@@ -71,7 +78,15 @@ async function list({ all, limit }) {
   }
 
   for (const row of rows) {
-    const tags = [row.category, row.score, row.app_version, row.has_shot && '📷 shot'].filter(Boolean).join(' · ')
+    const tags = [
+      row.category,
+      row.score,
+      row.app_version,
+      row.has_shot && '📷 shot',
+      row.error_count && errorCount(row.error_count),
+    ]
+      .filter(Boolean)
+      .join(' · ')
     const status = row.status === 'done' ? ' ✓' : ''
     console.log(
       `\n\x1b[1m${short(row.id)}\x1b[0m${status}  ${row.at} (${ago(row.age_days)})` +
@@ -94,8 +109,31 @@ async function show(prefix) {
     select to_jsonb(f) - 'screenshot' as entry, length(f.screenshot) as shot_bytes
       from public.feedback f where f.id = ${quote(id)}
   `)
-  console.log(JSON.stringify(row.entry, null, 2))
+  // The errors come out of the JSON, where a stack is an array of escaped
+  // strings, to be printed the way a stack reads.
+  const { entry } = row
+  const errors = Array.isArray(entry.context?.errors) ? entry.context.errors : null
+  if (errors) delete entry.context.errors
+  console.log(JSON.stringify(entry, null, 2))
+  if (errors) printErrors(errors, entry.created_at)
   if (row.shot_bytes) console.log(`\n📷 ${Math.round(row.shot_bytes / 1024)} kB — feedback.mjs shot ${short(id)}`)
+}
+
+function errorCount(n) {
+  return `⚠ ${n} error${n === 1 ? '' : 's'}`
+}
+
+// Least recently seen first, as the app sends them. `at` is when each was last
+// seen, which is what says whether it came just before the report.
+function printErrors(errors, sentAt) {
+  console.log(`\n${errorCount(errors.length)}`)
+  for (const error of errors) {
+    const minutes = Math.round((Date.parse(sentAt) - Date.parse(error.at)) / 60_000)
+    const repeats = error.count > 1 ? ` ×${error.count}` : ''
+    console.log(`\n  \x1b[1m${error.message}\x1b[0m${repeats}`)
+    console.log(`  ${error.where} on ${error.page || '?'}, ${minutes < 1 ? 'under a minute' : `${minutes} min`} before the report`)
+    for (const frame of error.stack ?? []) console.log(`      ${frame}`)
+  }
 }
 
 // The screenshot, written where an image viewer can open it. Stored as a data
