@@ -110,7 +110,20 @@ each substitution matched exactly once. What is always done:
 - Each note corrected against the reference; an ornament added or removed
   only where the reference *and* another file agree against the base.
 - Fingerings from another file only if the base has few: match them note for
-  note **by voice, not by staff** (#363).
+  note **by voice, not by staff** (#363). When no candidate is fingered, try
+  the Mutopia Project, which engraves public-domain editions and fingers many
+  piano pieces (#412):
+  ```bash
+  python3 scripts/scores/mutopia.py setup                  # LilyPond, once
+  python3 scripts/scores/mutopia.py list BeethovenLv/O27   # fingered?
+  python3 scripts/scores/mutopia.py get BeethovenLv/O27/moonlight
+  python3 scripts/scores/mutopia.py fingerings tmp/mutopia/moonlight/moonlight-lys/moonlight1-a4.ly \
+      public/scores/moonlight-sonata-i.mxl --apply tmp/moonlight-i.mxl
+  ```
+  The report comes before `--apply`: how many engraved notes found their
+  place, the bars where the editions differ, and each fingering that needed a
+  choice (unison, other hand, tie). Its header explains each line. Carry the
+  report into the PR.
 - Write the archive as `META-INF/container.xml` + `score.xml`, into
   `public/scores/<Title_With_Underscores>.mxl`.
 
