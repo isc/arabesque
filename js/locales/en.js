@@ -377,7 +377,7 @@ export default {
     cassetteError: 'Error: {error}',
     chartAria: 'Play-time trend per playthrough',
     strictChartAria: 'Accuracy trend per strict playthrough',
-    playthroughsSummary: '{n}× in full ({list})',
+    playthroughsSummary: '{n}× in full: {list}',
     offlineTitle: 'This score is not available offline',
     offlineBody: 'It has never been opened on this device, so there is no copy of it here. Open it once with a network and it stays available afterwards, plane mode included.',
     failedTitle: 'The score could not be loaded',
