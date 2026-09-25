@@ -1,6 +1,7 @@
 import { isTestEnv } from './utils.js'
 import mockMIDI from './midi_mock.js'
 import { t } from './i18n.js'
+import { recordError } from './errorLog.js'
 
 const NOTE_ON = 144
 const NOTE_OFF = 128
@@ -129,7 +130,7 @@ async function connectMIDI(options = {}) {
     }
 
   } catch (e) {
-    console.error('Erreur MIDI:', e)
+    recordError(e, 'MIDI keyboard could not be connected')
     if (!silent) alert(t('errors.midiConnection', { message: e.message }))
   }
 }

@@ -189,6 +189,12 @@ A report carries a picture of the screen behind the modal
 `shot` writes the image out. Neither `list` nor `show` ever prints the value
 itself — a few hundred kB of base64 would bury the entry.
 
+It also carries the JavaScript errors the app ran into in the hour before, if
+any (`public/js/errorLog.js`): `list` marks those with ⚠ and their number,
+`show` prints them with their stacks. An error the app catches and gets past
+but wants to hear about goes through `recordError(error, where)` from the same
+module, in place of the `console.error` — it logs it too.
+
 The header of `scripts/feedback.mjs` has the rest (`show`, `untreat`, flags).
 Each new feedback also emails ivan.schneider@hey.com, so there is nothing to poll.
 
@@ -276,6 +282,12 @@ script — that is how a page notices it was served with another deploy's
 JavaScript and reloads itself once (`public/js/version.js` explains why).
 `scripts/stamp-version.mjs` fails at deploy time if a page is missing either
 marker, and `test/js/version.test.js` catches it earlier.
+
+Ahead of even that, first among its scripts, every page loads
+`<script type="module" src="js/errorLog.js"></script>`: the listeners that
+keep the JavaScript errors a feedback report carries, which only see what is
+thrown after they are installed. `test/js/errorLog.test.js` holds every page to
+it.
 
 A page of the app itself — not the landing, privacy or support pages — also
 loads `<script type="module" src="js/swRegister.js"></script>`, which installs

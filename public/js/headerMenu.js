@@ -19,6 +19,7 @@ import { feedbackEnabled, buildBaseContext, submitFeedback, defaultFeedbackEmail
 import { getLang, locale } from './i18n.js'
 import { INSTALL_AVAILABLE_EVENT, installAvailable, promptInstall } from './installPrompt.js'
 import { nativePairingAvailable, openNativePairing } from './midi.js'
+import { recordError } from './errorLog.js'
 
 const CHANGELOG_SEEN_KEY = 'arabesque:changelog-seen'
 const CHANGELOG_DATE_FORMATTER = new Intl.DateTimeFormat(locale(), {
@@ -145,7 +146,7 @@ export function headerMenu() {
         })
         this.feedbackStatus = 'sent'
       } catch (err) {
-        console.error('Feedback error:', err)
+        recordError(err, 'Feedback could not be sent')
         this.feedbackStatus = 'error'
         this.feedbackError = err.message || String(err)
       }

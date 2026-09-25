@@ -20,6 +20,7 @@ import { initAutoSync, triggerSync } from './autoSync.js'
 import { scopedKey } from './profiles.js'
 import { traced, mark } from './perfTrace.js' // TEMP diagnostic
 import { t, tn, locale } from './i18n.js'
+import { recordError } from './errorLog.js'
 
 // Built once: the active locale is fixed for the page lifetime (switching
 // language reloads), so these don't need rebuilding per call/point.
@@ -292,9 +293,17 @@ export function midiApp() {
     keyHintVisible: false,
     keyHintCaption: [],
     // Where the player is asked for notes at their own pace — the only place
-    // the keyboard has a use.
+    // the keyboard has a use. Not under a run's results, where keys do not
+    // count: training opens them from inside its last note, before the
+    // keyboard has had that key, which would otherwise start the next wait.
     get keyHintContext() {
-      return !!this.osmdInstance && this.currentMode !== 'strict' && !this.isListening && !this.isReplaying
+      return (
+        !!this.osmdInstance &&
+        this.currentMode !== 'strict' &&
+        !this.isListening &&
+        !this.isReplaying &&
+        !this.showResultModal
+      )
     },
     get keyHintShown() {
       return this.keyHintVisible && this.keyHintContext
@@ -430,6 +439,9 @@ export function midiApp() {
         onPlaythroughRestart: () => {
           practiceTracker.restartPlaythrough()
         },
+        // A run that reached the end is over, results or not (one started from
+        // a bar further on has none): the next starts as the piece did.
+        onBackToTop: () => keyHint.restart(),
         onReinforcementComplete: async () => {
           this.reinforcementMode = false
           this.trainingMode = false
@@ -628,7 +640,7 @@ export function midiApp() {
           return
         }
       } catch (error) {
-        console.warn('Collection lookup failed:', error)
+        recordError(error, 'Collection parts could not be looked up')
       }
     },
 
@@ -711,7 +723,7 @@ export function midiApp() {
     // simply absent — an ordinary outcome offline rather than a fault, and the
     // only one a network fixes. Anything else is a real error.
     reportScoreLoadFailure(error) {
-      console.error('Erreur lors du chargement de la partition:', error)
+      recordError(error, 'Score could not be loaded')
       this.hideScoreSpinner()
       this.scoreLoadError = error?.unreachable ? 'offline' : 'failed'
     },
@@ -1301,6 +1313,8 @@ export function midiApp() {
       mark(`modale résultat (${mode})`) // TEMP: to date the 🔁 resize against
       this.resultMode = mode
       this.showResultModal = true
+      // The next run starts as the piece did (feedback b7682019).
+      keyHint.restart()
       // The ranking is fastest-first and scrolls in its own column, so the run
       // that just ended can sit well below the fold. Bring it into view.
       this.$nextTick(() => {
@@ -1355,10 +1369,12 @@ export function midiApp() {
       if (seq === reinforcementRefreshSeq) this.measuresToReinforce = measures
     },
 
-    // Shown only over a list, all of whose measures share the hands it was read for.
-    reinforceLabel() {
+    // Shown only over a list, all of whose measures share the hands it was read
+    // for. `words` as withHands takes it: the visible label says MD, the name
+    // read aloud says the hand in full.
+    reinforceLabel(words) {
       const measures = this.measuresToReinforce
-      return withHands(tn('score.reinforce', measures.length), measures[0]?.hands ?? TWO_HANDS)
+      return withHands(tn('score.reinforce', measures.length), measures[0]?.hands ?? TWO_HANDS, words)
     },
 
     async startReinforcementMode() {

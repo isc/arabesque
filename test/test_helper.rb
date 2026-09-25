@@ -274,6 +274,28 @@ class CapybaraTestBase < Minitest::Test
     )
   end
 
+  # Keep hold of every IndexedDB connection the page visited next opens, for
+  # lose_indexeddb_connections to close from under it. A page-level script,
+  # like stall_indexeddb's and for the same reason.
+  def track_indexeddb_connections
+    page.driver.browser.page.command('Page.addScriptToEvaluateOnNewDocument', source: <<~JS)
+      window.__idbConnections = []
+      const open = IDBFactory.prototype.open
+      IDBFactory.prototype.open = function (...args) {
+        const request = open.apply(this, args)
+        request.addEventListener('success', () => window.__idbConnections.push(request.result))
+        return request
+      }
+    JS
+  end
+
+  # What WebKit does to a page whose app sat in the background long enough
+  # (see withDb in storage.js): its next transaction throws "The database
+  # connection is closing".
+  def lose_indexeddb_connections
+    page.execute_script('window.__idbConnections.forEach((db) => db.close())')
+  end
+
   # Click a button by its label without going through the browser's real input
   # pipeline.
   #

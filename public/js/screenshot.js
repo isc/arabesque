@@ -31,6 +31,8 @@
 // pinned element (the score page's whole header/mode/playback stack is sticky,
 // and it is the most diagnostic thing on the page).
 
+import { recordError } from './errorLog.js'
+
 const XHTML_NS = 'http://www.w3.org/1999/xhtml'
 const SVG_NS = 'http://www.w3.org/2000/svg'
 
@@ -273,7 +275,7 @@ export async function captureViewport() {
     ctx.drawImage(image, 0, 0, width, height)
     return encode(canvas)
   } catch (error) {
-    console.warn('Screen capture failed, sending the report without a picture:', error)
+    recordError(error, 'Screen could not be captured for the report')
     return null
   }
 }

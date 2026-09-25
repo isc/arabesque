@@ -55,6 +55,8 @@ const reveal = (state) => (state.visible || state.dismissed ? state : { ...state
 //   dismiss                      — the ✕
 //   rest                         — the practice context changed (a new mode):
 //                                  the next wait counts from the next keypress
+//   restart                      — a run over or a piece opened: back to the
+//                                  start, only the ✕ kept
 export function hintStep(state, event) {
   switch (event.type) {
     case 'press':
@@ -89,6 +91,8 @@ export function hintStep(state, event) {
       return { ...state, visible: false, dismissed: true }
     case 'rest':
       return { ...state, engaged: false, wrongs: 0 }
+    case 'restart':
+      return { ...initialHint(), dismissed: state.dismissed }
     default:
       return state
   }
@@ -128,7 +132,7 @@ export function keyLayout({ low, high }) {
 }
 
 // The notes owed, by name, a hand at a time and low to high within it:
-// [{ hand: 'main droite', notes: ['mi5'] }, { hand: 'main gauche', notes: ['do2', 'do3'] }].
+// [{ hand: 'MD', notes: ['mi5'] }, { hand: 'MG', notes: ['do2', 'do3'] }].
 function caption(notes) {
   return ['right', 'left']
     .map((hand) => ({
@@ -167,6 +171,13 @@ export function initKeyboardHint({ expectedGroup, eligible, onVisibleChange, onC
     clearInterval(following)
     following = state.visible ? setInterval(tick, TICK_MS) : null
     onVisibleChange(state.visible)
+  }
+
+  // Forgets the keys held and the wait under way, then rests or restarts.
+  function startOver(type) {
+    held.clear()
+    clearTimeout(waiting)
+    dispatch({ type })
   }
 
   function tick() {
@@ -260,12 +271,7 @@ export function initKeyboardHint({ expectedGroup, eligible, onVisibleChange, onC
         keyElements.set(midi, { key, name })
         el.append(key)
       }
-      held.clear()
-      clearTimeout(waiting)
-      clearInterval(following)
-      following = null
-      state = { ...initialHint(), dismissed: state.dismissed }
-      onVisibleChange(false)
+      startOver('restart')
     },
     // After the engine has had the keypress (see app.js): whether it was a
     // wrong note is already known by then, through wrongNote.
@@ -281,7 +287,12 @@ export function initKeyboardHint({ expectedGroup, eligible, onVisibleChange, onC
     wrongNote(midi) {
       if (state.dismissed) return
       held.set(midi, 'wrong')
-      if (eligible()) dispatch({ type: 'wrong', now: now() })
+      if (!eligible()) return
+      // Catch up with a cursor that moved by itself first (a run starting, the
+      // beat that begins a repetition), or keyDown's tick would see a new note
+      // and drop this key from its count.
+      tick()
+      dispatch({ type: 'wrong', now: now() })
     },
     keyUp(midi) {
       if (state.dismissed) return
@@ -293,9 +304,10 @@ export function initKeyboardHint({ expectedGroup, eligible, onVisibleChange, onC
       dispatch({ type: 'dismiss' })
     },
     rest() {
-      held.clear()
-      clearTimeout(waiting)
-      dispatch({ type: 'rest' })
+      startOver('rest')
+    },
+    restart() {
+      startOver('restart')
     },
   }
 }
