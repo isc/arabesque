@@ -127,7 +127,7 @@ This resets the keyboard's Bluetooth connection state.
 
 ## License
 
-[MIT License](https://opensource.org/licenses/MIT)
+[MIT](LICENSE)
 
 ## Credits
 
