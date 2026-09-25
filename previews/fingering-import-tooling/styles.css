@@ -120,6 +120,21 @@
   --pt-transition-fast: 120ms ease;
   --pt-transition-med: 220ms ease;
 
+  /* On-screen keyboard (keyboardHint.js): its caption bar and its keys. The
+     spacer under the score is sized from them, so the last system can always
+     be scrolled clear of the strip. */
+  --pt-keyhint-bar: 32px;
+  --pt-keyhint-keys: 96px;
+  --pt-keyhint-case: 4px;
+  /* The instrument itself: its case, its keys, the lip along a white key's
+     front edge and the shadow a black key casts. */
+  --pt-key-case: #1c1f29;
+  --pt-key-white: var(--pt-surface);
+  --pt-key-shade: color-mix(in srgb, var(--pt-border) 70%, var(--pt-surface));
+  --pt-key-lip: color-mix(in srgb, var(--pt-border-strong) 60%, var(--pt-surface));
+  --pt-key-black: #2d3140;
+  --pt-key-shadow: 0 2px 3px rgba(15, 18, 30, 0.35);
+
   /* Typography */
   --pt-font-ui: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --pt-font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
@@ -623,7 +638,7 @@ button.pt-topbar__pill:disabled { opacity: 0.4; cursor: default; }
    <label>) otherwise interact with flex-wrap to push items to different
    vertical positions even when they share the same height. */
 .pt-modebar button, .pt-topbar button { margin: 0; width: auto; }
-.pt-modebar input, .pt-topbar input { margin: 0; }
+.pt-modebar input { margin: 0; }
 .pt-modebar > * { flex: 0 0 auto; margin: 0; align-self: center; }
 .pt-modebar__spacer { flex: 1 1 auto !important; min-width: var(--pt-space-3); }
 
@@ -633,8 +648,7 @@ button.pt-topbar__pill:disabled { opacity: 0.4; cursor: default; }
    them overflow the outer container. */
 .pt-modebar > .pt-segmented,
 .pt-modebar > .pt-hands,
-.pt-modebar > .pt-action-button { height: 34px; align-items: center; box-sizing: border-box; }
-.pt-modebar > .pt-action-button { display: inline-flex; padding-block: 0; }
+.pt-modebar > .pt-action-button { display: inline-flex; align-items: center; box-sizing: border-box; height: 34px; padding-block: 0; }
 .pt-modebar .pt-segmented button { height: 28px; padding-block: 0; line-height: 28px; }
 .pt-modebar .pt-hands__option { height: 28px; padding-block: 0; line-height: 28px; }
 /* The reinforce badge stays inline-block (no flex) so the screen-reader
@@ -699,31 +713,21 @@ button.pt-topbar__pill:disabled { opacity: 0.4; cursor: default; }
 .pt-hands__option:hover { color: var(--pt-text); }
 .pt-hands__option input[type="checkbox"] { margin: 0; width: 14px; height: 14px; }
 .pt-hands__option:has(input:checked) { background: var(--pt-bg-elevated); color: var(--pt-text); box-shadow: var(--pt-shadow-sm); }
+/* Frozen for the length of a strict run: the checkbox dims on its own (base
+   layer), the label has to stop offering itself. */
+.pt-hands__option:has(input:disabled) { cursor: not-allowed; color: var(--pt-text-muted); }
 
-.pt-bpm-field {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  background: var(--pt-bg-elevated);
-  border: 1px solid var(--pt-border);
-  border-radius: var(--pt-radius-md);
-  padding: 2px 6px 2px 4px;
-}
+/* The field's box lives with the band cluster it is always a child of, below.
+   What is left here is what holds wherever it is put. */
 .pt-bpm-field input[type="number"] {
-  width: 56px;
   margin: 0;
-  padding: 4px 6px;
-  border: none;
-  background: transparent;
   font-family: var(--pt-font-mono);
   font-size: 0.85rem;
-  color: var(--pt-text);
-  height: auto;
   text-align: right;
 }
 .pt-bpm-field input[type="number"]:focus { outline: none; }
 .pt-bpm-field input[type="number"]:disabled { opacity: 0.5; }
-.pt-bpm-field__suffix { color: var(--pt-text-muted); font-size: 0.78rem; padding-right: 4px; }
+.pt-bpm-field__suffix { font-size: 0.78rem; padding-right: var(--pt-space-1); }
 
 .pt-reinforce-badge {
   display: inline-block;
@@ -771,7 +775,10 @@ button.pt-topbar__pill:disabled { opacity: 0.4; cursor: default; }
    lets strict mode and playback share the whole component. */
 .pt-band-controls {
   display: inline-flex;
-  align-items: center;
+  /* No align-items: every item stretches to the line (see the rule below), so
+     a cross-axis default here would say nothing — except to the next reader,
+     who would take it for the thing keeping the cluster aligned and feel free
+     to give an item a height of its own. That is 91bf14f9. */
   height: 34px;
   flex: 0 0 auto;
   background: var(--pt-bg-elevated);
@@ -805,9 +812,10 @@ button.pt-topbar__pill:disabled { opacity: 0.4; cursor: default; }
 /* Sized to its longest option, so a progression reads in full, the chevron
    close by; hovered and focused like the buttons beside it, with their
    tint rather than the base ring. The selector outweighs the base layer's
-   select:not([multiple], [size]), which sets the chevron's padding. */
+   select:not([multiple], [size]), which sets the chevron's padding. No height
+   here: a definite one opts the box out of the cluster's align-self: stretch
+   (feedback 91bf14f9). */
 .pt-band-controls .pt-band-select {
-  height: 28px;
   width: auto;
   margin: 0;
   padding: 0 28px 0 10px;
@@ -826,11 +834,11 @@ button.pt-topbar__pill:disabled { opacity: 0.4; cursor: default; }
   background-color: color-mix(in srgb, var(--pt-band-bg) 70%, var(--pt-band) 12%);
 }
 .pt-band-controls .pt-bpm-field {
+  /* Not a border being undone: this outweighs the cluster's `> * + *`
+     divider, which the field is the one item not to take. */
   border: none;
-  border-radius: 0;
-  background: transparent;
+  gap: var(--pt-space-1);
   padding: 0 10px;
-  color: inherit;
 }
 .pt-band-controls .pt-bpm-field input[type="number"] {
   width: 80px;
@@ -840,9 +848,43 @@ button.pt-topbar__pill:disabled { opacity: 0.4; cursor: default; }
   background: var(--pt-bg-elevated);
   color: var(--pt-band);
   height: 28px;
-  line-height: 28px;
 }
 .pt-band-controls .pt-bpm-field__suffix { color: color-mix(in srgb, var(--pt-band) 75%, transparent); }
+/* Setting a tempo with a thumb: the spinner a number input draws is a few
+   pixels tall on a desktop and nothing at all on touch, so the field carries
+   its own −/+ (held down, they keep stepping — see bpmStepper.js). They carry
+   .pt-band-button too, for the band's colour and hover tint; what is left here
+   is a square the size of the band instead of a labelled pill, which needs the
+   descendant selector to outweigh it. */
+.pt-band-controls .pt-bpm-field__step {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  /* One box for both buttons, so the glyph is centred in it — sized on the
+     glyph, − and + land at different heights and neither lines up with the
+     field. The height is the line's, taken by stretching rather than named:
+     34px is the band's *outer* height, and inside its 1px border there are
+     only 32, so a named 34 spent two of them under the cluster's
+     overflow: hidden — along with the top of these corners. */
+  width: 40px;
+  align-self: stretch;
+  padding: 0;
+  border-radius: var(--pt-radius-sm);
+  font-size: 1.15rem;
+  line-height: 1;
+  /* A held button must not be taken for a scroll, a text selection or a
+     double-tap zoom. */
+  touch-action: manipulation;
+}
+/* 44px is what a thumb needs, so the target is grown with a pseudo-element
+   rather than the box, the way the modal's back arrow is — the 2px of overhang
+   on the field side stay well clear of the input's own padding. Sideways only,
+   in practice: the cluster's overflow: hidden clips the vertical overhang, hit
+   testing included, so the target is 44 wide and the band's 32 tall. Growing
+   it would take a taller band or a cluster that does not clip. */
+.pt-band-controls .pt-bpm-field__step::after { content: ""; position: absolute; inset: -5px -2px; }
 
 /* =============================================================================
    Mode-context band (under modebar, varies per mode)
@@ -928,36 +970,11 @@ button.pt-topbar__pill:disabled { opacity: 0.4; cursor: default; }
   gap: var(--pt-space-3);
 }
 .pt-popover h4 { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--pt-text-subtle); margin: 0 0 var(--pt-space-2); font-weight: 600; }
-.pt-popover label { display: flex; align-items: center; gap: 8px; padding: 4px 0; font-size: 0.9rem; cursor: pointer; }
-.pt-popover label input[type="checkbox"] { margin: 0; }
 .pt-popover hr { border: none; border-top: 1px solid var(--pt-border); margin: 0; }
 .pt-popover__section { display: flex; flex-direction: column; gap: var(--pt-space-2); }
-.pt-popover select {
-  margin: 0;
-  padding: 6px 8px;
-  border-radius: var(--pt-radius-sm);
-  font-size: 0.85rem;
-  height: auto;
-  flex: 1;
-  min-width: 0;
-}
-.pt-popover button {
-  margin: 0;
-  padding: 6px 12px;
-  border: 1px solid var(--pt-border);
-  border-radius: var(--pt-radius-sm);
-  background: var(--pt-surface);
-  color: var(--pt-text);
-  font-size: 0.85rem;
-  cursor: pointer;
-  width: auto;
-}
-.pt-popover button:hover { background: var(--pt-surface-2); }
-.pt-popover small { color: var(--pt-text-muted); font-size: 0.78rem; }
 
-/* Full-width menu rows inside the ⚙️ popover (links, buttons, the import
-   <label>). More specific than the generic .pt-popover button/label above so
-   they read as a flat menu list rather than bordered buttons. */
+/* Full-width menu rows inside the ⚙️ popover — every link and button in it is
+   one, so a row needs no other class and the menu no other rule. */
 .pt-popover .pt-menu-item {
   display: flex;
   align-items: center;
@@ -974,7 +991,12 @@ button.pt-topbar__pill:disabled { opacity: 0.4; cursor: default; }
   text-decoration: none;
   cursor: pointer;
 }
-.pt-popover .pt-menu-item:hover { background: var(--pt-surface-2); }
+/* Everything the menu offers a pointer hovers the same way — the FR/EN pill
+   included, which has no hover of its own outside the menu. The language in
+   use is spared: it holds the accent, and this selector is heavy enough to
+   take it off, where the .pt-popover button rule it replaces was not. */
+.pt-popover .pt-menu-item:hover,
+.pt-popover .pt-langswitch button:not([aria-pressed="true"]):hover { background: var(--pt-surface-2); }
 .pt-menu-dot { margin-left: auto; width: 8px; height: 8px; border-radius: 50%; background: var(--pt-accent); }
 
 /* Keep the FR/EN pill compact instead of stretching to the popover's full
@@ -1419,7 +1441,10 @@ table tbody td:nth-child(2) a:hover { color: var(--pt-accent); }
 /* The panel under the filtered list: what earns the status above the one being
    filtered on. A .pt-card sitting after the table, so it scrolls away with the
    last row instead of holding a strip of the pane. */
-.pt-criteria { margin-top: var(--pt-space-4); }
+/* Both sit under the list: the criteria panel, and the one that shows when the
+   filters leave nothing. flex-start keeps the latter's button hugging its label. */
+.pt-criteria, .pt-library-empty { margin-top: var(--pt-space-4); }
+.pt-library-empty { align-items: flex-start; }
 
 /* Journal sidebar */
 /* Layout from .pt-row-between, label from .pt-eyebrow; baseline alignment is
@@ -1838,6 +1863,7 @@ dialog > article > footer button { margin: 0; }
 
 .pt-modal-note { color: var(--pt-text-muted); margin-top: var(--pt-space-3); font-size: 0.9rem; }
 .pt-modal-note--inline { margin-left: var(--pt-space-2); margin-top: 0; }
+.pt-modal-note--lead { margin-top: 0; }
 
 /* Changelog ("Nouveautés") */
 .pt-changelog-btn { position: relative; }
@@ -1933,6 +1959,163 @@ svg g.vf-notehead.missed-note path { fill: var(--pt-note-missed); }
   from, to { fill: var(--pt-note-missed); }
 }
 svg g.vf-notehead.wrong-note path { animation: pt-wrong-note-flash 700ms; }
+
+/* =============================================================================
+   On-screen keyboard (keyboardHint.js)
+   ========================================================================== */
+
+/* Pinned to the bottom of the screen, where the hands are, rather than after
+   the score: the measure being played is kept near the top, and the keyboard
+   has to be in view whichever system that is. The spacer after the score lets
+   its last system scroll clear of it. */
+.pt-keyhint {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: var(--pt-z-sticky);
+  background: var(--pt-bg-elevated);
+  border-top: 1px solid var(--pt-border);
+  box-shadow: var(--pt-shadow-lg);
+  padding: var(--pt-space-2) var(--pt-space-4) calc(var(--pt-space-2) + env(safe-area-inset-bottom));
+  animation: pt-keyhint-in var(--pt-transition-med);
+}
+/* A fade rather than a slide: the ✕ has to be where it is drawn from the
+   first frame, for a thumb as much as for a test. */
+@keyframes pt-keyhint-in {
+  from { opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pt-keyhint { animation: none; }
+}
+.pt-keyhint-spacer {
+  height: calc(var(--pt-keyhint-bar) + var(--pt-keyhint-keys) + 2 * var(--pt-keyhint-case) + 3 * var(--pt-space-2) + env(safe-area-inset-bottom) + var(--pt-space-4));
+}
+.pt-keyhint__bar {
+  display: flex;
+  align-items: center;
+  gap: var(--pt-space-3);
+  height: var(--pt-keyhint-bar);
+  margin-bottom: var(--pt-space-2);
+  font-size: 0.85rem;
+  color: var(--pt-text-muted);
+}
+/* The notes owed, as chips in the colour their keys are lit, each hand's
+   named after them. */
+.pt-keyhint__caption {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--pt-space-3);
+  white-space: nowrap;
+  overflow: hidden;
+  --lit: var(--pt-note-expected);
+}
+.pt-keyhint__group { display: inline-flex; align-items: center; gap: var(--pt-space-1); }
+/* In the ink and the tint of the keys they name. */
+.pt-keyhint__chip {
+  padding: 2px var(--pt-space-2);
+  border-radius: var(--pt-radius-pill);
+  background: color-mix(in srgb, var(--lit) 14%, transparent);
+  color: var(--lit-ink);
+  font-weight: 700;
+}
+.pt-keyhint__hand { color: var(--pt-text-subtle); font-size: 0.78rem; }
+.pt-keyhint__close { width: var(--pt-keyhint-bar); height: var(--pt-keyhint-bar); }
+/* A score spanning more keys than a phone is wide scrolls sideways inside the
+   strip, never the page; keyboardHint.js keeps the lit keys in the middle.
+   The dark frame is the instrument's case: it is what makes a row of
+   rectangles read as a keyboard at a glance. */
+.pt-keyhint__scroll {
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  padding: var(--pt-keyhint-case);
+  border-radius: var(--pt-radius-md);
+  background: var(--pt-key-case);
+}
+/* The white keys share the width, down to what three octaves take on a phone
+   — they are read, never touched; the black keys sit over the gaps, placed
+   from the white keys' count. */
+.pt-keyhint__keys {
+  position: relative;
+  display: flex;
+  height: var(--pt-keyhint-keys);
+  min-width: calc(var(--whites) * 16px);
+}
+/* Every white key is a stacking context of its own at level 0 and every black
+   key sits at level 1, so nothing a white key draws — a lit state, the pulse
+   on the owed one — can ever land over the black keys across it. */
+.pt-keyhint__key {
+  position: relative;
+  z-index: 0;
+  flex: 1 1 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 2px;
+  padding-bottom: 7px;
+  /* Shaded at both ends and with a lip along the front edge, like a key seen
+     from the player's seat. */
+  background: linear-gradient(to bottom, var(--pt-key-shade), var(--pt-key-white) 16%, var(--pt-key-white) 80%, var(--pt-key-shade));
+  box-shadow: inset -1px 0 0 var(--pt-border-strong), inset 0 -4px 0 var(--pt-key-lip);
+  border-radius: 0 0 var(--pt-radius-sm) var(--pt-radius-sm);
+  font-size: 0.7rem;
+  line-height: 1;
+}
+.pt-keyhint__key.is-black {
+  --lip: 0.1;
+  position: absolute;
+  top: 0;
+  z-index: 1;
+  height: 60%;
+  width: calc(60% / var(--whites));
+  left: calc((var(--at) * 100% - 30%) / var(--whites));
+  padding-bottom: 5px;
+  background: linear-gradient(to bottom, color-mix(in srgb, var(--pt-key-black) 60%, black), var(--pt-key-black) 85%, color-mix(in srgb, var(--pt-key-black) 85%, white));
+  box-shadow: var(--pt-key-shadow), inset 0 -3px 0 rgb(255 255 255 / var(--lip));
+  color: var(--pt-text-inverse);
+}
+.pt-keyhint__c { color: var(--pt-text-subtle); font-size: 0.65rem; }
+.pt-keyhint__name { font-weight: 700; }
+/* A lit key glows from inside in its colour — blue for owed, green for right,
+   red for wrong — rather than turning into a flat block, so it still reads as
+   the key it is. Each state names its colour once; keyboardHint.js marks all
+   three .is-lit. */
+.pt-keyhint__key.is-owed { --lit: var(--pt-note-expected); }
+.pt-keyhint__key.is-right { --lit: var(--pt-note-played); }
+.pt-keyhint__key.is-wrong { --lit: var(--pt-note-missed); }
+:is(.pt-keyhint__key.is-lit, .pt-keyhint__caption) { --lit-ink: color-mix(in srgb, var(--lit) 45%, var(--pt-text)); }
+.pt-keyhint__key.is-lit {
+  background: linear-gradient(to bottom, color-mix(in srgb, var(--lit) 22%, var(--pt-key-white)), color-mix(in srgb, var(--lit) 78%, var(--pt-key-white)));
+  box-shadow: inset -1px 0 0 color-mix(in srgb, var(--lit) 35%, var(--pt-key-white)), inset 0 -5px 0 var(--lit);
+  color: var(--lit-ink);
+}
+.pt-keyhint__key.is-black.is-lit {
+  --lip: 0.25;
+  background: linear-gradient(to bottom, color-mix(in srgb, var(--lit) 45%, black), var(--lit));
+  box-shadow: var(--pt-key-shadow), inset 0 -3px 0 rgb(255 255 255 / var(--lip));
+  color: var(--pt-text-inverse);
+}
+.pt-keyhint__key.is-lit .pt-keyhint__c { color: inherit; }
+/* The key owed breathes, gently, to catch an eye that is on the score. */
+.pt-keyhint__key.is-owed::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  box-shadow: inset 0 0 14px 2px var(--lit);
+  animation: pt-keyhint-glow 1.6s ease-in-out infinite;
+}
+@keyframes pt-keyhint-glow {
+  from, to { opacity: 0.25; }
+  50% { opacity: 0.9; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pt-keyhint__key.is-owed::after { animation: none; opacity: 0.6; }
+}
 
 /* Clickable measure areas */
 .measure-click-area {
@@ -2116,6 +2299,7 @@ img[id^="cursorImg"] { scroll-margin-top: var(--pt-sticky-offset, 100px); }
 }
 .pt-section__cta { display: flex; justify-content: center; margin-top: var(--pt-space-8); }
 .pt-section__cta a[role="button"] { margin: 0; }
+.pt-section__store { text-align: center; margin: var(--pt-space-4) 0 0; color: var(--pt-text-muted); }
 .pt-hero__visual {
   display: block;
   width: 100%;

@@ -13,6 +13,12 @@ const FINGERINGS_STORE = 'fingerings'
 const SESSIONS_STORE = 'sessions'
 const AGGREGATES_STORE = 'aggregates'
 const STORES = [FINGERINGS_STORE, SESSIONS_STORE, AGGREGATES_STORE]
+// What an operation fails with when the connection under it is gone rather
+// than the operation being wrong: InvalidStateError from transaction() on a
+// connection the browser has closed ("The database connection is closing"),
+// UnknownError from a request the loss cut off ("Connection to Indexed
+// Database server lost"). See withDb.
+const CONNECTION_LOST = new Set(['InvalidStateError', 'UnknownError'])
 
 // TEMP: built once so the probe costs no per-put string when it's disabled.
 const PUT_LABELS = {
@@ -31,7 +37,9 @@ function promisifyRequest(request) {
 function promisifyTransaction(transaction) {
   return new Promise((resolve, reject) => {
     transaction.oncomplete = resolve
-    transaction.onerror = () => reject(transaction.error)
+    // The failed request's error: transaction.error is only set by the abort
+    // that follows this event, and withDb needs the name.
+    transaction.onerror = (event) => reject(event.target.error)
   })
 }
 
@@ -155,25 +163,48 @@ export function initStorage() {
     return dbReady
   }
 
-  async function dbGet(storeName, key) {
-    const db = await ensureDb()
-    const store = db.transaction(storeName, 'readonly').objectStore(storeName)
-    return promisifyRequest(store.get(key))
+  // A page keeps its connection for as long as it lives, and in the iOS app
+  // that is days: the app is suspended and woken, never reloaded. WebKit does
+  // not keep a connection that long — when iOS reclaims the process serving
+  // IndexedDB, every connection is closed under the page, and each transaction
+  // after that fails. Held for good, the dead connection failed every read
+  // until the page was reloaded by hand: the library woke up with its practice
+  // columns empty (feedback be332d4d). So an operation that fails on a lost
+  // connection drops it and runs once more on a fresh one; concurrent failures
+  // on the same connection share that one reopen.
+  async function withDb(operation) {
+    const ready = ensureDb()
+    const db = await ready
+    try {
+      return await operation(db)
+    } catch (error) {
+      if (!CONNECTION_LOST.has(error?.name)) throw error
+      if (dbReady === ready) {
+        dbReady = null
+        db.close()
+      }
+      return operation(await ensureDb())
+    }
   }
 
-  async function dbGetAll(storeName) {
-    const db = await ensureDb()
-    const store = db.transaction(storeName, 'readonly').objectStore(storeName)
-    return promisifyRequest(store.getAll())
+  function withStore(storeName, mode, operation) {
+    return withDb((db) => operation(db.transaction(storeName, mode).objectStore(storeName)))
   }
 
-  async function dbPut(storeName, data) {
-    const db = await ensureDb()
-    const store = db.transaction(storeName, 'readwrite').objectStore(storeName)
+  function dbGet(storeName, key) {
+    return withStore(storeName, 'readonly', (store) => promisifyRequest(store.get(key)))
+  }
+
+  function dbGetAll(storeName) {
+    return withStore(storeName, 'readonly', (store) => promisifyRequest(store.getAll()))
+  }
+
+  function dbPut(storeName, data) {
     // TEMP: put() structure-clones the value synchronously on the main thread,
     // and the session object grows with every measure played. Wrapping put()
     // itself is what isolates that clone from the transaction's own latency.
-    return promisifyRequest(traced(PUT_LABELS[storeName], () => store.put(data)))
+    return withStore(storeName, 'readwrite', (store) =>
+      promisifyRequest(traced(PUT_LABELS[storeName], () => store.put(data))))
   }
 
   return {
@@ -224,39 +255,12 @@ export function initStorage() {
     },
 
     async getSessions(scoreId = null, dateRange = null) {
-      const db = await ensureDb()
-      return new Promise((resolve, reject) => {
-        const transaction = db.transaction([SESSIONS_STORE], 'readonly')
-        const store = transaction.objectStore(SESSIONS_STORE)
-        const sessions = []
-
-        let request
-        if (scoreId) {
-          const index = store.index('scoreId')
-          request = index.openCursor(IDBKeyRange.only(scoreId))
-        } else {
-          request = store.openCursor()
-        }
-
-        request.onsuccess = (event) => {
-          const cursor = event.target.result
-          if (cursor) {
-            const session = cursor.value
-            if (dateRange) {
-              const sessionDate = new Date(session.startedAt)
-              if (sessionDate >= dateRange.start && sessionDate <= dateRange.end) {
-                sessions.push(session)
-              }
-            } else {
-              sessions.push(session)
-            }
-            cursor.continue()
-          } else {
-            resolve(sessions)
-          }
-        }
-
-        request.onerror = () => reject(new Error('Failed to get sessions'))
+      const sessions = await withStore(SESSIONS_STORE, 'readonly', (store) =>
+        promisifyRequest(scoreId ? store.index('scoreId').getAll(scoreId) : store.getAll()))
+      if (!dateRange) return sessions
+      return sessions.filter((session) => {
+        const sessionDate = new Date(session.startedAt)
+        return sessionDate >= dateRange.start && sessionDate <= dateRange.end
       })
     },
 
@@ -293,18 +297,16 @@ export function initStorage() {
         throw new Error('Invalid backup data format')
       }
 
-      const db = await ensureDb()
-
-      const stores = [SESSIONS_STORE, AGGREGATES_STORE, FINGERINGS_STORE]
-      const transaction = db.transaction(stores, 'readwrite')
-
-      const importCounts = {
-        sessions: putAllToStore(transaction, SESSIONS_STORE, backupData.sessions),
-        aggregates: putAllToStore(transaction, AGGREGATES_STORE, backupData.aggregates),
-        fingerings: putAllToStore(transaction, FINGERINGS_STORE, backupData.fingerings),
-      }
-
-      await promisifyTransaction(transaction)
+      const importCounts = await withDb(async (db) => {
+        const transaction = db.transaction([SESSIONS_STORE, AGGREGATES_STORE, FINGERINGS_STORE], 'readwrite')
+        const counts = {
+          sessions: putAllToStore(transaction, SESSIONS_STORE, backupData.sessions),
+          aggregates: putAllToStore(transaction, AGGREGATES_STORE, backupData.aggregates),
+          fingerings: putAllToStore(transaction, FINGERINGS_STORE, backupData.fingerings),
+        }
+        await promisifyTransaction(transaction)
+        return counts
+      })
 
       return {
         success: true,
@@ -314,13 +316,16 @@ export function initStorage() {
       }
     },
 
-    // Wipe only the aggregates store. Aggregates are derived from sessions, so
-    // cloud sync rebuilds them from scratch after pulling new sessions.
-    async clearAggregates() {
-      const db = await ensureDb()
-      const transaction = db.transaction([AGGREGATES_STORE], 'readwrite')
-      transaction.objectStore(AGGREGATES_STORE).clear()
-      await promisifyTransaction(transaction)
+    // Swap the whole aggregates store for `aggregates`, in one transaction.
+    // Aggregates are derived from sessions, and a rebuild replaces them all:
+    // nothing reads a store half cleared, half written.
+    replaceAggregates(aggregates) {
+      return withDb((db) => {
+        const transaction = db.transaction([AGGREGATES_STORE], 'readwrite')
+        transaction.objectStore(AGGREGATES_STORE).clear()
+        putAllToStore(transaction, AGGREGATES_STORE, aggregates)
+        return promisifyTransaction(transaction)
+      })
     },
   }
 }

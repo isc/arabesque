@@ -1,6 +1,7 @@
 import { isTestEnv } from './utils.js'
 import mockMIDI from './midi_mock.js'
 import { t } from './i18n.js'
+import { recordError } from './errorLog.js'
 
 const NOTE_ON = 144
 const NOTE_OFF = 128
@@ -50,6 +51,18 @@ export function initMidi() {
     setCallbacks,
     state,
   }
+}
+
+// iOS pairs Bluetooth MIDI devices per app rather than in Settings, so the
+// wrapper carries a system sheet for it and its shim exposes it here. The
+// shim's presence is also how a page knows it is running in the wrapper at
+// all: the user agent cannot say, an iPad claiming to be a Macintosh.
+export function nativePairingAvailable() {
+  return typeof globalThis.__pianoTrainerMIDI?.pairBluetooth === 'function'
+}
+
+export function openNativePairing() {
+  if (nativePairingAvailable()) globalThis.__pianoTrainerMIDI.pairBluetooth()
 }
 
 function setCallbacks(cbs) {
@@ -117,7 +130,7 @@ async function connectMIDI(options = {}) {
     }
 
   } catch (e) {
-    console.error('Erreur MIDI:', e)
+    recordError(e, 'MIDI keyboard could not be connected')
     if (!silent) alert(t('errors.midiConnection', { message: e.message }))
   }
 }

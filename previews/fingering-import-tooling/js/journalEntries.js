@@ -16,17 +16,25 @@
 // journalEntryHelpers below.
 import { playthroughGroups } from './hands.js'
 import { withRunKind } from './utils.js'
-import { tn } from './i18n.js'
+import { t, tn } from './i18n.js'
 
 // Alpine expressions read the component's scope, not this module's, so the
 // helpers the markup calls are spread into both pages' data.
 export const journalEntryHelpers = {
   playthroughGroups,
 
-  // "Joué 3× en entier · main droite" — one line per hand selection and per
-  // kind of run, so a day spent on the right hand alone doesn't read as the
-  // piece played whole, and a run to the metronome isn't mistaken for a free
-  // one.
+  // "L'Harmonie des anges · Burgmüller". Either half can be missing — an
+  // aggregate rebuilt from a catalog that had not heard of the score carries
+  // neither — and the separator goes with the composer rather than printing
+  // the word "null" after the title (feedback 401b88bf).
+  entryLabel(entry) {
+    const title = entry.scoreTitle || t('journal.untitled')
+    return entry.composer ? `${title} · ${entry.composer}` : title
+  },
+
+  // "Joué 3× en entier · MD" — one line per hand selection and per kind of
+  // run, so a day spent on the right hand alone doesn't read as the piece
+  // played whole, and a run to the metronome isn't mistaken for a free one.
   playedFullLabel(group) {
     const n = group.playthroughs.length
     return withRunKind(tn('journal.playedFull', n), group)
@@ -37,7 +45,7 @@ const ENTRIES_HTML = (rows) => `
 <div class="pt-journal__entries">
   <template x-for="entry in ${rows}" :key="entry.scoreId">
     <div class="pt-journal__entry">
-      <a :href="scorePageUrl(entry.scoreId)" x-text="(entry.scoreTitle || $t('journal.untitled')) + ' · ' + entry.composer"></a>
+      <a :href="scorePageUrl(entry.scoreId)" x-text="entryLabel(entry)"></a>
       <small>
         <span x-text="formatDuration(entry.totalPracticeTimeMs)"></span>
         <template x-for="group in playthroughGroups(entry.fullPlaythroughs)" :key="group.key">

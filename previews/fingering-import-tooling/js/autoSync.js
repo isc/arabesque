@@ -14,6 +14,7 @@
 import { lastSyncAt, runSync } from './sync.js'
 import { signedInOnThisDevice } from './supabaseConfig.js'
 import { onIdle, onForeground } from './utils.js'
+import { recordError } from './errorLog.js'
 
 // How long each trigger waits behind the previous sync. A tab coming back or a
 // page opening brings nothing new of our own, so one round-trip a minute is
@@ -74,6 +75,10 @@ async function signedInClient() {
 // asks the session itself. Collapses concurrent callers onto the same
 // round-trip. Resolves to the runSync summary, or null when nobody is
 // signed in; rejects on a sync error so a caller with UI can report it.
+//
+// A failure is kept for a feedback report here, once for all the callers that
+// share it — offline ones included; the throttle and errorLog.js's repeat
+// count keep a day offline to one entry.
 export function requestSync() {
   if (inFlight) return inFlight
   inFlight = (async () => {
@@ -82,10 +87,15 @@ export function requestSync() {
     const summary = await runSync({ ...client, ...deps })
     onSynced?.(summary)
     return summary
-  })().finally(() => {
-    lastAttemptAt = Date.now()
-    inFlight = null
-  })
+  })()
+    .catch((err) => {
+      recordError(err, 'Sync could not complete')
+      throw err
+    })
+    .finally(() => {
+      lastAttemptAt = Date.now()
+      inFlight = null
+    })
   return inFlight
 }
 
@@ -94,5 +104,5 @@ export function requestSync() {
 export function triggerSync(reason) {
   if (!signedInOnThisDevice() || inFlight) return
   if (msSinceLastSync() < (MIN_INTERVAL_MS[reason] ?? DEFAULT_MIN_INTERVAL_MS)) return
-  requestSync().catch((err) => console.warn(`Automatic sync (${reason}) failed:`, err))
+  requestSync().catch(() => {})
 }

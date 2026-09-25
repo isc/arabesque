@@ -2,6 +2,7 @@
 export default {
   common: {
     openLibrary: 'Ouvrir la bibliothèque',
+    appStore: 'Arabesque pour iPhone et iPad, sur l’App Store',
     close: 'Fermer',
     cancel: 'Annuler',
     privacy: 'Confidentialité',
@@ -38,23 +39,36 @@ export default {
     syncNote:
       'Chaque profil se synchronise avec le compte ci-dessous, chacun de son côté : un profil créé ici apparaît sur les autres appareils connectés au même compte, avec son journal.',
   },
-  // Which hands a run through the score was played with.
+  // Which hands a run through the score was played with (see en.js).
   hands: {
+    right: 'MD',
+    left: 'MG',
+    mixed: 'mains changées en cours',
+  },
+  handsFull: {
     right: 'main droite',
     left: 'main gauche',
-    mixed: 'mains changées en cours',
   },
   status: {
     dechiffrage: 'Déchiffrage',
     perfectionnement: 'Perfectionnement',
     repertoire: 'Répertoire',
   },
-  // Ce qu'il faut atteindre pour le statut suivant, sous la liste filtrée de la
-  // bibliothèque. Les nombres viennent de STATUS_THRESHOLDS (practiceTracker.js).
+  // Ce que sélectionne le filtre en cours, sous la liste filtrée de la
+  // bibliothèque. Les nombres viennent des constantes que les règles elles-mêmes
+  // appliquent : STATUS_THRESHOLDS, la fenêtre de renforcement, les seuils des
+  // mesures qui accrochent (HOT_SPOT_*) et le plancher de
+  // pratique (practiceTracker.js), et STALE_DAYS (library.js).
   criteria: {
+    filterHeading: 'Ce que sélectionne {filter}',
+    reinforceHotSpot: 'Une mesure ratée au moins {factor} fois plus souvent que la moyenne du morceau, sur ses {n} dernières séances',
+    reinforceAttempts: 'Tentée au moins {n} fois',
+    reinforceClean: 'Et pas encore rejouée proprement {n} passages de suite',
+    stalePractised: 'Travaillée au moins {n} min en tout',
+    staleSilent: 'Et pas rouverte depuis plus de {n} jours',
     heading: 'Pour passer en {status}',
-    cleanMeasures: '{percent} % des mesures jouées proprement au moins {n} fois',
-    cleanMeasuresAll: 'Toutes les mesures jouées proprement au moins {n} fois',
+    cleanMeasures: '{percent} % des mesures jouées proprement à deux mains au moins {n} fois',
+    cleanMeasuresAll: 'Toutes les mesures jouées proprement à deux mains au moins {n} fois',
     completedOne: 'La partition jouée en entier au moins une fois',
     completed: 'La partition jouée en entier au moins {n} fois',
     practiceDays: 'Travaillée sur au moins {n} jours différents',
@@ -102,6 +116,8 @@ export default {
     allPeriods: 'Toutes périodes',
     composerFilterAria: 'Filtrer par compositeur',
     periodFilterAria: 'Filtrer par période musicale',
+    noMatch: 'Aucune partition ne correspond à ces filtres.',
+    clearFilters: 'Réinitialiser les filtres',
     focusLabel: 'À travailler :',
     journalHeading: 'Journal de pratique',
     seeYear: 'Voir l’année →',
@@ -175,20 +191,21 @@ export default {
     localHeading: 'Sauvegarde dans un fichier',
     localIntro: 'Exportez vos données d’entraînement dans un fichier, ou réimportez une sauvegarde.',
     accountHeading: 'Synchronisation entre appareils',
-    accountIntro: 'Connectez-vous par e-mail : vos données d’entraînement suivent alors votre compte, d’un appareil à l’autre.',
+    accountIntro:
+      'Connectez-vous par e-mail : vos données d’entraînement suivent alors votre compte, d’un appareil à l’autre. Utilisez la même adresse sur chaque appareil.',
     emailLabel: 'E-mail',
     emailPlaceholder: 'vous@exemple.com',
-    sendLink: 'Recevoir un lien de connexion',
-    linkSent: 'E-mail envoyé ! Vérifiez votre boîte mail (et les spams).',
+    sendCode: 'Recevoir un code de connexion',
+    codeSent: 'E-mail envoyé ! Vérifiez votre boîte mail (et les spams).',
     otpLabel: 'Code reçu par e-mail',
     otpPlaceholder: 'Code à 8 chiffres',
     verifyOtp: 'Valider le code',
     otpError: 'Code refusé :',
-    otpHint: 'Saisissez le code de l’e-mail. Le lien fonctionne aussi, mais il connecte le navigateur qui l’ouvre — sur iPad, ce n’est pas l’app.',
+    otpHint: 'Le code est valable une heure et ne sert qu’une fois.',
     signedInAs: 'Connecté :',
     signOut: 'Se déconnecter',
     cloudUnavailable: 'La synchronisation cloud n’est pas configurée.',
-    authError: 'Échec de l’envoi du lien :',
+    authError: 'Échec de l’envoi du code :',
     syncHint: 'Vos données se synchronisent à la fin de chaque morceau joué et au retour sur l’app.',
     syncNow: 'Synchroniser maintenant',
     lastSync: 'Dernière synchro :',
@@ -230,12 +247,16 @@ export default {
     startBtn: '▶ Démarrer',
     resumeBtn: '▶ Reprendre',
     tempoBpm: 'Tempo en BPM',
+    tempoDown: 'Diminuer le tempo',
+    tempoUp: 'Augmenter le tempo',
     playbackTempoBpm: 'Tempo de lecture en BPM',
+    playbackTempoDown: 'Diminuer le tempo de lecture',
+    playbackTempoUp: 'Augmenter le tempo de lecture',
     bpm: 'BPM',
     rightHand: 'Main droite',
     leftHand: 'Main gauche',
     reinforceOne: '🎯 Renforcer {n} mesure',
-    reinforceMany: '🎯 Renforcer {n} mesures',
+    reinforce: '🎯 Renforcer {n} mesures',
     stop: '⏹ Stop',
     listen: '▶ Écouter',
     playbackHint: 'Cliquez sur une mesure pour écouter à partir de là.',
@@ -250,6 +271,7 @@ export default {
     trainerRandom: 'Tempos alternés (70–110 %)',
     loopHint: 'Cliquez sur la première puis la dernière mesure du passage à travailler.',
     loopRange: 'Boucle des mesures {from} à {to}.',
+    loopRangeOne: 'Boucle de la mesure {from}.',
     loopRangeOpen: 'Boucle de la mesure {from} à la fin.',
     loopHintEnd: 'Départ à la mesure {n} — cliquez sur la dernière mesure du passage.',
     loopRun: 'passage {n}',
@@ -270,7 +292,12 @@ export default {
     replayInProgress: '▶️ Rejeu en cours…',
     replayEnded: '✅ Rejeu terminé',
     recordingInProgress: '🔴 Enregistrement en cours…',
-    resultTime: 'Temps : ',
+    wrongNotesOne: '1 fausse note',
+    wrongNotes: '{n} fausses notes',
+    noWrongNote: 'sans faute',
+    wrongMeasuresOne: 'Fausses notes à la mesure {list}.',
+    wrongMeasures: 'Fausses notes aux mesures {list}.',
+    wrongMeasuresMany: 'Fausses notes dans {n} mesures.',
     now: 'maintenant',
     playtimeEvolution: 'Évolution du temps de jeu',
     accuracyEvolution: 'Évolution de la précision',
@@ -309,6 +336,10 @@ export default {
     // The seven letters, from do to si — the only part of a note's name that is
     // language's business; the ♯ and ♭ that go with them are music's own signs.
     noteLetters: 'do ré mi fa sol la si',
+    // The on-screen keyboard that comes up when a note is hard to find.
+    keyHintAria: 'Clavier d’aide',
+    keyHintPlay: 'À jouer',
+    keyHintHide: 'Masquer le clavier',
     midiHelpTitle: 'Connexion clavier MIDI',
     midiHelpIntro: 'Aucun périphérique MIDI détecté. Voici comment connecter votre clavier :',
     macTwoCases: 'Selon votre piano, deux cas de figure :',
@@ -343,7 +374,7 @@ export default {
     cassetteError: 'Erreur: {error}',
     chartAria: 'Évolution du temps de jeu par playthrough',
     strictChartAria: 'Évolution de la précision par playthrough strict',
-    playthroughsSummary: '{n}× en entier ({list})',
+    playthroughsSummary: '{n}× en entier : {list}',
     offlineTitle: 'Partition indisponible hors ligne',
     offlineBody: 'Elle n\'a jamais été ouverte sur cet appareil, donc elle n\'est pas en mémoire. Ouvrez-la une fois avec du réseau : elle restera disponible ensuite, même en avion.',
     failedTitle: 'Impossible de charger la partition',
@@ -368,9 +399,9 @@ export default {
     heroLead:
       "Connectez votre clavier MIDI, ouvrez une partition et jouez. Chaque note se colore selon que vous l'avez réussie, manquée ou anticipée — et votre progression se note toute seule, mesure après mesure.",
     featuresTitle: 'Tout ce qu’il faut pour pratiquer sérieusement',
-    featuresSubtitle: 'Un atelier de travail dans le navigateur, sans installation ni compte.',
+    featuresSubtitle: 'Dans le navigateur, sur iPhone et iPad ou installée sur Android. Un compte ne sert qu’à synchroniser vos appareils.',
     f1Title: 'Clavier MIDI en un clic',
-    f1Body: 'USB ou Bluetooth via le Web MIDI. Le clavier est détecté automatiquement, rien à configurer.',
+    f1Body: 'USB ou Bluetooth. Le navigateur détecte le clavier tout seul ; sur iPad, l’appairage Bluetooth s’ouvre depuis l’app.',
     f2Title: 'Retour note par note',
     f2Body:
       'Les notes se colorent en direct : réussie, attendue, hors tempo ou manquée. Vous voyez vos erreurs sans lever les yeux.',
@@ -379,25 +410,35 @@ export default {
       'Temps de travail, mesures retravaillées et passages joués en entier sont consignés dans un journal quotidien.',
     f4Title: 'Modes de travail',
     f4Body:
-      'Déchiffrage libre, entraînement mesure par mesure ou mode strict sans fausse note : choisissez votre exigence.',
+      'Déchiffrage libre, entraînement sur un passage, ou mode strict au métronome, en boucle, le tempo montant à chaque passage propre.',
     f5Title: 'Doigtés intégrés',
     f5Body:
       'Affichez et éditez les doigtés directement sur la partition, empilés dans l’ordre des notes pour les accords.',
     f6Title: 'Bibliothèque classique',
     f6Body:
       '70+ partitions du domaine public, des inventions de Bach au Hanon, recherchables en jouant leurs premières notes.',
+    f7Title: 'Écouter avant de jouer',
+    f7Body:
+      '▶ Écouter joue le morceau au tempo que vous choisissez, à partir de la mesure de votre choix.',
+    f8Title: 'Hors ligne, sur tous vos appareils',
+    f8Body:
+      'Une partition ouverte une fois reste disponible sans réseau. Connecté, votre pratique vous suit de l’iPad au téléphone.',
+    f9Title: 'Un profil par pianiste',
+    f9Body:
+      'Sur un appareil partagé, chacun garde son journal, ses statuts et ses doigtés.',
     howTitle: 'Comment démarrer',
     howSubtitle: 'Trois étapes, et vous jouez.',
     step1Title: 'Connectez votre clavier',
     step1Body:
-      'Reliez un clavier MIDI en USB ou en Bluetooth et autorisez l’accès quand le navigateur le demande. Pas de clavier ? Vous pouvez aussi suivre la partition à l’écran.',
+      'Reliez un clavier MIDI en USB ou en Bluetooth : autorisez l’accès quand le navigateur le demande, ou appairez-le depuis l’app sur iPad. Pas de clavier ? Vous pouvez aussi suivre la partition à l’écran.',
     step2Title: 'Choisissez une partition',
     step2Body:
       'Piochez dans la bibliothèque ou déposez votre propre fichier MusicXML (<code>.xml</code>, <code>.mxl</code>) directement sur la page.',
     step3Title: 'Jouez et progressez',
     step3Body:
       'Suivez les notes qui défilent, laissez le retour en temps réel vous guider, et retrouvez vos progrès dans le journal de pratique.',
-    footer: 'Arabesque · partitions du domaine public · vos données restent dans votre navigateur.',
+    android: 'Sur Android, ouvrez la bibliothèque dans Chrome, puis ⚙️ → Installer l’application.',
+    footer: 'Arabesque · partitions du domaine public · vos données restent sur votre appareil, sauf à les synchroniser.',
   },
   privacy: {
     pageTitle: 'Arabesque · Confidentialité',
@@ -412,12 +453,12 @@ export default {
       "Vos séances de travail, vos doigtés et vos préférences (langue, morceaux vus) sont écrits dans le stockage local du navigateur. Ils ne quittent pas l'appareil de leur propre initiative, et vider les données du site les efface définitivement. La page Données permet de les exporter dans un fichier.",
     accountTitle: 'Le compte, si vous en créez un',
     accountBody:
-      "Se connecter sert à retrouver sa pratique d'un appareil à l'autre. Cela demande une adresse e-mail, à laquelle est envoyé un lien — ou un code — de connexion : il n'y a pas de mot de passe. Une fois connecté, vos séances et vos doigtés sont copiés sur le serveur pour être redescendus sur vos autres appareils. Aucune autre donnée n'est associée au compte.",
+      "Se connecter sert à retrouver sa pratique d'un appareil à l'autre. Cela demande une adresse e-mail, à laquelle est envoyé un code de connexion : il n'y a pas de mot de passe. Une fois connecté, vos séances et vos doigtés sont copiés sur le serveur pour être redescendus sur vos autres appareils. Aucune autre donnée n'est associée au compte.",
     accountDelete:
       "Vous pouvez supprimer votre compte depuis la page Données. Le compte et toutes les données synchronisées sont alors effacés des serveurs, sans délai et sans avoir à le demander à qui que ce soit.",
     feedbackTitle: 'Les avis que vous envoyez',
     feedbackBody:
-      "Le formulaire d'avis transmet votre message, la catégorie choisie, et un contexte technique destiné à reproduire les problèmes : version de l'app, navigateur, taille d'écran, langue, et selon la page, le titre du morceau ouvert ou vos totaux de pratique. Il joint aussi une image de l'écran tel que vous le voyiez, la fenêtre d'avis en moins : elle est montrée dans le formulaire avant l'envoi, et une case permet de la retirer. L'adresse e-mail est facultative et ne sert qu'à vous répondre. Un avis n'est jamais rattaché à un compte.",
+      "Le formulaire d'avis transmet votre message, la catégorie choisie, et un contexte technique destiné à reproduire les problèmes : version de l'app, navigateur, taille d'écran, langue, les erreurs techniques rencontrées par l'app dans l'heure, et selon la page, le titre du morceau ouvert ou vos totaux de pratique. Il joint aussi une image de l'écran tel que vous le voyiez, la fenêtre d'avis en moins : elle est montrée dans le formulaire avant l'envoi, et une case permet de la retirer. L'adresse e-mail est facultative et ne sert qu'à vous répondre. Un avis n'est jamais rattaché à un compte.",
     neverTitle: "Ce qu'Arabesque ne fait pas",
     neverBody:
       "Pas de publicité, pas de mesure d'audience, pas de traceur tiers, pas de cookie publicitaire, pas de profilage. Vos données ne sont ni vendues, ni louées, ni partagées à des fins commerciales. Le microphone et la caméra ne sont jamais utilisés ; le clavier MIDI ne sert qu'à savoir quelles notes vous jouez, et ce flux ne quitte pas votre appareil.",

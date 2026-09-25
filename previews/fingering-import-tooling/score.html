@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="app-version" content="1234d18b56cd" />
+    <meta name="app-version" content="3e90419d767b" />
     <title data-i18n="score.pageTitle">Arabesque</title>
     <link rel="icon" href="favicon.svg" type="image/svg+xml" />
     <link rel="manifest" href="manifest.webmanifest" />
@@ -43,6 +43,7 @@
       }
     }
     </script>
+    <script type="module" src="js/errorLog.js"></script>
     <script type="module" src="js/version.js"></script>
     <script type="module" src="js/swRegister.js"></script>
     <!-- defer, not blocking: these two are only needed once a score is being
@@ -50,7 +51,7 @@
          the first paint and the fetch of the module graph below. Deferred
          classic scripts still run in document order, before the module. -->
     <script defer src="vendor/jszip.3.10.1.min.js"></script>
-    <script defer src="vendor/opensheetmusicdisplay.2.1.2.min.js"></script>
+    <script defer src="vendor/opensheetmusicdisplay.2.1.3.min.js"></script>
     <script type="module">
       // Register the Alpine root component before Alpine boots, then load Alpine.
       // Loading Alpine from inside this module (rather than a sibling `defer`
@@ -152,14 +153,21 @@
         >⏱ Mode strict</button>
       </div>
 
+      <!-- Disabled for the length of a run rather than aborting it, like the
+           tempo and the trainer mode below: which hands a run asks for is a
+           setting it froze at its start, and a mis-tap on a 14px box has no
+           business throwing away the run. The controls that abort instead
+           (the loop, a click on a measure) are the ones whose whole point is
+           to say where to play.
+           Short label, the words in full for assistive tech and hover. -->
       <div class="pt-hands">
-        <label class="pt-hands__option">
-          <input type="checkbox" x-model="rightHandActive" @change="updateActiveHands" />
-          <span x-text="$t('score.rightHand')">Main droite</span>
+        <label class="pt-hands__option" :title="$t('score.rightHand')">
+          <input type="checkbox" x-model="rightHandActive" @change="updateActiveHands" :disabled="isStrictPlaying" :aria-label="$t('score.rightHand')" />
+          <span x-text="$t('hands.right')">MD</span>
         </label>
-        <label class="pt-hands__option">
-          <input type="checkbox" x-model="leftHandActive" @change="updateActiveHands" />
-          <span x-text="$t('score.leftHand')">Main gauche</span>
+        <label class="pt-hands__option" :title="$t('score.leftHand')">
+          <input type="checkbox" x-model="leftHandActive" @change="updateActiveHands" :disabled="isStrictPlaying" :aria-label="$t('score.leftHand')" />
+          <span x-text="$t('hands.left')">MG</span>
         </label>
       </div>
 
@@ -168,7 +176,8 @@
         class="pt-reinforce-badge"
         x-show="measuresToReinforce.length > 0 && !trainingMode && !isStrictPlaying"
         @click.prevent="startReinforcementMode()"
-        x-text="$t(measuresToReinforce.length > 1 ? 'score.reinforceMany' : 'score.reinforceOne', { n: measuresToReinforce.length })"
+        x-text="reinforceLabel()"
+        :aria-label="reinforceLabel('handsFull')"
       ></a>
 
       <div class="pt-modebar__spacer"></div>
@@ -195,20 +204,46 @@
           :aria-label="isStrictPlaying ? $t('score.pause') : $t('score.start')"
           x-text="isStrictPlaying ? $t('score.pauseBtn') : $t('score.startBtn')"
         ></button>
-        <label class="pt-bpm-field">
-          <span class="pt-sr-only" x-text="$t('score.tempoBpm')">Tempo en BPM</span>
+        <!-- The tempo is typed with a keyboard and pressed with a thumb: the
+             −/+ buttons step it by a notch, and hold to keep stepping. A div
+             rather than a label around the lot, since a label hands its clicks
+             to the first control it holds — which would now be a button. -->
+        <div class="pt-bpm-field">
+          <button
+            type="button"
+            class="pt-band-button pt-bpm-field__step"
+            :disabled="isStrictPlaying"
+            :aria-label="$t('score.tempoDown')"
+            @click="stepBpmField('strictBpm', -1)"
+            @pointerdown="startBpmHold('strictBpm', -1)"
+            @pointerup="endBpmHold('strictBpm')"
+            @pointerleave="endBpmHold('strictBpm')"
+            @pointercancel="endBpmHold('strictBpm')"
+          >−</button>
+          <label class="pt-sr-only" for="strict-bpm" x-text="$t('score.tempoBpm')">Tempo en BPM</label>
           <input
             id="strict-bpm"
             type="number"
-            min="20"
-            max="300"
-            step="1"
+            :min="bpmMin"
+            :max="bpmMax"
+            :step="bpmStep"
             x-model.number="strictBpm"
             :disabled="isStrictPlaying"
             :aria-label="$t('score.tempoBpm')"
           />
           <span class="pt-bpm-field__suffix" x-text="$t('score.bpm')">BPM</span>
-        </label>
+          <button
+            type="button"
+            class="pt-band-button pt-bpm-field__step"
+            :disabled="isStrictPlaying"
+            :aria-label="$t('score.tempoUp')"
+            @click="stepBpmField('strictBpm', 1)"
+            @pointerdown="startBpmHold('strictBpm', 1)"
+            @pointerup="endBpmHold('strictBpm')"
+            @pointerleave="endBpmHold('strictBpm')"
+            @pointercancel="endBpmHold('strictBpm')"
+          >+</button>
+        </div>
         <button
           class="pt-band-button"
           :aria-pressed="loopEnabled"
@@ -255,19 +290,39 @@
           :aria-label="isPlaying ? $t('score.pause') : $t('score.resume')"
           x-text="isPlaying ? $t('score.pauseBtn') : $t('score.resumeBtn')"
         ></button>
-        <label class="pt-bpm-field">
-          <span class="pt-sr-only" x-text="$t('score.playbackTempoBpm')">Tempo de lecture en BPM</span>
+        <div class="pt-bpm-field">
+          <button
+            type="button"
+            class="pt-band-button pt-bpm-field__step"
+            :aria-label="$t('score.playbackTempoDown')"
+            @click="stepBpmField('playbackBpm', -1)"
+            @pointerdown="startBpmHold('playbackBpm', -1)"
+            @pointerup="endBpmHold('playbackBpm')"
+            @pointerleave="endBpmHold('playbackBpm')"
+            @pointercancel="endBpmHold('playbackBpm')"
+          >−</button>
+          <label class="pt-sr-only" for="playback-bpm" x-text="$t('score.playbackTempoBpm')">Tempo de lecture en BPM</label>
           <input
             id="playback-bpm"
             type="number"
-            min="20"
-            max="300"
-            step="1"
+            :min="bpmMin"
+            :max="bpmMax"
+            :step="bpmStep"
             x-model.number.debounce.400ms="playbackBpm"
             :aria-label="$t('score.playbackTempoBpm')"
           />
           <span class="pt-bpm-field__suffix" x-text="$t('score.bpm')">BPM</span>
-        </label>
+          <button
+            type="button"
+            class="pt-band-button pt-bpm-field__step"
+            :aria-label="$t('score.playbackTempoUp')"
+            @click="stepBpmField('playbackBpm', 1)"
+            @pointerdown="startBpmHold('playbackBpm', 1)"
+            @pointerup="endBpmHold('playbackBpm')"
+            @pointerleave="endBpmHold('playbackBpm')"
+            @pointercancel="endBpmHold('playbackBpm')"
+          >+</button>
+        </div>
       </div>
       <span class="pt-context__row" x-text="playbackBandText()">Cliquez sur une mesure pour écouter à partir de là.</span>
     </div>
@@ -332,6 +387,9 @@
 
       <!-- Score (full-bleed) -->
       <section id="score" x-show="!!osmdInstance"></section>
+      <!-- Room for the on-screen keyboard below, so the end of the score can
+           still be scrolled clear of it. -->
+      <div class="pt-keyhint-spacer" x-show="keyHintShown" x-cloak></div>
 
       <!-- Cassettes MIDI (compact bottom strip) -->
       <template x-if="cassetteApiAvailable && !!osmdInstance">
@@ -367,9 +425,7 @@
           <!-- Free / Training: playthrough rankings + evolution chart -->
           <template x-if="resultMode === 'free' || resultMode === 'training'">
             <div>
-              <p x-show="currentPlaythroughDuration && previousPlaythroughs.length === 0" class="pt-modal-stat pt-modal-stat--accent">
-                <span x-text="$t('score.resultTime')">Temps : </span><strong x-text="formatDuration(currentPlaythroughDuration)"></strong>
-              </p>
+              <p x-show="resultMode === 'free' && wrongMeasuresText" class="pt-modal-note pt-modal-note--lead" x-text="wrongMeasuresText"></p>
               <div class="pt-result-cols">
                 <div class="pt-playthrough-scroll" x-show="previousPlaythroughs.length > 0">
                   <table class="pt-playthrough-table">
@@ -381,6 +437,7 @@
                             <span x-show="!pt.isCurrent" x-text="formatDuration(pt.durationMs)"></span>
                           </td>
                           <td><small x-text="pt.isCurrent ? $t('score.now') : formatDate(pt.startedAt)"></small></td>
+                          <td><small x-text="wrongNotesText(pt.wrongNotes)"></small></td>
                         </tr>
                       </template>
                     </tbody>
@@ -459,7 +516,8 @@
             class="pt-action-button is-primary"
             x-show="resultMode !== 'reinforcement' && measuresToReinforce.length > 0"
             @click="closeResultModal(); startReinforcementMode()"
-            x-text="$t(measuresToReinforce.length > 1 ? 'score.reinforceMany' : 'score.reinforceOne', { n: measuresToReinforce.length })"
+            x-text="reinforceLabel()"
+            :aria-label="reinforceLabel('handsFull')"
           ></button>
         </footer>
       </article>
@@ -624,5 +682,26 @@
       </article>
     </dialog>
 
+    <!-- The on-screen keyboard (keyboardHint.js): comes up by itself when a
+         note is taking too long to find, with that note lit. -->
+    <aside class="pt-keyhint" x-show="keyHintShown" x-cloak :aria-label="$t('score.keyHintAria')">
+      <div class="pt-keyhint__bar">
+        <span class="pt-keyhint__caption">
+          <span class="pt-eyebrow" x-text="$t('score.keyHintPlay')"></span>
+          <template x-for="group in keyHintCaption" :key="group.hand">
+            <span class="pt-keyhint__group">
+              <template x-for="note in group.notes" :key="note">
+                <span class="pt-keyhint__chip" x-text="note"></span>
+              </template>
+              <span class="pt-keyhint__hand" x-text="group.hand"></span>
+            </span>
+          </template>
+        </span>
+        <button type="button" class="pt-icon-button pt-keyhint__close" @click="dismissKeyHint()" :aria-label="$t('score.keyHintHide')">✕</button>
+      </div>
+      <div class="pt-keyhint__scroll">
+        <div class="pt-keyhint__keys" id="key-hint-keys"></div>
+      </div>
+    </aside>
   </body>
 </html>

@@ -56,56 +56,37 @@ export function boxesByProximity(point, boxes, slop) {
     .sort((a, b) => toCentre(boxes[a]) - toCentre(boxes[b]))
 }
 
-export function initFingeringEditor({ getOsmdInstance, getAllNotes, getNoteDataByKey, svgNote, svgNotehead }) {
+export function initFingeringEditor({
+  getOsmdInstance,
+  getAllNotes,
+  getNoteDataByKey,
+  svgNote,
+  svgNotehead,
+  graphicalMeasureForNote,
+}) {
   let onNoteClick = null
   let delegatedHandlerAttached = false
 
-  // Build a map from SVG group ID to noteData array by iterating through SourceMeasures.
-  // Uses OSMD's GNote lookup on fresh SourceNote objects (more reliable than noteData.note from allNotes).
-  // Returns Map<svgId, noteData[]> to handle chords (multiple notes per SVG group).
+  // Map<svg group id, noteData[]> for the heads a click can land on. A chord is
+  // one group holding several heads, hence the array.
+  //
+  // Built from the note model rather than from a walk over the sheet of its
+  // own. It used to rebuild every fingering key by re-traversing
+  // SourceMeasures, which meant carrying a fourth copy of the counting rule
+  // fingeringKeys.js defines -- and the copy it carried disagreed with the
+  // extraction's, so on a score with cue or hidden notes the click on a note
+  // after one of them found no entry, or the entry next door. There is nothing
+  // to keep in step now: the model already holds the key, and all this needs
+  // from OSMD is which group each note was drawn into.
   function buildSvgIdToNoteDataMap() {
     const osmdInstance = getOsmdInstance()
-    const noteDataByKeyMap = getNoteDataByKey()
     const svgIdToNoteDatas = new Map()
 
-    for (const measure of osmdInstance.Sheet.SourceMeasures) {
-      const measureNumber = measure.MeasureNumberXML
-      const noteCounters = new Map()
-
-      for (const container of measure.verticalSourceStaffEntryContainers || []) {
-        if (!container.staffEntries) continue
-
-        for (let staffIndex = 0; staffIndex < container.staffEntries.length; staffIndex++) {
-          const staffEntry = container.staffEntries[staffIndex]
-          if (!staffEntry?.voiceEntries) continue
-
-          for (const voiceEntry of staffEntry.voiceEntries) {
-            if (!voiceEntry.notes) continue
-
-            const voiceIndex = (voiceEntry.ParentVoice?.VoiceId ?? 1) - 1
-
-            for (const note of voiceEntry.notes) {
-              if (!note.pitch || note.isRest?.()) continue
-
-              const counterKey = `${staffIndex}:${voiceIndex}`
-              const seqIdx = noteCounters.get(counterKey) ?? 0
-              noteCounters.set(counterKey, seqIdx + 1)
-
-              const fingeringKey = `${measureNumber}:${staffIndex}:${voiceIndex}:${seqIdx}`
-              const svgGroup = osmdInstance.rules.GNote(note)?.getSVGGElement?.()
-              if (!svgGroup?.id) continue
-
-              const noteData = noteDataByKeyMap.get(fingeringKey)
-              if (noteData) {
-                if (!svgIdToNoteDatas.has(svgGroup.id)) {
-                  svgIdToNoteDatas.set(svgGroup.id, [])
-                }
-                svgIdToNoteDatas.get(svgGroup.id).push(noteData)
-              }
-            }
-          }
-        }
-      }
+    for (const noteData of getNoteDataByKey().values()) {
+      const svgGroup = osmdInstance.rules.GNote(noteData.note)?.getSVGGElement?.()
+      if (!svgGroup?.id) continue
+      if (!svgIdToNoteDatas.has(svgGroup.id)) svgIdToNoteDatas.set(svgGroup.id, [])
+      svgIdToNoteDatas.get(svgGroup.id).push(noteData)
     }
 
     return svgIdToNoteDatas
@@ -199,107 +180,14 @@ export function initFingeringEditor({ getOsmdInstance, getAllNotes, getNoteDataB
     }
   }
 
-  // Check whether a staff entry contains a given source note
-  function staffEntryContainsNote(staffEntry, sourceNote) {
-    for (const gve of staffEntry.graphicalVoiceEntries || []) {
-      for (const gn of gve.notes || []) {
-        if (gn.sourceNote === sourceNote) return true
-      }
-    }
-    return false
-  }
-
-  // Semitone height of a source note, undefined for an unpitched one
-  const halfToneOf = (sourceNote) => sourceNote?.Pitch?.getHalfTone()
-
-  // Find the highest-pitched source note across all voice entries in a staff entry
-  function findTopNoteInStaffEntry(staffEntry) {
-    let topNote = null
-    for (const gve of staffEntry.graphicalVoiceEntries || []) {
-      for (const gn of gve.notes || []) {
-        if (!topNote || halfToneOf(gn.sourceNote) > halfToneOf(topNote)) {
-          topNote = gn.sourceNote
-        }
-      }
-    }
-    return topNote
-  }
-
-  // Collect fingering TechnicalInstructions from a staff entry (non-grace voices only)
-  function collectFingeringsFromStaffEntry(staffEntry) {
-    const fingerings = []
-    for (const gve of staffEntry.graphicalVoiceEntries || []) {
-      if (gve.parentVoiceEntry?.IsGrace) continue
-      for (const ti of gve.parentVoiceEntry?.TechnicalInstructions || []) {
-        if (ti.type === 0) fingerings.push(ti)
-      }
-    }
-    return fingerings
-  }
-
-  // Determine whether fingerings are placed above or below the staff
-  // PlacementEnum: Above=0, Below=1
-  function isFingeringsPlacedAbove(graphicalMeasure) {
-    const position = getOsmdInstance().rules?.FingeringPosition
-    if (position === 0) return true
-    if (position === 1) return false
-    return graphicalMeasure.isUpperStaffOfInstrument?.() ?? true
-  }
-
-  // Order a staff entry's fingerings to match OSMD's FingeringEntries array, so
-  // orderedFingeringsForStaffEntry(...)[i] pairs with staffEntry.FingeringEntries[i].
-  // Mirrors calculateFingerings() in OSMD's MusicSheetCalculator -- keep in sync
-  // when the vendored bundle moves.
-  function orderedFingeringsForStaffEntry(staffEntry, graphicalMeasure) {
-    const fingerings = collectFingeringsFromStaffEntry(staffEntry)
-    if (fingerings.length < 2) return fingerings
-    const above = isFingeringsPlacedAbove(graphicalMeasure)
-
-    // When every fingering belongs to a distinct pitched note, OSMD stacks them in
-    // the pitch order of their notes, so the stack mirrors the chord. This is the
-    // usual case, and the only one where collection order (voice by voice) can
-    // disagree with what gets rendered -- e.g. a chord in voice 1 plus a lower note
-    // in voice 2 (Pathetique 2nd mvt, m24).
-    const distinctPitchedNotes = fingerings.every(
-      (fingering, index) =>
-        fingering.sourceNote?.Pitch !== undefined &&
-        fingerings.findIndex((other) => other.sourceNote === fingering.sourceNote) === index,
-    )
-    if (distinctPitchedNotes) {
-      fingerings.sort((a, b) => halfToneOf(a.sourceNote) - halfToneOf(b.sourceNote))
-      if (!above) fingerings.reverse()
-    } else if (!above) {
-      // Fallback for bulk fingerings (several per note) and unpitched notes: OSMD
-      // keeps the collection order and applies these heuristics instead.
-      fingerings.reverse()
-    } else if (fingerings[0].sourceNote === findTopNoteInStaffEntry(staffEntry)) {
-      fingerings.reverse()
-    }
-    return fingerings
-  }
-
-  // Find the FingeringEntry for a note given its fingeringKey and noteData.
-  // fingeringKey format: measureNumber:staffIndex:voiceIndex:noteIndex
-  function findFingeringEntry(fingeringKey, targetNoteData) {
-    const osmdInstance = getOsmdInstance()
-    if (!osmdInstance?.graphic?.MeasureList) return null
-
-    const [measureNumber, staffIndex] = fingeringKey.split(':').map(Number)
-
-    const sourceMeasures = osmdInstance.Sheet.SourceMeasures
-    const sourceMeasureIndex = sourceMeasures.findIndex((m) => m.MeasureNumberXML === measureNumber)
-    if (sourceMeasureIndex < 0) return null
-
-    const graphicalMeasure = osmdInstance.graphic.MeasureList[sourceMeasureIndex]?.[staffIndex]
-    if (!graphicalMeasure) return null
-
-    for (const staffEntry of graphicalMeasure.staffEntries || []) {
-      if (!staffEntryContainsNote(staffEntry, targetNoteData.note)) continue
-
-      const fingerings = orderedFingeringsForStaffEntry(staffEntry, graphicalMeasure)
-      const finalIndex = fingerings.findIndex((f) => f.sourceNote === targetNoteData.note)
-      if (finalIndex < 0) return null
-      return staffEntry.FingeringEntries?.[finalIndex] || null
+  // Find the FingeringEntry for a note, in the measure the note is drawn in.
+  // Asked of the note rather than read off its key: the key names the bar, and
+  // a bar the file splits across two systems is two of OSMD's measures (see
+  // barCounter in fingeringKeys.js).
+  function findFingeringEntry(targetNoteData) {
+    for (const staffEntry of graphicalMeasureForNote(targetNoteData.note).staffEntries || []) {
+      const entry = staffEntry.FingeringEntries?.find((label) => label.sourceNote === targetNoteData.note)
+      if (entry) return entry
     }
 
     return null
@@ -326,10 +214,9 @@ export function initFingeringEditor({ getOsmdInstance, getAllNotes, getNoteDataB
           const entries = staffEntry.FingeringEntries
           if (!entries?.length) continue
 
-          const fingerings = orderedFingeringsForStaffEntry(staffEntry, graphicalMeasure)
-          for (let i = 0; i < entries.length && i < fingerings.length; i++) {
-            const textEl = entries[i]?.SVGNode?.querySelector('text')
-            const note = fingerings[i]?.sourceNote
+          for (const entry of entries) {
+            const textEl = entry.SVGNode?.querySelector('text')
+            const note = entry.sourceNote
             const notehead = note && svgNote(note)?.querySelector('.vf-notehead')
             const x = textEl && parseFloat(textEl.getAttribute('x'))
             if (!notehead || !Number.isFinite(x)) continue
@@ -367,8 +254,8 @@ export function initFingeringEditor({ getOsmdInstance, getAllNotes, getNoteDataB
 
   // Update an existing fingering's SVG directly without re-rendering
   // Returns true if successful, false if no existing fingering found
-  function updateFingeringSVG(fingeringKey, newFinger) {
-    const targetNoteData = getNoteDataByKey().get(fingeringKey)
+  function updateFingeringSVG(key, newFinger) {
+    const targetNoteData = getNoteDataByKey().get(key)
     if (!targetNoteData) return false
 
     const fingerText = newFinger.toString()
@@ -390,7 +277,7 @@ export function initFingeringEditor({ getOsmdInstance, getAllNotes, getNoteDataB
       return createGraceNoteFingeringText(svgGroup, fingerText)
     }
 
-    const fingeringEntry = findFingeringEntry(fingeringKey, targetNoteData)
+    const fingeringEntry = findFingeringEntry(targetNoteData)
     const textEl = fingeringEntry?.SVGNode?.querySelector('text')
     if (!textEl) return false
 
@@ -411,8 +298,8 @@ export function initFingeringEditor({ getOsmdInstance, getAllNotes, getNoteDataB
 
   // Add a fingering to OSMD's internal data model (without re-rendering)
   // This allows a subsequent renderScore() to pick it up via calculateFingerings
-  function addFingeringToDataModel(fingeringKey, finger) {
-    const noteData = getNoteDataByKey().get(fingeringKey)
+  function addFingeringToDataModel(key, finger) {
+    const noteData = getNoteDataByKey().get(key)
     if (!noteData?.voiceEntry?.TechnicalInstructions) return false
 
     noteData.voiceEntry.TechnicalInstructions.push({
@@ -424,8 +311,8 @@ export function initFingeringEditor({ getOsmdInstance, getAllNotes, getNoteDataB
   }
 
   // Remove a fingering from OSMD's internal data model
-  function removeFingeringFromDataModel(fingeringKey) {
-    const noteData = getNoteDataByKey().get(fingeringKey)
+  function removeFingeringFromDataModel(key) {
+    const noteData = getNoteDataByKey().get(key)
     if (!noteData?.voiceEntry?.TechnicalInstructions) return false
 
     const tis = noteData.voiceEntry.TechnicalInstructions
