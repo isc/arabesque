@@ -1,5 +1,12 @@
 import { isTestEnv } from './utils.js'
-import { tsToSeconds, buildMeasureStartTimes, buildCursorTimeline, cursorStepsBeforeMeasure, measureIndexAt } from './playbackTiming.js'
+import {
+  tsToSeconds,
+  buildMeasureStartTimes,
+  buildCursorTimeline,
+  cursorStepsBeforeMeasure,
+  measureIndexAt,
+  GRACE_NOTE_OFFSET_WN,
+} from './playbackTiming.js'
 import { scrollSystemIntoView } from './utils.js'
 
 // The three states the transport can be in. Paused is not stopped: the piece is
@@ -35,6 +42,14 @@ let playbackBpm = null
 
 const GRACE_NOTE_DURATION_S = 0.08
 
+// How long a grace note sounds: GRACE_NOTE_DURATION_S, but those that follow their
+// note are squeezed if need be so the last of them ends with the bar.
+function graceDurationMs(noteData, mainMs, barEndMs) {
+  const fullMs = GRACE_NOTE_DURATION_S * 1000
+  if (!noteData.isAfterGrace) return fullMs
+  return Math.min(fullMs, (barEndMs - mainMs) / (noteData._graceCount + 1))
+}
+
 // The gap between two notes of a rolled chord, bottom to top. A fixed time, not
 // a share of the beat: a roll is a gesture of the hand, about as quick at any
 // tempo — only squeezed when the chord is too short to hold it (rollOffsetMs).
@@ -56,9 +71,6 @@ const ARPEGGIO_STEP_MS = 40
 // there is nothing to put back.
 const PLAYBACK_VELOCITY_BYTE = 40
 const PLAYBACK_VELOCITY = PLAYBACK_VELOCITY_BYTE / 127
-
-// Must match GRACE_NOTE_OFFSET in noteExtraction.js adjustGraceNoteTimestamps
-const GRACE_NOTE_OFFSET_WN = 0.0001
 
 export function initPlayback(externalMidiState = null) {
   midiState = externalMidiState
@@ -176,9 +188,10 @@ const ORNAMENT_NOTE_DURATION_WN = 1 / 16
 //
 // Arpeggiated chords: each note is marked with its place in the roll (markArpeggioRolls).
 //
-// Grace notes: the extractor places them GRACE_NOTE_OFFSET_WN before their main note
-// (≈0.2ms at 120 BPM — effectively simultaneous). Here we schedule them so the last
-// grace note ends exactly at the main note's start time.
+// Grace notes: the extractor places them GRACE_NOTE_OFFSET_WN apart on one side of
+// their main note (≈0.2ms at 120 BPM — effectively with it). Here we schedule them so
+// the last ends exactly as the main note starts, or, for those that follow it
+// (isAfterGrace), so the first starts one grace note after it.
 export function expandOrnamentTimings(notes) {
   const ornamentGroups = new Map()
   const arpeggioChords = new Map()
@@ -188,12 +201,16 @@ export function expandOrnamentTimings(notes) {
   function flushGraceGroup() {
     if (graceGroup.length === 0) return
     const n = graceGroup.length
-    // mainTs is the timestamp of the note the grace notes precede
-    const mainTs = graceGroup[n - 1].timestamp + GRACE_NOTE_OFFSET_WN
+    const after = graceGroup[0].isAfterGrace
+    // mainTs is the timestamp of the note the grace notes precede, or follow
+    const mainTs = after
+      ? graceGroup[0].timestamp - GRACE_NOTE_OFFSET_WN
+      : graceGroup[n - 1].timestamp + GRACE_NOTE_OFFSET_WN
     for (let i = 0; i < n; i++) {
       // _graceOffset: how many grace note durations before mainTs this note starts
-      // Last note (i=n-1): starts 1 duration before mainTs, ends exactly at mainTs
-      result.push({ ...graceGroup[i], _graceMainTs: mainTs, _graceOffset: n - i })
+      // Last note (i=n-1): starts 1 duration before mainTs, ends exactly at mainTs.
+      // Negative for grace notes that follow it: the first starts 1 duration after.
+      result.push({ ...graceGroup[i], _graceMainTs: mainTs, _graceOffset: after ? -(i + 1) : n - i, _graceCount: n })
     }
     graceGroup = []
   }
@@ -206,6 +223,7 @@ export function expandOrnamentTimings(notes) {
       if (group.length === 0) ornamentGroups.set(noteData.note, group)
       group.push(noteData)
     } else if (noteData.isGrace) {
+      if (graceGroup.length > 0 && graceGroup[0].isAfterGrace !== noteData.isAfterGrace) flushGraceGroup()
       graceGroup.push(noteData)
     } else if (noteData.note?.Arpeggio && !noteData.isTieContinuation) {
       // A copy, as the roll is marked on it: the extractor's own objects stay clean.
@@ -462,6 +480,7 @@ function startPlayback(allNotes, osmdInstance, startMeasureIndex = 0) {
     const measureData = playNotes[i]
     const measureStartTs = measureStartTimes[i]
     const measureOffset = measureStartTs - measureData.measureIndex
+    const barEndMs = tsToSeconds(measureStartTs + measureData.duration, bpm) * 1000
     const notes = expandOrnamentTimings(measureData.notes)
 
     for (const n of notes) {
@@ -469,8 +488,8 @@ function startPlayback(allNotes, osmdInstance, startMeasureIndex = 0) {
 
       if (n._graceMainTs !== undefined) {
         const mainMs = tsToSeconds(measureOffset + n._graceMainTs, bpm) * 1000
-        startMs = Math.max(0, mainMs - n._graceOffset * GRACE_NOTE_DURATION_S * 1000)
-        durationMs = GRACE_NOTE_DURATION_S * 1000
+        durationMs = graceDurationMs(n, mainMs, barEndMs)
+        startMs = Math.max(0, mainMs - n._graceOffset * durationMs)
       } else {
         startMs = tsToSeconds(measureOffset + n.timestamp, bpm) * 1000
         durationMs = tsToSeconds(n._ornamentDuration ?? n.note.Length.RealValue, bpm) * 1000
