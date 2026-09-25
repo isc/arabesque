@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   barCounter,
+  fileNumbering,
   fingeringKey,
   isLegacyFingeringKey,
   legacyFingeringKey,
@@ -62,6 +63,58 @@ describe('barCounter', () => {
   // A second ending exported "X1", which parseInt reads as NaN.
   it('keeps apart an implicit measure whose number cannot be read', () => {
     expect(barIndexes([[19, false], [NaN, true], [NaN, true]])).toEqual([0, 1, 2])
+  })
+})
+
+// A file as its walk reads it: parts of [declared staves, measures], a measure
+// [number, implicit, notes], a note [staff, voice] as the file writes them.
+function fileKeys(parts) {
+  const numbering = fileNumbering()
+  const keys = []
+  for (const [staves, measures] of parts) {
+    numbering.part(staves)
+    for (const [number, implicit, notes] of measures) {
+      numbering.measure(number, implicit)
+      for (const [staff, voice] of notes) keys.push(numbering.note(staff, voice).key)
+    }
+  }
+  return keys
+}
+
+describe('fileNumbering', () => {
+  it('counts each staff and voice of a bar on its own, from zero', () => {
+    expect(fileKeys([[[2], [[1, false, [[1, 1], [1, 1], [2, 5], [1, 1]]]]]])).toEqual([
+      'm0:0:0:0',
+      'm0:0:0:1',
+      'm0:1:4:0',
+      'm0:0:0:2',
+    ])
+  })
+
+  it('runs the count on through a bar written as two measures', () => {
+    expect(fileKeys([[[], [[1, false, [[1, 1]]], [1, true, [[1, 1]]], [2, false, [[1, 1]]]]]])).toEqual([
+      'm0:0:0:0',
+      'm0:0:0:1',
+      'm1:0:0:0',
+    ])
+  })
+
+  // The two-part Entertainer: a grand staff written as two one-staff parts.
+  it('numbers staves across the sheet, each part restarting its bars', () => {
+    const measure = [1, false, [[1, 1]]]
+    expect(fileKeys([[[], [measure]], [[], [measure]]])).toEqual(['m0:0:0:0', 'm0:1:0:0'])
+  })
+
+  it('makes room for the most staves a part declares', () => {
+    const measure = [1, false, [[1, 1]]]
+    expect(fileKeys([[[1, 2], [measure]], [[], [measure]]])).toEqual(['m0:0:0:0', 'm0:2:0:0'])
+  })
+
+  it('tells the caller the staff and voice the key counted', () => {
+    const numbering = fileNumbering()
+    numbering.part([2])
+    numbering.measure(1, false)
+    expect(numbering.note(2, 3)).toEqual({ key: 'm0:1:2:0', staff: 1, voice: 2 })
   })
 })
 

@@ -1,25 +1,8 @@
-import { barCounter, fingeringKey, nextNoteIndex } from './fingeringKeys.js'
+import { fileNumbering } from './fingeringKeys.js'
 
 function getElementInt(parent, tagName, defaultValue) {
   const el = parent.querySelector(tagName)
   return el ? parseInt(el.textContent, 10) : defaultValue
-}
-
-// How many staves each <part> brings, so a note's staff can be numbered across
-// the whole sheet rather than within its part -- which is how OSMD numbers it,
-// and the two have to agree or a fingering written on the second part's staff
-// is drawn on the first part's. The max of what the part declares, because a
-// part that grows a staff mid-score keeps the room it ended up needing; parts
-// declare it once and never change it in practice.
-function staffOffsetsByPart(parts) {
-  const offsets = []
-  let total = 0
-  for (const part of parts) {
-    offsets.push(total)
-    const declared = [...part.querySelectorAll('staves')].map((el) => parseInt(el.textContent, 10))
-    total += Math.max(1, ...declared.filter(Number.isFinite))
-  }
-  return offsets
 }
 
 // Every note of a parsed MusicXML document that can carry a fingering, in
@@ -31,28 +14,17 @@ function staffOffsetsByPart(parts) {
 // again under the name this one gives. Injection has to happen before
 // osmd.load(), so the two walks cannot be merged; separated from the injection
 // itself, this one can at least be held against the other on every score in the
-// library (test/fingering_key_scheme_test.rb).
+// library (test/fingering_key_scheme_test.rb). scripts/import-fingerings.mjs
+// walks the file as text and numbers it with the same fileNumbering().
 export function* fingeringNotesInDocument(doc) {
-  const parts = [...doc.querySelectorAll('part')]
-  const staffOffsets = staffOffsetsByPart(parts)
-
-  for (const [partIndex, part] of parts.entries()) {
-    // The bar's position, not its number attribute: see fingeringKeys.js.
-    // Counted per part, because every part runs the same measures.
-    const nextBar = barCounter()
-    let noteCounters
+  const numbering = fileNumbering()
+  for (const part of doc.querySelectorAll('part')) {
+    numbering.part([...part.querySelectorAll('staves')].map((el) => parseInt(el.textContent, 10)))
     for (const measure of part.querySelectorAll('measure')) {
-      const bar = nextBar(parseInt(measure.getAttribute('number'), 10), measure.getAttribute('implicit') === 'yes')
-      if (!bar.continues) noteCounters = new Map()
-
+      numbering.measure(parseInt(measure.getAttribute('number'), 10), measure.getAttribute('implicit') === 'yes')
       for (const note of measure.querySelectorAll('note')) {
         if (note.querySelector('rest')) continue
-
-        // Convert 1-based MusicXML indices to 0-based
-        const staff = staffOffsets[partIndex] + getElementInt(note, 'staff', 1) - 1
-        const voice = getElementInt(note, 'voice', 1) - 1
-
-        yield { note, key: fingeringKey(bar.index, staff, voice, nextNoteIndex(noteCounters, staff, voice)) }
+        yield { note, key: numbering.note(getElementInt(note, 'staff', 1), getElementInt(note, 'voice', 1)).key }
       }
     }
   }

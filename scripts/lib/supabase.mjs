@@ -1,9 +1,10 @@
 // Shared access to the Arabesque Supabase project's Management API.
 //
-// Both scripts that talk to it — scripts/feedback.mjs (reads the feedback
-// table) and scripts/apply-auth-config.mjs (applies supabase/auth.md) — go
-// through here, so the token lookup and the API's error shape are handled in
-// exactly one place.
+// Every script that talks to it — scripts/feedback.mjs (the feedback table),
+// scripts/apply-auth-config.mjs (supabase/auth.md), scripts/import-fingerings.mjs
+// (a player's fingerings), landing-video/capture/fetch-backup.mjs — goes
+// through here, so the token lookup, the API's error shape and the quoting of
+// what goes into its SQL are handled in exactly one place.
 //
 // ⚠ The token is account-wide, not project-scoped: never print it, never copy
 // it anywhere else. See ~/.claude/SUPABASE.md.
@@ -49,3 +50,6 @@ export async function api(path, init = {}) {
 }
 
 export const query = (sql) => api('/database/query', { method: 'POST', body: JSON.stringify({ query: sql }) })
+
+// The API takes SQL as a string, so a value interpolated into it is quoted here.
+export const quote = (value) => `'${String(value).replace(/'/g, "''")}'`

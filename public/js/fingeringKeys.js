@@ -18,7 +18,7 @@
 // barlines, so all eleven of its measures are exported `number="0"` and its
 // 872 notes shared 86 keys -- a fingering written on one measure was drawn on
 // every measure. The 1902 Entertainer numbers a second ending "X1", which
-// parseInt reads as NaN while OSMD reads it as null, so those fingerings were
+// parseInt reads as NaN while OSMD leaves it undefined, so those fingerings were
 // stored under one name and looked for under another and never appeared at all.
 //
 // `note` counts every <note> that is not a rest -- cue notes, notes the score
@@ -29,7 +29,7 @@
 // every key after it in the measure and hands the next note's fingering to the
 // wrong head.
 
-// Old keys have a digit, `N` (NaN) or `n` (null) where new ones have `m`, so
+// Old keys have a digit, `N` (NaN) or `u` (undefined) where new ones have `m`, so
 // the two can share a record without ever being mistaken for one another --
 // which they have to, because a record syncs whole and last-write-wins, and a
 // device still running the old build must show nothing rather than something
@@ -68,6 +68,44 @@ export function barCounter() {
       open = implicit ? null : number
     }
     return { index, continues }
+  }
+}
+
+// The numbering a walk over the file itself obeys: fingeringInjector.js over a
+// parsed document, scripts/import-fingerings.mjs over the text, which has to
+// edit it in place. Both read the same things in the same order -- each <part>
+// with the <staves> it declares, each <measure> with its number and implicit
+// flag, each <note> that is not a rest with its 1-based <staff> and <voice> --
+// and hand them here, so the rules a key obeys are written once:
+//
+//   part(declared)            at each <part>: the staves it declares, all of them
+//   measure(number, implicit) at each <measure>: the bar, as barCounter says
+//   note(staff, voice)        at each note: its key, and its staff and voice as
+//                             the key counts them (0-based, staff sheet-wide)
+export function fileNumbering() {
+  let firstStaff = 0
+  let staves = 0
+  let nextBar
+  let bar
+  let counters
+  return {
+    part(declared) {
+      firstStaff += staves
+      // The most the part declares: one that grows a staff mid-score keeps
+      // the room it ended up needing.
+      staves = Math.max(1, ...declared.filter(Number.isFinite))
+      nextBar = barCounter()
+    },
+    measure(number, implicit) {
+      bar = nextBar(number, implicit)
+      if (!bar.continues) counters = new Map()
+      return bar
+    },
+    note(staff, voice) {
+      const s = firstStaff + staff - 1
+      const v = voice - 1
+      return { key: fingeringKey(bar.index, s, v, nextNoteIndex(counters, s, v)), staff: s, voice: v }
+    },
   }
 }
 

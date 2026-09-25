@@ -14,14 +14,13 @@
 // rebuilds them from the sessions after the import, the way sync does.
 import fs from 'fs'
 import { parseArgs } from 'node:util'
-import { die, query } from '../../scripts/lib/supabase.mjs'
+import { die, query, quote } from '../../scripts/lib/supabase.mjs'
 import { BACKUP_PATH, WORKDIR } from './lib.mjs'
 
 const { values } = parseArgs({
   options: { email: { type: 'string' }, profile: { type: 'string', default: 'main' } },
 })
 
-const quote = (value) => `'${String(value).replace(/'/g, "''")}'`
 const profile = quote(values.profile)
 
 const [owner] = await query(`

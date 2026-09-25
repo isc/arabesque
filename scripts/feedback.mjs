@@ -34,16 +34,13 @@ import { join } from 'node:path'
 import { parseArgs } from 'node:util'
 // The token lookup and the API's error shape are handled in one place, shared
 // with scripts/apply-auth-config.mjs.
-import { die, query } from './lib/supabase.mjs'
+import { die, query, quote } from './lib/supabase.mjs'
 
 const ID_PREFIX = /^[0-9a-f]{4,36}$/i // uuid, or enough of its start to be useful
 
-// The API takes SQL as a string, so anything interpolated is quoted here. Only
-// ever used for id prefixes, which are checked against ID_PREFIX first — belt
-// and braces, since one of these ends up inside a LIKE pattern.
-function quote(value) {
-  return `'${String(value).replace(/'/g, "''")}'`
-}
+// Anything interpolated into SQL goes through quote(). Here that is only ever
+// id prefixes, checked against ID_PREFIX first — belt and braces, since one of
+// these ends up inside a LIKE pattern.
 
 function short(id) {
   return id.slice(0, 8)
