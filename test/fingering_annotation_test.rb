@@ -6,6 +6,7 @@ class FingeringAnnotationTest < CapybaraTestBase
   CHORD_SCORE_URL = '/test-fixtures/chord.xml'
   TWO_VOICE_SCORE_URL = '/test-fixtures/two-voice-fingerings.xml'
   CHOPIN_WALTZ_URL = 'scores/Waltz_in_A_MinorChopin.mxl'
+  BEAMED_MORDENT_URL = '/test-fixtures/fingering-over-beamed-mordent.xml'
 
   def setup
     page.driver.set_cookie('test-env', 'true')
@@ -212,6 +213,24 @@ class FingeringAnnotationTest < CapybaraTestBase
 
     # The 3 belongs to G4, the middle note, so only the middle label may change.
     assert_equal %w[5 2 1], first_beat_fingerings
+  end
+
+  # A fingering over a beamed, stem-up note clears the ornament on the same note.
+  # OSMD placed it from a first draw that had the ornament under the beam, and
+  # the digits landed on the mordent once the stems reached the beam (feedback
+  # 8ab0a2f9, BWV 847 bar 34).
+  def test_a_fingering_clears_the_ornament_of_a_beamed_note
+    visit "/score.html?url=#{BEAMED_MORDENT_URL}"
+    wait_for_score_render(8)
+
+    label_bottom, mordent_top = page.evaluate_script(<<~JS)
+      (() => {
+        const label = [...document.querySelectorAll('#score svg g.vf-text text')].find((t) => t.textContent === '323')
+        const mordent = document.querySelector('#score svg .vf-stavenote .vf-modifiers path')
+        return [label.getBoundingClientRect().bottom, mordent.getBoundingClientRect().top]
+      })()
+    JS
+    assert_operator label_bottom, :<=, mordent_top + 0.5
   end
 
   private

@@ -517,8 +517,33 @@ function areSideBySide({ hiddenPath, visiblePath }) {
   return boxes.length === 2 && Math.abs(boxes[0].x - boxes[1].x) >= 1
 }
 
+// A stopgap for OSMD 2.1.3, like fixUpInvisibleNotes: until a release carries the upstream fix,
+// OSMD lays out what goes above a staff — fingerings among them — from a first, offscreen draw of
+// each measure, in which the notes are drawn before their beams. A beam only stretches its notes'
+// stems as it is drawn itself, and an ornament sits on the end of its stem: on a beamed stem-up
+// note, that first draw put the ornament under the beam, and the fingering came down onto it once
+// the stems were stretched (feedback 8ab0a2f9, BWV 847 bar 34). Stretching the stems as the
+// measure is formatted puts the ornament where it will be drawn, in both draws.
+function stretchBeamedStemsOnFormat() {
+  const measure = opensheetmusicdisplay.VexFlowMeasure.prototype
+  if (measure.format.stretchesBeamedStems) return
+  const format = measure.format
+  measure.format = function (...args) {
+    const result = format.apply(this, args)
+    const beams = [
+      ...Object.values(this.vfbeams ?? {}).flat(),
+      ...(this.autoVfBeams ?? []),
+      ...(this.autoTupletVfBeams ?? []),
+    ]
+    for (const beam of beams) if (!beam.postFormatted) beam.postFormat()
+    return result
+  }
+  measure.format.stretchesBeamedStems = true
+}
+
 async function renderMusicXML(xmlContent) {
   try {
+    stretchBeamedStemsOnFormat()
     const scoreContainer = document.getElementById('score')
     const osmd = new opensheetmusicdisplay.OpenSheetMusicDisplay(scoreContainer, {
       drawPartNames: false,
