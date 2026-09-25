@@ -1,4 +1,4 @@
-import { t, locale } from './i18n.js'
+import { t, tn, locale } from './i18n.js'
 import { TWO_HANDS } from './hands.js'
 
 // Built once: the active locale is fixed for the page lifetime (switching
@@ -62,6 +62,14 @@ function getStickyOffset() {
   return offset
 }
 
+// True when something at viewport y `top` falls inside the headroom the sticky
+// bars own — where scrollSystemIntoView refuses to leave anything it is asked
+// to keep in view. One owner for that arithmetic: the callers ask the question
+// rather than recomputing the offset.
+export function isUnderStickyBars(top) {
+  return top < getStickyOffset()
+}
+
 export function applyStickyOffset() {
   document.documentElement.style.setProperty('--pt-sticky-offset', `${getStickyOffset()}px`)
 }
@@ -93,9 +101,14 @@ function findSystemTopAnchor(referenceTop, svg) {
 // sticky bars, leaving getStickyOffset() of headroom for the above-staff
 // markings. Shared by the measure cursor (musicxml.js) and the playback cursor
 // (playback.js) so both autoscroll paths behave identically.
-export function scrollSystemIntoView(referenceTop, svg) {
+// `hangingTop` (viewport space, optional) is anything drawn higher than the
+// scanned band and owed the same headroom — the training dots, which hang over
+// the noteheads rather than over the staff, and so can go further up than the
+// <text> this scan was written for ever does.
+export function scrollSystemIntoView(referenceTop, svg, hangingTop = null) {
   if (!svg) return
-  const anchorTop = findSystemTopAnchor(referenceTop, svg)
+  let anchorTop = findSystemTopAnchor(referenceTop, svg)
+  if (hangingTop != null) anchorTop = Math.min(anchorTop, hangingTop)
   const targetY = window.scrollY + anchorTop - getStickyOffset()
   window.scrollTo({ top: Math.max(0, targetY), behavior: 'smooth' })
 }
@@ -118,14 +131,24 @@ export function formatDuration(ms) {
 
 // Captions a run of the score with the hands that played it. Two hands is the
 // plain case and captions nothing: an unlabelled run is the piece played whole.
-export function withHands(text, hands) {
-  return hands === TWO_HANDS ? text : `${text} · ${t(`hands.${hands}`)}`
+// The hand is named short, "MD", unless `words` asks for 'handsFull' — what a
+// control whose caption this is should be named when read aloud.
+export function withHands(text, hands, words = 'hands') {
+  return hands === TWO_HANDS ? text : `${text} · ${t(`${words}.${hands}`)}`
 }
 
-// Captions a group of runs (see hands' playthroughGroups): "… · mode strict ·
-// main droite", each qualifier only when it isn't the default.
+// Captions a group of runs (see hands' playthroughGroups): "… · mode strict · MD",
+// each qualifier only when it isn't the default.
 export function withRunKind(text, { hands, strict }) {
   return withHands(strict ? `${text} · ${t('score.strictRuns')}` : text, hands)
+}
+
+// The strict band's passage line, from the first and last bar of the loop. A
+// one-bar passage is a range only on paper: "boucle des mesures 6 à 6" is how
+// a computer counts, not how a pianist says it (feedback 506f2060). The number
+// of bars picks the wording, so each language says the single one its own way.
+export function loopRangeText(from, to) {
+  return tn('score.loopRange', to - from + 1, { from, to })
 }
 
 export function statusLabel(status) {
@@ -177,4 +200,24 @@ export function formatDate(date) {
 export function pickPassageMeasure({ measureIndex, start, armed, loop }) {
   if (armed && measureIndex >= start) return { start, end: measureIndex, armed: false }
   return { start: measureIndex, end: null, armed: loop }
+}
+
+// The words a text offers the search box: accents folded away, punctuation
+// dropped, so "Burgmüller" is filed under "burgmuller" and found by someone
+// whose keyboard has no umlaut (feedback 928aef27).
+export function searchWords(text) {
+  return text
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '')
+    .split(/[^\p{L}\p{N}]+/u)
+    .filter(Boolean)
+}
+
+// Does a text answer a search? Both sides are searchWords() output: a query
+// word matches when it starts one of the text's, in any order. The text's
+// words come in already folded because the caller has a whole catalog of them
+// to weigh against one query, and folding is the expensive half.
+export function matchesSearch(words, query) {
+  return query.every((q) => words.some((w) => w.startsWith(q)))
 }

@@ -97,6 +97,21 @@ ruby scripts/generate_fingerprints.rb
 `public/data/fingerprints.json` must stay in sync with the catalog: one
 fingerprint per score file, including each part of a collection.
 
+Correcting a score in place — a wrong trill, a measure re-engraved — does reach
+devices that already opened the piece: the service worker serves `/scores/` from
+the cache and refreshes behind the answer, so the fix lands on the opening after
+the one that fetched it (`public/sw.js`). Nothing to bump, no filename to
+change. What does **not** follow the correction is everything keyed to the old
+notation — fingerings by `m<bar>:staff:voice:noteIndex`, practice aggregates by
+`sourceMeasureIndex`, both counting bars by position. Adding, removing or
+renumbering a measure silently re-points both, locally and in Supabase. Fixing
+an accidental is free; changing the measure count is not.
+
+The one exception is splitting a bar so a system can break inside it: write the
+second half as `<measure number="N" implicit="yes">`, N being the bar it
+completes, and both halves stay one bar — same index, note count running on —
+so nothing re-points (`barCounter` in `public/js/fingeringKeys.js`).
+
 A catalog entry with `parts: [{title, file}]` instead of `file` is a
 **collection** (e.g. the Hanon exercises): one library row, a part navigator on
 the score page, and practice data, fingerings and fingerprints kept per part
@@ -111,15 +126,20 @@ same score. `scripts/import-fingerings.mjs` writes them into the file in
 `public/scores/`:
 
 ```bash
-node scripts/import-fingerings.mjs backup.json --dry-run          # what it would change
-node scripts/import-fingerings.mjs backup.json --score Canon_in_D # narrow to some scores
-node scripts/import-fingerings.mjs backup.json                    # write it
+node scripts/import-fingerings.mjs --player <email> --dry-run     # a signed-in player's, from Supabase
+node scripts/import-fingerings.mjs backup.json --dry-run          # or from an export
+node scripts/import-fingerings.mjs --player <email> --score Canon_in_D --dry-run  # narrow to some scores
+node scripts/import-fingerings.mjs --player <email> --score Canon_in_D            # write it
 ```
 
-`backup.json` is what the app's own **📤 Exporter sauvegarde** button (data
-page) writes — its `fingerings` array is the input, one record per score file,
-collections included. The script header has a console snippet for the same
-thing without the practice history, and the rest of the reasoning.
+`--player` reads the fingerings Supabase keeps for a signed-in player
+(`--profile` for another of their profiles), with the token
+`scripts/lib/supabase.mjs` uses. `backup.json` is what the app's own
+**📤 Exporter sauvegarde** button (data page) writes, for a player who never
+signed in — its `fingerings` array is the input, one record per score file,
+collections included. A record still keyed the way fingerings were before
+#350 is converted as the app converts it; the script header has the rest of
+the reasoning.
 
 Always start with `--dry-run`, and always look at the result on the branch
 preview before merging: a key names a note by its position in the engraving, so
@@ -206,11 +226,37 @@ A report carries a picture of the screen behind the modal
 `shot` writes the image out. Neither `list` nor `show` ever prints the value
 itself — a few hundred kB of base64 would bury the entry.
 
+It also carries the JavaScript errors the app ran into in the hour before, if
+any (`public/js/errorLog.js`): `list` marks those with ⚠ and their number,
+`show` prints them with their stacks. An error the app catches and gets past
+but wants to hear about goes through `recordError(error, where)` from the same
+module, in place of the `console.error` — it logs it too.
+
 The header of `scripts/feedback.mjs` has the rest (`show`, `untreat`, flags).
 Each new feedback also emails ivan.schneider@hey.com, so there is nothing to poll.
 
 `supabase/feedback.sql` is the canonical DDL — the project has no migration
 system, so a schema change is applied by hand **and** written there.
+
+## Supabase auth config
+
+`supabase/auth.md` is the canonical record of how the sign-in email is sent and
+what it says — the SMTP block, the code's length and lifetime, the rate limit,
+and the template itself. **Never PATCH one of those settings by hand:** the
+Management API groups them, and naming one member of a group silently clears the
+rest. That is not theoretical — it wiped SMTP and put the magic link back into
+production on 2026-09-08. Go through the applier, which only sends whole groups
+and checks that nothing else moved:
+
+```bash
+node scripts/apply-auth-config.mjs          # show what differs, change nothing
+node scripts/apply-auth-config.mjs --apply  # push supabase/auth.md
+```
+
+`test/js/authConfig.test.js` guards the file's invariants offline (no token, so
+it runs in CI): the template carries a code and never a link, the settings table
+names exactly what the applier sends, and the sender matches `feedback.sql`.
+`auth.md` also lists the four ways sign-in email has broken silently.
 
 ## Playwright Browser Testing
 
@@ -238,10 +284,22 @@ refs, then `click`/`fill`/`eval` against them.
 
 `scripts/demo/capture.sh` regenerates the whole screenshot set from real
 simulators — run it after any UI change the listing shows. `scripts/demo/record.sh`
-records the walkthrough App Review needs, since a reviewer has no MIDI keyboard.
-Both seed a practice history and play a piece through the mock MIDI input, and
-both work on a throwaway copy of `public/` — no demo hook ever ships. See
-`scripts/demo/README.md`, which also has the wording for the review notes.
+records a walkthrough off a simulator. Both seed a practice history and play a
+piece through the mock MIDI input, and both work on a throwaway copy of
+`public/` — no demo hook ever ships.
+
+The video App Review watches is neither: Apple requires a **filmed** one,
+showing a physical device and the MIDI keyboard pairing and playing together.
+It is committed at `public/video/review-demo.mp4`, and the review notes in
+`scripts/appstore/listing_fr.py` link to it — replacing that file replaces the
+video. `scripts/demo/README.md` has what a re-film must show and how to
+compress it.
+
+The landing page's hero video (`public/video/hero.{fr,en}.mp4`) is built by
+`landing-video/` — a HyperFrames composition over real app screenshots, seeded
+from the practice history on Supabase (`npm run backup`). Its README has the
+whole run; nothing it needs lives outside the repo except the Supabase token
+and ffmpeg. `tmp/cap/`, if a checkout has one, is a superseded prototype.
 
 `scripts/appstore/push_listing.py` writes the listing itself — description,
 keywords, URLs, categories, age rating, screenshots — through the App Store
@@ -261,6 +319,12 @@ script — that is how a page notices it was served with another deploy's
 JavaScript and reloads itself once (`public/js/version.js` explains why).
 `scripts/stamp-version.mjs` fails at deploy time if a page is missing either
 marker, and `test/js/version.test.js` catches it earlier.
+
+Ahead of even that, first among its scripts, every page loads
+`<script type="module" src="js/errorLog.js"></script>`: the listeners that
+keep the JavaScript errors a feedback report carries, which only see what is
+thrown after they are installed. `test/js/errorLog.test.js` holds every page to
+it.
 
 A page of the app itself — not the landing, privacy or support pages — also
 loads `<script type="module" src="js/swRegister.js"></script>`, which installs

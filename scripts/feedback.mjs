@@ -21,58 +21,26 @@
 // An <id> is the 8-character prefix the listing shows; a prefix matching more
 // than one entry is refused rather than guessed at.
 //
+// A report also carries the JavaScript errors the app ran into in the hour
+// before it was sent, if there were any (context.errors, from
+// public/js/errorLog.js). `list` marks those with ⚠ and how many; `show`
+// prints them after the rest of the entry, one stack under each message.
+//
 // ⚠ That token is account-wide, not project-scoped: never print it, never copy
 // it anywhere else. See ~/.claude/SUPABASE.md.
-import { readFileSync, writeFileSync } from 'node:fs'
-import { homedir, tmpdir } from 'node:os'
+import { writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { parseArgs } from 'node:util'
+// The token lookup and the API's error shape are handled in one place, shared
+// with scripts/apply-auth-config.mjs.
+import { die, query, quote } from './lib/supabase.mjs'
 
-const PROJECT_REF = 'mtihhulokbhhvkomlmmk'
-const TOKEN_PATH = join(homedir(), '.supabase', 'access-token')
 const ID_PREFIX = /^[0-9a-f]{4,36}$/i // uuid, or enough of its start to be useful
 
-let cachedToken
-function token() {
-  if (cachedToken) return cachedToken
-  cachedToken = process.env.SUPABASE_ACCESS_TOKEN?.trim()
-  if (cachedToken) return cachedToken
-  try {
-    cachedToken = readFileSync(TOKEN_PATH, 'utf8').trim()
-  } catch {
-    die(
-      `no Supabase token in $SUPABASE_ACCESS_TOKEN nor at ${TOKEN_PATH}\n` +
-        'Create one at https://supabase.com/dashboard/account/tokens, then:\n' +
-        `  install -m 600 /dev/null ${TOKEN_PATH} && $EDITOR ${TOKEN_PATH}`,
-    )
-  }
-  return cachedToken
-}
-
-function die(message) {
-  console.error(message)
-  process.exit(1)
-}
-
-// Every statement goes through here, so the API's error shape is turned into a
-// message worth reading in exactly one place.
-async function query(sql) {
-  const res = await fetch(`https://api.supabase.com/v1/projects/${PROJECT_REF}/database/query`, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${token()}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ query: sql }),
-  })
-  const body = await res.json().catch(() => null)
-  if (!res.ok) die(`Supabase API ${res.status}: ${body?.message ?? JSON.stringify(body)}`)
-  return body
-}
-
-// The API takes SQL as a string, so anything interpolated is quoted here. Only
-// ever used for id prefixes, which are checked against ID_PREFIX first — belt
-// and braces, since one of these ends up inside a LIKE pattern.
-function quote(value) {
-  return `'${String(value).replace(/'/g, "''")}'`
-}
+// Anything interpolated into SQL goes through quote(). Here that is only ever
+// id prefixes, checked against ID_PREFIX first — belt and braces, since one of
+// these ends up inside a LIKE pattern.
 
 function short(id) {
   return id.slice(0, 8)
@@ -92,6 +60,8 @@ async function list({ all, limit }) {
            -- Never the value itself: a few hundred kB of base64 per row would
            -- swamp both the response and the terminal. "shot" fetches one.
            screenshot is not null as has_shot,
+           case when jsonb_typeof(context->'errors') = 'array'
+                then jsonb_array_length(context->'errors') end as error_count,
            context->>'score' as score, context->>'app_version' as app_version
       from public.feedback
      ${all ? '' : "where status = 'new'"}
@@ -105,7 +75,15 @@ async function list({ all, limit }) {
   }
 
   for (const row of rows) {
-    const tags = [row.category, row.score, row.app_version, row.has_shot && '📷 shot'].filter(Boolean).join(' · ')
+    const tags = [
+      row.category,
+      row.score,
+      row.app_version,
+      row.has_shot && '📷 shot',
+      row.error_count && errorCount(row.error_count),
+    ]
+      .filter(Boolean)
+      .join(' · ')
     const status = row.status === 'done' ? ' ✓' : ''
     console.log(
       `\n\x1b[1m${short(row.id)}\x1b[0m${status}  ${row.at} (${ago(row.age_days)})` +
@@ -128,8 +106,31 @@ async function show(prefix) {
     select to_jsonb(f) - 'screenshot' as entry, length(f.screenshot) as shot_bytes
       from public.feedback f where f.id = ${quote(id)}
   `)
-  console.log(JSON.stringify(row.entry, null, 2))
+  // The errors come out of the JSON, where a stack is an array of escaped
+  // strings, to be printed the way a stack reads.
+  const { entry } = row
+  const errors = Array.isArray(entry.context?.errors) ? entry.context.errors : null
+  if (errors) delete entry.context.errors
+  console.log(JSON.stringify(entry, null, 2))
+  if (errors) printErrors(errors, entry.created_at)
   if (row.shot_bytes) console.log(`\n📷 ${Math.round(row.shot_bytes / 1024)} kB — feedback.mjs shot ${short(id)}`)
+}
+
+function errorCount(n) {
+  return `⚠ ${n} error${n === 1 ? '' : 's'}`
+}
+
+// Least recently seen first, as the app sends them. `at` is when each was last
+// seen, which is what says whether it came just before the report.
+function printErrors(errors, sentAt) {
+  console.log(`\n${errorCount(errors.length)}`)
+  for (const error of errors) {
+    const minutes = Math.round((Date.parse(sentAt) - Date.parse(error.at)) / 60_000)
+    const repeats = error.count > 1 ? ` ×${error.count}` : ''
+    console.log(`\n  \x1b[1m${error.message}\x1b[0m${repeats}`)
+    console.log(`  ${error.where} on ${error.page || '?'}, ${minutes < 1 ? 'under a minute' : `${minutes} min`} before the report`)
+    for (const frame of error.stack ?? []) console.log(`      ${frame}`)
+  }
 }
 
 // The screenshot, written where an image viewer can open it. Stored as a data

@@ -14,7 +14,6 @@ const signOut = () => localStorage.removeItem(AUTH_STORAGE_KEY)
 const getSession = vi.fn(async () => ({ data: { session: { user: { id: 'user-1' } } } }))
 vi.mock('../../public/js/supabaseClient.js', () => ({
   supabase: { auth: { getSession: () => getSession() } },
-  authRedirectUrl: () => '',
 }))
 
 // runSync itself is covered by sync.test.js; here we only care about *when*
@@ -25,6 +24,13 @@ vi.mock('../../public/js/sync.js', async (importOriginal) => {
   const actual = await importOriginal()
   return { ...actual, runSync: (...args) => runSync(...args) }
 })
+
+// What a failed sync leaves for a feedback report (errorLog.js's own suite
+// covers what becomes of it).
+const recordError = vi.fn()
+vi.mock('../../public/js/errorLog.js', () => ({
+  recordError: (...args) => recordError(...args),
+}))
 
 // The page globals sync.js and autoSync.js touch (the suite runs in node).
 function installBrowserGlobals() {
@@ -54,6 +60,7 @@ describe('autoSync', () => {
   beforeEach(async () => {
     vi.resetModules()
     runSync.mockClear()
+    recordError.mockClear()
     getSession.mockClear()
     setVisibility = installBrowserGlobals()
     indexedDB = new IDBFactory()
@@ -166,12 +173,21 @@ describe('autoSync', () => {
     await vi.waitFor(() => expect(runSync).toHaveBeenCalledTimes(1))
   })
 
-  it('swallows a failing automatic sync', async () => {
-    runSync.mockRejectedValueOnce(new Error('offline'))
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+  it('swallows a failing automatic sync, and keeps it for a feedback report', async () => {
+    const failure = new Error('offline')
+    runSync.mockRejectedValueOnce(failure)
     autoSync.initAutoSync(deps)
     autoSync.triggerSync('test')
-    await vi.waitFor(() => expect(warn).toHaveBeenCalled())
-    warn.mockRestore()
+    await vi.waitFor(() => expect(recordError).toHaveBeenCalledWith(failure, 'Sync could not complete'))
+  })
+
+  it('keeps a failure once, however many callers were waiting on it', async () => {
+    const failure = new Error('offline')
+    runSync.mockRejectedValueOnce(failure)
+    autoSync.initAutoSync(deps)
+    const results = await Promise.allSettled([autoSync.requestSync(), autoSync.requestSync()])
+    // Still rejected, for the data page to show.
+    expect(results.map((result) => result.reason)).toEqual([failure, failure])
+    expect(recordError).toHaveBeenCalledTimes(1)
   })
 })

@@ -12,6 +12,7 @@
 // JS-to-native messages go through webkit.messageHandlers.midiBridge:
 //   { type: 'ready' }                       ask native for the port list
 //   { type: 'send', id, data: [bytes] }     send to a MIDI output
+//   { type: 'pair' }                        open the system BLE MIDI sheet
 ;(function (global) {
   'use strict'
 
@@ -97,7 +98,14 @@
       return Promise.race([firstPorts, timeout]).then(() => access)
     }
 
-    return { access, requestMIDIAccess, setPorts, receiveMIDI }
+    // The system BLE MIDI sheet, which is the only way to pair here — iOS
+    // pairs those per app, not in Settings. The page asks for it in place of
+    // the connection instructions it shows elsewhere (see public/js/midi.js).
+    function pairBluetooth() {
+      postToNative({ type: 'pair' })
+    }
+
+    return { access, requestMIDIAccess, setPorts, receiveMIDI, pairBluetooth }
   }
 
   function installWebMIDIShim(shim, target) {
@@ -105,6 +113,7 @@
     target.__pianoTrainerMIDI = {
       setPorts: (list) => shim.setPorts(list),
       receiveMIDI: (id, bytes, timeStamp) => shim.receiveMIDI(id, bytes, timeStamp),
+      pairBluetooth: () => shim.pairBluetooth(),
     }
   }
 

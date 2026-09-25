@@ -7,15 +7,18 @@ app**, captured with Playwright while driving the app's own MIDI engine.
 
 Only the final MP4 + poster are committed (under `public/`). The intermediate
 screenshots live in `composition/assets/` and are **gitignored** — they're
-derived from a personal practice-data backup, and regenerable from it.
+derived from a real practice history, and regenerable from it. That history is
+fetched from Supabase (what cloud sync keeps), so any checkout with the
+Management API token can rebuild the video.
 
 ```
 landing-video/
   capture/
     lib.mjs            shared Playwright helpers (launch, openScore, mock-MIDI cookie)
+    fetch-backup.mjs   practice history from Supabase → .work/backup.json (gitignored)
     build-assets.mjs   seed the app from a backup, capture every screenshot
   composition/
-    index.html         the HyperFrames composition (5 scenes + GSAP timeline)
+    index.html         the HyperFrames composition (6 scenes + GSAP timeline)
     design.md          brand/design system (colours, type, motion)
     assets/            generated screenshots (gitignored)
   encode.sh            newest render → public/video/hero.mp4 + poster
@@ -24,10 +27,22 @@ landing-video/
 ## Prerequisites
 
 - Node 22+ and FFmpeg (`ffmpeg -version`)
+- The Inter font installed (`fonts-inter` on Debian/Ubuntu). The capture puts it
+  first in the app's UI font stack, so a Linux run doesn't come out in DejaVu.
+  `app.rb` isn't required either: any static server of `public/` on port 4567
+  (`cd public && python3 -m http.server 4567`) does.
 - `npm install` here, then `npx playwright install chromium`
   (or set `PT_CHROMIUM=/path/to/Chromium` to reuse an existing binary)
-- A backup export: in the app, **Bibliothèque → ⚙️ Gestion des données →
-  Exporter sauvegarde**. It lands in `~/Downloads/arabesque-backup-*.json`.
+- A practice history, either:
+  - `npm run backup` — reads the synced sessions from Supabase with the
+    Management API token (`~/.supabase/access-token`, see
+    `scripts/lib/supabase.mjs`). Takes the account with the most sessions on the
+    `main` profile; `-- --email <e> --profile <id>` picks another.
+  - or an export from the app (**⚙️ → Gestion des données → Exporter
+    sauvegarde**), passed as `PT_BACKUP=~/Downloads/arabesque-backup-*.json`.
+
+  Aggregates are rebuilt from the sessions after the import either way, so
+  statuses follow the current rules.
 
 ## Regenerate
 
@@ -42,12 +57,13 @@ language and pointing `caps.active.js` at the matching caption catalog.
 bundle exec ruby app.rb            # serves http://localhost:4567
 
 cd landing-video && npm install
+npm run backup                     # once, not per language
 
 # 2. Point the composition at this language's captions
 echo "export { default as CAPS } from './captions/en.js'" > composition/caps.active.js
 
 # 3. Capture the app states (in that language) into composition/assets/
-PT_LANG=en PT_BACKUP=~/Downloads/arabesque-backup-*.json npm run capture
+PT_LANG=en npm run capture
 
 # 4. Render (composition/renders/*.mp4)
 npm run render
@@ -69,7 +85,13 @@ from the running app, so the UI's own i18n keeps them in sync.
 ## Notes
 
 - **Scenes** (see `composition/index.html`): library → real-time note feedback →
-  training mode (3× per measure) → practice history → brand lockup.
+  training mode (3× per measure) → strict mode (a passage looped to the
+  metronome) → practice history → brand lockup.
+- **Strict mode** is played by an auto-player that strikes each notehead the
+  moment the engine lights it, so the verdict is the engine's own; one note is
+  let go on the third run so the capture shows a miss among the hits.
+- **Each capture starts from a fresh browser profile**: what the captures play
+  is filed in the practice journal, and would show up in the next run's library.
 - **Real engine feedback**: `build-assets.mjs` sets the `test-env` cookie to
   enable the in-app mock MIDI keyboard, reads expected pitches from the OSMD
   cursor (`Pitch.halfTone + 12`), and dispatches real `mock-midi-input` events

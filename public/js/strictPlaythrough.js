@@ -5,19 +5,21 @@ import {
   buildCursorTimeline,
   cursorStepsBeforeMeasure,
   measureIndexAt,
-  measureDurationTs,
 } from './playbackTiming.js'
 import { handsKey } from './hands.js'
 import { prepareClick, playClick } from './metronomeClick.js'
 import {
-  isOrnamentOrGrace,
+  requiredSequence,
   isNoteActiveForHands,
   sourceMeasuresToResetOnEntry,
   svgNoteheadFor,
 } from './noteExtraction.js'
 import {
   findMatchingEvent,
-  classifyMatch,
+  faultAbsorbingEvent,
+  expectedEvent,
+  advanceEvent,
+  isGraceStrike,
   EVENT_STATUS,
   CLASSIFICATION,
 } from './strictMatching.js'
@@ -38,8 +40,13 @@ const STRICT_CLASSES = [CLS_EXPECTED, CLS_PLAYED, CLS_OFFTEMPO, CLS_MISSED]
 
 let timeouts = []
 let isRunning = false
+// The score the module works on. Outlives the run that set it — the marks a run
+// leaves are read off it long after teardown(), by clearMarks and repaintMarks —
+// and is dropped with them, never before.
 let activeOsmd = null
 let pendingEvents = []
+// Grace pitches with the beat each leans on: let through, never asked for.
+let graceNotes = []
 let stats = null
 let onCompleteCb = null
 let onProgressCb = null
@@ -62,19 +69,38 @@ let runWholeScore = true
 let runBpm = 0
 let currentToleranceMs = DEFAULT_TOLERANCE_MS
 let currentOffTempoWindowMs = DEFAULT_OFFTEMPO_WINDOW_MS
-// The noteheads the last run marked, kept past teardown() so the marks can be
-// cleared once the player leaves strict mode (see clearMarks).
-let markedNoteheads = []
+// The last run's verdict: one strict class per note, keyed by the note itself
+// rather than by the element it is drawn on. Every redraw replaces that element
+// — a phone turned, a window widened, a fingering entered — so a cached node is
+// a node the next relayout detaches, marks and all. Kept as data instead, the
+// verdict is re-applied by repaintMarks() and taken off by clearMarks(), both
+// of which look the notehead up again.
+let markedNotes = new Map()
 
 export function initStrictPlaythrough() {
   return {
     start,
     stop,
     clearMarks,
+    repaintMarks,
     handleNoteOn,
-    setActiveHands: (h) => { activeHands = { ...activeHands, ...h } },
+    setActiveHands,
     get isPlaying() { return isRunning },
   }
+}
+
+// A run's marks are a verdict on the hands it asked for (start() filters every
+// note through isNoteActiveForHands) as much as on the passage it covered, so
+// changing a hand takes the last one's marks off: a hand dropped, the notes it
+// missed would stay red over notes the next run will not ask for.
+//
+// Not mid-run — it would wipe the verdict the run is still collecting, leaving
+// the notes already judged bare and the ones after them marked. The hand
+// checkboxes are disabled for the length of a run (score.html) so this should
+// not arise; the guard is here because only this module can see why it matters.
+function setActiveHands(hands) {
+  if (!isRunning) clearMarks()
+  activeHands = { ...activeHands, ...hands }
 }
 
 // One full measure of count-in, expressed in quarter-note beats so it lines up
@@ -112,10 +138,21 @@ function planRepeatResets(allNotes, runs) {
   return plans
 }
 
-function shouldExpectInput(noteData) {
-  if (isOrnamentOrGrace(noteData)) return false
-  if (noteData.isTieContinuation) return false
-  return isNoteActiveForHands(noteData, activeHands)
+// What one note of the score asks the run for (requiredSequence says it, in
+// whole-note fractions; this puts it on the run's clock), or null when it asks
+// for nothing — the notes an ornament is spelled out in, and a pitch a tie
+// already holds.
+function eventForNote(noteData, { timeMs, bpm, offTempoWindow, ...rest }) {
+  const { sequence, delayTs, holdTs, alternating } = requiredSequence(noteData)
+  if (sequence.length === 0) return null
+  return expectedEvent({
+    timeMs: timeMs + tsToSeconds(delayTs, bpm) * 1000,
+    sequence,
+    openUntilMs: timeMs + tsToSeconds(holdTs, bpm) * 1000 + offTempoWindow,
+    alternating,
+    noteData,
+    ...rest,
+  })
 }
 
 function start({
@@ -140,6 +177,9 @@ function start({
   }
 
   prepareClick()
+  // Off with the last run's verdict, against the score it was earned on, before
+  // this run adopts its own.
+  clearMarks()
   activeOsmd = osmdInstance
   onCompleteCb = onComplete
   onProgressCb = onProgress
@@ -151,53 +191,56 @@ function start({
   const lastMeasureIndex = Math.min(endMeasureIndex ?? Infinity, allNotes.length - 1)
   runWholeScore = startMeasureIndex === 0 && lastMeasureIndex === allNotes.length - 1
   runBpm = bpm
-  const sourceMeasures = osmdInstance.Sheet.SourceMeasures
   const cursorSkipSteps = cursorStepsBeforeMeasure(allNotes, startMeasureIndex)
   allNotes = allNotes.slice(startMeasureIndex, lastMeasureIndex + 1)
-  const measureStartTimes = buildMeasureStartTimes(allNotes, sourceMeasures)
+  const measureStartTimes = buildMeasureStartTimes(allNotes)
   const beatMs = 60_000 / bpm
-  const resolvedCountInBeats = countInBeats ?? quarterBeatsInFirstMeasure(sourceMeasures)
+  const resolvedCountInBeats = countInBeats ?? quarterBeatsInFirstMeasure(osmdInstance.Sheet.SourceMeasures)
   const countInMs = resolvedCountInBeats * beatMs
 
   pendingEvents = []
-  markedNoteheads = []
+  graceNotes = []
   measureRuns = allNotes.map((measureData, i) => ({
     sourceMeasureIndex: measureData.sourceMeasureIndex,
     startMs: countInMs + tsToSeconds(measureStartTimes[i], bpm) * 1000,
-    durationMs: tsToSeconds(measureDurationTs(measureData, sourceMeasures), bpm) * 1000,
+    durationMs: tsToSeconds(measureData.duration, bpm) * 1000,
     wrongNotes: 0,
   }))
   const cursorTimes = buildCursorTimeline(allNotes, measureStartTimes, bpm, countInMs)
 
-  // Single pass: look up each notehead once, clear residual strict-mode
-  // classes from prior runs, push expected inputs into pendingEvents.
+  // Each note sorted into what the run asks for (pendingEvents) or merely lets
+  // through (graceNotes), the former carrying the notehead it lights up — looked
+  // up here, once, rather than at every strike.
   for (let i = 0; i < allNotes.length; i++) {
     const measureData = allNotes[i]
     const measureOffset = measureStartTimes[i] - measureData.measureIndex
 
     for (const noteData of measureData.notes) {
-      const noteheadEl = svgNoteheadFor(activeOsmd, noteData)
-      noteheadEl?.classList.remove(...STRICT_CLASSES)
-      if (noteheadEl) markedNoteheads.push(noteheadEl)
-
-      if (!shouldExpectInput(noteData)) continue
+      if (!isNoteActiveForHands(noteData, activeHands)) continue
 
       const ts = measureOffset + noteData.timestamp
       const noteTimeMs = countInMs + tsToSeconds(ts, bpm) * 1000
 
-      pendingEvents.push({
+      // Not asked for, and not wrong either: see isGraceStrike.
+      if (noteData.isGrace) {
+        graceNotes.push({ midiNumber: noteData.midiNumber, timeMs: noteTimeMs })
+        continue
+      }
+
+      const event = eventForNote(noteData, {
         timeMs: noteTimeMs,
-        midiNumber: noteData.midiNumber,
-        noteData,
-        noteheadEl,
+        bpm,
+        offTempoWindow,
+        noteheadEl: svgNoteheadFor(activeOsmd, noteData),
         measureIndex: i,
         sourceMeasureIndex: measureData.sourceMeasureIndex,
-        status: EVENT_STATUS.PENDING,
       })
+      if (event) pendingEvents.push(event)
     }
   }
 
   pendingEvents.sort((a, b) => a.timeMs - b.timeMs)
+  graceNotes.sort((a, b) => a.timeMs - b.timeMs)
   stats = {
     total: pendingEvents.length,
     hit: 0,
@@ -241,9 +284,7 @@ function start({
   for (const { atMs, sources } of planRepeatResets(allNotes, measureRuns)) {
     timeouts.push(setTimeout(() => {
       for (const event of pendingEvents) {
-        if (sources.has(event.sourceMeasureIndex)) {
-          event.noteheadEl?.classList.remove(...STRICT_CLASSES)
-        }
+        if (sources.has(event.sourceMeasureIndex)) unmarkNote(event)
       }
     }, atMs))
   }
@@ -257,22 +298,52 @@ function start({
       event.noteheadEl?.classList.add(CLS_EXPECTED)
     }, event.timeMs))
 
+    // Nothing struck by the time the window closes: the note is missed, and so
+    // is an ornament never begun.
     timeouts.push(setTimeout(() => {
-      if (event.status !== EVENT_STATUS.PENDING) return
-      event.status = EVENT_STATUS.MISSED
-      stats.missed++
-      event.noteheadEl?.classList.remove(CLS_EXPECTED)
-      event.noteheadEl?.classList.add(CLS_MISSED)
-      onProgressCb?.({ ...stats })
+      if (event.status === EVENT_STATUS.PENDING && event.cursor === 0) missEvent(event)
     }, event.timeMs + offTempoWindow))
+
+    // An ornament begun and left unfinished by the end of the note it
+    // decorates: the realization the score writes was not played.
+    if (event.openUntilMs > event.timeMs + offTempoWindow) {
+      timeouts.push(setTimeout(() => {
+        if (event.status === EVENT_STATUS.PENDING) missEvent(event)
+      }, event.openUntilMs))
+    }
   }
 
-  const lastEventTime = pendingEvents.length > 0
-    ? pendingEvents[pendingEvents.length - 1].timeMs
-    : countInMs
-  // Finish only after every miss timeout has had a chance to fire.
-  const tailMs = lastEventTime + offTempoWindow + TAIL_PADDING_MS
-  timeouts.push(setTimeout(() => finish(false), tailMs))
+  // Finish only after every miss timeout has had a chance to fire — the last of
+  // them belongs to whichever event stays open longest, not to the last one due.
+  const lastCloseMs = pendingEvents.reduce(
+    (latest, event) => Math.max(latest, event.openUntilMs),
+    countInMs + offTempoWindow,
+  )
+  timeouts.push(setTimeout(() => finish(false), lastCloseMs + TAIL_PADDING_MS))
+}
+
+// The verdict a note ends on: painted on the score in place of the highlight
+// that was asking for it, and recorded so a redraw can paint it again. The
+// highlight itself is not recorded — it says where the music is, not how it
+// went, and no redraw should bring it back.
+function markNote(event, cls) {
+  event.noteheadEl?.classList.remove(CLS_EXPECTED)
+  event.noteheadEl?.classList.add(cls)
+  markedNotes.set(event.noteData, cls)
+}
+
+// A verdict taken back — the class off the score and out of the model, or the
+// next redraw would put it straight back on.
+function unmarkNote(event) {
+  event.noteheadEl?.classList.remove(...STRICT_CLASSES)
+  markedNotes.delete(event.noteData)
+}
+
+function missEvent(event) {
+  event.status = EVENT_STATUS.MISSED
+  stats.missed++
+  markNote(event, CLS_MISSED)
+  onProgressCb?.({ ...stats })
 }
 
 function handleNoteOn(midiNumber) {
@@ -280,6 +351,12 @@ function handleNoteOn(midiNumber) {
   const now = performance.now() - startedAtPerf
   const match = findMatchingEvent(pendingEvents, midiNumber, now, currentOffTempoWindowMs)
   if (!match) {
+    // A grace note leaning on the beat: not a hit, not a fault.
+    if (isGraceStrike(graceNotes, midiNumber, now, currentOffTempoWindowMs)) return true
+    // More of an ornament that has already answered for itself.
+    const ornament = faultAbsorbingEvent(pendingEvents, midiNumber, now)
+    if (ornament?.faulted) return false
+    if (ornament) ornament.faulted = true
     stats.wrongNotes++
     // Charged to the measure being played through. Anything struck during the
     // count-in belongs to no measure and is only counted in the run's stats.
@@ -289,18 +366,18 @@ function handleNoteOn(midiNumber) {
     return false
   }
   const { event, delta } = match
-  const classification = classifyMatch(delta, currentToleranceMs)
-  event.noteheadEl?.classList.remove(CLS_EXPECTED)
+  const classification = advanceEvent(event, delta, currentToleranceMs)
+  // More of the ornament to come, or a trill still alternating past the
+  // realization it was credited for: the note is taken, nothing is settled yet.
+  if (!classification) return true
   if (classification === CLASSIFICATION.HIT) {
-    event.status = EVENT_STATUS.HIT
     stats.hit++
-    event.noteheadEl?.classList.add(CLS_PLAYED)
+    markNote(event, CLS_PLAYED)
   } else {
     // Single offtempo status; early vs late is captured in the stats only.
-    event.status = EVENT_STATUS.OFFTEMPO
     if (classification === CLASSIFICATION.OFFTEMPO_EARLY) stats.offTempoEarly++
     else stats.offTempoLate++
-    event.noteheadEl?.classList.add(CLS_OFFTEMPO)
+    markNote(event, CLS_OFFTEMPO)
   }
   onProgressCb?.({ ...stats })
   return true
@@ -364,16 +441,27 @@ function teardown() {
       event.noteheadEl?.classList.remove(CLS_EXPECTED)
     }
   }
-  activeOsmd = null
   pendingEvents = []
+  graceNotes = []
   measureRuns = []
 }
 
 // Wipes the last run's marks off the score — what teardown() leaves for the
 // player to read, and what has no business staying once another mode is on.
 function clearMarks() {
-  for (const el of markedNoteheads) el.classList.remove(...STRICT_CLASSES)
-  markedNoteheads = []
+  for (const noteData of markedNotes.keys()) {
+    svgNoteheadFor(activeOsmd, noteData)?.classList.remove(...STRICT_CLASSES)
+  }
+  markedNotes.clear()
+  activeOsmd = null
+}
+
+// Puts the last run's verdict back on a score that has just been redrawn.
+// Called from the page's repaint, beside the other marks a redraw costs.
+function repaintMarks() {
+  for (const [noteData, cls] of markedNotes) {
+    svgNoteheadFor(activeOsmd, noteData)?.classList.add(cls)
+  }
 }
 
 function finish(aborted) {

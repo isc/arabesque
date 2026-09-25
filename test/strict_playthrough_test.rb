@@ -12,9 +12,15 @@ class StrictPlaythroughTest < CapybaraTestBase
     click_on '⏱ Mode strict'
     click_on '▶ Démarrer'
     assert_text '⏸ Pause'
+    # Frozen for the length of a run, like the tempo beside them: the hands a
+    # run asks for are fixed when it starts, and changing one mid-run would
+    # clear the marks the run is still collecting.
+    assert_field 'Main gauche', type: 'checkbox', disabled: true
+    assert_field 'Main droite', type: 'checkbox', disabled: true
 
     click_on '⏸ Pause'
     assert_text '▶ Démarrer'
+    assert_field 'Main gauche', type: 'checkbox', disabled: false
     # Aborted runs do not surface the result modal
     assert_no_text 'Playthrough strict terminé'
   end
@@ -33,17 +39,28 @@ class StrictPlaythroughTest < CapybaraTestBase
     assert_no_text 'hors tempo'
   end
 
+  # The verdict is a verdict on the hands the run asked for as much as on the
+  # passage it covered (see updateActiveHands).
+  def test_changing_hands_clears_the_last_run_s_marks
+    # Two staves, so the marks the run leaves cover both hands.
+    load_score('one-hand-rest-measure.xml', 6)
+    start_strict_mode
+
+    # Three 4/4 measures at 120 BPM, the last one held to the end.
+    play_silent_run(9000)
+    within('dialog.pt-result-dialog') { click_on 'Fermer' }
+    assert_selector 'svg g.vf-notehead.missed-note', count: 5
+
+    uncheck 'Main gauche'
+
+    assert_no_selector 'svg g.vf-notehead.missed-note'
+  end
+
   def test_no_input_marks_all_notes_missed
     load_score('chord.xml', 1)
     start_strict_mode
 
-    with_clock_control do
-      trigger_click_on('▶ Démarrer')
-
-      # Count-in 2s + off-tempo window 450ms + 300ms tail.
-      advance_clock(3000)
-      assert_text 'Playthrough strict terminé', wait: 4
-    end
+    play_silent_run(3000)
 
     assert_text '0%'
     assert_text '3 manquées'
@@ -53,6 +70,60 @@ class StrictPlaythroughTest < CapybaraTestBase
     assert_selector 'svg g.vf-notehead.missed-note', count: 3
     click_on 'Libre'
     assert_no_selector 'svg g.vf-notehead.missed-note'
+  end
+
+  # The verdict is a verdict on the passage that was selected: picking another
+  # one takes it off the score, or notes marked wrong in a bar the new passage
+  # leaves out stay lit over work nobody is doing (feedback b9d60a2b).
+  def test_picking_another_passage_clears_the_last_run_s_marks
+    load_score('two-measures.xml', 2)
+    start_strict_mode
+
+    with_clock_control do
+      trigger_click_on('▶ Démarrer')
+
+      # Count-in 2s, then both measures at 120 BPM, plus the off-tempo tail.
+      advance_clock(7000)
+      assert_text 'Playthrough strict terminé', wait: 4
+    end
+    within('dialog.pt-result-dialog') { click_on 'Fermer' }
+    assert_selector 'svg g.vf-notehead.missed-note', minimum: 1
+
+    click_measure(1)
+
+    assert_no_selector 'svg g.vf-notehead.missed-note'
+  end
+
+  # A relayout rebuilds the SVG, and the verdict used to live only as classes on
+  # the noteheads it replaced: rotating the phone after a run wiped the marks and
+  # left the module holding detached nodes, which made clearMarks() a silent
+  # no-op for the rest of the session — including the one leaving strict mode
+  # relies on. Held as data, the verdict is painted back by repaintScore().
+  def test_the_marks_survive_a_relayout
+    original_size = page.current_window.size
+    load_score('two-measures.xml', 2)
+    start_strict_mode
+
+    # Count-in 2s, then both measures at 120 BPM, plus the off-tempo tail.
+    play_silent_run(7000)
+    within('dialog.pt-result-dialog') { click_on 'Fermer' }
+    assert_selector 'svg g.vf-notehead.missed-note', count: 2
+
+    # Stamped so what follows cannot be satisfied by the drawing that is up now:
+    # a relayout engraves every notehead afresh, stamp and all.
+    page.execute_script(
+      "document.querySelectorAll('svg g.vf-notehead').forEach((n) => (n.dataset.beforeRelayout = '1'))"
+    )
+    page.current_window.resize_to(500, 900)
+    # Our own resize handler drives the redraw, 250ms after the last event.
+    assert_no_selector 'svg g.vf-notehead[data-before-relayout]', wait: 5
+
+    assert_selector 'svg g.vf-notehead.missed-note', count: 2
+    # And reachable, rather than stranded on the nodes the redraw took away.
+    click_measure(1)
+    assert_no_selector 'svg g.vf-notehead.missed-note'
+  ensure
+    page.current_window.resize_to(*original_size)
   end
 
   # Regression: a strict run used to leave no trace at all — its notes go to the
@@ -80,7 +151,11 @@ class StrictPlaythroughTest < CapybaraTestBase
       assert_no_text 'Évolution'
     end
 
-    visit '/library.html'
+    # Not `visit`: the run was played on a clock this test drove, and a driven
+    # clock runs away rather than going back to the wall clock — the journal
+    # would lay its fourteen days out around a date days from now and find the
+    # run in none of them.
+    visit_with_real_clock '/library.html'
     within '#daily-log' do
       assert_text 'Chord Test'
       assert_text 'Joué en entier · mode strict'
@@ -161,6 +236,47 @@ class StrictPlaythroughTest < CapybaraTestBase
     assert_no_selector 'svg g.vf-notehead.played-note'
   end
 
+  # The cluster clips what overflows it, so an item naming its own height in
+  # the band's *outer* 34px loses two of them — the top of the −/+ buttons'
+  # corners, and of the tint they take under a pointer.
+  def test_the_tempo_steps_fit_inside_the_band_controls
+    load_score('two-measures.xml', 2)
+    start_strict_mode
+    assert_selector '.pt-bpm-field__step'
+
+    overflow = page.evaluate_script(<<~JS)
+      (() => {
+        const cluster = document.querySelector('.pt-band-controls')
+        const inner = cluster.getBoundingClientRect()
+        const border = parseFloat(getComputedStyle(cluster).borderTopWidth)
+        return [...cluster.querySelectorAll('.pt-bpm-field__step')].map((step) => {
+          const r = step.getBoundingClientRect()
+          return Math.max(inner.top + border - r.top, r.bottom - (inner.bottom - border), 0)
+        })
+      })()
+    JS
+
+    assert_equal [0, 0], overflow,
+                 'The −/+ buttons should fit the line the cluster gives them, not overflow it'
+  end
+
+  # The band's controls are one panel, so everything in it shares a midline.
+  # The progression picker used to carry a height of its own, which opted it
+  # out of the cluster's align-self: stretch and left its text 2px high
+  # (feedback 91bf14f9).
+  def test_the_progression_picker_sits_on_the_band_controls_midline
+    load_score('two-measures.xml', 2)
+    click_on '⏱ Mode strict'
+    click_on '🔁 Boucle'
+    # evaluate_script does not wait, so this is what makes the measurement
+    # below stable: the picker is revealed by x-show, not present from the
+    # start.
+    assert_selector '.pt-band-select'
+
+    assert_in_delta midline_of('.pt-band-controls .pt-band-button'), midline_of('.pt-band-select'), 1,
+                    'The progression picker should be centred like the buttons beside it'
+  end
+
   # The tempo trainer: the passage between two clicked measures, run after run
   # with a pause between them, the tempo moving with the results — and a
   # summary of the runs when ⏸ ends it.
@@ -171,7 +287,7 @@ class StrictPlaythroughTest < CapybaraTestBase
     click_measure(1)
     assert_text 'cliquez sur la dernière mesure du passage'
     click_measure(1)
-    assert_text 'Boucle des mesures 1 à 1.'
+    assert_text 'Boucle de la mesure 1.'
 
     with_clock_control do
       trigger_click_on('▶ Démarrer')
@@ -199,6 +315,27 @@ class StrictPlaythroughTest < CapybaraTestBase
     assert_text '1 passage'
     assert_text 'à 120 BPM'
     assert_text 'meilleure série : 1 propres'
+  end
+
+  # The square marking where a run starts used to stay on the score for the
+  # whole run, still sitting on a measure the player had passed bars ago —
+  # feedback 945d80b4. It marks where the *next* run begins, so it comes off
+  # when one starts, and comes back with the start point a run stopped short
+  # keeps.
+  def test_the_start_marker_leaves_while_the_run_is_under_way
+    load_score('two-measures.xml', 2)
+    start_strict_mode
+
+    click_measure(2)
+    assert_selector 'svg rect.measure-click-area.strict-start'
+
+    with_clock_control do
+      trigger_click_on('▶ Démarrer')
+      assert_no_selector 'svg rect.measure-click-area.strict-start'
+
+      trigger_click_on('⏸ Pause')
+      assert_selector 'svg rect.measure-click-area.strict-start'
+    end
   end
 
   # A count-in is a whole bar in which nothing else on screen moves. Reported as
@@ -230,10 +367,119 @@ class StrictPlaythroughTest < CapybaraTestBase
     end
   end
 
+  # Reported as feedback 91bf6839, on the Minuet in G: "en mode strict les
+  # ornements ne sont jamais validés". An ornament is expanded into the notes it
+  # is realized with, and strict mode expected none of them — so an ornamented
+  # note had no event at all: never lit, never validated, and counted as a wrong
+  # note when the player struck it. What the run asks for is the realization the
+  # notation determines: those pitches, in that order.
+  def test_an_ornament_is_validated_on_the_realization_the_score_writes
+    # Mordent on C5 in C major: principal, diatonic lower, principal. Inverted
+    # mordent on E5: principal, diatonic upper, principal.
+    play_mordent_run(%w[C5 B4 C5], %w[E5 F5 E5])
+
+    assert_text '100%'
+    assert_text '3 sur 3'
+    assert_no_text 'fausses notes'
+    assert_no_text 'hors tempo'
+
+    # One notehead per written note, the ornaments lit on their principal.
+    within('dialog.pt-result-dialog') { click_on 'Fermer' }
+    assert_selector 'svg g.vf-notehead.played-note', count: 3
+  end
+
+  # An ornament is not decoration the player may drop: its notes are written,
+  # and a note written and not played is a note missed.
+  def test_an_ornament_left_out_is_a_missed_note
+    play_mordent_run(%w[C5], %w[E5])
+
+    assert_text '33%'
+    assert_text '2 manquées'
+    assert_no_text 'fausses notes'
+  end
+
+  # Inside an ornament it is the order that is judged, not the clock — the
+  # notes are as fast as the fingers go. So the right pitches in the wrong
+  # order are wrong notes, and the ornament stays unplayed.
+  def test_the_notes_of_an_ornament_are_wrong_in_the_wrong_order
+    play_mordent_run(%w[C5 C5 B4], %w[E5 F5 E5])
+
+    assert_text '67%'
+    assert_text '1 manquée'
+    assert_text '1 fausse'
+  end
+
+  # The one thing the notation leaves to the player: how many times a trill
+  # alternates. Once the written sequence is played, going on between the same
+  # two pitches costs nothing, to the end of the note the sign is on.
+  def test_a_trill_alternates_as_long_as_the_player_wants
+    load_score('trill-ornament.xml', 2)
+    start_strict_mode
+
+    with_clock_control do
+      trigger_click_on('▶ Démarrer')
+
+      # Ab4 (half, trilled) then Eb5 (half). In Eb major the upper neighbour is
+      # Bb4: the sequence is Ab4, Bb4, Ab4, and two alternations more here.
+      advance_clock(2000)
+      assert_selector 'svg g.vf-notehead.expected-note', count: 1, wait: 4
+      play_notes(%w[Ab4 Bb4 Ab4 Bb4 Ab4])
+
+      advance_clock(1000)
+      play_note('Eb5')
+
+      advance_clock(1000)
+      assert_text 'Playthrough strict terminé', wait: 2
+    end
+
+    assert_text '100%'
+    assert_text '2 sur 2'
+    assert_no_text 'fausses notes'
+  end
+
+  # A trill on a tied note lasts as long as the sound does: into the next
+  # bar and to the end of the tie, not only through the first notehead — and
+  # the other hand goes on meanwhile.
+  def test_a_trill_on_a_tied_note_alternates_to_the_end_of_the_tie
+    load_score('tied-trill.xml', 11)
+    start_strict_mode
+
+    with_clock_control do
+      trigger_click_on('▶ Démarrer')
+
+      # Right hand: C5, a whole note tied into a half (3s at 120 BPM), trilled,
+      # then E5. Left hand: a quarter every 500ms from the first beat.
+      advance_clock(2000)
+      assert_selector 'svg g.vf-notehead.expected-note', minimum: 1, wait: 4
+      play_notes(%w[C5 C3 D5 C5])
+      { 'D3' => %w[D5 C5], 'E3' => %w[D5 C5], 'F3' => %w[D5 C5], 'G3' => %w[D5 C5], 'A3' => %w[D5 C5] }.each do |left, trill|
+        advance_clock(500)
+        play_notes([left] + trill)
+      end
+
+      advance_clock(500)
+      play_notes(%w[E5 B3])
+      advance_clock(500)
+      play_note('C4')
+
+      advance_clock(1000)
+      assert_text 'Playthrough strict terminé', wait: 2
+    end
+
+    assert_text '100%'
+    assert_no_text 'fausse'
+  end
+
   private
 
   def score_top
     page.evaluate_script("document.querySelector('.pt-score-main').getBoundingClientRect().top")
+  end
+
+  def midline_of(selector)
+    page.evaluate_script(
+      "(() => { const r = document.querySelector('#{selector}').getBoundingClientRect(); return r.top + r.height / 2 })()"
+    )
   end
 
   # BPM=120 → 2s count-in, ±150ms strict window, ±450ms off-tempo. The window
@@ -242,6 +488,46 @@ class StrictPlaythroughTest < CapybaraTestBase
   def start_strict_mode(bpm: 120)
     click_on '⏱ Mode strict'
     fill_in 'Tempo en BPM', with: bpm.to_s
+  end
+
+  # One run of mordent-ornament.xml — C5 (mordent), E5 (inverted mordent), G5,
+  # a quarter, a quarter and a half — striking `first` and `second` for the two
+  # ornamented notes and G5 on the beat after them. What each ornament is worth
+  # is left to the caller. Ends on the result modal.
+  def play_mordent_run(first, second)
+    load_score('mordent-ornament.xml', 3)
+    start_strict_mode
+
+    with_clock_control do
+      trigger_click_on('▶ Démarrer')
+
+      advance_clock(2000)
+      # The ornamented note is expected like any other, which is what was missing.
+      assert_selector 'svg g.vf-notehead.expected-note', count: 1, wait: 4
+      play_notes(first)
+
+      advance_clock(500)
+      play_notes(second)
+
+      advance_clock(500)
+      play_note('G5')
+
+      advance_clock(1000)
+      assert_text 'Playthrough strict terminé', wait: 2
+    end
+  end
+
+  # A run nobody plays a note of, from ▶ Démarrer to the result modal — every
+  # note of it missed. `budget_ms` is the virtual time the whole run costs: the
+  # 2s count-in, the passage at the tempo start_strict_mode set, then the last
+  # event's off-tempo window (450ms) and the engine's 300ms tail.
+  def play_silent_run(budget_ms)
+    with_clock_control do
+      trigger_click_on('▶ Démarrer')
+
+      advance_clock(budget_ms)
+      assert_text 'Playthrough strict terminé', wait: 4
+    end
   end
 
   # One flawless run of chord.xml at the tempo start_strict_mode set, from

@@ -2,6 +2,7 @@
 export default {
   common: {
     openLibrary: 'Open the library',
+    appStore: 'Arabesque for iPhone and iPad, on the App Store',
     close: 'Close',
     cancel: 'Cancel',
     privacy: 'Privacy',
@@ -38,20 +39,36 @@ export default {
     syncNote:
       'Each profile syncs with the account below, separately: a profile made here shows up on the other devices signed in to the same account, journal included.',
   },
-  // Which hands a run through the score was played with.
+  // Which hands a run through the score was played with, short as a score
+  // writes them: they caption runs, bars and notes wherever the app lists them
+  // (feedback 0140c7ed).
   hands: {
+    right: 'RH',
+    left: 'LH',
+    mixed: 'hands changed mid-run',
+  },
+  // The same in full, for a control's name read aloud (utils' withHands).
+  handsFull: {
     right: 'right hand',
     left: 'left hand',
-    mixed: 'hands changed mid-run',
   },
   status: {
     dechiffrage: 'Sight-reading',
     perfectionnement: 'Refining',
     repertoire: 'Repertoire',
   },
-  // What it takes to reach the next status, shown under the filtered library
-  // list. The numbers come from STATUS_THRESHOLDS (practiceTracker.js).
+  // What the current filter selects, shown under the filtered library list.
+  // The numbers come from the constants the rules themselves judge by:
+  // STATUS_THRESHOLDS, the reinforcement window, the hot-spot thresholds
+  // (HOT_SPOT_*) and the practice floor
+  // (practiceTracker.js), and STALE_DAYS (library.js).
   criteria: {
+    filterHeading: 'What {filter} selects',
+    reinforceHotSpot: 'A bar fumbled at least {factor} times as often as the piece on average, over its last {n} sessions',
+    reinforceAttempts: 'Attempted at least {n} times',
+    reinforceClean: 'And not yet played cleanly {n} attempts in a row',
+    stalePractised: 'Practised for at least {n} min in total',
+    staleSilent: 'And not opened again for more than {n} days',
     heading: 'To reach {status}',
     cleanMeasures: '{percent}% of the measures played clean at least {n} times',
     cleanMeasuresAll: 'Every measure played clean at least {n} times',
@@ -102,6 +119,8 @@ export default {
     allPeriods: 'All periods',
     composerFilterAria: 'Filter by composer',
     periodFilterAria: 'Filter by musical period',
+    noMatch: 'No score matches these filters.',
+    clearFilters: 'Reset filters',
     focusLabel: 'To work on:',
     journalHeading: 'Practice journal',
     seeYear: 'See the year →',
@@ -175,20 +194,21 @@ export default {
     localHeading: 'Backup to a file',
     localIntro: 'Export your training data to a file, or import a backup.',
     accountHeading: 'Sync across devices',
-    accountIntro: 'Sign in by email: your training data then follows your account from one device to the next.',
+    accountIntro:
+      'Sign in by email: your training data then follows your account from one device to the next. Use the same address on every device.',
     emailLabel: 'Email',
     emailPlaceholder: 'you@example.com',
-    sendLink: 'Send sign-in link',
-    linkSent: 'Email sent! Check your inbox (and spam).',
+    sendCode: 'Send sign-in code',
+    codeSent: 'Email sent! Check your inbox (and spam).',
     otpLabel: 'Code from the email',
     otpPlaceholder: '8-digit code',
     verifyOtp: 'Submit code',
     otpError: 'Code rejected:',
-    otpHint: 'Enter the code from the email. The link works too, but it signs in whichever browser opens it — on iPad, that is not the app.',
+    otpHint: 'The code is valid for one hour and can only be used once.',
     signedInAs: 'Signed in:',
     signOut: 'Sign out',
     cloudUnavailable: 'Cloud sync is not configured.',
-    authError: 'Could not send the link:',
+    authError: 'Could not send the code:',
     syncHint: 'Your data syncs after each piece you play and when you come back to the app.',
     syncNow: 'Sync now',
     lastSync: 'Last synced:',
@@ -230,12 +250,16 @@ export default {
     startBtn: '▶ Start',
     resumeBtn: '▶ Resume',
     tempoBpm: 'Tempo in BPM',
+    tempoDown: 'Decrease the tempo',
+    tempoUp: 'Increase the tempo',
     playbackTempoBpm: 'Playback tempo in BPM',
+    playbackTempoDown: 'Decrease the playback tempo',
+    playbackTempoUp: 'Increase the playback tempo',
     bpm: 'BPM',
     rightHand: 'Right hand',
     leftHand: 'Left hand',
     reinforceOne: '🎯 Reinforce {n} bar',
-    reinforceMany: '🎯 Reinforce {n} bars',
+    reinforce: '🎯 Reinforce {n} bars',
     stop: '⏹ Stop',
     listen: '▶ Listen',
     playbackHint: 'Click a bar to listen from there.',
@@ -250,6 +274,7 @@ export default {
     trainerRandom: 'Mixed tempi (70–110%)',
     loopHint: 'Click the first, then the last bar of the passage to work on.',
     loopRange: 'Looping bars {from} to {to}.',
+    loopRangeOne: 'Looping bar {from}.',
     loopRangeOpen: 'Looping from bar {from} to the end.',
     loopHintEnd: 'Starting at bar {n} — click the last bar of the passage.',
     loopRun: 'run {n}',
@@ -270,7 +295,12 @@ export default {
     replayInProgress: '▶️ Replaying…',
     replayEnded: '✅ Replay finished',
     recordingInProgress: '🔴 Recording…',
-    resultTime: 'Time: ',
+    wrongNotesOne: '1 wrong note',
+    wrongNotes: '{n} wrong notes',
+    noWrongNote: 'no wrong note',
+    wrongMeasuresOne: 'Wrong notes in bar {list}.',
+    wrongMeasures: 'Wrong notes in bars {list}.',
+    wrongMeasuresMany: 'Wrong notes in {n} bars.',
     now: 'now',
     playtimeEvolution: 'Play-time trend',
     accuracyEvolution: 'Accuracy trend',
@@ -309,6 +339,10 @@ export default {
     // The seven letters, from C to B — the only part of a note's name that is
     // language's business; the ♯ and ♭ that go with them are music's own signs.
     noteLetters: 'C D E F G A B',
+    // The on-screen keyboard that comes up when a note is hard to find.
+    keyHintAria: 'Helper keyboard',
+    keyHintPlay: 'Play',
+    keyHintHide: 'Hide the keyboard',
     midiHelpTitle: 'Connecting a MIDI keyboard',
     midiHelpIntro: 'No MIDI device detected. Here is how to connect your keyboard:',
     macTwoCases: 'Depending on your piano, two cases:',
@@ -368,9 +402,9 @@ export default {
     heroLead:
       'Connect your MIDI keyboard, open a score and play. Every note lights up depending on whether you nailed it, missed it or jumped ahead — and your progress is logged on its own, bar after bar.',
     featuresTitle: 'Everything you need to practise seriously',
-    featuresSubtitle: 'A practice workshop in your browser — no install, no account.',
+    featuresSubtitle: 'In your browser, on iPhone and iPad, or installed on Android. An account is only for syncing your devices.',
     f1Title: 'MIDI keyboard in one click',
-    f1Body: 'USB or Bluetooth over Web MIDI. Your keyboard is detected automatically — nothing to configure.',
+    f1Body: 'USB or Bluetooth. The browser detects your keyboard on its own; on iPad, Bluetooth pairing opens from the app.',
     f2Title: 'Note-by-note feedback',
     f2Body:
       'Notes colour in live: nailed, expected, off-tempo or missed. You see your mistakes without looking up.',
@@ -379,25 +413,35 @@ export default {
       'Practice time, reworked bars and full run-throughs are all logged in a daily journal.',
     f4Title: 'Practice modes',
     f4Body:
-      'Free sight-reading, bar-by-bar training, or strict mode with no wrong notes: pick how demanding you want it.',
+      'Free sight-reading, training on a passage, or strict mode to the metronome, looped, the tempo rising with every clean run.',
     f5Title: 'Built-in fingerings',
     f5Body:
       'Show and edit fingerings right on the score, stacked in pitch order for chords.',
     f6Title: 'Classical library',
     f6Body:
       '70+ public-domain scores, from Bach inventions to Hanon, searchable by playing their opening notes.',
+    f7Title: 'Listen before you play',
+    f7Body:
+      '▶ Listen plays the piece at the tempo you pick, from any bar you choose.',
+    f8Title: 'Offline, on all your devices',
+    f8Body:
+      'A score opened once stays available without a network. Signed in, your practice follows you from iPad to phone.',
+    f9Title: 'A profile per pianist',
+    f9Body:
+      'On a shared device, everyone keeps their own journal, statuses and fingerings.',
     howTitle: 'How to get started',
     howSubtitle: 'Three steps, and you’re playing.',
     step1Title: 'Connect your keyboard',
     step1Body:
-      'Connect a MIDI keyboard over USB or Bluetooth and allow access when the browser asks. No keyboard? You can still follow the score on screen.',
+      'Connect a MIDI keyboard over USB or Bluetooth: allow access when the browser asks, or pair it from the app on iPad. No keyboard? You can still follow the score on screen.',
     step2Title: 'Pick a score',
     step2Body:
       'Choose from the library, or drop your own MusicXML file (<code>.xml</code>, <code>.mxl</code>) straight onto the page.',
     step3Title: 'Play and progress',
     step3Body:
       'Follow the scrolling notes, let the real-time feedback guide you, and find your progress in the practice journal.',
-    footer: 'Arabesque · public-domain scores · your data stays in your browser.',
+    android: 'On Android, open the library in Chrome, then ⚙️ → Install the app.',
+    footer: 'Arabesque · public-domain scores · your data stays on your device unless you sync it.',
   },
   privacy: {
     pageTitle: 'Arabesque · Privacy',
@@ -412,12 +456,12 @@ export default {
       'Your practice sessions, your fingerings and your preferences (language, scores seen) are written to the browser’s local storage. They never leave the device on their own, and clearing the site’s data erases them for good. The Data page can export them to a file.',
     accountTitle: 'The account, if you create one',
     accountBody:
-      'Signing in is what lets your practice follow you from one device to the next. It asks for an email address, which receives a sign-in link — or a code: there is no password. Once signed in, your sessions and fingerings are copied to the server so they can come back down on your other devices. Nothing else is attached to the account.',
+      'Signing in is what lets your practice follow you from one device to the next. It asks for an email address, which receives a sign-in code: there is no password. Once signed in, your sessions and fingerings are copied to the server so they can come back down on your other devices. Nothing else is attached to the account.',
     accountDelete:
       'You can delete your account from the Data page. The account and everything synced under it are erased from the servers there and then, without having to ask anyone.',
     feedbackTitle: 'The feedback you send',
     feedbackBody:
-      'The feedback form sends your message, the category you picked, and technical context meant to reproduce problems: app version, browser, screen size, language, and — depending on the page — the title of the open score or your practice totals. It also attaches a picture of the screen as you saw it, minus the feedback window: it is shown in the form before you send it, and a checkbox takes it back off. The email address is optional and is only used to reply. Feedback is never tied to an account.',
+      'The feedback form sends your message, the category you picked, and technical context meant to reproduce problems: app version, browser, screen size, language, any technical errors the app ran into in the past hour, and — depending on the page — the title of the open score or your practice totals. It also attaches a picture of the screen as you saw it, minus the feedback window: it is shown in the form before you send it, and a checkbox takes it back off. The email address is optional and is only used to reply. Feedback is never tied to an account.',
     neverTitle: 'What Arabesque does not do',
     neverBody:
       'No advertising, no analytics, no third-party trackers, no advertising cookies, no profiling. Your data is not sold, rented or shared for commercial purposes. The microphone and camera are never used; the MIDI keyboard only tells the app which notes you play, and that stream never leaves your device.',

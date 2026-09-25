@@ -14,13 +14,22 @@
 //     node scripts/import-fingerings.mjs backup.json --dry-run
 //     node scripts/import-fingerings.mjs backup.json --score Canon_in_D
 //     node scripts/import-fingerings.mjs backup.json
+//     node scripts/import-fingerings.mjs --player someone@example.com --dry-run
 //
 // `--dry-run` reports what each file would gain and writes nothing. `--score`
 // narrows to the score files whose path contains the given text, repeatable;
 // without it every score in the export is written. Start with `--dry-run` and
 // no filter to see what the export holds, then promote what you meant to.
 //
-// ## Getting the export out of the app
+// ## Getting the fingerings
+//
+// A signed-in player's fingerings are synced to Supabase (user_fingerings in
+// supabase/sync.sql), so `--player <email>` reads them from there, through the
+// Management API and the token scripts/lib/supabase.mjs already uses — nothing
+// to ask the player for. `--profile` picks one of their profiles (default
+// `main`, the one every account has).
+//
+// A player who never signed in has them only on their device. For them:
 //
 // There is already a button for it. On the data page (Mes données →
 // "📤 Exporter sauvegarde") the app writes `arabesque-backup-<date>.json`,
@@ -28,7 +37,7 @@
 // score, exactly the shape this script reads:
 //
 //     { "fingerings": [ { "scoreUrl": "scores/Canon_in_D.mxl",
-//                         "fingerings": { "3:0:0:1": 2, "3:0:0:2": 3 } } ] }
+//                         "fingerings": { "m2:0:0:1": 2, "m2:0:0:2": 3 } } ] }
 //
 // The button is per profile, and it is the path to ask a player for: they
 // already know it, and it needs no console. If you want the fingerings without
@@ -49,13 +58,24 @@
 // ## What a fingering is, and where it goes
 //
 // A player's fingerings live in IndexedDB, one record per `scoreUrl` — the
-// catalog path, `scores/<file>` — holding a plain object of
-// `measure:staff:voice:noteIndex` → finger. `public/js/fingeringInjector.js`
-// applies that object over the MusicXML at load time, walking the same notes in
-// the same order; `nextFingeringKey` there is the one definition of that
-// walk, and this script imports it rather than restating it. A key that names
-// a different note here than it does in the browser would draw the fingering on
-// the wrong note, which is worse than not shipping it.
+// catalog path, `scores/<file>` — holding a plain object of key → finger, the
+// key naming a note as public/js/fingeringKeys.js defines: bar by position,
+// staff across the sheet, voice, and the note's place among that bar's notes of
+// that staff and voice. `public/js/fingeringInjector.js` applies the object
+// over the MusicXML at load time; this script walks the same notes in the same
+// order with the same helpers from fingeringKeys.js, as text rather than as a
+// DOM. A key that names a different note here than it does in the browser
+// would draw the fingering on the wrong note, which is worse than not shipping
+// it.
+//
+// A record written before #350 still holds keys in the scheme that one
+// replaced — the printed measure number rather than the bar's place, `3:0:0:1`
+// where the current one says `m2:0:0:1`. The app converts them the first time
+// the player opens the score, so a record that has not been opened since is
+// still in the old scheme, in the export and in Supabase alike. This script
+// converts them the same way (migrateLegacyFingerings, over the names the old
+// walk in noteExtraction.js gave), and says how many it converted and how many
+// named no note.
 //
 // The representation written into the file is the one the injector produces —
 // `<notations><technical><fingering>3</fingering></technical></notations>` on
@@ -88,8 +108,8 @@
 // to bottom, throwing away the engraving the file carries. Splicing touches the
 // notes that gain a fingering and leaves every other byte alone.
 //
-// That gives a readable `git diff` for the fourteen plain `.xml` scores and not
-// for the eighty-four `.mxl` ones, whose every entry is re-deflated: the diff
+// That gives a readable `git diff` for the plain `.xml` scores and not for the
+// `.mxl` ones, whose every entry is re-deflated: the diff
 // there is the whole binary however little changed. The way to check what an
 // import did to those is to open the score on the branch preview — which is the
 // rule for this kind of change anyway.
@@ -103,15 +123,24 @@
 import { readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { parseArgs } from 'node:util'
-import { nextFingeringKey } from '../public/js/fingeringInjector.js'
+import {
+  fileNumbering,
+  isLegacyFingeringKey,
+  legacyFingeringKey,
+  migrateLegacyFingerings,
+  nextNoteIndex,
+} from '../public/js/fingeringKeys.js'
+import { query, quote } from './lib/supabase.mjs'
 import { openScore } from './mxl.mjs'
 
 const PUBLIC_DIR = join(import.meta.dirname, '..', 'public')
 
-// A `<measure …>` opening tag, or a whole `<note>…</note>`. One pass over the
-// document in order, which is all the injector's walk needs: measures reset the
-// counters, notes consume them. `(?=[\s>])` so `<measure-style>` is not a
-// measure; `<note` cannot collide with `<notations>` for the same reason.
+// A whole `<part>…</part>`; within it, a `<measure …>` opening tag or a whole
+// `<note>…</note>`. One pass over each part in order, which is all the
+// injector's walk needs: bars restart the note counters, notes consume them.
+// `(?=[\s>])` so `<part-list>` is not a part nor `<measure-style>` a measure;
+// `<note` cannot collide with `<notations>` for the same reason.
+const PART = /<part(?=[\s>])[\s\S]*?<\/part>/g
 const TOKEN = /<measure(?=[\s>])[^>]*>|<note(?:\s[^>]*)?>[\s\S]*?<\/note>/g
 
 // An attribute value in either quote style. MuseScore writes double quotes;
@@ -119,15 +148,22 @@ const TOKEN = /<measure(?=[\s>])[^>]*>|<note(?:\s[^>]*)?>[\s\S]*?<\/note>/g
 // single ones — and a walk that only reads one of the two numbers every measure
 // of those twenty files NaN and silently matches nothing.
 const MEASURE_NUMBER = /\bnumber=["']([^"']*)["']/
+const IMPLICIT = /\bimplicit=["']yes["']/
 // The two the walk needs off a note. Built once: the alternative is a fresh
 // RegExp per note, over every note of every score in an export.
 const STAFF = /<staff>\s*([^<]*)<\/staff>/
 const VOICE = /<voice>\s*([^<]*)<\/voice>/
+const REST = /<rest(?:[\s/>])/
+const STAVES = /<staves>\s*(\d+)\s*<\/staves>/g
+// What noteExtraction.js left out of its count before #350, so what the old
+// keys skipped: a note with no pitch, a cue note (OSMD takes both <cue/> and a
+// cue-sized <type>), a note the score hides.
+const UNCOUNTED_THEN = /<cue\s*\/>|<type\s[^>]*size=["']cue["']|^<note\s[^>]*print-object=["']no["']/
 
-// One-based in the file, zero-based in a key; absent means the first.
-const indexOf = (xml, pattern) => {
+// As the file writes it, one-based; absent means the first.
+const numberOf = (xml, pattern) => {
   const match = pattern.exec(xml)
-  return (match ? parseInt(match[1], 10) : 1) - 1
+  return match ? parseInt(match[1], 10) : 1
 }
 
 // The first <tag>…</tag> in `xml`: where its content starts and ends. None of
@@ -191,44 +227,68 @@ function noteWithFingering(noteXml, finger) {
 }
 
 // Every note of `xml` that can carry a fingering, in order, with the key that
-// names it — the same key, on the same note, that fingeringInjector.js derives
-// walking the rendered score. Exported so a test can hold the two walks to that,
-// which is the whole contract: a key naming a different note here than it does
-// in the browser would draw the fingering on the wrong note.
+// names it: the same key, on the same note, that fingeringNotesInDocument() in
+// fingeringInjector.js derives from the same file, both numbering with
+// fileNumbering(). Exported so the tests can hold the walk to that.
+//
+// `legacyKey` is the name noteExtraction.js gave the note before #350, for
+// converting an old record (see migrateLegacyFingerings); null for a note that
+// walk did not count. Its counter runs through a split bar the way the current
+// one does, as noteExtraction.js's still does.
 export function* walkNotes(xml) {
-  let measureNumber = NaN
-  let counters = new Map()
-
-  for (const match of xml.matchAll(TOKEN)) {
-    if (match[0].startsWith('<measure')) {
-      measureNumber = parseInt(MEASURE_NUMBER.exec(match[0])?.[1], 10)
-      counters = new Map()
-      continue
-    }
-
-    const noteXml = match[0]
-    if (/<rest(?:[\s/>])/.test(noteXml)) continue
-    yield {
-      key: nextFingeringKey(counters, measureNumber, indexOf(noteXml, STAFF), indexOf(noteXml, VOICE)),
-      noteXml,
-      index: match.index,
+  const numbering = fileNumbering()
+  for (const { 0: partXml, index: partAt } of xml.matchAll(PART)) {
+    numbering.part([...partXml.matchAll(STAVES)].map((match) => parseInt(match[1], 10)))
+    let printed
+    let legacyCounters
+    for (const match of partXml.matchAll(TOKEN)) {
+      const token = match[0]
+      if (token.startsWith('<measure')) {
+        const number = parseInt(MEASURE_NUMBER.exec(token)?.[1], 10)
+        if (!numbering.measure(number, IMPLICIT.test(token)).continues) legacyCounters = new Map()
+        // OSMD's MeasureNumberXML, which the old keys used: set only when the
+        // attribute reads as an integer, left undefined otherwise ("X1").
+        printed = Number.isInteger(number) ? number : undefined
+        continue
+      }
+      if (REST.test(token)) continue
+      const { key, staff, voice } = numbering.note(numberOf(token, STAFF), numberOf(token, VOICE))
+      const counted = token.includes('<pitch') && !UNCOUNTED_THEN.test(token)
+      yield {
+        key,
+        legacyKey: counted ? legacyFingeringKey(printed, staff, voice, nextNoteIndex(legacyCounters, staff, voice)) : null,
+        noteXml: token,
+        index: partAt + match.index,
+      }
     }
   }
 }
 
+// `fingerings` in the current scheme, whatever scheme it was stored in.
+function currentFingerings(notes, fingerings) {
+  const legacyToCurrent = new Map()
+  for (const { key, legacyKey } of notes) {
+    if (legacyKey === null) continue
+    if (legacyToCurrent.has(legacyKey)) legacyToCurrent.get(legacyKey).push(key)
+    else legacyToCurrent.set(legacyKey, [key])
+  }
+  return migrateLegacyFingerings(fingerings, legacyToCurrent)?.fingerings ?? fingerings
+}
+
 // `xml` with `fingerings` written onto the notes they name, and a count of what
-// that took. `missing` are the keys that matched no note: a stale key from an
-// older engraving of the score, and a sign the export and the file disagree.
-export function applyFingerings(xml, fingerings) {
+// that took. `converted` is how many keys were in the old scheme; `missing` are
+// the keys, of either scheme, that matched no note: a stale key from an older
+// engraving of the score, and a sign the export and the file disagree.
+export function applyFingerings(xml, stored) {
+  const notes = [...walkNotes(xml)]
+  const fingerings = currentFingerings(notes, stored)
   let out = ''
   let copied = 0
-  const applied = new Set()
   const stats = { added: 0, changed: 0, unchanged: 0 }
 
-  for (const { key, noteXml, index } of walkNotes(xml)) {
+  for (const { key, noteXml, index } of notes) {
     const finger = fingerings[key]
     if (finger === undefined) continue
-    applied.add(key)
 
     const rewritten = noteWithFingering(noteXml, finger)
     if (rewritten === noteXml) {
@@ -240,7 +300,13 @@ export function applyFingerings(xml, fingerings) {
     copied = index + noteXml.length
   }
 
-  return { xml: out + xml.slice(copied), ...stats, missing: Object.keys(fingerings).filter((key) => !applied.has(key)) }
+  const named = new Set(notes.flatMap(({ key, legacyKey }) => [key, legacyKey]))
+  return {
+    xml: out + xml.slice(copied),
+    ...stats,
+    converted: Object.keys(stored).filter(isLegacyFingeringKey).length,
+    missing: Object.keys(stored).filter((key) => !named.has(key)),
+  }
 }
 
 // The fingering records an export holds, whatever it is: the app's whole
@@ -249,7 +315,18 @@ function readExport(path) {
   const parsed = JSON.parse(readFileSync(path, 'utf8'))
   const records = Array.isArray(parsed) ? parsed : parsed.fingerings
   if (!Array.isArray(records)) throw new Error(`${path}: no "fingerings" array — is this an Arabesque export?`)
-  return records.filter((record) => record?.scoreUrl && Object.keys(record.fingerings ?? {}).length > 0)
+  return records
+}
+
+// The same records, as Supabase keeps them for a signed-in player.
+async function readPlayer(email, profile) {
+  const rows = await query(`
+    select f.score_url as "scoreUrl", f.fingerings
+    from public.user_fingerings f join auth.users u on u.id = f.user_id
+    where u.email = ${quote(email)} and f.profile_id = ${quote(profile)}
+    order by f.score_url`)
+  if (rows.length === 0) throw new Error(`no fingerings in Supabase for ${email} (profile ${profile})`)
+  return rows
 }
 
 // How the catalog names a file, so the report reads like the library rather
@@ -273,9 +350,29 @@ function scoreFile(scoreUrl) {
   return at < 0 ? null : scoreUrl.slice(at + 'scores/'.length)
 }
 
-const USAGE = 'usage: node scripts/import-fingerings.mjs <export.json> [--dry-run] [--score <text>]…'
+// One record per file. A player can hold several for the same file under other
+// URLs — `/scores/<file>` from an early build, a preview's — and the app reads
+// only `scores/<file>`: that one is the player's current work when it exists,
+// and the others are what they left behind. Without it, the app shows the
+// player none of them, and the first is taken — said in the report. Returns
+// [file, record, others].
+function recordsByFile(records) {
+  const byFile = new Map()
+  for (const record of records) {
+    if (!record?.scoreUrl || Object.keys(record.fingerings ?? {}).length === 0) continue
+    const file = scoreFile(record.scoreUrl)
+    if (file) byFile.set(file, [...(byFile.get(file) ?? []), record])
+  }
+  return [...byFile].map(([file, found]) => {
+    const record = found.find((r) => r.scoreUrl === `scores/${file}`) ?? found[0]
+    return [file, record, found.filter((r) => r !== record)]
+  })
+}
 
-function main(argv) {
+const USAGE =
+  'usage: node scripts/import-fingerings.mjs (<export.json> | --player <email> [--profile <id>]) [--dry-run] [--score <text>]…'
+
+async function main(argv) {
   // Same parser as scripts/feedback.mjs, and for the same reason: it refuses an
   // unknown flag and a --score with nothing after it, both of which a hand-rolled
   // scan lets through as a silent no-op.
@@ -285,6 +382,8 @@ function main(argv) {
     options: {
       'dry-run': { type: 'boolean' },
       score: { type: 'string', multiple: true },
+      player: { type: 'string' },
+      profile: { type: 'string', default: 'main' },
       help: { type: 'boolean' },
     },
   })
@@ -294,7 +393,7 @@ function main(argv) {
     return
   }
   const [exportPath] = positionals
-  if (!exportPath) {
+  if (!exportPath === !values.player) {
     console.error(USAGE)
     process.exit(1)
   }
@@ -304,9 +403,9 @@ function main(argv) {
   const titles = catalogTitles()
   const totals = { added: 0, changed: 0, unchanged: 0, files: 0 }
 
-  for (const record of readExport(exportPath)) {
-    const file = scoreFile(record.scoreUrl)
-    if (!file || (filters.length > 0 && !filters.some((text) => file.includes(text)))) continue
+  const records = exportPath ? readExport(exportPath) : await readPlayer(values.player, values.profile)
+  for (const [file, record, ignored] of recordsByFile(records)) {
+    if (filters.length > 0 && !filters.some((text) => file.includes(text))) continue
 
     const path = join(PUBLIC_DIR, 'scores', file)
     let score
@@ -322,8 +421,13 @@ function main(argv) {
     console.log(`${titles.get(file) ?? `${file} (not in the catalog)`}`)
     console.log(
       `  ${file}: ${result.added} added, ${result.changed} changed, ${result.unchanged} already there` +
+        (result.converted > 0 ? ` (${result.converted} key(s) converted from the scheme before #350)` : '') +
         (dryRun && touched > 0 ? ' — not written (--dry-run)' : ''),
     )
+    if (record.scoreUrl !== `scores/${file}`) {
+      console.log(`  ! nothing under scores/${file}, which is what the app reads: took ${record.scoreUrl}`)
+    }
+    for (const other of ignored) console.log(`  ! ignored the record under ${other.scoreUrl}`)
     if (result.missing.length > 0) {
       console.log(`  ! ${result.missing.length} key(s) match no note here: ${result.missing.slice(0, 8).join(', ')}`)
     }
@@ -342,4 +446,4 @@ function main(argv) {
   )
 }
 
-if (process.argv[1] === import.meta.filename) main(process.argv.slice(2))
+if (process.argv[1] === import.meta.filename) await main(process.argv.slice(2))
