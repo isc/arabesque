@@ -1386,7 +1386,7 @@ function getSystemIndexForNote(note) {
 
     return 0
   } catch (error) {
-    console.warn('Failed to get system index for note:', error)
+    recordError(error, 'System holding a note could not be found')
     return 0
   }
 }

@@ -10,6 +10,13 @@ import {
   touchesViewport,
 } from '../../public/js/screenshot.js'
 
+// What a failed capture leaves for the report (errorLog.js's own suite covers
+// what becomes of it).
+const recordError = vi.fn()
+vi.mock('../../public/js/errorLog.js', () => ({
+  recordError: (...args) => recordError(...args),
+}))
+
 afterEach(() => vi.unstubAllGlobals())
 
 describe('outputSize', () => {
@@ -141,16 +148,18 @@ describe('captureViewport', () => {
     await expect(captureViewport()).resolves.toBeNull()
   })
 
-  it('swallows a capture failure so the report still goes out', async () => {
+  it('swallows a capture failure so the report still goes out, saying why', async () => {
     // Anything at all going wrong mid-capture — here, a DOM that throws.
     framesRunStraightAway()
+    const failure = new Error('nope')
     vi.stubGlobal('document', {
       documentElement: { clientWidth: 1000, clientHeight: 800 },
       get body() {
-        throw new Error('nope')
+        throw failure
       },
     })
-    vi.stubGlobal('console', { ...console, warn: vi.fn() })
     await expect(captureViewport()).resolves.toBeNull()
+    // Captured when the form opens, so the report sent from it carries this.
+    expect(recordError).toHaveBeenCalledWith(failure, 'Screen could not be captured for the report')
   })
 })
