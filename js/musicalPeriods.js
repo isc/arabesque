@@ -14,6 +14,7 @@ const COMPOSER_PERIODS = {
   'Chopin':             'romantique',
   'Schumann':           'romantique',
   'Liszt':              'romantique',
+  'Schubert-Liszt':     'romantique',
   'Brahms':             'romantique',
   'Tchaikovsky':        'romantique',
   'Rimsky-Korsakov':    'romantique',
