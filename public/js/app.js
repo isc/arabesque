@@ -359,9 +359,9 @@ export function midiApp() {
       // practiceTracker.init() opens the database on its way, which is all the
       // render needs of it and it reads that itself (see
       // renderScoreWithFingerings); the rest — flushing a stashed session,
-      // scanning for stranded ones — is housekeeping that grows with the user's
-      // history and is only depended on when a new session starts (see
-      // loadScoreFromURL). The MIDI handshake and the cassette endpoint — a
+      // scanning for stranded ones, replaying the sessions once after a change
+      // of rules — is housekeeping that grows with the user's history and is
+      // only depended on when a new session starts (see loadScoreFromURL). The MIDI handshake and the cassette endpoint — a
       // round trip that 404s outright on static hosting — are nobody's
       // prerequisite at all.
       const trackerReady = practiceTracker.init()

@@ -25,8 +25,8 @@ describe('storage on a lost connection', () => {
     await storage.saveAggregate({ scoreId: 'scores/a.mxl', status: 'dechiffrage' })
     expect(await storage.getAllAggregates()).toHaveLength(1)
 
-    await storage.clearAggregates()
-    expect(await storage.getAllAggregates()).toEqual([])
+    await storage.replaceAggregates([{ scoreId: 'scores/b.mxl', status: 'repertoire' }])
+    expect(await storage.getAllAggregates()).toEqual([{ scoreId: 'scores/b.mxl', status: 'repertoire' }])
   })
 
   // A wake-up redraw reads several stores at once, and each finds the

@@ -27,13 +27,21 @@ const STRANDED_MIN_AGE_MS = 60 * 60 * 1000
 // These values are baked into stored aggregates: totalPracticeTimeMs is
 // accumulated with them at session end, while the journal and the per-score
 // history re-derive with them on every read. Retuning them desyncs the two
-// until rebuildAggregates() replays the sessions.
+// unless AGGREGATES_VERSION is bumped with them.
 const INTERRUPTION_NORMALIZATION = {
   measureFloorMs: 15000,
   measureFactor: 4,
   gapFloorMs: 8000,
   gapFactor: 4,
 }
+
+// The rules an aggregate row was counted by, stamped on the row. An aggregate
+// is derived once, when a session ends, and then kept — so changing what it
+// counts leaves every row already written telling the old story. Bump this
+// with such a change, and init() replays the sessions of any row that carries
+// another number, on every device: an old backup imported included.
+//   2 — a bar's clean passes count both hands only
+export const AGGREGATES_VERSION = 2
 
 // Reinforcement suggestions look at this many of a score's most recent
 // sessions. What was fumbled months ago says nothing about what needs work
@@ -203,8 +211,9 @@ function mean(values) {
 // below and by the library, which spells the same numbers out to the player
 // under a filtered list. Written down once so the two can't drift apart.
 // `measureRatio` is the share of the score's measures that must each have been
-// played clean `cleanAttempts` times; `practiceDays` and `timesCompleted` are
-// counted over the score's whole history, playthroughs in full only.
+// played clean `cleanAttempts` times with both hands (see cleanMeasureRatio);
+// `practiceDays` and `timesCompleted` are counted over the score's whole
+// history, playthroughs in full only.
 export const STATUS_THRESHOLDS = {
   perfectionnement: { cleanAttempts: 3, measureRatio: 0.5, timesCompleted: 1 },
   repertoire: { cleanAttempts: 10, measureRatio: 1, practiceDays: 3, timesCompleted: 10 },
@@ -220,6 +229,18 @@ export const MIN_PRACTICE_MS_FOR_STATUS = 60_000
 
 export function hasMinimumPractice(aggregate) {
   return (aggregate?.totalPracticeTimeMs || 0) >= MIN_PRACTICE_MS_FOR_STATUS
+}
+
+// The share of a score's measures played clean at least `times` times, the
+// statuses' yardstick. Read off the aggregates' `cleanAttempts`, which counts
+// two-hand passes only: a bar played clean with the right hand and then with
+// the left is work on the bar, not the bar played — and counting it let a
+// prelude worked hands apart reach Perfectionnement off a single run with both
+// (feedback e8e4c2c5).
+export function cleanMeasureRatio(aggregate, times) {
+  const measures = Object.values(aggregate?.measures || {})
+  if (measures.length === 0) return 0
+  return measures.filter((m) => m.cleanAttempts >= times).length / measures.length
 }
 
 function median(values) {
@@ -449,6 +470,7 @@ export function initPracticeTracker(storageInstance = null) {
       await storage.init()
       await flushPendingSession()
       await closeStrandedSessions()
+      await rebuildOutdatedAggregates()
     },
     stashPendingSession,
     clearPendingSession,
@@ -593,20 +615,30 @@ export function initPracticeTracker(storageInstance = null) {
     if (stranded.length) console.info(`Closed ${stranded.length} interrupted session(s) from before the fix.`)
   }
 
+  // Replays the sessions when a stored row was counted by other rules than
+  // AGGREGATES_VERSION. No catalog to name the scores from here: the rebuild
+  // falls back on the names the rows already carry.
+  async function rebuildOutdatedAggregates() {
+    const aggregates = await storage.getAllAggregates()
+    if (aggregates.some((a) => a.rulesVersion !== AGGREGATES_VERSION)) await rebuildAggregates()
+  }
+
   // Recompute every aggregate from scratch by replaying all stored sessions in
   // chronological order. Used after cloud sync pulls sessions from another
-  // device. `metaFor(scoreId)` supplies { title, composer } from the catalog —
+  // device, and when the rules change (see AGGREGATES_VERSION). `metaFor(scoreId)` supplies { title, composer } from the catalog —
   // pass one: sessions don't carry the title, so rebuilding without it leaves
   // every aggregate untitled and the practice journal shows "Untitled"
   // throughout. fetchCatalogMeta() in sync.js builds a suitable map.
+  //
+  // Folded in memory and written in one transaction: a replay walks every
+  // session ever played, and a read and a write per session made it seconds
+  // long on WebKit, during which a page closed left the aggregates half built.
   async function rebuildAggregates(metaFor = () => null) {
-    const sessions = await storage.getSessions()
+    const [sessions, aggregates] = await Promise.all([storage.getSessions(), storage.getAllAggregates()])
     sessions.sort((a, b) => (a.startedAt || '').localeCompare(b.startedAt || ''))
     // What the aggregates already knew, before they are thrown away — all a
     // session stored before sessions carried their own name can offer.
-    const known = new Map(
-      (await storage.getAllAggregates()).map((a) => [a.scoreId, { title: a.scoreTitle, composer: a.composer }])
-    )
+    const known = new Map(aggregates.map((a) => [a.scoreId, { title: a.scoreTitle, composer: a.composer }]))
     // Where a replayed session gets its name: the catalog first, so a score
     // renamed there is renamed here; then the session's own record; then the
     // snapshot. The catalog alone is not enough — it does not hold a file the
@@ -618,7 +650,7 @@ export function initPracticeTracker(storageInstance = null) {
       (session.scoreTitle ? { title: session.scoreTitle, composer: session.composer } : null) ??
       known.get(session.scoreId) ??
       {}
-    await storage.clearAggregates()
+    const rebuilt = new Map()
     for (const session of sessions) {
       if (!session.measures || session.measures.length === 0) continue
       // Only ended sessions were ever credited by endSession(), and only they
@@ -630,8 +662,9 @@ export function initPracticeTracker(storageInstance = null) {
       // Ended but not yet aggregated: endSession() saves the session, then
       // credits it. A sync landing between the two would count it twice.
       if (session.id === currentSession?.id) continue
-      await updateAggregates(session, nameFor(session))
+      rebuilt.set(session.scoreId, foldSession(rebuilt.get(session.scoreId), session, nameFor(session)))
     }
+    await storage.replaceAggregates([...rebuilt.values()])
   }
 
   async function getAllPlaythroughs(scoreId) {
@@ -835,7 +868,7 @@ export function initPracticeTracker(storageInstance = null) {
   }
 
   // Shared skeleton for a brand-new aggregate row (used both here and in
-  // updateAggregates(), which layers session-derived fields on top).
+  // foldSession(), which layers session-derived fields on top).
   function createDefaultAggregate(scoreId) {
     return {
       scoreId,
@@ -843,6 +876,7 @@ export function initPracticeTracker(storageInstance = null) {
       // moment a title is upserted, before a note has been played, so anything
       // else here would award the bottom rung for opening a score.
       status: null,
+      rulesVersion: AGGREGATES_VERSION,
       totalSessions: 0,
       totalPracticeTimeMs: 0,
       timesCompleted: 0,
@@ -877,9 +911,16 @@ export function initPracticeTracker(storageInstance = null) {
   // file the open score's name under somebody else's scoreId. `{}` says there
   // is no name to give, and the aggregate keeps the one it has.
   async function updateAggregates(session, meta) {
-    const { title = null, composer = null } = meta
+    const aggregate = foldSession(await storage.getAggregate(session.scoreId), session, meta)
+    await storage.saveAggregate(aggregate)
+    return aggregate
+  }
 
-    let aggregate = await storage.getAggregate(session.scoreId)
+  // Credits one ended session to its score's aggregate row — `aggregate` left
+  // out for a score that has none yet — and returns the row. No storage here,
+  // so a rebuild can fold a whole history in memory.
+  function foldSession(aggregate, session, meta) {
+    const { title = null, composer = null } = meta
 
     if (!aggregate) {
       aggregate = {
@@ -932,6 +973,7 @@ export function initPracticeTracker(storageInstance = null) {
         aggregate.measures[measureIndex] = {
           totalAttempts: 0,
           cleanAttempts: 0,
+          cleanAttemptsOneHand: 0,
           totalDurationMs: 0,
           lastPlayedAt: null,
         }
@@ -940,9 +982,10 @@ export function initPracticeTracker(storageInstance = null) {
       const measureAgg = aggregate.measures[measureIndex]
       for (const attempt of measureData.attempts) {
         measureAgg.totalAttempts++
-        if (attempt.clean) {
-          measureAgg.cleanAttempts++
-        }
+        // Like timesCompleted: the plain counter is the one the statuses
+        // read, and means both hands.
+        if (attempt.clean && attemptHands(attempt) === TWO_HANDS) measureAgg.cleanAttempts++
+        else if (attempt.clean) measureAgg.cleanAttemptsOneHand++
         measureAgg.totalDurationMs += attempt.durationMs
         measureAgg.lastPlayedAt = attempt.startedAt
       }
@@ -950,31 +993,23 @@ export function initPracticeTracker(storageInstance = null) {
       measureAgg.avgDurationMs = Math.round(measureAgg.totalDurationMs / measureAgg.totalAttempts)
       measureAgg.errorRate =
         measureAgg.totalAttempts > 0
-          ? (measureAgg.totalAttempts - measureAgg.cleanAttempts) / measureAgg.totalAttempts
+          ? (measureAgg.totalAttempts - measureAgg.cleanAttempts - measureAgg.cleanAttemptsOneHand) /
+            measureAgg.totalAttempts
           : 0
     }
 
     aggregate.status = computeScoreStatus(aggregate)
-
-    await storage.saveAggregate(aggregate)
     return aggregate
   }
 
   function computeScoreStatus(aggregate) {
-    const measureValues = Object.values(aggregate.measures)
+    const meets = ({ cleanAttempts, measureRatio, practiceDays = 0, timesCompleted }) =>
+      (aggregate.timesCompleted || 0) >= timesCompleted &&
+      (aggregate.practiceDays || []).length >= practiceDays &&
+      cleanMeasureRatio(aggregate, cleanAttempts) >= measureRatio
 
-    if (measureValues.length > 0) {
-      const cleanRatio = (times) =>
-        measureValues.filter((m) => m.cleanAttempts >= times).length / measureValues.length
-
-      const meets = ({ cleanAttempts, measureRatio, practiceDays = 0, timesCompleted }) =>
-        cleanRatio(cleanAttempts) >= measureRatio &&
-        (aggregate.practiceDays || []).length >= practiceDays &&
-        (aggregate.timesCompleted || 0) >= timesCompleted
-
-      if (meets(STATUS_THRESHOLDS.repertoire)) return 'repertoire'
-      if (meets(STATUS_THRESHOLDS.perfectionnement)) return 'perfectionnement'
-    }
+    if (meets(STATUS_THRESHOLDS.repertoire)) return 'repertoire'
+    if (meets(STATUS_THRESHOLDS.perfectionnement)) return 'perfectionnement'
 
     // The bottom rung is the only one the floor can bite: the two above it ask
     // for whole playthroughs, which cannot be had in under a minute anyway.
