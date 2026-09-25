@@ -34,17 +34,25 @@ function strictAccuracy({ hit, total }) {
   return total ? Math.round((hit / total) * 100) : 0
 }
 
+// A free run's wrong notes. Runs filed before the count was shown carry it
+// too: every measure attempt has always recorded its wrong notes.
+function wrongNotesText(n) {
+  return n ? tn('score.wrongNotes', n) : t('score.noWrongNote')
+}
+
 // What a run is measured by, per kind of run (see hands' playthroughGroups):
 // a free run by the time it took, a strict run by its hit rate — which means
 // nothing without the tempo, so its label carries it. Read wherever runs are
-// listed, titled or plotted, so a kind is described in one place.
+// listed, titled or plotted, so a kind is described in one place. A free run's
+// label says how clean it was as well: a time alone reads the same for a run
+// that stumbled through as for one that didn't.
 const RUN_KINDS = {
   free: {
     title: 'score.playtimeEvolution',
     aria: 'score.chartAria',
     value: (pt) => pt.durationMs,
     format: formatDuration,
-    label: (pt) => formatDuration(pt.durationMs),
+    label: (pt) => `${formatDuration(pt.durationMs)} (${wrongNotesText(pt.wrongNotes)})`,
     ceiling: Infinity,
   },
   strict: {
@@ -1280,12 +1288,8 @@ export function midiApp() {
       return this.previousPlaythroughs[0]?.hands ?? TWO_HANDS
     },
 
-    // A free run's wrong notes, beside its time in the ranking. Runs filed
-    // before the count was shown carry it too: every measure attempt has
-    // always recorded its wrong notes.
-    wrongNotesText(n) {
-      return n ? tn('score.wrongNotes', n) : t('score.noWrongNote')
-    },
+    // Beside a run's time in the result modal's ranking.
+    wrongNotesText,
 
     // Where the run just finished went wrong, by measure number — past a
     // handful of them, only how many: a list that long says nothing more.

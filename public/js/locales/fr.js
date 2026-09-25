@@ -374,7 +374,7 @@ export default {
     cassetteError: 'Erreur: {error}',
     chartAria: 'Évolution du temps de jeu par playthrough',
     strictChartAria: 'Évolution de la précision par playthrough strict',
-    playthroughsSummary: '{n}× en entier ({list})',
+    playthroughsSummary: '{n}× en entier : {list}',
     offlineTitle: 'Partition indisponible hors ligne',
     offlineBody: 'Elle n\'a jamais été ouverte sur cet appareil, donc elle n\'est pas en mémoire. Ouvrez-la une fois avec du réseau : elle restera disponible ensuite, même en avion.',
     failedTitle: 'Impossible de charger la partition',
