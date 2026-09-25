@@ -117,12 +117,12 @@ class LibraryFiltersTest < CapybaraTestBase
     find('button.pt-filter-pill[data-status="dechiffrage"]').click
     # text-transform uppercases the heading on screen, which is what Capybara reads.
     assert_selector '.pt-criteria', text: /pour passer en perfectionnement/i
-    assert_selector '.pt-criteria li', text: '50 % des mesures jouées proprement au moins 3 fois'
+    assert_selector '.pt-criteria li', text: '50 % des mesures jouées proprement à deux mains au moins 3 fois'
     assert_selector '.pt-criteria li', text: 'La partition jouée en entier au moins une fois'
 
     find('button.pt-filter-pill[data-status="perfectionnement"]').click
     assert_selector '.pt-criteria', text: /pour passer en répertoire/i
-    assert_selector '.pt-criteria li', text: 'Toutes les mesures jouées proprement au moins 10 fois'
+    assert_selector '.pt-criteria li', text: 'Toutes les mesures jouées proprement à deux mains au moins 10 fois'
     assert_selector '.pt-criteria li', text: 'La partition jouée en entier au moins 10 fois'
     assert_selector '.pt-criteria li', text: 'Travaillée sur au moins 3 jours différents'
 
@@ -199,7 +199,7 @@ class LibraryFiltersTest < CapybaraTestBase
   # still looks damning and used to pin it in the chip for ever; its fumbles
   # are ten sessions old, so it is done with.
   def test_the_reinforce_chip_forgets_mistakes_the_reinforcement_window_has_dropped
-    seed_store('aggregates', [
+    seed_aggregates([
       {
         scoreId: PRELUDE,
         scoreTitle: 'Prelude Op. 28 No. 4 in E Minor',
@@ -294,7 +294,7 @@ class LibraryFiltersTest < CapybaraTestBase
         practiceDays: [at.strftime('%Y-%m-%d')],
       )
     end
-    seed_store('aggregates', rows)
+    seed_aggregates(rows)
 
     visit '/library.html'
 
@@ -327,7 +327,7 @@ class LibraryFiltersTest < CapybaraTestBase
     lose_indexeddb_connections
     # Something only a fresh read can show: the Air reached Répertoire while
     # the page slept.
-    seed_store('aggregates', [aggregate_rows.find { |row| row[:scoreId] == AIR }.merge(status: 'repertoire')])
+    seed_aggregates([aggregate_rows.find { |row| row[:scoreId] == AIR }.merge(status: 'repertoire')])
     wake_the_library
 
     assert_selector 'tbody .pt-pill--repertoire', count: 2
@@ -412,7 +412,7 @@ class LibraryFiltersTest < CapybaraTestBase
   end
 
   def inject_aggregates
-    seed_store('aggregates', aggregate_rows)
+    seed_aggregates(aggregate_rows)
   end
 
   # The library every test in this file starts from. Kept apart from the seeding

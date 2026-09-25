@@ -9,7 +9,7 @@ class PracticeCalendarTest < CapybaraTestBase
     # before that would create an empty database the app can never upgrade.
     visit '/practice.html'
     seed_store('sessions', calendar_sessions)
-    seed_store('aggregates', calendar_aggregates)
+    seed_aggregates(calendar_aggregates)
     visit '/practice.html'
   end
 

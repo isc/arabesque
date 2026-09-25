@@ -403,6 +403,18 @@ class CapybaraTestBase < Minitest::Test
     assert committed, "seeding the '#{store}' store did not commit"
   end
 
+  # Aggregate rows as the current build writes them. A row stamped with other
+  # rules, or with none, is replayed from the sessions on the next page load
+  # (AGGREGATES_VERSION in practiceTracker.js) — and a row planted with no
+  # sessions behind it is replayed into nothing.
+  def seed_aggregates(rows)
+    version = page.evaluate_async_script(<<~JS)
+      const done = arguments[arguments.length - 1];
+      import('/js/practiceTracker.js').then((tracker) => done(tracker.AGGREGATES_VERSION));
+    JS
+    seed_store('aggregates', rows.map { |row| { rulesVersion: version }.merge(row) })
+  end
+
   # Block until an IndexedDB store holds `count` records matching `where`, a JS
   # expression evaluated against each `record`.
   #

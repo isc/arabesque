@@ -5,6 +5,7 @@ import {
   computePlaythroughDuration,
   computeSessionDuration,
   MIN_PRACTICE_MS_FOR_STATUS,
+  AGGREGATES_VERSION,
   measuresToReinforce,
   hasHotSpots,
 } from '../../public/js/practiceTracker.js'
@@ -401,6 +402,63 @@ describe('practiceTracker', () => {
       expect(stats.timesCompletedOneHand).toBe(1)
       expect(stats.lastCompletedAt).toBeUndefined()
       expect(stats.status).toBe('dechiffrage')
+    })
+
+    // Feedback e8e4c2c5: a prelude worked hands apart all week, then played
+    // through once with both, and it was in Perfectionnement.
+    it('does not count clean one-hand passes towards the statuses', async () => {
+      for (let i = 0; i < 3; i++) {
+        await playThrough(RIGHT, RIGHT)
+        await playThrough(LEFT, LEFT)
+      }
+      await playThrough(BOTH, BOTH)
+
+      const stats = await tracker.getScoreStats('/scores/test.xml')
+      expect(stats.measures[0].cleanAttempts).toBe(1)
+      expect(stats.measures[0].cleanAttemptsOneHand).toBe(6)
+      expect(stats.measures[0].errorRate).toBe(0)
+      expect(stats.status).toBe('dechiffrage')
+    })
+
+    // Aggregates are kept, not recomputed: the rows written before the rule
+    // changed go on saying Perfectionnement until the sessions are replayed.
+    describe('aggregates counted by other rules', () => {
+      beforeEach(async () => {
+        for (let i = 0; i < 3; i++) await playThrough(RIGHT, RIGHT)
+        await playThrough(BOTH, BOTH)
+      })
+
+      // The row as the previous build left it: the same sessions, with every
+      // clean pass counted as a clean pass of the bar.
+      async function writtenByOlderRules() {
+        const { rulesVersion, ...row } = await storage.getAggregate('/scores/test.xml')
+        for (const measure of Object.values(row.measures)) {
+          measure.cleanAttempts += measure.cleanAttemptsOneHand
+          delete measure.cleanAttemptsOneHand
+        }
+        await storage.saveAggregate({ ...row, status: 'perfectionnement' })
+      }
+
+      it('are replayed on the next load', async () => {
+        await writtenByOlderRules()
+
+        await initPracticeTracker(storage).init()
+
+        const stats = await tracker.getScoreStats('/scores/test.xml')
+        expect(stats.status).toBe('dechiffrage')
+        expect(stats.totalSessions).toBe(4)
+        expect(stats.measures[0].cleanAttempts).toBe(1)
+        expect(stats.rulesVersion).toBe(AGGREGATES_VERSION)
+      })
+
+      it('leave the rows counted by these rules alone', async () => {
+        const row = await storage.getAggregate('/scores/test.xml')
+        await storage.saveAggregate({ ...row, status: 'repertoire' })
+
+        await initPracticeTracker(storage).init()
+
+        expect((await tracker.getScoreStats('/scores/test.xml')).status).toBe('repertoire')
+      })
     })
 
     it("keeps a one-hand run out of the calendar's playthroughs", async () => {
