@@ -1,5 +1,5 @@
 import { NOTE_NAMES } from './midi.js'
-import { fingeringKey, legacyFingeringKey, nextNoteIndex } from './fingeringKeys.js'
+import { barCounter, fingeringKey, legacyFingeringKey, nextNoteIndex } from './fingeringKeys.js'
 import { t } from './i18n.js'
 import { withHands } from './utils.js'
 
@@ -374,18 +374,45 @@ const RepetitionType = {
   None: 14,
 }
 
-// Build the playback sequence considering repeats and endings (voltas)
-// Returns an array of { sourceMeasureIndex, playbackIndex } objects
-function buildPlaybackSequence(sourceMeasures) {
+// The score's bars, in order: the run of OSMD's SourceMeasures each is made of
+// -- one, but for a bar the file writes as two (see barCounter) -- with where
+// each of them starts in the bar, and how long the whole bar lasts, both in
+// whole notes. A measure OSMD gives no duration for lasts a whole note.
+//
+// MeasureNumberXML is only filled in while OSMD's UseXMLMeasureNumbers rule is
+// on, as it is by default. Turn it off and no measure continues another here,
+// while fingeringInjector.js, reading the file, still folds them: every
+// fingering past a split bar would be injected one bar off.
+function barsOf(sourceMeasures) {
+  const nextBar = barCounter()
+  const bars = []
+  for (const measure of sourceMeasures) {
+    if (!nextBar(measure.MeasureNumberXML, measure.ImplicitMeasureFromXml).continues) {
+      bars.push({ measures: [], duration: 0 })
+    }
+    const bar = bars.at(-1)
+    bar.measures.push({ measure, offset: bar.duration })
+    bar.duration += measure.Duration?.RealValue ?? 1.0
+  }
+  return bars
+}
+
+// Build the playback sequence considering repeats and endings (voltas):
+// the index of each bar played, in playing order.
+//
+// A bar is entered through its first measure and left through its last, so a
+// repeat sign or an ending written between the two halves of a split bar is
+// not honoured: the halves are one bar, played through.
+function buildPlaybackSequence(bars) {
   const sequence = []
   let currentPass = 1 // Track which repetition pass we're on (1 = first, 2 = second, etc.)
   let repeatStartIndex = 0 // Where to jump back to on BackJumpLine
   let i = 0
 
-  while (i < sourceMeasures.length) {
-    const measure = sourceMeasures[i]
-    const firstInstructions = measure.FirstRepetitionInstructions || []
-    const lastInstructions = measure.LastRepetitionInstructions || []
+  while (i < bars.length) {
+    const { measures } = bars[i]
+    const firstInstructions = measures[0].measure.FirstRepetitionInstructions || []
+    const lastInstructions = measures.at(-1).measure.LastRepetitionInstructions || []
 
     // Check for StartLine at the beginning of this measure
     const hasStartLine = firstInstructions.some((ri) => ri.type === RepetitionType.StartLine)
@@ -408,12 +435,7 @@ function buildPlaybackSequence(sourceMeasures) {
     // 2. It's an ending that matches the current pass
     const shouldIncludeMeasure = endingIndices.length === 0 || endingIndices.includes(currentPass)
 
-    if (shouldIncludeMeasure) {
-      sequence.push({
-        sourceMeasureIndex: i,
-        playbackIndex: sequence.length,
-      })
-    }
+    if (shouldIncludeMeasure) sequence.push(i)
 
     // Check for BackJumpLine at the end of this measure
     const hasBackJump = lastInstructions.some((ri) => ri.type === RepetitionType.BackJumpLine)
@@ -487,9 +509,9 @@ export function containerHasCursorStop(container) {
   return false
 }
 
-// Extract notes from source measures into a Map (sourceMeasureIndex -> notes array)
+// Extract notes from the bars into a Map (sourceMeasureIndex -> notes array)
 // This is the raw extraction without considering playback order
-function extractNotesFromSourceMeasures(sourceMeasures) {
+function extractNotesFromBars(bars) {
   const notesByMeasure = new Map()
   const pedalEventsByMeasure = new Map()
   const cursorStopsByMeasure = new Map()
@@ -504,34 +526,39 @@ function extractNotesFromSourceMeasures(sourceMeasures) {
   const legacyKeyMap = new Map()
   let currentFifths = 0
 
-  sourceMeasures.forEach((measure, measureIndex) => {
+  bars.forEach((bar, barIndex) => {
     const measureNotes = []
-    // Track sequential note index for each (staff, voice) combination
+    const cursorStops = []
+    const pedalEvents = []
+    // Track sequential note index for each (staff, voice) combination -- per
+    // bar, so through both halves of a split one.
     const noteCounters = new Map()
     const legacyNoteCounters = new Map()
-    const legacyMeasureNumber = measure.MeasureNumberXML
 
-    // The OSMD cursor stops once per vertical container -- including containers
-    // that hold only rests (e.g. one hand pausing while the other sustains a
-    // longer note). Record every container's timestamp so the playback cursor
-    // timeline can stop where the cursor actually stops, not only on note onsets.
-    // Exclude containers whose notes are ALL invisible (print-object="no"): the
-    // cursor skips those. Some publishers write an ornament's realized notes as
-    // such hidden notes in their own containers (e.g. the gruppetti in Beethoven's
-    // Pathétique). Counting them scheduled extra cursor.next() advances with no
-    // matching cursor position, so the cursor ran one step ahead per hidden
-    // container and stayed ahead for the rest of the piece.
-    cursorStopsByMeasure.set(
-      measureIndex,
-      measure.verticalSourceStaffEntryContainers
-        .filter(containerHasCursorStop)
-        .map((c) => c.Timestamp?.RealValue ?? 0),
-    )
+    for (const { measure, offset } of bar.measures) {
+      const legacyMeasureNumber = measure.MeasureNumberXML
+      // Where this measure starts in the note model's time: a bar's index,
+      // plus how far into the bar the measure begins.
+      const start = barIndex + offset
 
-    measure.verticalSourceStaffEntryContainers.forEach((container) => {
-      if (container.staffEntries) {
-        for (let staffIndex = 0; staffIndex < container.staffEntries.length; staffIndex++) {
-          const staffEntry = container.staffEntries[staffIndex]
+      // The OSMD cursor stops once per vertical container -- including containers
+      // that hold only rests (e.g. one hand pausing while the other sustains a
+      // longer note). Record every container's timestamp so the playback cursor
+      // timeline can stop where the cursor actually stops, not only on note onsets.
+      // Exclude containers whose notes are ALL invisible (print-object="no"): the
+      // cursor skips those. Some publishers write an ornament's realized notes as
+      // such hidden notes in their own containers (e.g. the gruppetti in Beethoven's
+      // Pathétique). Counting them scheduled extra cursor.next() advances with no
+      // matching cursor position, so the cursor ran one step ahead per hidden
+      // container and stayed ahead for the rest of the piece.
+      cursorStops.push(
+        ...measure.verticalSourceStaffEntryContainers
+          .filter(containerHasCursorStop)
+          .map((c) => offset + (c.Timestamp?.RealValue ?? 0)),
+      )
+
+      for (const container of measure.verticalSourceStaffEntryContainers) {
+        for (const [staffIndex, staffEntry] of (container.staffEntries ?? []).entries()) {
           if (!staffEntry?.voiceEntries) continue
           for (const voiceEntry of staffEntry.voiceEntries) {
             if (!voiceEntry.notes) continue
@@ -557,7 +584,7 @@ function extractNotesFromSourceMeasures(sourceMeasures) {
               const noteInfo = pitchToMidiFromSourceNote(note.pitch)
               // Check if this note is a tie continuation (not the start of the tie)
               const isTieContinuation = note.NoteTie && note.NoteTie.StartNote !== note
-              const key = fingeringKey(measureIndex, staffIndex, voiceIndex, noteIndex)
+              const key = fingeringKey(barIndex, staffIndex, voiceIndex, noteIndex)
               const legacyKey = legacyFingeringKey(
                 legacyMeasureNumber,
                 staffIndex,
@@ -571,8 +598,8 @@ function extractNotesFromSourceMeasures(sourceMeasures) {
                 voiceEntry,
                 midiNumber: noteInfo.midiNote,
                 noteName: noteInfo.noteName,
-                timestamp: measureIndex + voiceEntry.timestamp.realValue,
-                measureIndex,
+                timestamp: start + voiceEntry.timestamp.realValue,
+                measureIndex: barIndex,
                 active: false,
                 played: false,
                 isTieContinuation,
@@ -590,14 +617,36 @@ function extractNotesFromSourceMeasures(sourceMeasures) {
           }
         }
       }
-    })
+
+      // Update key signature when a new one is declared (persists until changed)
+      const keyInstruction = measure.getKeyInstruction(0)
+      if (keyInstruction) currentFifths = keyInstruction.Key
+
+      // Extract pedal events from StaffLinkedExpressions
+      const staffLinkedExpressions = measure.StaffLinkedExpressions
+      if (staffLinkedExpressions) {
+        for (const staffExpressions of staffLinkedExpressions) {
+          if (!staffExpressions) continue
+          for (const multiExpr of staffExpressions) {
+            const ts = start + (multiExpr.Timestamp?.RealValue ?? 0)
+            if (multiExpr.PedalStart) {
+              pedalEvents.push({ type: 'pedalDown', timestamp: ts })
+            }
+            if (multiExpr.PedalEnd) {
+              pedalEvents.push({ type: 'pedalUp', timestamp: ts })
+              if (multiExpr.PedalEnd.ChangeEnd) {
+                pedalEvents.push({ type: 'pedalDown', timestamp: ts })
+              }
+            }
+          }
+        }
+      }
+    }
+
+    cursorStopsByMeasure.set(barIndex, cursorStops)
 
     // Adjust grace note timestamps so they are played sequentially before main notes
     adjustGraceNoteTimestamps(measureNotes)
-
-    // Update key signature when a new one is declared (persists until changed)
-    const keyInstruction = measure.getKeyInstruction(0)
-    if (keyInstruction) currentFifths = keyInstruction.Key
 
     // Expand ornaments (turns, mordents, and trills) into their constituent notes
     const expandedNotes = expandOrnamentNotes(measureNotes, currentFifths)
@@ -606,31 +655,11 @@ function extractNotesFromSourceMeasures(sourceMeasures) {
     expandedNotes.sort((a, b) => a.timestamp - b.timestamp)
 
     if (expandedNotes.length > 0) {
-      notesByMeasure.set(measureIndex, expandedNotes)
+      notesByMeasure.set(barIndex, expandedNotes)
     }
 
-    // Extract pedal events from StaffLinkedExpressions
-    const pedalEvents = []
-    const staffLinkedExpressions = measure.StaffLinkedExpressions
-    if (staffLinkedExpressions) {
-      for (const staffExpressions of staffLinkedExpressions) {
-        if (!staffExpressions) continue
-        for (const multiExpr of staffExpressions) {
-          const ts = measureIndex + (multiExpr.Timestamp?.RealValue ?? 0)
-          if (multiExpr.PedalStart) {
-            pedalEvents.push({ type: 'pedalDown', timestamp: ts })
-          }
-          if (multiExpr.PedalEnd) {
-            pedalEvents.push({ type: 'pedalUp', timestamp: ts })
-            if (multiExpr.PedalEnd.ChangeEnd) {
-              pedalEvents.push({ type: 'pedalDown', timestamp: ts })
-            }
-          }
-        }
-      }
-    }
     if (pedalEvents.length > 0) {
-      pedalEventsByMeasure.set(measureIndex, pedalEvents)
+      pedalEventsByMeasure.set(barIndex, pedalEvents)
     }
   })
 
@@ -769,24 +798,26 @@ export function sourceMeasuresToResetOnEntry(allNotes, fromIdx, toIdx, playedSou
   return result
 }
 
+// The note model, one entry per bar in playing order: `sourceMeasureIndex` is
+// the bar's index, which fingerings and the practice journal are filed under --
+// not OSMD's SourceMeasures index, which counts both halves of a split bar
+// (see barCounter). A note's own `note.SourceMeasure` is where to go for that.
 export function extractNotesFromScore(osmdInstance) {
   if (!osmdInstance) {
-    return { allNotes: [], playbackSequence: [], legacyKeyMap: new Map() }
+    return { allNotes: [], legacyKeyMap: new Map() }
   }
 
-  const sheet = osmdInstance.Sheet
-  const sourceMeasures = sheet.SourceMeasures
+  const bars = barsOf(osmdInstance.Sheet.SourceMeasures)
 
   // Build the playback sequence (handles repeats and endings)
-  const playbackSequence = buildPlaybackSequence(sourceMeasures)
+  const playbackSequence = buildPlaybackSequence(bars)
 
-  const { notesByMeasure, pedalEventsByMeasure, cursorStopsByMeasure, legacyKeyMap } =
-    extractNotesFromSourceMeasures(sourceMeasures)
+  const { notesByMeasure, pedalEventsByMeasure, cursorStopsByMeasure, legacyKeyMap } = extractNotesFromBars(bars)
 
   // Build allNotes array following the playback sequence
   const allNotes = []
-  playbackSequence.forEach((seqItem, playbackIndex) => {
-    const sourceNotes = notesByMeasure.get(seqItem.sourceMeasureIndex)
+  playbackSequence.forEach((barIndex, playbackIndex) => {
+    const sourceNotes = notesByMeasure.get(barIndex)
     if (!sourceNotes || sourceNotes.length === 0) return
 
     // Create a copy of the notes for this playback position
@@ -797,28 +828,30 @@ export function extractNotesFromScore(osmdInstance) {
       // The offset within measure includes grace note timing adjustments
       timestamp: playbackIndex + (noteData.timestamp - noteData.measureIndex),
       // Keep reference to source measure for SVG highlighting
-      sourceMeasureIndex: seqItem.sourceMeasureIndex,
+      sourceMeasureIndex: barIndex,
       // Reset state for this occurrence
       active: false,
       played: false,
     }))
 
-    const sourcePedalEvents = pedalEventsByMeasure.get(seqItem.sourceMeasureIndex)
+    const sourcePedalEvents = pedalEventsByMeasure.get(barIndex)
     const pedalEvents = sourcePedalEvents?.map((event) => ({
       type: event.type,
-      timestamp: playbackIndex + (event.timestamp - seqItem.sourceMeasureIndex),
+      timestamp: playbackIndex + (event.timestamp - barIndex),
     }))
 
     allNotes.push({
       measureIndex: playbackIndex,
-      sourceMeasureIndex: seqItem.sourceMeasureIndex,
+      sourceMeasureIndex: barIndex,
       notes: measureNotes,
       pedalEvents,
-      cursorStops: cursorStopsByMeasure.get(seqItem.sourceMeasureIndex) ?? [],
+      cursorStops: cursorStopsByMeasure.get(barIndex) ?? [],
+      // In whole notes, as the bar's timestamps are.
+      duration: bars[barIndex].duration,
     })
   })
 
-  return { allNotes, playbackSequence, legacyKeyMap }
+  return { allNotes, legacyKeyMap }
 }
 
 // Carry played/active over from a note model onto its rebuild, note by note in playback

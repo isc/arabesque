@@ -24,15 +24,16 @@ vi.mock('@tonejs/piano', () => ({
 }))
 
 // One measure holding one quarter note, plus the OSMD sheet playback reads the
-// tempo and measure lengths off.
+// tempo off.
 function score(notes = [{ midiNumber: 60, timestamp: 0, note: { Length: { RealValue: 0.25 } } }]) {
   const allNotes = [{
     measureIndex: 0,
     sourceMeasureIndex: 0,
     notes,
     cursorStops: [],
+    duration: 1,
   }]
-  const osmd = { Sheet: { SourceMeasures: [{ Duration: { RealValue: 1 }, TempoInBPM: 120 }] } }
+  const osmd = { Sheet: { SourceMeasures: [{ TempoInBPM: 120 }] } }
   return [allNotes, osmd]
 }
 

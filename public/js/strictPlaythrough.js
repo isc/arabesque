@@ -5,7 +5,6 @@ import {
   buildCursorTimeline,
   cursorStepsBeforeMeasure,
   measureIndexAt,
-  measureDurationTs,
 } from './playbackTiming.js'
 import { handsKey } from './hands.js'
 import { prepareClick, playClick } from './metronomeClick.js'
@@ -192,12 +191,11 @@ function start({
   const lastMeasureIndex = Math.min(endMeasureIndex ?? Infinity, allNotes.length - 1)
   runWholeScore = startMeasureIndex === 0 && lastMeasureIndex === allNotes.length - 1
   runBpm = bpm
-  const sourceMeasures = osmdInstance.Sheet.SourceMeasures
   const cursorSkipSteps = cursorStepsBeforeMeasure(allNotes, startMeasureIndex)
   allNotes = allNotes.slice(startMeasureIndex, lastMeasureIndex + 1)
-  const measureStartTimes = buildMeasureStartTimes(allNotes, sourceMeasures)
+  const measureStartTimes = buildMeasureStartTimes(allNotes)
   const beatMs = 60_000 / bpm
-  const resolvedCountInBeats = countInBeats ?? quarterBeatsInFirstMeasure(sourceMeasures)
+  const resolvedCountInBeats = countInBeats ?? quarterBeatsInFirstMeasure(osmdInstance.Sheet.SourceMeasures)
   const countInMs = resolvedCountInBeats * beatMs
 
   pendingEvents = []
@@ -205,7 +203,7 @@ function start({
   measureRuns = allNotes.map((measureData, i) => ({
     sourceMeasureIndex: measureData.sourceMeasureIndex,
     startMs: countInMs + tsToSeconds(measureStartTimes[i], bpm) * 1000,
-    durationMs: tsToSeconds(measureDurationTs(measureData, sourceMeasures), bpm) * 1000,
+    durationMs: tsToSeconds(measureData.duration, bpm) * 1000,
     wrongNotes: 0,
   }))
   const cursorTimes = buildCursorTimeline(allNotes, measureStartTimes, bpm, countInMs)

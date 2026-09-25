@@ -425,6 +425,25 @@ class CapybaraTestBase < Minitest::Test
     end
   end
 
+  # The fingering record a score is stored under, and the keys it holds.
+  def stored_fingering_keys(score_url)
+    (stored_fingering_record(score_url)&.fetch('fingerings') || {}).keys.sort
+  end
+
+  def stored_fingering_record(score_url)
+    page.evaluate_async_script(<<~JS, score_url)
+      const [scoreUrl, done] = [arguments[0], arguments[arguments.length - 1]];
+      const request = indexedDB.open('arabesque', 3);
+      request.onerror = () => done(null);
+      request.onsuccess = () => {
+        const db = request.result;
+        const record = db.transaction('fingerings', 'readonly').objectStore('fingerings').get(scoreUrl);
+        record.onerror = () => { db.close(); done(null); };
+        record.onsuccess = () => { db.close(); done(record.result ?? null); };
+      };
+    JS
+  end
+
   # Helper to simulate MIDI input events
   # Example: simulate_midi_input("ON C4") or simulate_midi_input("OFF C4")
   def simulate_midi_input(notation)
@@ -525,7 +544,9 @@ class CapybaraTestBase < Minitest::Test
 
   # Helper to click on a measure in the score. One click area per engraved
   # measure, in score order, so a repeated measure is clicked by its number
-  # whichever pass the playback sequence is on.
+  # whichever pass the playback sequence is on. A bar split across two systems
+  # has one on each, which this counts as two: select those by
+  # data-measure-index instead.
   def click_measure(measure_number)
     page.all('svg rect.measure-click-area')[measure_number - 1].trigger('click')
   end

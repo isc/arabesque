@@ -3,14 +3,15 @@
 //
 // A key is `m<measure>:<staff>:<voice>:<note>`:
 //
-//   measure  0-based position of the measure in the score -- OSMD's
-//            SourceMeasures index, and equally the nth <measure> of a <part>.
+//   measure  0-based position of the bar in the score: the nth <measure> of a
+//            <part>, and OSMD's SourceMeasures index -- except that a bar the
+//            file writes as two <measure>s counts once (see barCounter).
 //   staff    0-based and counted across the whole sheet, not within a part: a
 //            score written as two one-staff parts (the two-part Entertainer)
 //            has staves 0 and 1, not 0 and 0.
 //   voice    the MusicXML <voice> number minus one. Per part, which is enough:
 //            a sheet-wide staff already tells the parts apart.
-//   note     how many notes of that measure, staff and voice came before it.
+//   note     how many notes of that bar, staff and voice came before it.
 //
 // It used to be the measure's `number` attribute rather than its position, and
 // that attribute is a label, not an identity. Satie's Gnossienne No. 1 has no
@@ -39,6 +40,37 @@ export function fingeringKey(measureIndex, staff, voice, noteIndex) {
   return `${KEY_PREFIX}${measureIndex}:${staff}:${voice}:${noteIndex}`
 }
 
+// Numbers the bars of a score as its <measure>s go by: call it once per
+// measure, in order, with the measure's `number` attribute as parseInt reads it
+// and whether it is marked implicit="yes". Returns the bar's index and whether
+// the measure `continues` the one before it.
+//
+// A bar is one <measure>, but for one written in two so a system can break
+// inside it (bar 32 of Chopin's Op. 9 No. 2, sixty-four grace notes long): the
+// second half is marked implicit -- MusicXML's word for a measure not counted,
+// "such as [...] the last half of mid-measure repeats" -- and carries the
+// number of the bar it completes. Both halves are then that bar: one index, one
+// note count running through them, so no fingering and no practice history
+// moves when a bar is split, and the practice cursor takes it whole.
+//
+// Implicit alone is not enough: Satie's barless Gnossienne marks all eleven of
+// its measures implicit and numbers them all "0", and none of them completes a
+// counted bar. Nor is OSMD's ImplicitMeasure, worked out from durations, which
+// grace notes throw off.
+export function barCounter() {
+  let index = -1
+  // The number of the counted bar the next measure could still complete.
+  let open = null
+  return (number, implicit) => {
+    const continues = implicit && Number.isInteger(number) && number === open
+    if (!continues) {
+      index++
+      open = implicit ? null : number
+    }
+    return { index, continues }
+  }
+}
+
 // The scheme this one replaced, kept only so a stored key can be recognised and
 // translated. Delete it, and the migration with it, once no record still holds
 // one -- see migrateLegacyFingerings.
@@ -50,17 +82,10 @@ export function isLegacyFingeringKey(key) {
   return !key.startsWith(KEY_PREFIX)
 }
 
-// The measure, staff, voice and note a key names. Only the measure and staff
-// have a reader today, but a key is one string in storage and one shape here.
-export function parseFingeringKey(key) {
-  const [measureIndex, staff, voice, noteIndex] = key.slice(KEY_PREFIX.length).split(':').map(Number)
-  return { measureIndex, staff, voice, noteIndex }
-}
-
-// How many notes of this staff and voice the measure has already spent, and
-// one more from now on. `counters` is a Map per measure; every non-rest note
-// must be offered to it, in document order, whatever the caller then does with
-// the note.
+// How many notes of this staff and voice the bar has already spent, and one
+// more from now on. `counters` is a Map per bar; every non-rest note must be
+// offered to it, in document order, whatever the caller then does with the
+// note.
 export function nextNoteIndex(counters, staff, voice) {
   const counterKey = `${staff}:${voice}`
   const noteIndex = counters.get(counterKey) ?? 0

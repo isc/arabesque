@@ -1,23 +1,14 @@
 import { describe, it, expect } from 'vitest'
 import {
+  barCounter,
   fingeringKey,
   isLegacyFingeringKey,
   legacyFingeringKey,
   migrateLegacyFingerings,
   nextNoteIndex,
-  parseFingeringKey,
 } from '../../public/js/fingeringKeys.js'
 
 describe('fingering keys', () => {
-  it('round-trips through parseFingeringKey', () => {
-    expect(parseFingeringKey(fingeringKey(12, 1, 4, 7))).toEqual({
-      measureIndex: 12,
-      staff: 1,
-      voice: 4,
-      noteIndex: 7,
-    })
-  })
-
   it('tells a current key from one written under the old scheme', () => {
     expect(isLegacyFingeringKey(fingeringKey(0, 0, 0, 0))).toBe(false)
     // The measure numbers the old scheme put first: an ordinary one, the "0"
@@ -37,6 +28,40 @@ describe('fingering keys', () => {
       nextNoteIndex(counters, 0, 1),
       nextNoteIndex(counters, 0, 0),
     ]).toEqual([0, 1, 0, 0, 2])
+  })
+})
+
+// The bar each measure lands in, given [number, implicit] per <measure>.
+const barIndexes = (measures) => {
+  const nextBar = barCounter()
+  return measures.map(([number, implicit]) => nextBar(number, implicit).index)
+}
+
+describe('barCounter', () => {
+  it('gives each measure a bar of its own, a pickup included', () => {
+    expect(barIndexes([[0, true], [1, false], [2, false]])).toEqual([0, 1, 2])
+  })
+
+  it('folds the second half of a split bar into the bar it completes', () => {
+    expect(barIndexes([[31, false], [32, false], [32, true], [33, false]])).toEqual([0, 1, 1, 2])
+  })
+
+  it('folds every further piece of a bar split more than once', () => {
+    expect(barIndexes([[32, false], [32, true], [32, true], [33, false]])).toEqual([0, 0, 0, 1])
+  })
+
+  // Satie's barless Gnossienne: every measure implicit, every one numbered 0.
+  it('keeps apart implicit measures that complete no counted bar', () => {
+    expect(barIndexes([[0, true], [0, true], [0, true]])).toEqual([0, 1, 2])
+  })
+
+  it('keeps apart a repeated number that is not marked implicit', () => {
+    expect(barIndexes([[4, false], [4, false]])).toEqual([0, 1])
+  })
+
+  // A second ending exported "X1", which parseInt reads as NaN.
+  it('keeps apart an implicit measure whose number cannot be read', () => {
+    expect(barIndexes([[19, false], [NaN, true], [NaN, true]])).toEqual([0, 1, 2])
   })
 })
 

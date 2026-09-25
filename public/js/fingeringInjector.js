@@ -1,4 +1,4 @@
-import { fingeringKey, nextNoteIndex } from './fingeringKeys.js'
+import { barCounter, fingeringKey, nextNoteIndex } from './fingeringKeys.js'
 
 function getElementInt(parent, tagName, defaultValue) {
   const el = parent.querySelector(tagName)
@@ -37,10 +37,13 @@ export function* fingeringNotesInDocument(doc) {
   const staffOffsets = staffOffsetsByPart(parts)
 
   for (const [partIndex, part] of parts.entries()) {
-    // The measure's position, not its number attribute: see fingeringKeys.js.
+    // The bar's position, not its number attribute: see fingeringKeys.js.
     // Counted per part, because every part runs the same measures.
-    for (const [measureIndex, measure] of [...part.querySelectorAll('measure')].entries()) {
-      const noteCounters = new Map()
+    const nextBar = barCounter()
+    let noteCounters
+    for (const measure of part.querySelectorAll('measure')) {
+      const bar = nextBar(parseInt(measure.getAttribute('number'), 10), measure.getAttribute('implicit') === 'yes')
+      if (!bar.continues) noteCounters = new Map()
 
       for (const note of measure.querySelectorAll('note')) {
         if (note.querySelector('rest')) continue
@@ -49,7 +52,7 @@ export function* fingeringNotesInDocument(doc) {
         const staff = staffOffsets[partIndex] + getElementInt(note, 'staff', 1) - 1
         const voice = getElementInt(note, 'voice', 1) - 1
 
-        yield { note, key: fingeringKey(measureIndex, staff, voice, nextNoteIndex(noteCounters, staff, voice)) }
+        yield { note, key: fingeringKey(bar.index, staff, voice, nextNoteIndex(noteCounters, staff, voice)) }
       }
     }
   }
