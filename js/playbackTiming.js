@@ -8,22 +8,16 @@ export function tsToSeconds(ts, bpm) {
 
 // For each measure in playback order, its start time from the beginning of the
 // piece (in whole-note fractions) -- i.e. the running sum of preceding measure
-// durations. Each measure's actual duration comes from OSMD, so time signatures
-// other than 4/4 work correctly.
-export function buildMeasureStartTimes(allNotes, sourceMeasures) {
+// durations. Each measure's actual duration comes from OSMD (see barsOf in
+// noteExtraction.js), so time signatures other than 4/4 work correctly.
+export function buildMeasureStartTimes(allNotes) {
   const startTimes = []
   let elapsed = 0
   for (const measureData of allNotes) {
     startTimes.push(elapsed)
-    elapsed += measureDurationTs(measureData, sourceMeasures)
+    elapsed += measureData.duration
   }
   return startTimes
-}
-
-// How long one measure of the playback order lasts, in whole-note fractions.
-// Falls back to a whole note for a measure OSMD gives no duration for.
-export function measureDurationTs(measureData, sourceMeasures) {
-  return sourceMeasures[measureData.sourceMeasureIndex]?.Duration?.RealValue ?? 1.0
 }
 
 // Build the list of cursor advance timestamps (in ms from start) from allNotes

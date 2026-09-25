@@ -1,5 +1,3 @@
-import { parseFingeringKey } from './fingeringKeys.js'
-
 // Of two occurrences of the same note, which one belongs to the "current pass"? The latest
 // occurrence at or before the cursor; or, if neither has been reached yet, the earliest upcoming.
 function isCurrentPassOccurrence(index, otherIndex, currentMeasureIndex) {
@@ -58,7 +56,14 @@ export function boxesByProximity(point, boxes, slop) {
     .sort((a, b) => toCentre(boxes[a]) - toCentre(boxes[b]))
 }
 
-export function initFingeringEditor({ getOsmdInstance, getAllNotes, getNoteDataByKey, svgNote, svgNotehead }) {
+export function initFingeringEditor({
+  getOsmdInstance,
+  getAllNotes,
+  getNoteDataByKey,
+  svgNote,
+  svgNotehead,
+  graphicalMeasureForNote,
+}) {
   let onNoteClick = null
   let delegatedHandlerAttached = false
 
@@ -175,20 +180,12 @@ export function initFingeringEditor({ getOsmdInstance, getAllNotes, getNoteDataB
     }
   }
 
-  // Find the FingeringEntry for a note given its fingering key and noteData.
-  function findFingeringEntry(key, targetNoteData) {
-    const osmdInstance = getOsmdInstance()
-    if (!osmdInstance?.graphic?.MeasureList) return null
-
-    // The key names the measure by its place in the score, so it indexes
-    // MeasureList directly. It used to name it by the XML's number attribute
-    // and look that up, which found the first measure carrying the number --
-    // the wrong one, in every score that reuses a number.
-    const { measureIndex, staff } = parseFingeringKey(key)
-    const graphicalMeasure = osmdInstance.graphic.MeasureList[measureIndex]?.[staff]
-    if (!graphicalMeasure) return null
-
-    for (const staffEntry of graphicalMeasure.staffEntries || []) {
+  // Find the FingeringEntry for a note, in the measure the note is drawn in.
+  // Asked of the note rather than read off its key: the key names the bar, and
+  // a bar the file splits across two systems is two of OSMD's measures (see
+  // barCounter in fingeringKeys.js).
+  function findFingeringEntry(targetNoteData) {
+    for (const staffEntry of graphicalMeasureForNote(targetNoteData.note).staffEntries || []) {
       const entry = staffEntry.FingeringEntries?.find((label) => label.sourceNote === targetNoteData.note)
       if (entry) return entry
     }
@@ -280,7 +277,7 @@ export function initFingeringEditor({ getOsmdInstance, getAllNotes, getNoteDataB
       return createGraceNoteFingeringText(svgGroup, fingerText)
     }
 
-    const fingeringEntry = findFingeringEntry(key, targetNoteData)
+    const fingeringEntry = findFingeringEntry(targetNoteData)
     const textEl = fingeringEntry?.SVGNode?.querySelector('text')
     if (!textEl) return false
 
