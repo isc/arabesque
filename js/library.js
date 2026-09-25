@@ -5,6 +5,7 @@ import {
   HOT_SPOT_FACTOR,
   HOT_SPOT_MIN_ATTEMPTS,
   STATUS_THRESHOLDS,
+  cleanMeasureRatio,
   hasMinimumPractice,
   MIN_PRACTICE_MS_FOR_STATUS,
   REINFORCEMENT_WINDOW_SESSIONS,
@@ -579,10 +580,10 @@ export function libraryApp() {
       const agg = this.aggregateFor(score)
       if (!agg) return false
       if (focus === 'near-mastery') {
-        const measures = Object.values(agg.measures || {})
-        if (agg.status !== 'perfectionnement' || measures.length === 0) return false
-        const clean = measures.filter((m) => (m.cleanAttempts || 0) >= STATUS_THRESHOLDS.perfectionnement.cleanAttempts).length
-        return clean / measures.length >= 0.8
+        return (
+          agg.status === 'perfectionnement' &&
+          cleanMeasureRatio(agg, STATUS_THRESHOLDS.perfectionnement.cleanAttempts) >= 0.8
+        )
       }
       if (focus === 'stale') {
         // A piece under the practice floor wears no status at all: the library

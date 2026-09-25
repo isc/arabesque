@@ -316,12 +316,14 @@ export function initStorage() {
       }
     },
 
-    // Wipe only the aggregates store. Aggregates are derived from sessions, so
-    // cloud sync rebuilds them from scratch after pulling new sessions.
-    clearAggregates() {
+    // Swap the whole aggregates store for `aggregates`, in one transaction.
+    // Aggregates are derived from sessions, and a rebuild replaces them all:
+    // nothing reads a store half cleared, half written.
+    replaceAggregates(aggregates) {
       return withDb((db) => {
         const transaction = db.transaction([AGGREGATES_STORE], 'readwrite')
         transaction.objectStore(AGGREGATES_STORE).clear()
+        putAllToStore(transaction, AGGREGATES_STORE, aggregates)
         return promisifyTransaction(transaction)
       })
     },
