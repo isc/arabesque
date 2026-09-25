@@ -24,6 +24,11 @@ const AccidentalEnum = {
   DOUBLEFLAT: 5,
 }
 
+// Stem direction from OSMD (StemDirectionType), as the note's <stem> wrote it
+const StemDirectionEnum = {
+  Up: 0,
+}
+
 // Diatonic note semitone offsets from C (C=0, D=2, E=4, F=5, G=7, A=9, B=11)
 // OSMD's fundamentalNote is the semitone offset of the note name (ignoring accidentals)
 const DIATONIC_NOTES = [0, 2, 4, 5, 7, 9, 11] // C, D, E, F, G, A, B
@@ -102,9 +107,10 @@ const ACCIDENTAL_SIGNS = {
 // registers.
 //
 // The hand follows, in the vocabulary and with the separator runs are already
-// captioned with (utils' withHands). It is the staff the note is written on,
-// which is the hand that plays it everywhere but a deliberate cross-hand
-// passage — where the staff is what the player reads anyway.
+// captioned with (utils' withHands). It is the hand the notation gives the
+// note (handOfNote) — the staff it is written on, or its stem on a middle
+// staff — which is the hand that plays it everywhere but a deliberate
+// cross-hand passage, where the notation is what the player reads anyway.
 export function noteLabel(noteData) {
   const spelled = spelledNote(noteData)
   return spelled && withHands(spelled, handOfNote(noteData))
@@ -560,6 +566,12 @@ function extractNotesFromBars(bars) {
       for (const container of measure.verticalSourceStaffEntryContainers) {
         for (const [staffIndex, staffEntry] of (container.staffEntries ?? []).entries()) {
           if (!staffEntry?.voiceEntries) continue
+          // Counted within the note's own part: a second piano part (Chopin's
+          // first Ballade carries one) must not make the first one's bass staff
+          // a middle staff.
+          const partStaves = staffEntry.ParentStaff?.ParentInstrument?.Staves ?? []
+          const staffInPart = partStaves.indexOf(staffEntry.ParentStaff)
+          const innerStaff = staffInPart > 0 && staffInPart < partStaves.length - 1
           for (const voiceEntry of staffEntry.voiceEntries) {
             if (!voiceEntry.notes) continue
             // Get voice ID from OSMD (1-based in MusicXML), convert to 0-indexed
@@ -607,8 +619,10 @@ function extractNotesFromBars(bars) {
                 // Index of the notehead within the chord (for targeting individual noteheads in SVG)
                 noteheadIndex,
                 noteheadCount: voiceEntry.notes.filter((n) => n.pitch).length,
-                // Staff 0 = right hand (treble clef), Staff 1 = left hand (bass clef)
+                // The staff, and on a middle staff the stem: what handOfNote reads
                 staffIndex,
+                innerStaff,
+                stemUp: (note.StemDirectionXml ?? voiceEntry.StemDirectionXml) === StemDirectionEnum.Up,
                 // Key for fingering storage
                 fingeringKey: key,
                 voiceIndex,
@@ -709,10 +723,18 @@ export function requiredSequence(noteData) {
   return { sequence: held ? [] : [noteData.midiNumber], delayTs: 0, holdTs: 0, alternating: false }
 }
 
-// Staff 0 = right hand, Staff 1+ = left hand. The one place that rule is
-// written: what a hand selection plays reads it, and so does what names a note.
-export function handOfNote({ staffIndex }) {
-  return staffIndex === 0 ? 'right' : 'left'
+// The top staff is the right hand's, every staff below it the left's -- except
+// a staff in the middle of its part, where the stem decides: stem up, right
+// hand. The one place that rule is written: what a hand selection plays reads
+// it, and so does what names a note.
+//
+// The middle staff is Liszt's: his song transcriptions put the melody on a
+// third staff between the other two, shared by both thumbs, and the footnote
+// to his Ave Maria spells out that stems up are the right hand's, stems down
+// the left's. A stemless note there stays with the left hand, as it would
+// anywhere below the top staff.
+export function handOfNote({ staffIndex, innerStaff, stemUp }) {
+  return staffIndex === 0 || (innerStaff && stemUp) ? 'right' : 'left'
 }
 
 export function isNoteActiveForHands(noteData, activeHands) {
