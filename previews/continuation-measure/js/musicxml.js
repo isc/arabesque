@@ -13,6 +13,7 @@ import { scrollSystemIntoView, isUnderStickyBars } from './utils.js'
 import { arrayBufferToXml, isMusicXml } from './mxlLoader.js'
 import { stripPlaybackTempoMarks } from './tempoMarks.js'
 import { t } from './i18n.js'
+import { recordError } from './errorLog.js'
 
 let osmdInstance = null
 let allNotes = []
@@ -81,6 +82,15 @@ function afterTheBeat(fn) {
   pendingBeat = setTimeout(fn, TRAINING_RESET_DELAY_MS)
 }
 
+// The end of the score, the run finished or not: a beat later the cursor is
+// back at the top, and the page is told.
+function backToTheTopAfterTheBeat() {
+  afterTheBeat(() => {
+    resetProgress()
+    callbacks.onBackToTop?.()
+  })
+}
+
 function dropPendingBeat() {
   clearTimeout(pendingBeat)
   pendingBeat = null
@@ -110,6 +120,7 @@ let callbacks = {
   onWrongNote: null,
   onPlaythroughRestart: null,
   onReinforcementComplete: null,
+  onBackToTop: null,
   // Return true from this callback to bypass the default jumpToMeasure
   // (strict mode uses it to set its start point instead).
   onMeasureClicked: null,
@@ -357,7 +368,7 @@ async function loadMusicXML(file) {
 
     await renderMusicXML(xmlContent)
   } catch (error) {
-    console.error('Erreur lors du chargement du MusicXML:', error)
+    recordError(error, 'MusicXML file could not be loaded')
     alert(t('errors.musicXmlLoad'))
   }
 }
@@ -525,7 +536,7 @@ async function renderMusicXML(xmlContent) {
     window.osmdInstance = osmd
     sheetJustLoaded = true
   } catch (error) {
-    console.error('Erreur lors du rendu MusicXML avec OSMD:', error)
+    recordError(error, 'OSMD could not render the score')
   }
 }
 
@@ -1229,7 +1240,7 @@ function advanceTraining() {
 
   if (action === 'scoreDone') {
     callbacks.onTrainingComplete?.()
-    afterTheBeat(() => resetProgress())
+    backToTheTopAfterTheBeat()
     return
   }
   if (action === 'passageDone') callbacks.onTrainingComplete?.()
@@ -1339,7 +1350,7 @@ function handleNoteValidated(measureData, noteData, validatedCount) {
         if (allMeasuresPlayed) {
           callbacks.onScoreCompleted?.(currentMeasureIndex)
         }
-        afterTheBeat(() => resetProgress())
+        backToTheTopAfterTheBeat()
       }
     }
   }
@@ -1402,7 +1413,7 @@ function getSystemIndexForNote(note) {
 
     return 0
   } catch (error) {
-    console.warn('Failed to get system index for note:', error)
+    recordError(error, 'System holding a note could not be found')
     return 0
   }
 }

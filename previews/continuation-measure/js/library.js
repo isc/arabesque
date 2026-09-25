@@ -19,6 +19,7 @@ import { listProfiles, currentProfile, profileName, switchProfile } from './prof
 import { initAutoSync } from './autoSync.js'
 import { onDayChange } from './dayRollover.js'
 import { t, tn, locale } from './i18n.js'
+import { recordError } from './errorLog.js'
 
 const MIN_MATCH = 5
 const STATUS_ORDER = ['dechiffrage', 'perfectionnement', 'repertoire']
@@ -252,11 +253,14 @@ export function libraryApp() {
     // this (a bfcache restore, a sync that pulled, the day turning over) and a
     // resume the next morning fires more than one of them, so callers arriving
     // while a refresh is in flight share it rather than walking the store again.
+    //
+    // Nobody awaits it, so a failure stops here: the page keeps what it was
+    // showing, and a report sent from it says why (errorLog.js).
     refreshPracticeViews() {
       this.refreshingPractice ??= Promise.all([
         this.refreshPracticeData(),
         this.reloadDailyLogs(),
-      ]).finally(() => {
+      ]).catch((error) => recordError(error, 'Practice data could not be read again')).finally(() => {
         this.refreshingPractice = null
       })
       return this.refreshingPractice
@@ -265,23 +269,24 @@ export function libraryApp() {
     // Recomputes lastPlayedByScore/aggregatesByScore/reinforceFiles/sessionCountByFile from
     // storage. Safe to call more than once (each map is rebuilt from
     // scratch), unlike the rest of init() which registers listeners.
+    //
+    // Built aside and swapped in only once both reads are in, so that a read
+    // that fails leaves the page as it was rather than stripped of its
+    // statuses and practice times (feedback be332d4d).
     async refreshPracticeData() {
-      this.lastPlayedByScore = {}
-      this.aggregatesByScore = {}
-      collectionAggregates.clear()
-      sessionCountByFile = {}
-
       const [sessions, aggregates] = await Promise.all([storage.getSessions(), storage.getAllAggregates()])
 
+      const lastPlayedByScore = {}
+      const countByFile = {}
       const sessionsByFile = new Map()
       for (const session of sessions) {
-        const existing = this.lastPlayedByScore[session.scoreId]
+        const existing = lastPlayedByScore[session.scoreId]
         if (!existing || session.startedAt > existing) {
-          this.lastPlayedByScore[session.scoreId] = session.startedAt
+          lastPlayedByScore[session.scoreId] = session.startedAt
         }
         if (session.scoreId.startsWith(this.baseUrl)) {
           const file = session.scoreId.slice(this.baseUrl.length)
-          sessionCountByFile[file] = (sessionCountByFile[file] ?? 0) + 1
+          countByFile[file] = (countByFile[file] ?? 0) + 1
           const forFile = sessionsByFile.get(file)
           if (forFile) forFile.push(session)
           else sessionsByFile.set(file, [session])
@@ -292,16 +297,23 @@ export function libraryApp() {
       // whose counters have never forgotten anything. Every piece it lists
       // also has a "Renforcer N mesures" badge on its page, but not the other
       // way round: see hasHotSpots for why the badge alone selected everything.
-      this.reinforceFiles = new Set()
+      const reinforceFiles = new Set()
       for (const [file, forFile] of sessionsByFile) {
-        if (hasHotSpots(forFile)) this.reinforceFiles.add(file)
+        if (hasHotSpots(forFile)) reinforceFiles.add(file)
       }
 
       // Aggregates power the status filter, status pills, and practice-focus banner.
+      const aggregatesByScore = {}
       for (const agg of aggregates) {
         if (!agg || (agg.practiceDays || []).length === 0) continue
-        this.aggregatesByScore[agg.scoreId] = agg
+        aggregatesByScore[agg.scoreId] = agg
       }
+
+      this.lastPlayedByScore = lastPlayedByScore
+      this.aggregatesByScore = aggregatesByScore
+      this.reinforceFiles = reinforceFiles
+      sessionCountByFile = countByFile
+      collectionAggregates.clear()
     },
 
     handleSearchNote(midiNote) {

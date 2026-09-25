@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="app-version" content="919e61a72815" />
+    <meta name="app-version" content="08c785730a09" />
     <title data-i18n="score.pageTitle">Arabesque</title>
     <link rel="icon" href="favicon.svg" type="image/svg+xml" />
     <link rel="manifest" href="manifest.webmanifest" />
@@ -43,6 +43,7 @@
       }
     }
     </script>
+    <script type="module" src="js/errorLog.js"></script>
     <script type="module" src="js/version.js"></script>
     <script type="module" src="js/swRegister.js"></script>
     <!-- defer, not blocking: these two are only needed once a score is being
@@ -157,15 +158,16 @@
            setting it froze at its start, and a mis-tap on a 14px box has no
            business throwing away the run. The controls that abort instead
            (the loop, a click on a measure) are the ones whose whole point is
-           to say where to play. -->
+           to say where to play.
+           Short label, the words in full for assistive tech and hover. -->
       <div class="pt-hands">
-        <label class="pt-hands__option">
-          <input type="checkbox" x-model="rightHandActive" @change="updateActiveHands" :disabled="isStrictPlaying" />
-          <span x-text="$t('score.rightHand')">Main droite</span>
+        <label class="pt-hands__option" :title="$t('score.rightHand')">
+          <input type="checkbox" x-model="rightHandActive" @change="updateActiveHands" :disabled="isStrictPlaying" :aria-label="$t('score.rightHand')" />
+          <span x-text="$t('hands.right')">MD</span>
         </label>
-        <label class="pt-hands__option">
-          <input type="checkbox" x-model="leftHandActive" @change="updateActiveHands" :disabled="isStrictPlaying" />
-          <span x-text="$t('score.leftHand')">Main gauche</span>
+        <label class="pt-hands__option" :title="$t('score.leftHand')">
+          <input type="checkbox" x-model="leftHandActive" @change="updateActiveHands" :disabled="isStrictPlaying" :aria-label="$t('score.leftHand')" />
+          <span x-text="$t('hands.left')">MG</span>
         </label>
       </div>
 
@@ -175,6 +177,7 @@
         x-show="measuresToReinforce.length > 0 && !trainingMode && !isStrictPlaying"
         @click.prevent="startReinforcementMode()"
         x-text="reinforceLabel()"
+        :aria-label="reinforceLabel('handsFull')"
       ></a>
 
       <div class="pt-modebar__spacer"></div>
@@ -514,6 +517,7 @@
             x-show="resultMode !== 'reinforcement' && measuresToReinforce.length > 0"
             @click="closeResultModal(); startReinforcementMode()"
             x-text="reinforceLabel()"
+            :aria-label="reinforceLabel('handsFull')"
           ></button>
         </footer>
       </article>
