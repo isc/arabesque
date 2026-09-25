@@ -147,7 +147,7 @@ class StrictPlaythroughTest < CapybaraTestBase
     # modal is still up; its own button leads to the history.
     within('dialog.pt-result-dialog') { click_on 'Historique' }
     within '#scoreHistoryModal' do
-      assert_text '1× en entier (100 % à 120 BPM) · mode strict'
+      assert_text '1× en entier : 100 % à 120 BPM · mode strict'
       assert_no_text 'Évolution'
     end
 
@@ -185,7 +185,7 @@ class StrictPlaythroughTest < CapybaraTestBase
 
     within('dialog.pt-result-dialog') { click_on 'Historique' }
     within '#scoreHistoryModal' do
-      assert_text '1× en entier (67 % à 120 BPM) · mode strict'
+      assert_text '1× en entier : 67 % à 120 BPM · mode strict'
     end
   end
 

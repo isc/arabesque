@@ -83,7 +83,26 @@ class PracticeTrackingTest < CapybaraTestBase
       assert_text '100 %'
       assert_text '56 %'
     end
-    assert_text '2× en entier (60 % à 100 BPM et 100 % à 120 BPM) · mode strict'
+    assert_text '2× en entier : 60 % à 100 BPM et 100 % à 120 BPM · mode strict'
+  end
+
+  # The day-by-day journal says how clean each free run was, not only how long
+  # it took — the result modal already did, beside the time.
+  def test_history_modal_lists_each_run_with_its_wrong_notes
+    visit "/score.html?url=/test-fixtures/two-measures.xml"
+    assert_selector 'svg g.vf-stavenote', count: 2
+
+    # Noon UTC two days ago, and ten minutes later: the same day in any
+    # time zone the browser may run in.
+    day = Time.now.utc - (2 * 86_400)
+    noon = Time.utc(day.year, day.month, day.day, 12)
+    seed_store('sessions', [
+      session_record('clean-run', 'free', noon, 60_000),
+      session_record('stumbling-run', 'free', noon + 600, 90_000, clean: false, wrong_notes: 4),
+    ])
+
+    click_on 'Historique'
+    assert_text '2× en entier : 1m 0s (sans faute) et 1m 30s (4 fausses notes)'
   end
 
   def test_daily_log_shows_practiced_score
@@ -133,9 +152,9 @@ class PracticeTrackingTest < CapybaraTestBase
 
   # A finished session of the two-measure fixture, played through in one
   # attempt. `extra` lands on the session record as is.
-  def session_record(id, mode, started_at, duration_ms, clean: true, **extra)
+  def session_record(id, mode, started_at, duration_ms, clean: true, wrong_notes: 0, **extra)
     completed_at = started_at + (duration_ms / 1000.0)
-    attempt = { startedAt: started_at.iso8601(3), durationMs: duration_ms, wrongNotes: 0, clean: clean, hands: 'both' }
+    attempt = { startedAt: started_at.iso8601(3), durationMs: duration_ms, wrongNotes: wrong_notes, clean: clean, hands: 'both' }
     {
       id: id,
       scoreId: '/test-fixtures/two-measures.xml',
