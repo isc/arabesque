@@ -143,10 +143,22 @@ class CapybaraTestBase < Minitest::Test
     page.execute_script(CAPTURE_SUBMISSIONS)
   end
 
+  # Returns once the form has stopped moving, which is not when it opens. The
+  # picture of the screen (screenshot.js) is taken after the dialog is up and
+  # lands above Envoyer as a preview some 200px tall. Landing between the moment
+  # the driver measures the button and the moment it presses there, it moves the
+  # button out from under the press: the click goes to the preview, nothing is
+  # sent, and the test times out on "Merci" with the form still open. That
+  # happened on loaded full-suite runs; holding the screenshot module's download
+  # back 110ms reproduces it more often than not.
+  #
+  # Decoded, not merely present: the <img> gets its height a task after it is
+  # inserted, and that is the move that matters.
   def open_feedback
     open_menu
     click_on '💬 Avis'
     assert_selector 'dialog[open] textarea'
+    assert_selector('.pt-feedback-shot__preview') { |preview| preview[:naturalHeight].to_i.positive? }
   end
 
   def send_feedback(message)
