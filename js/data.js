@@ -12,6 +12,7 @@ import { lastSyncAt } from './sync.js'
 import { initAutoSync, requestSync } from './autoSync.js'
 import { deleteCurrentUser } from './account.js'
 import { t, locale } from './i18n.js'
+import { recordError } from './errorLog.js'
 import {
   AVATARS,
   MAIN_PROFILE_ID,
@@ -134,7 +135,7 @@ export function dataApp() {
         setPendingSignIn = mod.setPendingSignIn
         this.cloudConfigured = !!supabase
       } catch (err) {
-        console.error('Supabase client failed to load:', err)
+        recordError(err, 'Supabase client could not be loaded')
         this.cloudConfigured = false
       }
       if (supabase) {
@@ -195,7 +196,7 @@ export function dataApp() {
         })
         this.syncStatus = 'done'
       } catch (err) {
-        console.error('Sync error:', err)
+        // Kept for a feedback report by requestSync itself.
         this.syncStatus = 'error'
         this.syncError = err.message || String(err)
       }
@@ -279,7 +280,7 @@ export function dataApp() {
         this.confirmingDelete = false
         this.deleteStatus = 'done'
       } catch (err) {
-        console.error('Account deletion error:', err)
+        recordError(err, 'Account could not be deleted')
         this.deleteStatus = 'error'
         this.deleteError = err.message || String(err)
       }
@@ -299,7 +300,7 @@ export function dataApp() {
         URL.revokeObjectURL(url)
         alert(t('library.exportOk'))
       } catch (error) {
-        console.error('Export error:', error)
+        recordError(error, 'Backup could not be exported')
         alert(t('library.exportError', { error: error.message }))
       }
     },
@@ -320,7 +321,7 @@ export function dataApp() {
           )
         }
       } catch (error) {
-        console.error('Import error:', error)
+        recordError(error, 'Backup could not be imported')
         alert(t('library.importError', { error: error.message }))
       }
       event.target.value = ''

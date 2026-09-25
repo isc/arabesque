@@ -639,7 +639,7 @@ export function midiApp() {
           return
         }
       } catch (error) {
-        console.warn('Collection lookup failed:', error)
+        recordError(error, 'Collection parts could not be looked up')
       }
     },
 
