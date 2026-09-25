@@ -1,358 +1,129 @@
 # Arabesque
 
-A web-based piano training application that helps musicians practice by connecting MIDI devices, displaying sheet music, and providing real-time feedback on note accuracy.
+Practise the piano with real-time feedback. Connect a MIDI keyboard, open a
+score and play: every note lights up depending on whether you nailed it,
+missed it or jumped ahead, and your practice is logged bar by bar.
+
+Live at [arabesque.app](https://arabesque.app), in French and English. It runs
+in the browser, installs as an app on Android, and ships as a native wrapper on
+iPhone and iPad.
 
 ## Features
 
-### Core Functionality
-- **Score Library**: Browse and search 70 public domain classical music scores
-- **MIDI Connection**: Connect MIDI devices via Web MIDI API (USB or Bluetooth)
-- **Real-time Note Display**: Visual feedback showing played notes on a musical staff
-- **MusicXML Support**: Load and display sheet music in MusicXML format
-- **Interactive Practice**: Highlights notes as you play and validates accuracy
-- **Recording & Playback**: Record MIDI performances and replay them
-- **Practice Calendar**: A year of practice as one square per day, with streaks and totals
+- **MIDI keyboard over USB or Bluetooth**: Web MIDI in the browser, CoreMIDI in
+  the iOS app.
+- **Note-by-note feedback** on the score as you play.
+- **Practice modes**: free sight-reading, training on a passage, and a strict
+  mode to the metronome that loops a passage and raises the tempo with every
+  clean run.
+- **Practice journal**: time, reworked bars, full run-throughs, a status per
+  piece (sight-reading → refining → repertoire) and a year-at-a-glance calendar.
+- **Fingerings** shown and edited right on the score.
+- **Library** of 70+ public-domain scores, filterable by composer and period,
+  and findable by playing their opening notes. You can also drop your own
+  MusicXML file (`.xml`, `.mxl`) onto the page.
+- **Listen** plays the piece at a chosen tempo from any bar.
+- **Offline**: a score opened once stays available without a network.
+- **Profiles**, one per pianist on a shared device, and an optional account to
+  sync practice across devices.
 
-### Key Components
+## How it is built
 
-#### 1. Backend (Ruby/Sinatra)
-- **API Endpoints**: RESTful API for managing MIDI recordings (cassettes)
-- **File Management**: Stores recordings as JSON files
+A static site with no build step: everything the browser loads lives in
+`public/`, and the few libraries it uses are vendored in `public/vendor/`
+(Alpine.js, OpenSheetMusicDisplay, Tone.js, JSZip). Production and the branch
+previews are served from GitHub Pages.
 
-#### 2. Frontend (JavaScript/HTML/CSS)
-- **MIDI Processing**: Parses MIDI messages from Bluetooth devices
-- **MusicXML Rendering**: Uses OpenSheetMusicDisplay for sheet music visualization
-- **Note Validation**: Compares played notes against sheet music
-- **Visual Feedback**: Color-codes notes to show progress and errors
+- **Data stays on the device**, in IndexedDB. Signing in (an emailed code,
+  Supabase auth) syncs practice sessions, fingerings and profiles between
+  devices. `supabase/` holds the canonical DDL and auth config.
+- **A service worker** (`public/sw.js`) precaches the app shell and caches
+  scores as they are opened.
+- **`app.rb`** is a small Sinatra server for development and the test suite.
+  It serves `public/`, plus a `/api/cassettes` endpoint that records and replays
+  MIDI performances. Cassettes are a development tool: the tests replay them,
+  and the recording bar only appears when that API answers, which it never does
+  in production.
+- **`ios/`** is the native wrapper: a WKWebView over the deployed app, with
+  CoreMIDI injected as `navigator.requestMIDIAccess`. See
+  [ios/README.md](ios/README.md).
 
-#### 3. Music Theory
-- **Note Conversion**: Converts MIDI note numbers to musical notation
-- **Score Extraction**: Parses MusicXML files to extract playable notes
-- **Timing Analysis**: Tracks note timing and duration
+### Where things are
 
-## Technical Stack
+| Path | What |
+|---|---|
+| `public/index.html` | Landing page |
+| `public/library.html` | Score library |
+| `public/score.html` | Score page, where the playing happens |
+| `public/practice.html` | Practice calendar |
+| `public/data.html` | Account, profiles, backup import/export |
+| `public/js/` | One ES module per concern, e.g. `midi.js`, `musicxml.js`, `practiceTracker.js`, `storage.js`, `sync.js`, `i18n.js` (strings in `locales/`) |
+| `public/styles.css` | The whole stylesheet: tokens, base layer, `.pt-*` components |
+| `public/data/scores.json` | The library catalog |
+| `public/data/fingerprints.json` | Opening-note fingerprints, generated from the catalog |
+| `public/scores/` | The MusicXML files |
+| `changelog.d/` | Pending entries for the in-app "What's new" |
+| `supabase/` | Database schema and auth config |
+| `scripts/` | Maintenance tools: fingerprints, changelog, feedback, deploy stamping, App Store, score sourcing |
+| `landing-video/` | Build pipeline for the landing page's hero video |
+| `test/` | Browser tests (Minitest + Capybara + Cuprite) and `test/js/` (Vitest) |
 
-### Backend
-- **Framework**: Sinatra (Ruby web framework)
-- **Dependencies**:
-  - `sinatra`: Web framework
-  - `json`: JSON processing
-  - `fileutils`: File system operations
-  - `puma`: Web server
-  - `rack`: Web server interface
+## Running it locally
 
-### Frontend
-- **Libraries**:
-  - `OpenSheetMusicDisplay`: MusicXML visualization
-  - `Alpine.js`: Reactive UI framework
-  - `Pico CSS`: Lightweight CSS framework
-
-### Testing
-- **Framework**: Minitest with Capybara
-- **Driver**: Cuprite (headless Chrome)
-- **Test Coverage**: MusicXML parsing, note extraction, playback
-
-## Architecture
-
-### Data Flow
-
-```
-MIDI Device → Web MIDI API → MIDI Message Parser → Note Validator → Visual Feedback
-                          ↓
-                     MusicXML Loader → Score Renderer → Note Extractor
-                          ↓
-                     Recording System → API → File Storage
-```
-
-### Key Files
-
-- `app.rb`: Main Sinatra application with API endpoints
-- `public/index.html`: Score library page with search and filtering
-- `public/score.html`: Score practice page
-- `public/practice.html`: Year-at-a-glance practice calendar
-- `public/data/scores.json`: Index of 70 available scores
-- `public/scores/`: Directory with 70 MusicXML files (1.6MB)
-- `public/js/app.js`: Alpine.js coordination layer
-- `public/js/library.js`: Library page state and filtering
-- `public/js/practice.js`: Practice calendar page (grid, streaks, per-day detail)
-- `public/js/midi.js`: Web MIDI API & recording
-- `public/js/musicxml.js`: MusicXML parsing & validation
-- `public/js/cassettes.js`: Cassette management
-- `public/js/midi_mock.js`: Mock implementation for testing
-- `public/js/utils.js`: Utility functions
-- `public/styles.css`: Custom styling
-- `test/arabesque_test.rb`: core app tests
-- `test/library_test.rb`: Library page tests
-- `Rakefile`: Test runner configuration
-
-## Setup & Installation
-
-### Prerequisites
-- Ruby 3.0+
-- Chrome/Edge browser (for Web Bluetooth API support)
-
-### Installation
+Requires Ruby 3.3 and, to play, Chrome or Edge (Web MIDI).
 
 ```bash
-# Clone the repository
-git clone git@github.com:isc/arabesque.git
-cd arabesque
-
-# Install Ruby dependencies
 bundle install
-
-# Start the server
 ruby app.rb
 ```
 
-The application will be available at `http://localhost:4567`
+Then open <http://localhost:4567/library.html>. No keyboard is needed to browse
+and view scores.
 
-## Usage
+## Tests
 
-### Basic Workflow
-
-1. **Browse Score Library** (Home page: `/`):
-   - View all 70 available public domain scores
-   - Search by title or composer
-   - Click a score to load it for practice
-
-2. **Connect MIDI Device**:
-   - Click "Connecter clavier MIDI"
-   - Select your MIDI device from the list (if multiple devices are connected)
-   - Grant MIDI permissions if prompted
-
-3. **Load Sheet Music**:
-   - From the library: Click any score to automatically load it
-   - Or manually upload: Click "Charger partition MusicXML" to select a file from your computer
-   - The sheet music will be displayed
-
-4. **Practice Mode**:
-   - Play notes on your MIDI keyboard
-   - The system highlights correct notes in green
-   - Incorrect notes show error messages
-   - Progress is tracked in real-time
-
-5. **Recording**:
-   - Click "Démarrer enregistrement" to start recording
-   - Play your performance
-   - Click "Arrêter enregistrement" to stop
-   - Enter a name for your recording
-
-6. **Playback**:
-   - Select a recording from the dropdown
-   - Click "Rejouer cassette" to play it back
-
-### Score Library
-
-The application includes 70 public domain classical music scores ready to practice:
-
-- **Composers**: Bach, Beethoven, Chopin, Debussy, Mozart, Schumann, and more
-- **Styles**: Sonatas, nocturnes, waltzes, preludes, minuets, variations
-- **Search**: Filter by title or composer name
-- **Direct Loading**: Click any score to instantly load and practice it
-- **Local Storage**: All scores served from local `public/scores/` directory (1.6MB)
-
-Available scores include popular pieces like:
-- Moonlight Sonata (3 versions)
-- Fur Elise (multiple arrangements)
-- Canon in D
-- Clair de Lune
-- And 65 more classical masterpieces
-
-### Advanced Features
-
-- **Modular Architecture**: Clean separation of concerns with 6 specialized JavaScript modules
-- **Note Validation**: The system checks if you're playing the correct notes from the sheet music
-- **Progress Tracking**: Shows which notes you've played correctly and what's next
-- **Error Feedback**: Displays what note was expected vs. what you played
-- **Completion Detection**: Shows a celebration message when you complete a piece
-- **Callback System**: Loose coupling between modules via event callbacks
-- **URL Loading**: Load scores programmatically with `score.html?url=<score_url>`
-
-## API Documentation
-
-### GET /api/cassettes
-
-Lists all available MIDI recordings (cassettes).
-
-**Response**:
-```json
-[
-  {
-    "name": "recording_name",
-    "file": "cassettes/recording_name.json",
-    "created_at": "2025-08-13T16:50:11+02:00"
-  }
-]
-```
-
-### POST /api/cassettes
-
-Saves a new MIDI recording.
-
-**Request Body**:
-```json
-{
-  "name": "my_recording",
-  "data": [
-    {
-      "timestamp": 100,
-      "data": [144, 60, 100]  // MIDI message
-    }
-  ]
-}
-```
-
-**Response**:
-```json
-{
-  "success": true,
-  "message": "Cassette sauvegardée avec succès",
-  "file": "cassettes/my_recording.json"
-}
-```
-
-## MusicXML Processing
-
-The application extracts musical information from MusicXML files:
-
-1. **Score Discovery**: Indexes scores in `public/data/scores.json` for library browsing
-2. **Note Extraction**: Parses pitch, duration, and timing information
-3. **Measure Analysis**: Organizes notes by measure
-4. **Validation**: Converts to MIDI note numbers for comparison
-5. **Visualization**: Renders sheet music with OpenSheetMusicDisplay
-
-### Score Index Format
-
-`public/data/scores.json` contains metadata for all available scores:
-
-```json
-{
-  "baseUrl": "/scores/",
-  "scores": [
-    {
-      "title": "Score Title",
-      "composer": "Composer Name",
-      "file": "score-filename.mxl"
-    }
-  ]
-}
-```
-
-### Supported MusicXML Elements
-
-- `<note>`: Individual musical notes
-- `<pitch>`: Note pitch (step + octave)
-- `<duration>`: Note duration
-- `<measure>`: Musical measures
-- `<part>`: Instrument parts
-
-## MIDI Processing
-
-### MIDI Message Format
-
-The application handles standard MIDI messages:
-
-- **Note On**: `144` (0x90) - Note pressed
-- **Note Off**: `128` (0x80) - Note released
-- **Note Number**: 0-127 (MIDI note range)
-- **Velocity**: 0-127 (how hard the note is played)
-
-### MIDI Message Format
-
-Standard MIDI format (3 bytes):
-- Status byte (Note On: 144/0x90, Note Off: 128/0x80)
-- Note number (0-127)
-- Velocity (0-127)
-
-## Development
-
-### Running Tests
+Two suites, both run in CI on every pull request:
 
 ```bash
-# Run all tests (16 tests, 75 assertions)
-bundle exec rake test
-
-# Or run individual test files
-bundle exec ruby test/arabesque_test.rb
-bundle exec ruby test/library_test.rb
-
-# Run with UI (non-headless)
-DISABLE_HEADLESS=1 bundle exec rake test
+bundle exec rake test:parallel > tmp/test-output.txt 2>&1; cat tmp/test-output.txt
 ```
 
-### Test Files
+```bash
+npm ci && npm run test:js
+```
 
-- `test/arabesque_test.rb`: 10 tests for core piano training features
-- `test/library_test.rb`: 6 tests for score library functionality
-- `test/fixtures/simple-score.xml`: Basic 4-note test score
-- `test/fixtures/schumann-melodie.xml`: Complex multi-part score (256 notes)
-- `public/cassettes/*.json`: Various cassette files for playback testing
-
-### Debugging
-
-- Browser console logs show MIDI message parsing
-- Test logs capture browser output
-- Error messages display in the UI for user feedback
-
-## iOS App (Native Wrapper)
-
-Safari/iOS does not support the Web MIDI API, so the `ios/` directory contains
-a minimal native wrapper for iPad/iPhone: a WKWebView loads the deployed web
-app unchanged, MIDI is collected natively with CoreMIDI (USB or Bluetooth),
-and an injected shim emulates `navigator.requestMIDIAccess`. See
-[ios/README.md](ios/README.md) for build instructions.
-
-## Browser Compatibility
-
-### Required Features
-
-- **Web MIDI API**: Chrome 43+, Edge 79+, Opera 30+
-- **ES6 Modules**: Modern browsers
-- **Fetch API**: Modern browsers
-
-### Recommended Browsers
-
-- Chrome 90+
-- Edge 90+
-- Opera 76+
-
-## Troubleshooting
-
-### No MIDI Device Found
-
-If no MIDI device appears when clicking "Connecter clavier MIDI":
-
-1. Ensure your MIDI keyboard is connected (USB) or paired (Bluetooth) with your computer
-2. Check that your browser supports Web MIDI API (Chrome, Edge, Opera)
-3. Grant MIDI permissions when prompted by the browser
-
-### Roland FP-30X Bluetooth MIDI Connection
-
-If you're using a Roland FP-30X (or FP-30) keyboard via Bluetooth and it doesn't appear:
-
-1. First, pair the keyboard with your operating system's Bluetooth settings
-2. On your keyboard, press and hold the **Bluetooth** button together with the **first black key** (F#/Gb), then release both
-3. Press **Bluetooth** again together with the **first white key** (F), then release both
-4. Re-pair the keyboard in your OS settings, then refresh the web page
-
-This procedure resets the Bluetooth connection state on the keyboard.
+The first drives a headless Chrome through the real pages
+(`DISABLE_HEADLESS=1` to watch it). `rake test` runs it serially. The second
+unit-tests the modules with Vitest. No Ruby or Chrome on the machine?
+`scripts/test-in-docker.sh` runs the browser suite in a container.
 
 ## Contributing
 
-### Guidelines
+Every change goes through a pull request, squash-merged. Each pull request is
+deployed at `https://arabesque.app/previews/<branch-slug>/library.html`.
 
-1. **Code Style**: Follow existing patterns and conventions
-2. **Testing**: Add tests for new features
-3. **Documentation**: Update docs for changes
-4. **Compatibility**: Ensure cross-browser support
+[CLAUDE.md](CLAUDE.md) holds the working conventions: how to add a score, write
+a changelog entry, handle user feedback, change the Supabase config, and write
+browser tests that do not flake.
 
-### Areas for Improvement
+## Troubleshooting MIDI
 
-- **Mobile Support**: Better mobile UI
-- **Additional Instruments**: Support for bass clef, percussion
-- **Advanced Features**: Tempo detection, metronome
-- **Export Options**: Export recordings to standard formats
+If no keyboard shows up after clicking "Connect MIDI keyboard":
+
+1. Check the keyboard is connected over USB, or paired over Bluetooth.
+2. Use Chrome or Edge: Safari has no Web MIDI, so on iPhone and iPad use the app.
+3. Allow MIDI access when the browser asks.
+
+**Roland FP-30X (or FP-30) over Bluetooth**, if it does not appear:
+
+1. Pair the keyboard in the operating system's Bluetooth settings.
+2. On the keyboard, hold **Bluetooth** together with the **first black key**
+   (F#/Gb), then release both.
+3. Hold **Bluetooth** together with the **first white key** (F), then release
+   both.
+4. Re-pair the keyboard in the OS settings, then reload the page.
+
+This resets the keyboard's Bluetooth connection state.
 
 ## License
 
@@ -360,10 +131,7 @@ This procedure resets the Bluetooth connection state on the keyboard.
 
 ## Credits
 
-- **OpenSheetMusicDisplay**: MusicXML visualization
-- **Alpine.js**: Reactive UI framework
-- **Pico CSS**: Lightweight styling
-
-## Support
-
-For issues, questions, or contributions, please open an issue or pull request on the GitHub repository.
+- [OpenSheetMusicDisplay](https://opensheetmusicdisplay.org): score rendering
+- [Alpine.js](https://alpinejs.dev): UI
+- [Tone.js](https://tonejs.github.io) and [@tonejs/piano](https://github.com/tambien/Piano): playback
+- [Supabase](https://supabase.com): accounts and sync
