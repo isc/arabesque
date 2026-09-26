@@ -2,6 +2,7 @@ import { NOTE_NAMES } from './midi.js'
 import { barCounter, fingeringKey, legacyFingeringKey, nextNoteIndex } from './fingeringKeys.js'
 import { t } from './i18n.js'
 import { withHands } from './utils.js'
+import { GRACE_NOTE_OFFSET_WN } from './playbackTiming.js'
 
 // Ornament types from OSMD
 const OrnamentEnum = {
@@ -472,31 +473,28 @@ function pitchToMidiFromSourceNote(pitch) {
   return { noteName: `${noteNameStd}${octaveStd}`, midiNote: midiNote }
 }
 
-// Grace notes should be played before the main note, not held together with it.
-// This function adjusts their timestamps to be slightly earlier than the main note.
-function adjustGraceNoteTimestamps(measureNotes) {
-  const GRACE_NOTE_OFFSET = 0.0001
-
-  // Group grace notes by their original timestamp
-  const graceNotesByTimestamp = new Map()
+// Grace notes are played one after the other, off their main note: just before
+// it, or just after it for those OSMD files as GraceAfterMainNote -- the ones a
+// measure ends on, such as the cadenza after the fermata chord of bar 32 of
+// Chopin's Op. 9 No. 2.
+export function adjustGraceNoteTimestamps(measureNotes) {
+  // Group grace notes by the note they belong to: its timestamp, and which side
+  // of it they are on.
+  const groups = new Map()
   for (const noteData of measureNotes) {
-    if (noteData.isGrace) {
-      const ts = noteData.timestamp
-      if (!graceNotesByTimestamp.has(ts)) {
-        graceNotesByTimestamp.set(ts, [])
-      }
-      graceNotesByTimestamp.get(ts).push(noteData)
-    }
+    if (!noteData.isGrace) continue
+    const key = `${noteData.timestamp}:${noteData.isAfterGrace}`
+    if (!groups.has(key)) groups.set(key, [])
+    groups.get(key).push(noteData)
   }
 
-  // Adjust timestamps: each grace note gets an earlier timestamp
-  for (const [timestamp, graceNotes] of graceNotesByTimestamp) {
-    // Grace notes are ordered, first one should be played first (earliest timestamp)
-    for (let i = 0; i < graceNotes.length; i++) {
-      // Subtract offset so grace notes come before main note
-      // Earlier grace notes get larger offset (played first)
-      graceNotes[i].timestamp = timestamp - (graceNotes.length - i) * GRACE_NOTE_OFFSET
-    }
+  // In document order, which is the order they are played in.
+  for (const graceNotes of groups.values()) {
+    graceNotes.forEach((noteData, i) => {
+      noteData.timestamp += noteData.isAfterGrace
+        ? (i + 1) * GRACE_NOTE_OFFSET_WN
+        : -(graceNotes.length - i) * GRACE_NOTE_OFFSET_WN
+    })
   }
 }
 
@@ -616,6 +614,7 @@ function extractNotesFromBars(bars) {
                 played: false,
                 isTieContinuation,
                 isGrace: voiceEntry.isGrace === true,
+                isAfterGrace: voiceEntry.GraceAfterMainNote === true,
                 // Index of the notehead within the chord (for targeting individual noteheads in SVG)
                 noteheadIndex,
                 noteheadCount: voiceEntry.notes.filter((n) => n.pitch).length,
@@ -659,7 +658,7 @@ function extractNotesFromBars(bars) {
 
     cursorStopsByMeasure.set(barIndex, cursorStops)
 
-    // Adjust grace note timestamps so they are played sequentially before main notes
+    // Adjust grace note timestamps so they are played one after the other, off their main note
     adjustGraceNoteTimestamps(measureNotes)
 
     // Expand ornaments (turns, mordents, and trills) into their constituent notes

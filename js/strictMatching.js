@@ -126,12 +126,13 @@ export function faultAbsorbingEvent(events, midiNumber, now) {
 // note is struck ahead of the beat and how far ahead is the player's, so it is
 // neither asked for nor wrong: its pitch is let through around the beat it
 // leans on, over the same window a written note is matched within. Each entry
-// is { midiNumber, timeMs }, sorted by timeMs, so the scan stops at the first
-// beat that has not come round yet.
+// is { midiNumber, timeMs, untilMs }, sorted by timeMs, so the scan stops at the
+// first beat that has not come round yet. untilMs is timeMs but for the grace
+// notes that follow their note, which are played over the rest of the bar.
 export function isGraceStrike(graceNotes, midiNumber, now, offTempoWindow) {
   for (const note of graceNotes) {
     if (note.timeMs - now > offTempoWindow) break
-    if (note.midiNumber === midiNumber && now - note.timeMs <= offTempoWindow) return true
+    if (note.midiNumber === midiNumber && now - note.untilMs <= offTempoWindow) return true
   }
   return false
 }

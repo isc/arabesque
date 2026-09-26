@@ -2,6 +2,11 @@
 // strict-mode playthrough (strictPlaythrough.js). Kept free of the browser-only
 // audio/DOM dependencies those modules carry, so it can be unit-tested directly.
 
+// How far off its main note the extraction puts a grace note, per place in its
+// group, in whole notes: close enough to sound with it, far enough to keep the
+// order. Playback reads the main note back off it.
+export const GRACE_NOTE_OFFSET_WN = 0.0001
+
 export function tsToSeconds(ts, bpm) {
   return ts * 4 * 60 / bpm
 }
