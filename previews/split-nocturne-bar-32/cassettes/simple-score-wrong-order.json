@@ -1,1 +1,0 @@
-{"name":"simple-score-wrong-order","created_at":"2025-12-28T10:00:00+01:00","data":[{"timestamp":11,"data":[144,60,80]},{"timestamp":28,"data":[128,60,64]},{"timestamp":44,"data":[144,64,80]},{"timestamp":61,"data":[128,64,64]},{"timestamp":78,"data":[144,67,80]},{"timestamp":94,"data":[128,67,64]},{"timestamp":111,"data":[144,65,80]},{"timestamp":128,"data":[128,65,64]}]}
