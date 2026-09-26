@@ -190,4 +190,46 @@ describe('playback transport', () => {
       ['stopped', 0],
     ])
   })
+
+  // A measure that ends on grace notes has them after its last note, not before
+  // it: the cadenza of Chopin's Op. 9 No. 2 follows its fermata chord. They go at
+  // the grace-note pace, squeezed only when that would run past the bar line.
+  describe('grace notes that follow their note', () => {
+    // One bar of a whole note (2s at 120 BPM), then `count` grace notes after it.
+    function barEndingOnGraces(count) {
+      const [allNotes, osmd] = score(1)
+      for (let i = 0; i < count; i++) {
+        allNotes[0].notes.push({
+          midiNumber: 70 + (i % 10),
+          timestamp: (i + 1) * 0.0001,
+          isGrace: true,
+          isAfterGrace: true,
+        })
+      }
+      return [allNotes, osmd]
+    }
+
+    it('plays them one grace note apart after it', async () => {
+      const pb = await load()
+      await pb.play(...barEndingOnGraces(3))
+
+      vi.advanceTimersByTime(79)
+      expect(notesStarted()).toEqual([60])
+      vi.advanceTimersByTime(2) // 81ms
+      expect(notesStarted()).toEqual([60, 70])
+      vi.advanceTimersByTime(160) // 241ms
+      expect(notesStarted()).toEqual([60, 70, 71, 72])
+    })
+
+    it('squeezes them to end with the bar when there is no room for them', async () => {
+      const pb = await load()
+      // 49 grace notes at 80ms would take 3.9s of a 2s bar: 40ms each instead.
+      await pb.play(...barEndingOnGraces(49))
+
+      vi.advanceTimersByTime(1959)
+      expect(notesStarted()).toHaveLength(49)
+      vi.advanceTimersByTime(2) // 1961ms: the last one, before the bar line
+      expect(notesStarted()).toHaveLength(50)
+    })
+  })
 })

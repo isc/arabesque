@@ -12,6 +12,8 @@ require_relative 'test_helper'
 class ContinuationMeasureTest < CapybaraTestBase
   SCORE = '/test-fixtures/continuation-measure.xml'.freeze
   PHONE = [360, 740].freeze
+  NOCTURNE = 'scores/Chopin_-_Nocturne_Op_9_No_2_E_Flat_Major.mxl'.freeze
+  IPAD = [1024, 748].freeze
   BAR_2_FIRST_HALF = %w[G4 A4 B4 C5 D5 C5 B4 A4].freeze
   BAR_2_SECOND_HALF = %w[G4 E4].freeze
   WHOLE_SCORE = %w[C4 D4 E4 F4] + BAR_2_FIRST_HALF + BAR_2_SECOND_HALF + %w[C4]
@@ -84,7 +86,49 @@ class ContinuationMeasureTest < CapybaraTestBase
     assert_selector 'svg g.vf-text', text: '5', count: 1
   end
 
+  # The bar the split is for (feedback 559437e9). Bar 32 of the Nocturne carries
+  # a cadenza of sixty-four grace notes; the system gave it two thirds of the
+  # width it asked for, and VexFlow spaces what it can at full width and piles
+  # the shortfall onto the last notes, drawn on top of one another on an iPad.
+  def test_the_nocturne_cadenza_is_readable_on_an_ipad
+    page.current_window.resize_to(*IPAD)
+    visit "/score.html?url=#{NOCTURNE}"
+    wait_for_score_render
+
+    systems = cadenza_noteheads_by_system
+    assert_equal [32, 32], systems.map(&:length)
+    systems.flat_map { |heads| heads.each_cons(2).to_a }.each do |left, right|
+      assert_operator right['x'] - left['x'], :>=, left['width'], "grace notes of bar 32 overlap at x=#{left['x'].round}"
+    end
+    assert_selector 'svg rect.measure-click-area[data-measure-index="32"]', count: 2
+  end
+
   private
+
+  # The noteheads of the Nocturne's bar 32 grace notes, left to right, one list
+  # per system.
+  def cadenza_noteheads_by_system
+    page.evaluate_script(<<~JS)
+      (() => {
+        const systems = new Map();
+        const graces = osmdInstance.Sheet.SourceMeasures
+          .filter((measure) => measure.MeasureNumberXML === 32)
+          .flatMap((measure) => measure.verticalSourceStaffEntryContainers)
+          .flatMap((container) => container.staffEntries)
+          .flatMap((staffEntry) => staffEntry?.voiceEntries ?? [])
+          .filter((voiceEntry) => voiceEntry.IsGrace)
+          .flatMap((voiceEntry) => voiceEntry.Notes);
+        for (const note of graces) {
+          const graphical = osmdInstance.rules.GNote(note);
+          const box = graphical.getSVGGElement().querySelector('.vf-notehead').getBoundingClientRect();
+          const system = graphical.parentVoiceEntry.parentStaffEntry.parentMeasure.parentMusicSystem;
+          if (!systems.has(system)) systems.set(system, []);
+          systems.get(system).push({ x: box.x, width: box.width });
+        }
+        return [...systems.values()].map((heads) => heads.sort((a, b) => a.x - b.x));
+      })()
+    JS
+  end
 
   def write_fingering(notehead_index, finger)
     all('svg g.vf-notehead')[notehead_index].click

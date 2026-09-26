@@ -223,7 +223,9 @@ function start({
 
       // Not asked for, and not wrong either: see isGraceStrike.
       if (noteData.isGrace) {
-        graceNotes.push({ midiNumber: noteData.midiNumber, timeMs: noteTimeMs })
+        const { startMs, durationMs } = measureRuns[i]
+        const untilMs = noteData.isAfterGrace ? startMs + durationMs : noteTimeMs
+        graceNotes.push({ midiNumber: noteData.midiNumber, timeMs: noteTimeMs, untilMs })
         continue
       }
 

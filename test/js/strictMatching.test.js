@@ -258,8 +258,8 @@ describe('advanceEvent on a trill', () => {
 describe('isGraceStrike', () => {
   // Two grace notes leaning on a beat at 1000ms.
   const graceNotes = [
-    { midiNumber: 64, timeMs: 1000 },
-    { midiNumber: 65, timeMs: 1000 },
+    { midiNumber: 64, timeMs: 1000, untilMs: 1000 },
+    { midiNumber: 65, timeMs: 1000, untilMs: 1000 },
   ]
 
   it('lets a grace pitch through around its beat', () => {
@@ -279,12 +279,21 @@ describe('isGraceStrike', () => {
     expect(isGraceStrike(graceNotes, 70, 1000, OFFTEMPO_WINDOW)).toBe(false)
   })
 
+  // The cadenza of Chopin's Op. 9 No. 2: grace notes after their note, played
+  // from it to the end of the bar.
+  it('lets a grace note that follows its note through until the bar ends', () => {
+    const cadenza = [{ midiNumber: 95, timeMs: 3000, untilMs: 6500 }]
+    expect(isGraceStrike(cadenza, 95, 5000, OFFTEMPO_WINDOW)).toBe(true)
+    expect(isGraceStrike(cadenza, 95, 6900, OFFTEMPO_WINDOW)).toBe(true)
+    expect(isGraceStrike(cadenza, 95, 7000, OFFTEMPO_WINDOW)).toBe(false)
+  })
+
   it('lets nothing through when the score has no grace note', () => {
     expect(isGraceStrike([], 64, 1000, OFFTEMPO_WINDOW)).toBe(false)
   })
 
   it('reaches a grace note later in the piece', () => {
-    const later = [...graceNotes, { midiNumber: 60, timeMs: 5000 }]
+    const later = [...graceNotes, { midiNumber: 60, timeMs: 5000, untilMs: 5000 }]
     expect(isGraceStrike(later, 60, 5000, OFFTEMPO_WINDOW)).toBe(true)
   })
 })
