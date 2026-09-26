@@ -1,7 +1,7 @@
 require_relative 'test_helper'
 
 # Training mode works a *passage*: one measure by default — the historical
-# behaviour, covered in arabesque_test.rb — or a range picked with 🔁, whose
+# behaviour, covered in training_mode_test.rb — or a range picked with 🔁, whose
 # measures are then drilled as one so the joins between them are part of what
 # has to come out clean.
 #
