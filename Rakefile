@@ -15,8 +15,8 @@ end
 # and it changes no assertion: each worker gets its own Capybara server, its
 # own browser and its own profile.
 #
-# Splitting is per test method, not per file: one file (arabesque_test.rb)
-# holds a third of the suite, so file-level splitting would leave it as the
+# Splitting is per test method, not per file: files range from one test to
+# over twenty, so file-level splitting would leave the biggest as the
 # critical path.
 #
 # Two ways to use it, because the work is CPU-bound (OSMD rendering), not

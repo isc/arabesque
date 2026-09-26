@@ -450,6 +450,15 @@ class CapybaraTestBase < Minitest::Test
   end
 
   # The fingering record a score is stored under, and the keys it holds.
+  # Polls rather than asserting once: the BPM field is debounced, so the value
+  # lands in the app a moment after the last keystroke.
+  def wait_for_stored_tempo(score_url, bpm, name: 'playbackBpm', timeout: 5)
+    key = "arabesque:#{name}:#{score_url}"
+    Timeout.timeout(timeout) do
+      sleep 0.05 until page.evaluate_script("localStorage.getItem(#{key.inspect})") == bpm
+    end
+  end
+
   def stored_fingering_keys(score_url)
     (stored_fingering_record(score_url)&.fetch('fingerings') || {}).keys.sort
   end
@@ -514,6 +523,31 @@ class CapybaraTestBase < Minitest::Test
     JS
   end
 
+  # Replays a performance recorded off a real keyboard (test/fixtures/cassettes/)
+  # through the mock MIDI input, at its recorded timing: messages that share a
+  # timestamp go out in the same turn, which is what makes a chord a chord and a
+  # held note held.
+  def replay_cassette(name, wait_for_end: true)
+    messages = JSON.parse(File.read(File.join(__dir__, 'fixtures', 'cassettes', "#{name}.json")))['data']
+    page.execute_script(<<~JS, messages)
+      const messages = arguments[0];
+      window.__cassetteDone = false;
+      (async () => {
+        for (let i = 0; i < messages.length; i++) {
+          const delay = i > 0 ? messages[i].timestamp - messages[i - 1].timestamp : 0;
+          if (delay > 0) await new Promise((resolve) => setTimeout(resolve, delay));
+          window.dispatchEvent(new CustomEvent('mock-midi-input', { detail: { data: messages[i].data } }));
+        }
+        window.__cassetteDone = true;
+      })();
+    JS
+    return unless wait_for_end
+
+    Timeout.timeout(Capybara.default_max_wait_time) do
+      sleep 0.02 until page.evaluate_script('window.__cassetteDone')
+    end
+  end
+
   # Records every change in the number of lit noteheads, from now until the page
   # navigates away. Assertions then run on the whole progression once the replay
   # is over, instead of trying to catch a transient state while it happens:
@@ -573,6 +607,20 @@ class CapybaraTestBase < Minitest::Test
   # data-measure-index instead.
   def click_measure(measure_number)
     page.all('svg rect.measure-click-area')[measure_number - 1].trigger('click')
+  end
+
+  # Helper method to display the browser console logs.
+  # Should remain unused in committed files but can be used by the AI agent when debugging.
+  def console_logs
+    logs = page.driver.browser.options.logger.string
+    logs.split("\n").map do |line|
+      next if line.empty?
+
+      first_character = line.strip[0]
+      next if ['◀', '▶'].include? first_character
+
+      line
+    end.compact
   end
 
   private
