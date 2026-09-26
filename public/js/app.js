@@ -1,5 +1,4 @@
 import { initMidi, nativePairingAvailable, openNativePairing } from './midi.js'
-import { initMicInput } from './micInput.js'
 import { initMusicXML } from './musicxml.js'
 import { initFingeringEditor } from './fingeringEditor.js'
 import { initPracticeTracker } from './practiceTracker.js'
@@ -89,7 +88,6 @@ const SCORE_LOAD_ERRORS = {
 
 export function midiApp() {
   const midi = initMidi()
-  const micInput = initMicInput()
   const musicxml = initMusicXML()
   const fingeringEditor = initFingeringEditor({
     getOsmdInstance: musicxml.getOsmdInstance,
@@ -512,6 +510,9 @@ export function midiApp() {
       // has nothing left to say, and its retry button would be asking for a
       // connection that already happened.
       if (this.bluetoothConnected) this.showMidiHelpModal = false
+      // A keyboard switched on while the mic listens would have every note
+      // counted twice: once from its keys, once from its speakers.
+      if (this.bluetoothConnected && this.micActive) this.stopMic()
     },
 
     async connectMIDI() {
@@ -525,11 +526,25 @@ export function midiApp() {
     },
 
     // Mic mode (non-MIDI): detected notes are turned into synthetic MIDI
-    // messages and fed through parseMidiMessage, like cassette replay.
+    // messages and fed through parseMidiMessage, as a keyboard's would be.
+    // Loaded on demand — pitch detection is dead weight on every page that
+    // has a keyboard.
     async toggleMic() {
-      if (micInput.state.micActive) micInput.stop()
-      else await micInput.start((data) => midi.parseMidiMessage(data))
-      this.micActive = micInput.state.micActive
+      if (this.micActive) return this.stopMic()
+      const mic = await import('./micInput.js')
+      this.micActive = await mic.start({
+        onMessage: midi.parseMidiMessage,
+        onEnded: () => (this.micActive = false),
+        // No MIDI output is the only case mic mode is offered in, so ▶ Écouter
+        // plays through the speakers, into the microphone.
+        isPageSounding: () => this.playbackTransport === 'playing',
+      })
+    },
+
+    async stopMic() {
+      const mic = await import('./micInput.js')
+      mic.stop()
+      this.micActive = false
     },
 
     detectedOS() {

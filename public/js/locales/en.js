@@ -236,7 +236,7 @@ export default {
     midiKeyboard: 'MIDI keyboard',
     connectMidi: '🎹 Connect MIDI keyboard',
     micButton: '🎤 Mic mode',
-    micActive: '🎤 Listening…',
+    micActive: '🎤 Mic on',
     micTitle: 'Mic mode (beta): note detection through the microphone, one note at a time — chords are not recognised',
     history: '📜 History',
     historyAria: 'History',

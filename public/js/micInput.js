@@ -2,11 +2,13 @@
 //
 // Listens to the microphone, detects the played pitch (pitchDetection.js)
 // and emits synthetic MIDI Note On/Off messages through the provided
-// callback — the same path cassette replay uses — so validation, training,
-// strict mode and recording all work unchanged.
+// callback — the path a keyboard's own messages take — so validation,
+// training and strict mode all work unchanged.
 
-import { detectPitch, freqToMidi, computeRms, createNoteTracker } from './pitchDetection.js'
+import { detectPitch, freqToMidi, computeRms, createNoteTracker, MIN_RMS } from './pitchDetection.js'
 import { NOTE_ON, NOTE_OFF } from './midi.js'
+import { lastClick } from './metronomeClick.js'
+import { recordError } from './errorLog.js'
 import { t } from './i18n.js'
 
 // 4096 samples ≈ 93 ms at 44.1 kHz — long enough to resolve the lowest
@@ -14,21 +16,27 @@ import { t } from './i18n.js'
 const FFT_SIZE = 4096
 const FRAME_MS = 40
 
-const state = {
-  micActive: false,
-}
+// How long after a metronome click its pitch is taken for the click rather
+// than the piano: the click itself (60 ms), the analysis window it lingers in,
+// and the trip from speaker to microphone.
+const CLICK_ECHO_MS = 250
+
+// Nothing downstream reads velocity; a Note On only needs it above zero.
+const VELOCITY = 64
 
 let audioContext = null
 let mediaStream = null
 let frameTimer = null
 let tracker = null
 
-export function initMicInput() {
-  return { start, stop, state }
-}
-
-async function start(emitMidiMessage) {
-  if (state.micActive) return true
+// Resolves to whether the microphone is now listening.
+//
+// onEnded: the microphone went away on its own (unplugged, permission
+// revoked, taken by a phone call), so the page can stop saying it listens.
+// isPageSounding: the page's own sound is coming out of the speakers — the
+// sampler playing the score — and whatever the microphone hears is that.
+export async function start({ onMessage, onEnded, isPageSounding }) {
+  if (mediaStream) return true
 
   if (!navigator.mediaDevices?.getUserMedia) {
     alert(t('errors.micUnsupported'))
@@ -42,35 +50,51 @@ async function start(emitMidiMessage) {
       audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
     })
   } catch (e) {
-    console.error('Accès micro refusé:', e)
+    // A refusal is the player's answer; anything else (no microphone, one
+    // held by another app) is worth hearing about.
+    if (e.name === 'NotAllowedError') console.warn('Microphone access refused')
+    else recordError(e, 'micInput.start')
     alert(t('errors.micDenied'))
     return false
   }
 
   audioContext = new AudioContext()
+  // Created after an await, so possibly outside the gesture's reach: Safari
+  // then starts it suspended, and a suspended graph analyses silence.
+  audioContext.resume()
   const analyser = audioContext.createAnalyser()
   analyser.fftSize = FFT_SIZE
   audioContext.createMediaStreamSource(mediaStream).connect(analyser)
+  mediaStream.getAudioTracks()[0].onended = () => {
+    stop()
+    onEnded()
+  }
 
   tracker = createNoteTracker({
-    onNoteOn: (midiNote, rms) => emitMidiMessage([NOTE_ON, midiNote, velocityFromRms(rms)]),
-    onNoteOff: (midiNote) => emitMidiMessage([NOTE_OFF, midiNote, 0]),
+    onNoteOn: (midiNote) => onMessage([NOTE_ON, midiNote, VELOCITY]),
+    onNoteOff: (midiNote) => onMessage([NOTE_OFF, midiNote, 0]),
   })
 
   const samples = new Float32Array(FFT_SIZE)
   frameTimer = setInterval(() => {
+    // Skipped rather than reported as silence, which would release a note
+    // the player is holding.
+    if (isPageSounding()) return
     analyser.getFloatTimeDomainData(samples)
-    const frequency = detectPitch(samples, audioContext.sampleRate)
-    tracker.push({ midi: frequency === null ? null : freqToMidi(frequency), rms: computeRms(samples) })
+    const rms = computeRms(samples)
+    // Most frames are silence between notes: no pitch to look for there.
+    const frequency = rms < MIN_RMS ? null : detectPitch(samples, audioContext.sampleRate)
+    const midi = frequency === null ? null : freqToMidi(frequency)
+    if (isClickEcho(midi)) return
+    tracker.push({ midi, rms })
   }, FRAME_MS)
 
-  state.micActive = true
-  console.log('Micro connecté (mode micro)')
+  console.log('Microphone listening (mic mode)')
   return true
 }
 
-function stop() {
-  if (!state.micActive) return
+export function stop() {
+  if (!mediaStream) return
   clearInterval(frameTimer)
   frameTimer = null
   tracker.flush() // release any held note so validation doesn't hang
@@ -79,12 +103,9 @@ function stop() {
   mediaStream = null
   audioContext.close()
   audioContext = null
-  state.micActive = false
-  console.log('Micro déconnecté')
+  console.log('Microphone stopped')
 }
 
-// The mic gives loudness, not key velocity — a rough monotonic mapping is
-// enough (velocity only feeds recordings, validation ignores it).
-function velocityFromRms(rms) {
-  return Math.max(20, Math.min(110, Math.round(Math.sqrt(rms) * 300)))
+function isClickEcho(midi) {
+  return performance.now() - lastClick.at < CLICK_ECHO_MS && midi === freqToMidi(lastClick.frequency)
 }

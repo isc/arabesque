@@ -233,7 +233,7 @@ export default {
     midiKeyboard: 'Clavier MIDI',
     connectMidi: '🎹 Connecter clavier MIDI',
     micButton: '🎤 Mode micro',
-    micActive: '🎤 Écoute en cours…',
+    micActive: '🎤 Micro actif',
     micTitle:
       'Mode micro (bêta) : détection des notes via le microphone, une note à la fois — les accords ne sont pas reconnus',
     history: '📜 Historique',

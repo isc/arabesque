@@ -17,6 +17,11 @@
 // well; playback.js says why.
 let audioContext = null
 
+// When the last click sounded and at what pitch. Mic mode hears the click too,
+// and a pure tone is the easiest thing it will ever detect: left alone, every
+// beat would be played as a B5 (micInput.js).
+export const lastClick = { at: -Infinity, frequency: null }
+
 // Call on the gesture that starts a run: an AudioContext created outside a user
 // gesture starts suspended and stays silent.
 export function prepareClick() {
@@ -29,13 +34,16 @@ export function prepareClick() {
 export function playClick({ accent = false } = {}) {
   if (!audioContext) return
   const t0 = audioContext.currentTime
+  const frequency = accent ? 1500 : 1000
   const osc = audioContext.createOscillator()
   const gain = audioContext.createGain()
-  osc.frequency.value = accent ? 1500 : 1000
+  osc.frequency.value = frequency
   gain.gain.setValueAtTime(0.0001, t0)
   gain.gain.exponentialRampToValueAtTime(0.3, t0 + 0.005)
   gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.05)
   osc.connect(gain).connect(audioContext.destination)
   osc.start(t0)
   osc.stop(t0 + 0.06)
+  lastClick.at = performance.now()
+  lastClick.frequency = frequency
 }

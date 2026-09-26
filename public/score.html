@@ -588,6 +588,10 @@
           <a href="https://caniuse.com/?search=web%20midi" data-i18n="score.otherBrowser">un autre navigateur</a>
           <span data-i18n="score.noMidiBrowsers">(Chrome, Edge ou Opera).</span>
         </p>
+        <p x-text="$t('score.micHelpAlt')">Piano acoustique ou pas de MIDI ? Essayez le mode micro (bêta) : l'application écoute votre piano via le microphone et valide les notes jouées, une note à la fois.</p>
+        <footer>
+          <button class="pt-action-button" @click="noMidiModal.close(); toggleMic()" x-text="$t('score.midiHelpTryMic')">🎤 Essayer le mode micro (bêta)</button>
+        </footer>
       </article>
     </dialog>
 

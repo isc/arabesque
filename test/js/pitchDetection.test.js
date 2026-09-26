@@ -151,6 +151,20 @@ describe('createNoteTracker', () => {
     expect(events).toEqual([['on', 60], ['off', 60], ['on', 62]])
   })
 
+  it('a key struck again while its note still sounds fires a new note', () => {
+    const { tracker, events } = trackerWithLog({ minOnFrames: 2, reattackFrames: 3, reattackRatio: 2 })
+    for (const rms of [0.2, 0.2, 0.15, 0.1, 0.08, 0.06]) tracker.push({ midi: 60, rms })
+    expect(events).toEqual([['on', 60]])
+    tracker.push({ midi: 60, rms: 0.2 })
+    expect(events).toEqual([['on', 60], ['off', 60], ['on', 60]])
+  })
+
+  it('a held note swelling and fading as it decays does not fire again', () => {
+    const { tracker, events } = trackerWithLog({ minOnFrames: 2, reattackFrames: 3, reattackRatio: 2 })
+    for (const rms of [0.2, 0.2, 0.15, 0.12, 0.1, 0.13, 0.11, 0.08, 0.1, 0.07]) tracker.push({ midi: 60, rms })
+    expect(events).toEqual([['on', 60]])
+  })
+
   it('treats frames below minRms as silence even when a pitch is reported', () => {
     const { tracker, events } = trackerWithLog({ minOnFrames: 2, minRms: 0.01 })
     tracker.push({ midi: 60, rms: 0.001 })

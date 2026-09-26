@@ -42,25 +42,66 @@ export function computeRms(buffer) {
   return Math.sqrt(sum / buffer.length)
 }
 
+// Below this loudness a frame is silence, whatever pitch it seems to carry.
+export const MIN_RMS = 0.01
+
 // Turns a per-frame stream of { midi, rms } observations into debounced
 // Note On / Note Off events. A note fires after minOnFrames consecutive
 // frames of the same pitch (kills single-frame glitches) and releases after
 // offFrames frames where that pitch is no longer heard (decay, damper, or
 // another note taking over). Monophonic: confirming a new note releases the
 // previous one.
-export function createNoteTracker({ onNoteOn, onNoteOff, minOnFrames = 2, offFrames = 3, minRms = 0.01 } = {}) {
+//
+// The same key struck again never changes the pitch — the new note takes over
+// from the old one's decay without a gap — so it is told apart by loudness
+// instead: a frame reattackRatio times louder than every one of the last
+// reattackFrames is a fresh strike. Comparing against several frames, not
+// just the previous one, keeps the slow swell of beating strings from reading
+// as a strike; it also means a key repeated faster than that span is heard
+// once.
+export function createNoteTracker({
+  onNoteOn,
+  onNoteOff,
+  minOnFrames = 2,
+  offFrames = 3,
+  minRms = MIN_RMS,
+  reattackFrames = 3,
+  reattackRatio = 2,
+} = {}) {
   let activeNote = null
   let candidate = null
   let candidateCount = 0
   let missCount = 0
+  let recentRms = [] // the held note's loudness over its last few frames
+
+  function release() {
+    if (activeNote !== null) onNoteOff(activeNote)
+    activeNote = null
+    missCount = 0
+  }
+
+  function noteOn(note) {
+    release()
+    activeNote = note
+    candidate = null
+    candidateCount = 0
+    recentRms = []
+    onNoteOn(note)
+  }
 
   function push({ midi, rms }) {
     const heard = rms >= minRms && midi != null ? midi : null
 
     if (heard !== null && heard === activeNote) {
+      if (recentRms.length === reattackFrames && rms >= Math.min(...recentRms) * reattackRatio) {
+        noteOn(heard)
+        return
+      }
       missCount = 0
       candidate = null
       candidateCount = 0
+      recentRms.push(rms)
+      if (recentRms.length > reattackFrames) recentRms.shift()
       return
     }
 
@@ -75,33 +116,13 @@ export function createNoteTracker({ onNoteOn, onNoteOff, minOnFrames = 2, offFra
     }
 
     if (candidate !== null && candidateCount >= minOnFrames) {
-      if (activeNote !== null) onNoteOff(activeNote)
-      activeNote = candidate
-      candidate = null
-      candidateCount = 0
-      missCount = 0
-      onNoteOn(activeNote, rms)
+      noteOn(candidate)
       return
     }
 
-    if (activeNote !== null) {
-      missCount++
-      if (missCount >= offFrames) {
-        onNoteOff(activeNote)
-        activeNote = null
-        missCount = 0
-      }
-    }
+    if (activeNote !== null && ++missCount >= offFrames) release()
   }
 
   // Release whatever is held — called when the mic is switched off.
-  function flush() {
-    if (activeNote !== null) onNoteOff(activeNote)
-    activeNote = null
-    candidate = null
-    candidateCount = 0
-    missCount = 0
-  }
-
-  return { push, flush }
+  return { push, flush: release }
 }
