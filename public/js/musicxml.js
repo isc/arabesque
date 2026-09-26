@@ -517,13 +517,16 @@ function areSideBySide({ hiddenPath, visiblePath }) {
   return boxes.length === 2 && Math.abs(boxes[0].x - boxes[1].x) >= 1
 }
 
-// A stopgap for OSMD 2.1.3, like fixUpInvisibleNotes: until a release carries the upstream fix,
-// OSMD lays out what goes above a staff — fingerings among them — from a first, offscreen draw of
-// each measure, in which the notes are drawn before their beams. A beam only stretches its notes'
-// stems as it is drawn itself, and an ornament sits on the end of its stem: on a beamed stem-up
-// note, that first draw put the ornament under the beam, and the fingering came down onto it once
-// the stems were stretched (feedback 8ab0a2f9, BWV 847 bar 34). Stretching the stems as the
-// measure is formatted puts the ornament where it will be drawn, in both draws.
+// A stopgap for OSMD 2.1.3, like fixUpInvisibleNotes, until a release carries the upstream fix,
+// https://github.com/opensheetmusicdisplay/opensheetmusicdisplay/pull/1744. OSMD lays out what goes
+// above a staff — fingerings among them — from a first, offscreen draw of each measure, in which the
+// notes are drawn before their beams. A beam only stretches its notes' stems as it is drawn itself,
+// and an ornament sits on the end of its stem: on a beamed stem-up note, that first draw put the
+// ornament lower than it ends up — by the whole stretch, under the beam where the stretch is long —
+// and the fingering came down onto it (feedback 8ab0a2f9, BWV 847 bar 34). Stretching the stems as
+// the measure is formatted puts the ornament where it will be drawn, in both draws. The upstream fix
+// does it in draw() and gives the notes their stave first, which only matters with a beam rule
+// (OptimizeExtremeLedgerBeams) this app leaves off.
 function stretchBeamedStemsOnFormat() {
   const measure = opensheetmusicdisplay.VexFlowMeasure.prototype
   if (measure.format.stretchesBeamedStems) return
