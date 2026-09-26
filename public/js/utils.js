@@ -10,9 +10,8 @@ export function isTestEnv() {
 }
 
 // Runs `fn` once the browser has nothing better to do. The one policy for
-// "wanted, but not at the cost of what the page is doing right now" — a warm-up
-// import, an endpoint whose answer only feeds an optional control. Resolved per
-// call rather than once at module load: this module is imported by the node
+// "wanted, but not at the cost of what the page is doing right now", such as a
+// warm-up import. Resolved per call rather than once at module load: this module is imported by the node
 // test environment too, where there is no window to read it off.
 export function onIdle(fn) {
   if (typeof requestIdleCallback === 'function') return requestIdleCallback(fn)

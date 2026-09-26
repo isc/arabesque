@@ -31,8 +31,7 @@ const VERSION_SCRIPT = '<script type="module" src="js/version.js"></script>'
 // be the one thing missing offline, and nothing would say so.
 //
 // Scores stay out — they are cached as they are opened (sw.js) — and so do the
-// landing video and the saved cassettes: 3.2MB nobody needs offline, and local
-// recordings the deploy knows nothing about. img/ holds the two hero posters,
+// videos, megabytes nobody needs offline. img/ holds the two hero posters,
 // 120KB of JPEG shown only by the landing page, which is the one page that does
 // not register the worker — and they front a video that is not cached either.
 // Which cache each asset lands in is a separate decision, and it lives in sw.js.
@@ -40,7 +39,7 @@ const VERSION_SCRIPT = '<script type="module" src="js/version.js"></script>'
 // home screen and the splash — never a page, so the worker is never asked for
 // them. Cached, they would be 16KB of the shell re-downloaded on every deploy
 // and served to nobody. Same argument as img/ above, one step further.
-const SHELL_SKIP = new Set(['video', 'scores', 'cassettes', 'img', 'icons'])
+const SHELL_SKIP = new Set(['video', 'scores', 'img', 'icons'])
 const SHELL_EXTENSIONS = /\.(html|css|js|json|svg|jpg|png|webmanifest)$/
 
 // The URL the iOS wrapper opens (ios/project.yml) and the one a bookmark keeps:

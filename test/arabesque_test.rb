@@ -179,46 +179,6 @@ class ArabesqueTest < CapybaraTestBase
     assert_no_text 'Partition terminée'
   end
 
-  def test_cassette_recording_saves_valid_midi_data
-    cassette_name = 'test-recording'
-    cassette_file = File.join(__dir__, '..', 'public', 'cassettes', "#{cassette_name}.json")
-
-    begin
-      load_score('simple-score.xml', 4)
-      click_on 'Démarrer enregistrement'
-      assert_text 'Enregistrement en cours'
-
-      # Simulate MIDI events via custom events
-      play_note("C4")
-      play_note("E4")
-
-      expected_midi_events = [
-        [144, 60, 80],  # Note ON C4
-        [128, 60, 64],  # Note OFF C4
-        [144, 64, 80],  # Note ON E4
-        [128, 64, 64],  # Note OFF E4
-      ]
-
-      # No wait needed before stopping: the mock dispatches MIDI events
-      # synchronously, so they are in the recording buffer by the time
-      # play_note returns.
-
-      accept_alert do
-        accept_prompt(with: cassette_name) do
-          click_on 'Arrêter enregistrement'
-        end
-      end
-
-      # Verify the cassette is served correctly by the server
-      visit "/cassettes/#{cassette_name}.json"
-      cassette_data = JSON.parse(page.find('pre').text)
-      actual_data = cassette_data['data'].map { |event| event['data'] }
-      assert_equal expected_midi_events, actual_data, 'Cassette should contain exact MIDI data'
-    ensure
-      File.delete(cassette_file) if File.exist?(cassette_file)
-    end
-  end
-
   def test_polyphonic_duplicate_notes_validation
     load_score('schumann-melodie.xml', 256)
 
@@ -465,7 +425,7 @@ class ArabesqueTest < CapybaraTestBase
       # This brings us to the last note of measure 1 (end of first system)
       replay_cassette('melodie-2-bars')
 
-      # Reset scroll to top (Capybara may have scrolled down to click the cassette button)
+      # Start from the top, so the last note's scroll has somewhere to go
       page.execute_script('window.scrollTo(0, 0)')
 
       # Wait for scroll to stabilize before capturing position
@@ -747,8 +707,6 @@ class ArabesqueTest < CapybaraTestBase
   def test_rests_with_display_position_are_not_treated_as_notes
     # Regression test: OSMD interprets rests with display-step/display-octave as notes with pitch.
     # This caused a phantom G5 note to appear in measure 5 of Kinderscenen, breaking note order.
-    # Note: This test uses URL-based loading which requires a fresh page (no prior visit to /score.html)
-    Capybara.reset_sessions!
     visit '/score.html?url=/scores/Schumann_Kinderszenen_No_1.mxl'
     assert_selector 'svg g.vf-stavenote', minimum: 100
 
@@ -898,10 +856,29 @@ class ArabesqueTest < CapybaraTestBase
     end
   end
 
+  # Replays a performance recorded off a real keyboard (test/fixtures/cassettes/)
+  # through the mock MIDI input, at its recorded timing: messages that share a
+  # timestamp go out in the same turn, which is what makes a chord a chord and a
+  # held note held.
   def replay_cassette(name, wait_for_end: true)
-    select name
-    click_on 'Rejouer cassette'
-    assert_text 'Rejeu terminé' if wait_for_end
+    messages = JSON.parse(File.read(File.join(__dir__, 'fixtures', 'cassettes', "#{name}.json")))['data']
+    page.execute_script(<<~JS, messages)
+      const messages = arguments[0];
+      window.__cassetteDone = false;
+      (async () => {
+        for (let i = 0; i < messages.length; i++) {
+          const delay = i > 0 ? messages[i].timestamp - messages[i - 1].timestamp : 0;
+          if (delay > 0) await new Promise((resolve) => setTimeout(resolve, delay));
+          window.dispatchEvent(new CustomEvent('mock-midi-input', { detail: { data: messages[i].data } }));
+        }
+        window.__cassetteDone = true;
+      })();
+    JS
+    return unless wait_for_end
+
+    Timeout.timeout(Capybara.default_max_wait_time) do
+      sleep 0.02 until page.evaluate_script('window.__cassetteDone')
+    end
   end
 
   # Wait for scroll position to stabilize (stop changing)

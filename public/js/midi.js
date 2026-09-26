@@ -26,9 +26,6 @@ let state = {
   midiAccess: null,
   midiInput: null,
   midiOutput: null,
-  isRecording: false,
-  recordingData: [],
-  recordingStartTime: null,
 }
 
 let callbacks = {
@@ -44,10 +41,7 @@ let callbacks = {
 export function initMidi() {
   return {
     connectMIDI,
-    parseMidiMessage,
     noteName,
-    startRecording,
-    stopRecording,
     setCallbacks,
     state,
   }
@@ -188,12 +182,7 @@ async function connectMIDIMock() {
 }
 
 // Parse standard MIDI messages (from Web MIDI API)
-function parseMidiMessage(data, isReplay = false) {
-  if (state.isRecording && !isReplay) {
-    const timestamp = Date.now() - state.recordingStartTime
-    state.recordingData.push({ timestamp, data: Array.from(data) })
-  }
-
+function parseMidiMessage(data) {
   const status = data[0]
   const note = data[1]
   const velocity = data[2]
@@ -207,14 +196,14 @@ function parseMidiMessage(data, isReplay = false) {
     if (callbacks.onNotePlayed) {
       callbacks.onNotePlayed(noteNameStr, note)
     }
-    if (LOG_NOTES) console.log(`Note ON ${isReplay ? 'replayed' : 'detected'}:`, noteNameStr)
+    if (LOG_NOTES) console.log('Note ON detected:', noteNameStr)
   }
   if (statusType === NOTE_OFF || (statusType === NOTE_ON && velocity === 0)) {
     const noteNameStr = noteName(note)
     if (callbacks.onNoteReleased) {
       callbacks.onNoteReleased(noteNameStr, note)
     }
-    if (LOG_NOTES) console.log(`Note OFF ${isReplay ? 'replayed' : 'detected'}:`, noteNameStr)
+    if (LOG_NOTES) console.log('Note OFF detected:', noteNameStr)
   }
 }
 
@@ -222,36 +211,6 @@ function parseMidiMessage(data, isReplay = false) {
 function noteName(n) {
   const octave = Math.floor(n / 12) - 1
   return NOTE_NAMES[n % 12] + octave
-}
-
-function startRecording() {
-  state.isRecording = true
-  state.recordingData = []
-  state.recordingStartTime = Date.now()
-}
-
-async function stopRecording() {
-  state.isRecording = false
-
-  if (state.recordingData.length === 0) {
-    alert(t('errors.noDataRecorded'))
-    return null
-  }
-
-  const cassetteName = prompt(
-    'Nom de la cassette :',
-    `Cassette_${new Date().toISOString().slice(0, 19).replace(/[:-]/g, '')}`,
-  )
-
-  if (!cassetteName) {
-    console.log('Enregistrement annulé')
-    return null
-  }
-
-  return {
-    name: cassetteName,
-    data: state.recordingData,
-  }
 }
 
 export { NOTE_ON, NOTE_OFF, NOTE_NAMES, noteName }
