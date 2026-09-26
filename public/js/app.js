@@ -1,10 +1,9 @@
 import { initMidi, nativePairingAvailable, openNativePairing } from './midi.js'
 import { initMusicXML } from './musicxml.js'
 import { initFingeringEditor } from './fingeringEditor.js'
-import { initCassettes } from './cassettes.js'
 import { initPracticeTracker } from './practiceTracker.js'
 import { playthroughGroups, TWO_HANDS, handsKey } from './hands.js'
-import { formatDuration, formatDate, applyStickyOffset, scorePageUrl, onIdle, onForeground, withHands, withRunKind, pickPassageMeasure, loopRangeText } from './utils.js'
+import { formatDuration, formatDate, applyStickyOffset, scorePageUrl, onForeground, withHands, withRunKind, pickPassageMeasure, loopRangeText } from './utils.js'
 import { noteLabel } from './noteExtraction.js'
 import { initStorage } from './storage.js'
 import { loadMxlAsXml } from './mxlLoader.js'
@@ -98,7 +97,6 @@ export function midiApp() {
     svgNotehead: musicxml.svgNotehead,
     graphicalMeasureForNote: musicxml.graphicalMeasureForNote,
   })
-  const cassettes = initCassettes()
   const storage = initStorage()
   const practiceTracker = initPracticeTracker(storage)
   const playback = initPlayback(midi.state)
@@ -166,13 +164,10 @@ export function midiApp() {
     bluetoothConnected: false,
     midiDeviceName: null,
     osmdInstance: null,
-    isRecording: false,
-    isReplaying: false,
     // Which beat of the count-in bar is sounding (0 = not counting), and how
     // many the bar holds — the engine works that out from the time signature.
     countInBeat: 0,
     countInBeats: 0,
-    replayEnded: false,
     // The engine's transport, mirrored: 'stopped' | 'playing' | 'paused'. ⏸
     // holds the piece without ending it, so the playback band has to outlive the
     // playing — "listening" below covers both, and is what the band and the ⏹ in
@@ -221,9 +216,6 @@ export function midiApp() {
     // says once it is over.
     trainerStatus: null,
     trainerSummary: null,
-    cassettes: [],
-    selectedCassette: '',
-    cassetteApiAvailable: false,
     trainingMode: false,
     // Training mode works a passage: one measure by default — the measure
     // clicked, the work moving on down the score once its three dots are
@@ -309,7 +301,6 @@ export function midiApp() {
         !!this.osmdInstance &&
         this.currentMode !== 'strict' &&
         !this.isListening &&
-        !this.isReplaying &&
         !this.showResultModal
       )
     },
@@ -369,13 +360,11 @@ export function midiApp() {
       // renderScoreWithFingerings); the rest — flushing a stashed session,
       // scanning for stranded ones, replaying the sessions once after a change
       // of rules — is housekeeping that grows with the user's history and is
-      // only depended on when a new session starts (see loadScoreFromURL). The MIDI handshake and the cassette endpoint — a
-      // round trip that 404s outright on static hosting — are nobody's
-      // prerequisite at all.
+      // only depended on when a new session starts (see loadScoreFromURL). The
+      // MIDI handshake is nobody's prerequisite at all.
       const trackerReady = practiceTracker.init()
       midiReady = midi.connectMIDI({ silent: true, autoSelectFirst: true })
         .then(() => this.syncMidiState())
-      onIdle(() => this.loadCassettesList())
 
       const NAVIGATE_BACK_KEY = 108 // C8 - highest piano key (less jarring sound)
 
@@ -480,17 +469,6 @@ export function midiApp() {
         },
       })
 
-      cassettes.setCallbacks({
-        onReplayStart: () => {
-          this.isReplaying = true
-          this.replayEnded = false
-        },
-        onReplayEnd: () => {
-          this.isReplaying = false
-          this.replayEnded = true
-        },
-      })
-
       // Nothing is awaited in front of the load: the spinner the head script
       // raised is lowered only by the render or by reportScoreLoadFailure, so
       // whatever is waited on here can leave the page loading with nothing to
@@ -552,38 +530,6 @@ export function midiApp() {
       if (/Mac/.test(ua)) return 'mac'
       if (/Win/.test(ua)) return 'windows'
       return 'other'
-    },
-
-    startRecording() {
-      midi.startRecording()
-      this.isRecording = true
-    },
-
-    async stopRecording() {
-      const result = await midi.stopRecording()
-      this.isRecording = false
-
-      if (result) {
-        const saveResult = await cassettes.saveCassette(result.name, result.data)
-
-        if (saveResult.success) {
-          alert(t('score.cassetteSaved', { name: saveResult.name }))
-          await this.loadCassettesList()
-        } else {
-          alert(t('score.cassetteError', { error: saveResult.error }))
-        }
-      }
-    },
-
-    async loadCassettesList() {
-      const result = await cassettes.loadCassettesList()
-      this.cassetteApiAvailable = result.success
-      this.cassettes = result.cassettes
-    },
-
-    async replayCassette() {
-      if (!this.selectedCassette) return
-      await cassettes.replayCassette(this.selectedCassette, midi.parseMidiMessage)
     },
 
     async loadMusicXMLFromFile(file) {

@@ -37,7 +37,6 @@ describe('the service worker shell', () => {
   it('leaves out what nobody needs offline, and the worker itself', () => {
     expect(shell.filter((asset) => asset.startsWith('scores/'))).toEqual([])
     expect(shell.filter((asset) => asset.startsWith('video/'))).toEqual([])
-    expect(shell.filter((asset) => asset.startsWith('cassettes/'))).toEqual([])
     // The install icons are fetched by the browser process, not by a page, so
     // the worker never gets to answer for them — a cached copy is dead weight
     // re-downloaded on every deploy.

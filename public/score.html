@@ -390,27 +390,6 @@
       <!-- Room for the on-screen keyboard below, so the end of the score can
            still be scrolled clear of it. -->
       <div class="pt-keyhint-spacer" x-show="keyHintShown" x-cloak></div>
-
-      <!-- Cassettes MIDI (compact bottom strip) -->
-      <template x-if="cassetteApiAvailable && !!osmdInstance">
-        <section class="pt-cassette-bar">
-          <span class="pt-cassette-bar__label" x-text="$t('score.cassettes')">🎙️ Cassettes</span>
-          <div class="pt-cassette-bar__controls" x-show="!isRecording">
-            <select x-model="selectedCassette" @change="loadCassettesList()">
-              <option value="" x-text="$t('score.chooseCassette')">Choisir une cassette…</option>
-              <template x-for="cassette in cassettes" :key="cassette.name">
-                <option :value="cassette.file" x-text="cassette.name"></option>
-              </template>
-            </select>
-            <button @click="replayCassette" x-show="selectedCassette && !isReplaying" class="pt-action-button" x-text="$t('score.replayCassette')">▶️ Rejouer cassette</button>
-            <button @click="startRecording" x-show="!isReplaying && bluetoothConnected" class="pt-action-button" x-text="$t('score.startRecording')">🔴 Démarrer enregistrement</button>
-          </div>
-          <button @click="stopRecording" x-show="isRecording" class="pt-action-button" x-text="$t('score.stopRecording')">⏹️ Arrêter enregistrement</button>
-          <small x-show="isReplaying" x-text="$t('score.replayInProgress')">▶️ Rejeu en cours…</small>
-          <small x-show="replayEnded && !isReplaying" x-text="$t('score.replayEnded')">✅ Rejeu terminé</small>
-          <small x-show="isRecording" x-text="$t('score.recordingInProgress')">🔴 Enregistrement en cours…</small>
-        </section>
-      </template>
     </main>
 
     <!-- Unified result modal: replaces 4 legacy dialogs/banners -->

@@ -40,10 +40,7 @@ previews are served from GitHub Pages.
 - **A service worker** (`public/sw.js`) precaches the app shell and caches
   scores as they are opened.
 - **`app.rb`** is a small Sinatra server for development and the test suite.
-  It serves `public/`, plus a `/api/cassettes` endpoint that records and replays
-  MIDI performances. Cassettes are a development tool: the tests replay them,
-  and the recording bar only appears when that API answers, which it never does
-  in production.
+  It serves `public/`, plus the test fixtures under `/test-fixtures/`.
 - **`ios/`** is the native wrapper: a WKWebView over the deployed app, with
   CoreMIDI injected as `navigator.requestMIDIAccess`. See
   [ios/README.md](ios/README.md).
