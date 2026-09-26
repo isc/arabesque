@@ -163,6 +163,7 @@ export function midiApp() {
     ...headerMenu(),
     bluetoothConnected: false,
     midiDeviceName: null,
+    micActive: false,
     osmdInstance: null,
     // Which beat of the count-in bar is sounding (0 = not counting), and how
     // many the bar holds — the engine works that out from the time signature.
@@ -509,6 +510,9 @@ export function midiApp() {
       // has nothing left to say, and its retry button would be asking for a
       // connection that already happened.
       if (this.bluetoothConnected) this.showMidiHelpModal = false
+      // A keyboard switched on while the mic listens would have every note
+      // counted twice: once from its keys, once from its speakers.
+      if (this.bluetoothConnected && this.micActive) this.stopMic()
     },
 
     async connectMIDI() {
@@ -519,6 +523,28 @@ export function midiApp() {
       if (result?.status !== 'no_devices') return
       if (nativePairingAvailable()) openNativePairing()
       else this.showMidiHelpModal = true
+    },
+
+    // Mic mode (non-MIDI): detected notes are turned into synthetic MIDI
+    // messages and fed through parseMidiMessage, as a keyboard's would be.
+    // Loaded on demand — pitch detection is dead weight on every page that
+    // has a keyboard.
+    async toggleMic() {
+      if (this.micActive) return this.stopMic()
+      const mic = await import('./micInput.js')
+      this.micActive = await mic.start({
+        onMessage: midi.parseMidiMessage,
+        onEnded: () => (this.micActive = false),
+        // No MIDI output is the only case mic mode is offered in, so ▶ Écouter
+        // plays through the speakers, into the microphone.
+        isPageSounding: () => this.playbackTransport === 'playing',
+      })
+    },
+
+    async stopMic() {
+      const mic = await import('./micInput.js')
+      mic.stop()
+      this.micActive = false
     },
 
     detectedOS() {
