@@ -1,6 +1,7 @@
 import { isTestEnv } from './utils.js'
 import mockMIDI from './midi_mock.js'
 import { t } from './i18n.js'
+import { recordError } from './errorLog.js'
 
 const NOTE_ON = 144
 const NOTE_OFF = 128
@@ -25,26 +26,37 @@ let state = {
   midiAccess: null,
   midiInput: null,
   midiOutput: null,
-  isRecording: false,
-  recordingData: [],
-  recordingStartTime: null,
 }
 
 let callbacks = {
   onNotePlayed: null,
   onNoteReleased: null,
+  // A port coming or going on its own, without connectMIDI() being called. The
+  // page mirrors this state in its own UI, and nothing else tells it: on iOS
+  // the keyboard is paired in the system sheet, so the connection always
+  // happens outside the button that asked for it.
+  onConnectionChange: null,
 }
 
 export function initMidi() {
   return {
     connectMIDI,
-    parseMidiMessage,
     noteName,
-    startRecording,
-    stopRecording,
     setCallbacks,
     state,
   }
+}
+
+// iOS pairs Bluetooth MIDI devices per app rather than in Settings, so the
+// wrapper carries a system sheet for it and its shim exposes it here. The
+// shim's presence is also how a page knows it is running in the wrapper at
+// all: the user agent cannot say, an iPad claiming to be a Macintosh.
+export function nativePairingAvailable() {
+  return typeof globalThis.__pianoTrainerMIDI?.pairBluetooth === 'function'
+}
+
+export function openNativePairing() {
+  if (nativePairingAvailable()) globalThis.__pianoTrainerMIDI.pairBluetooth()
 }
 
 function setCallbacks(cbs) {
@@ -112,7 +124,7 @@ async function connectMIDI(options = {}) {
     }
 
   } catch (e) {
-    console.error('Erreur MIDI:', e)
+    recordError(e, 'MIDI keyboard could not be connected')
     if (!silent) alert(t('errors.midiConnection', { message: e.message }))
   }
 }
@@ -126,9 +138,7 @@ function onPortStateChange(port) {
 
   if (port.state === 'disconnected') {
     if (port === state.midiInput) {
-      state.midiConnected = false
-      state.midiInput = null
-      console.log('MIDI input disconnected')
+      setConnectedInput(null)
     } else if (port === state.midiOutput) {
       state.midiOutput = null
       console.log('MIDI output disconnected')
@@ -150,12 +160,17 @@ function selectMIDIOutput(output) {
 }
 
 function selectMIDIInput(input) {
-  state.midiInput = input
-
   input.onmidimessage = (event) => parseMidiMessage(event.data)
+  setConnectedInput(input)
+}
 
-  state.midiConnected = true
-  console.log('MIDI connected:', input.name)
+// The one place the connection state moves, so it can't move without the page
+// hearing about it. `null` for "no keyboard any more".
+function setConnectedInput(input) {
+  state.midiInput = input
+  state.midiConnected = !!input
+  console.log(input ? `MIDI connected: ${input.name}` : 'MIDI input disconnected')
+  callbacks.onConnectionChange?.()
 }
 
 async function connectMIDIMock() {
@@ -163,18 +178,11 @@ async function connectMIDIMock() {
   mockMIDI.connect((data) => {
     parseMidiMessage(data)
   })
-  state.midiInput = { name: 'Mock MIDI Keyboard' }
-  state.midiConnected = true
-  console.log('Mock MIDI connected')
+  setConnectedInput({ name: 'Mock MIDI Keyboard' })
 }
 
 // Parse standard MIDI messages (from Web MIDI API)
-function parseMidiMessage(data, isReplay = false) {
-  if (state.isRecording && !isReplay) {
-    const timestamp = Date.now() - state.recordingStartTime
-    state.recordingData.push({ timestamp, data: Array.from(data) })
-  }
-
+function parseMidiMessage(data) {
   const status = data[0]
   const note = data[1]
   const velocity = data[2]
@@ -188,14 +196,14 @@ function parseMidiMessage(data, isReplay = false) {
     if (callbacks.onNotePlayed) {
       callbacks.onNotePlayed(noteNameStr, note)
     }
-    if (LOG_NOTES) console.log(`Note ON ${isReplay ? 'replayed' : 'detected'}:`, noteNameStr)
+    if (LOG_NOTES) console.log('Note ON detected:', noteNameStr)
   }
   if (statusType === NOTE_OFF || (statusType === NOTE_ON && velocity === 0)) {
     const noteNameStr = noteName(note)
     if (callbacks.onNoteReleased) {
       callbacks.onNoteReleased(noteNameStr, note)
     }
-    if (LOG_NOTES) console.log(`Note OFF ${isReplay ? 'replayed' : 'detected'}:`, noteNameStr)
+    if (LOG_NOTES) console.log('Note OFF detected:', noteNameStr)
   }
 }
 
@@ -203,36 +211,6 @@ function parseMidiMessage(data, isReplay = false) {
 function noteName(n) {
   const octave = Math.floor(n / 12) - 1
   return NOTE_NAMES[n % 12] + octave
-}
-
-function startRecording() {
-  state.isRecording = true
-  state.recordingData = []
-  state.recordingStartTime = Date.now()
-}
-
-async function stopRecording() {
-  state.isRecording = false
-
-  if (state.recordingData.length === 0) {
-    alert(t('errors.noDataRecorded'))
-    return null
-  }
-
-  const cassetteName = prompt(
-    'Nom de la cassette :',
-    `Cassette_${new Date().toISOString().slice(0, 19).replace(/[:-]/g, '')}`,
-  )
-
-  if (!cassetteName) {
-    console.log('Enregistrement annulé')
-    return null
-  }
-
-  return {
-    name: cassetteName,
-    data: state.recordingData,
-  }
 }
 
 export { NOTE_ON, NOTE_OFF, NOTE_NAMES, noteName }

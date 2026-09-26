@@ -1,17 +1,18 @@
 // Seed the app with a practice-data backup, then capture every screenshot the
 // landing hero video needs, writing them into ../composition/assets/.
 //
+//   node capture/build-assets.mjs     # the backup `npm run backup` fetched
 //   PT_BACKUP=~/Downloads/arabesque-backup-YYYY-MM-DD.json \
-//     node capture/build-assets.mjs
+//     node capture/build-assets.mjs   # or an export from the app
 //
 // Requires the app running locally (default http://localhost:4567). See README.
 import fs from 'fs'
 import path from 'path'
-import { launch, openScore, sleep, ASSETS, BASE, ROOT } from './lib.mjs'
+import { launch, openScore, sleep, ASSETS, BACKUP_PATH, BASE, ROOT, WORKDIR } from './lib.mjs'
 
-const BACKUP = process.env.PT_BACKUP
-if (!BACKUP || !fs.existsSync(BACKUP)) {
-  console.error('Set PT_BACKUP to an Arabesque backup export (Library → Exporter sauvegarde).')
+const BACKUP = process.env.PT_BACKUP || BACKUP_PATH
+if (!fs.existsSync(BACKUP)) {
+  console.error(`No backup at ${BACKUP}. Run \`npm run backup\` (from Supabase), or set PT_BACKUP to an export.`)
   process.exit(1)
 }
 fs.mkdirSync(ASSETS, { recursive: true })
@@ -36,6 +37,10 @@ console.log(`clock pinned to ${NOW.toISOString()} (last session in the backup)`)
 // Static brand asset used by the closing scene (not a screenshot).
 fs.copyFileSync(path.resolve(ROOT, '../../public/favicon.svg'), out('favicon.svg'))
 
+// A fresh profile every run: the captures below play the app, and what they
+// play is filed in the practice journal like anything else — a second run
+// would open on the first one's training and strict runs under "aujourd'hui".
+fs.rmSync(path.join(WORKDIR, 'userdata'), { recursive: true, force: true })
 const { ctx, page } = await launch({ now: NOW })
 
 // 1. Seed the library from the backup export (idempotent: keyed puts). The
@@ -47,6 +52,17 @@ await page.goto(`${BASE}/data.html`, { waitUntil: 'networkidle' })
 const imported = page.waitForEvent('dialog')
 await page.setInputFiles('#backup-import', BACKUP)
 await imported
+// An export carries its aggregates, a Supabase fetch has none: rebuild them from
+// the sessions either way, as sync does, so the statuses match today's rules.
+await page.evaluate(async () => {
+  const { initStorage } = await import('/js/storage.js')
+  const { initPracticeTracker } = await import('/js/practiceTracker.js')
+  const { fetchCatalogMeta } = await import('/js/sync.js')
+  const storage = initStorage()
+  await storage.init()
+  const meta = await fetchCatalogMeta()
+  await initPracticeTracker(storage).rebuildAggregates((scoreId) => meta[scoreId] ?? null)
+})
 await page.goto(`${BASE}/library.html`, { waitUntil: 'networkidle' })
 await page.waitForFunction(() => document.querySelectorAll('tbody tr').length > 10)
 await sleep(700)
@@ -106,7 +122,65 @@ await page.evaluate(() => window.scrollTo(0, 0))
 await page.screenshot({ path: out('training.png') })
 console.log('captured training')
 
-// 5. History modal (rich chart — a heavily-practised score).
+// 5. Strict mode: a four-bar passage looped to the metronome. Each notehead is
+//    struck the moment the engine lights it, from the pitches the cursor reads
+//    under its group, so the engine judges every note itself. Two clean runs,
+//    then a third with one note let go, caught near its end: the band counts
+//    "2 sur 3 propres" and the missed note shows red among the green.
+await openScore(page, 'scores/Bach_Invention_No_8_in_F_Major.mxl')
+await page.evaluate(async () => {
+  const d = document.documentElement._x_dataStack[0]
+  const osmd = d.osmdInstance
+  const cursor = osmd.cursor
+  cursor.reset()
+  const groups = new Map()
+  while (!cursor.iterator.EndReached) {
+    for (const n of cursor.NotesUnderCursor()) {
+      const g = n.Pitch && osmd.rules.GNote(n)?.getSVGGElement()
+      if (!g) continue
+      if (!groups.has(g)) groups.set(g, new Set())
+      groups.get(g).add(n.Pitch.halfTone + 12)
+    }
+    cursor.next()
+  }
+  cursor.reset()
+  d.setMode('strict')
+  await window.__ptMidi.sleep(300)
+  d.strictBpm = 72
+  d.toggleLoop()
+  d.pickStrictMeasure(0)
+  d.pickStrictMeasure(3)
+  // Groups lit per run, read by the capture to know how far the run has got.
+  const lit = (window.__strictLit = {})
+  const struck = new Set()
+  const send = (status, pitches) => {
+    for (const p of pitches) window.dispatchEvent(new CustomEvent('mock-midi-input', { detail: { data: [status, p, 90] } }))
+  }
+  new MutationObserver((records) => {
+    for (const { target } of records) {
+      if (!target.classList.contains('expected-note')) continue
+      const g = [...groups.keys()].find((k) => k.contains(target))
+      // A chord lights one notehead per note: strike it once.
+      if (!g || struck.has(g)) continue
+      struck.add(g)
+      setTimeout(() => struck.delete(g), 120)
+      const run = d.trainerStatus?.run ?? 0
+      lit[run] = (lit[run] ?? 0) + 1
+      if (run === 3 && lit[run] === 10) continue
+      const pitches = [...groups.get(g)]
+      send(0x90, pitches)
+      setTimeout(() => send(0x80, pitches), 90)
+    }
+  }).observe(document.querySelector('#score'), { subtree: true, attributes: true, attributeFilter: ['class'] })
+  d.toggleStrictPlaythrough()
+})
+await page.waitForFunction(() => window.__strictLit[3] >= window.__strictLit[1] - 3, null, { timeout: 90000, polling: 20 })
+await page.evaluate(() => window.scrollTo(0, 0))
+await page.screenshot({ path: out('strict.png') })
+await page.evaluate(() => document.documentElement._x_dataStack[0].toggleStrictPlaythrough())
+console.log('captured strict')
+
+// 6. History modal (rich chart — a heavily-practised score).
 await openScore(page, 'scores/Bach_Invention_No_14_in_B_Flat_Major.mxl')
 await page.evaluate(() => document.documentElement._x_dataStack[0].openScoreHistory())
 await sleep(900)

@@ -8,9 +8,12 @@ This directory contains a minimal native wrapper that bridges the gap:
 - **CoreMIDI** collects MIDI on the native side (USB and Bluetooth devices);
 - an injected script (`Arabesque/Resources/webmidi-shim.js`) emulates
   `navigator.requestMIDIAccess` so `public/js/midi.js` works as-is;
-- a small overlay button opens the system **Bluetooth MIDI pairing** sheet
-  (`CABTMIDICentralViewController`), needed because BLE MIDI devices are paired
-  per-app, not in iOS Settings.
+- a second one (`wakelock-shim.js`) does the same for `navigator.wakeLock`,
+  which WebKit grants in Safari proper only, so the screen stays on with a
+  score up — and the library still falls asleep (see below);
+- the web app opens the system **Bluetooth MIDI pairing** sheet
+  (`CABTMIDICentralViewController`) through that same bridge, needed because
+  BLE MIDI devices are paired per-app, not in iOS Settings.
 
 Everything on screen comes from the network, so a failed load has nowhere to
 fall back to: `ViewController` covers the webview with a **retry screen**
@@ -32,12 +35,65 @@ MIDI device ──CoreMIDI──▶ MIDIBridge.swift ──evaluateJavaScript─
   `window.__pianoTrainerMIDI.receiveMIDI(id, bytes)` delivers incoming
   messages to the right input port.
 - JS → native: `webkit.messageHandlers.midiBridge` carries `{type: 'ready'}`
-  (asks for the port list) and `{type: 'send', id, data}` (MIDI output, used
-  by playback).
+  (asks for the port list), `{type: 'send', id, data}` (MIDI output, used by
+  playback) and `{type: 'pair'}` (open the pairing sheet). The shim exposes the
+  last one as `window.__pianoTrainerMIDI.pairBluetooth()`, and its presence is
+  how the page knows it is in the wrapper — the user agent cannot say, an iPad
+  claiming to be a Macintosh.
 
 The shim keeps port object identity stable across updates because `midi.js`
 compares ports with `===` in its `onstatechange` auto-reconnect logic. Its
 logic is covered by `test/js/webmidiShim.test.js` at the repo root.
+
+## Keeping the screen on
+
+Playing a score means minutes without touching the glass, which is exactly what
+the idle timer is watching for; the web app already asks for a screen wake lock
+for that, but WebKit grants nothing in a `WKWebView` (webkit.org/b/254545) and
+the refusal is silent, so the iPad fell asleep mid-piece.
+
+`wakelock-shim.js` therefore replaces `navigator.wakeLock` with one that records
+what the page holds, and `ViewController` sets `isIdleTimerDisabled` from it.
+Disabling the idle timer outright would be simpler, but then a library left open
+would never sleep either.
+
+Two details are the whole reliability of it:
+
+- The shim **defines** `navigator.wakeLock` rather than assigning it. The
+  attribute is readonly, so `navigator.wakeLock = …` throws in strict mode; the
+  shim would not install and the page would keep talking to the implementation
+  that grants nothing.
+- Native **polls** `window.__arabesqueWakeLock.held` (every ten seconds, plus on
+  every return to the foreground) rather than being told. A lock dies with the
+  document that took it, and a document replaced by a navigation or dropped from
+  the back/forward cache never gets to give it back — a single missed message
+  would leave the iPad lit until the app was killed, which is what an hour of
+  glowing library looked like. Asking the page on screen cannot go stale by more
+  than one tick, against an Auto-Lock counted in minutes.
+
+Covered by `test/js/wakeLockShim.test.js`.
+
+## Telling the page the app is awake
+
+The webview is suspended with the app and woken hours later, never reloaded —
+which is exactly the situation `visibilitychange` was supposed to cover and
+does not. A library page resumed the morning after a session kept filing the
+evening before's practice under « aujourd'hui », because nothing on the page
+had heard anything.
+
+`didBecomeActive` is a notification the app does get, so `ViewController`
+forwards it:
+
+```swift
+evaluate("document.dispatchEvent(new Event('arabesque:foreground'))")
+```
+
+`onForeground()` in `public/js/utils.js` listens for that event alongside
+`visibilitychange`, and everything waiting on a return to the foreground —
+the day rollover, the sync on the way back in — hangs off it. Both can fire
+for a single return, so every listener is idempotent.
+
+Covered by `test/js/dayRollover.test.js`.
 
 ## Building
 
@@ -60,14 +116,51 @@ The web app URL lives in the `PTWebAppURL` Info.plist key (see `project.yml`),
 and defaults to the production deployment (https://arabesque.app/).
 For development against a local server, point it at your Mac
 (e.g. `http://<your-mac>.local:4567`) — `NSAllowsLocalNetworking` is already
-enabled — and regenerate the project.
+enabled — and add that host to `WKAppBoundDomains` (see below), otherwise the
+webview refuses to navigate to it.
+
+## App-bound domains
+
+`project.yml` declares `WKAppBoundDomains: [arabesque.app]` and
+`ViewController` sets `limitsNavigationsToAppBoundDomains = true`. This is the
+opt-in that lets the webview run **service workers**, which is the only way the
+web app can work without a network — an iPad on a music stand.
+
+It is a trade, not a switch. Declaring the key puts every `WKWebView` in the app
+into a restricted mode: injected scripts, style sheets, cookie manipulation and
+message handlers are all denied, and only the `limitsNavigationsToAppBoundDomains`
+flag gives them back — for the listed domains alone. Both halves matter here,
+because both bridges *are* injected scripts (`webmidi-shim.js`,
+`wakelock-shim.js`) plus message handlers (`midiBridge`, `wakeLock`): with the
+key declared and the flag missing, the app would launch, show the web app, and
+quietly accept no MIDI at all.
+
+Consequences worth knowing:
+
+- Up to 10 domains. A `PTWebAppURL` pointing outside the list fails to load
+  with "App-bound domain failure" — visible, at least, since the load-failure
+  screen catches it.
+- Only top-level navigation is checked. The app's own `fetch` calls (Supabase
+  sync, feedback, scores) are subresource requests and are not affected.
+- Off-site links were already handed to Safari by `decidePolicyFor`
+  (`ViewController.swift`), so nothing there changes.
+
+Apple's own [App-Bound Domains post](https://webkit.org/blog/10882/app-bound-domains/)
+documents the restrictions but says nothing about service workers; that link
+comes from wrapper projects that hit it (e.g.
+[Capacitor #4122](https://github.com/ionic-team/capacitor/issues/4122)). Which
+is why the first thing to check on a build carrying this change is that a MIDI
+keyboard still plays — before a line of service worker is written.
 
 ## Connecting a keyboard
 
 - **USB**: plug the keyboard into the iPad (camera adapter / USB-C). It is
   picked up automatically, including when plugged in after launch.
-- **Bluetooth**: tap the antenna button in the bottom-right corner and pair
-  the keyboard from the system sheet. Pairing is remembered by the app.
+- **Bluetooth**: tap « Connecter clavier MIDI » — in the score page's top bar,
+  or in the ⚙️ menu, which carries the entry here alone — and pair the keyboard
+  from the system sheet. The sheet closes itself the moment the keyboard turns
+  up as a CoreMIDI source, so Done is only there for a change of mind. Pairing
+  is remembered by the app.
 
 ## Icône
 
@@ -83,6 +176,23 @@ rsvg-convert -w 1024 -h 1024 -b '#1095c1' icon.svg -o \
 ```
 
 où `icon.svg` est le favicon dont on a retiré le `rx` du rectangle de fond.
+
+Les icônes d'installation Android (`public/icons/`) dérivent à leur tour de ce
+PNG 1024, et se regénèrent avec lui :
+
+```bash
+SRC=ios/Arabesque/Assets.xcassets/AppIcon.appiconset/icon-1024.png
+convert $SRC -resize 192x192 public/icons/icon-192.png
+convert $SRC -resize 512x512 public/icons/icon-512.png
+convert $SRC -resize 400x400 -background '#1095c1' -gravity center \
+  -extent 512x512 public/icons/icon-maskable-512.png
+```
+
+La troisième est la variante `maskable` : Android découpe l'icône à la forme du
+lanceur, en ne garantissant que le cercle central de 80 % du côté. Le clavier
+touche ce cercle dans l'icône pleine, d'où le redimensionnement à 400 px (78 %)
+recentré sur le même fond — sans quoi ses angles seraient rognés. Les deux
+autres sont marquées `any` et gardent le cadrage d'origine.
 
 ## Publier sur TestFlight
 

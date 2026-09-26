@@ -3,6 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="app-version" content="dev" />
     <title data-i18n="landing.pageTitle">Arabesque · Apprenez le piano avec un retour en temps réel</title>
     <meta
       name="description"
@@ -31,6 +32,9 @@
       }
     </script>
     <link rel="stylesheet" href="styles.css" />
+    <script type="module" src="js/errorLog.js"></script>
+    <script type="module" src="js/version.js"></script>
+    <script type="module" src="js/appStore.js"></script>
     <script type="module">
       import { initI18n, getLang } from './js/i18n.js'
       initI18n()
@@ -102,13 +106,13 @@
       <section class="pt-section">
         <div class="pt-section__head">
           <h2 data-i18n="landing.featuresTitle">Tout ce qu'il faut pour pratiquer sérieusement</h2>
-          <p data-i18n="landing.featuresSubtitle">Un atelier de travail dans le navigateur, sans installation ni compte.</p>
+          <p data-i18n="landing.featuresSubtitle">Dans le navigateur, sur iPhone et iPad ou installée sur Android. Un compte ne sert qu’à synchroniser vos appareils.</p>
         </div>
         <div class="pt-card-grid">
           <article class="pt-card pt-feature">
             <span class="pt-feature__icon">🎹</span>
             <h3 data-i18n="landing.f1Title">Clavier MIDI en un clic</h3>
-            <p data-i18n="landing.f1Body">USB ou Bluetooth via le Web MIDI. Le clavier est détecté automatiquement, rien à configurer.</p>
+            <p data-i18n="landing.f1Body">USB ou Bluetooth. Le navigateur détecte le clavier tout seul ; sur iPad, l’appairage Bluetooth s’ouvre depuis l’app.</p>
           </article>
           <article class="pt-card pt-feature">
             <span class="pt-feature__icon">🎯</span>
@@ -123,7 +127,7 @@
           <article class="pt-card pt-feature">
             <span class="pt-feature__icon">🎚️</span>
             <h3 data-i18n="landing.f4Title">Modes de travail</h3>
-            <p data-i18n="landing.f4Body">Déchiffrage libre, entraînement mesure par mesure ou mode strict sans fausse note : choisissez votre exigence.</p>
+            <p data-i18n="landing.f4Body">Déchiffrage libre, entraînement sur un passage, ou mode strict au métronome, en boucle, le tempo montant à chaque passage propre.</p>
           </article>
           <article class="pt-card pt-feature">
             <span class="pt-feature__icon">✋</span>
@@ -134,6 +138,21 @@
             <span class="pt-feature__icon">📚</span>
             <h3 data-i18n="landing.f6Title">Bibliothèque classique</h3>
             <p data-i18n="landing.f6Body">70+ partitions du domaine public, des inventions de Bach au Hanon, recherchables en jouant leurs premières notes.</p>
+          </article>
+          <article class="pt-card pt-feature">
+            <span class="pt-feature__icon">🎧</span>
+            <h3 data-i18n="landing.f7Title">Écouter avant de jouer</h3>
+            <p data-i18n="landing.f7Body">▶ Écouter joue le morceau au tempo que vous choisissez, à partir de la mesure de votre choix.</p>
+          </article>
+          <article class="pt-card pt-feature">
+            <span class="pt-feature__icon">📶</span>
+            <h3 data-i18n="landing.f8Title">Hors ligne, sur tous vos appareils</h3>
+            <p data-i18n="landing.f8Body">Une partition ouverte une fois reste disponible sans réseau. Connecté, votre pratique vous suit de l’iPad au téléphone.</p>
+          </article>
+          <article class="pt-card pt-feature">
+            <span class="pt-feature__icon">👥</span>
+            <h3 data-i18n="landing.f9Title">Un profil par pianiste</h3>
+            <p data-i18n="landing.f9Body">Sur un appareil partagé, chacun garde son journal, ses statuts et ses doigtés.</p>
           </article>
         </div>
       </section>
@@ -147,7 +166,7 @@
           <div class="pt-step">
             <span class="pt-step__num"></span>
             <h3 data-i18n="landing.step1Title">Connectez votre clavier</h3>
-            <p data-i18n="landing.step1Body">Reliez un clavier MIDI en USB ou en Bluetooth et autorisez l'accès quand le navigateur le demande. Pas de clavier ? Vous pouvez aussi suivre la partition à l'écran.</p>
+            <p data-i18n="landing.step1Body">Reliez un clavier MIDI en USB ou en Bluetooth : autorisez l’accès quand le navigateur le demande, ou appairez-le depuis l’app sur iPad. Pas de clavier ? Vous pouvez aussi suivre la partition à l’écran.</p>
           </div>
           <div class="pt-step">
             <span class="pt-step__num"></span>
@@ -163,11 +182,16 @@
         <div class="pt-section__cta">
           <a href="library.html" role="button" data-i18n="common.openLibrary">Ouvrir la bibliothèque</a>
         </div>
+        <p class="pt-section__store" data-app-store hidden>
+          <a href="https://apps.apple.com/app/id6800314187" data-i18n="common.appStore">Arabesque pour iPhone et iPad, sur l'App Store</a>
+          <br />
+          <span data-i18n="landing.android">Sur Android, ouvrez la bibliothèque dans Chrome, puis ⚙️ → Installer l’application.</span>
+        </p>
       </section>
 
       <footer class="pt-landing__footer">
         <span data-i18n="landing.footer">
-          Arabesque · partitions du domaine public · vos données restent dans votre navigateur.
+          Arabesque · partitions du domaine public · vos données restent sur votre appareil, sauf à les synchroniser.
         </span>
         <span class="pt-footer-links">
           <a href="privacy.html" data-i18n="common.privacy">Confidentialité</a>

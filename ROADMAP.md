@@ -5,6 +5,22 @@ dans le `CHANGELOG`.
 
 ## Idées
 
+- **Rendre l'état hors ligne visible** — le cache est arrivé (voir `CHANGELOG`),
+  mais c'est une promesse invisible : WebKit évince les enregistrements de
+  service worker et le Cache Storage sous pression de stockage ou après une
+  longue dormance, et l'usage type de l'app — des semaines de veille entre deux
+  ouvertures — est exactement ce qui déclenche l'éviction. Quand ça arrive, le
+  prochain lancement sans réseau échoue alors que l'utilisateur croit l'app
+  disponible. Une ligne dans l'en-tête de la bibliothèque ou sur la page
+  Données, tirée de « enregistrement présent et cache rempli pour cette
+  version », rendrait la garantie vérifiable. Deux choses vont avec :
+  `ios/Arabesque/ViewController.swift` porte déjà un bouton de réessai sur
+  l'écran d'erreur, et `WKWebsiteDataStore.removeData` derrière lui donnerait
+  une sortie de secours qui ne dépend ni d'un déploiement ni de la coopération
+  du worker ; et le texte de cet écran (« vérifiez votre connexion ») n'est plus
+  le bon diagnostic maintenant qu'un échec de chargement signifie surtout que le
+  worker n'a pas répondu.
+
 - **Validation des pédales** — valider l'usage de la pédale de sustain (CC 64),
   pas seulement les notes. Très pertinent sur des pièces comme la *Sonate au clair
   de lune*. Nécessite les marques `<pedal>` dans le MusicXML et l'écoute des
@@ -13,14 +29,12 @@ dans le `CHANGELOG`.
 - **Marqueur de passages** — outil pour surligner / marquer les passages
   difficiles d'un morceau, afin d'attirer l'attention dessus et d'y revenir.
 
-- **Tempo trainer (suite du mode strict)** — l'évolution envisagée dès les
-  premières PRs du mode strict (#161, #165) : construire un entraîneur de tempo
-  par-dessus le moteur existant, avec **sélection d'une plage de mesures**,
-  **boucle** sur cette plage et **auto-progression** du BPM (accélération
-  graduelle quand la passe est propre). À coupler avec l'intégration du mode
-  strict dans le suivi de pratique (stats séparées des lectures libres). Les
-  mesures à renforcer pourraient déclencher automatiquement une boucle à tempo
-  réduit sur le passage concerné.
+- **Du renforcement à la boucle au métronome** — le tempo trainer est livré
+  (voir `CHANGELOG` : 🔁 Boucle du mode strict sur un passage choisi, tempo qui
+  monte après des passages propres, passages stricts consignés à part dans le
+  journal). Reste le pont avec le renforcement : une mesure à renforcer
+  pourrait lancer d'elle-même une boucle à tempo réduit sur le passage
+  concerné, plutôt que d'attendre qu'on la délimite à la main.
 
 - **Objectif de tempo sur le graphique des jeux complets** (inspiration
   Sostenuto, cf. `COMPETITORS.md`) — le graphique de la page morceau trace déjà
@@ -39,14 +53,12 @@ dans le `CHANGELOG`.
      quand elle existe, donc utile sans que le joueur ait rien à régler ; un
      objectif manuel par morceau viendrait ensuite.
 
-  Deux réserves. La durée est du temps de jeu **normalisé** (interruptions
-  déduites, cf. #221) mais inclut les hésitations : c'est donc un *tempo moyen
+  Une réserve : la durée est du temps de jeu **normalisé** (interruptions
+  déduites, cf. #221) mais inclut les hésitations. C'est donc un *tempo moyen
   effectif*, qui mélange vitesse et fluidité — à nommer comme tel, pas comme un
-  réglage de métronome. Et en mode strict le BPM est **imposé**, pas mesuré :
-  ces lectures se poseraient exactement sur la ligne par construction. Les
-  distinguer suppose la seule donnée nouvelle du chantier — enregistrer le mode
-  (et le BPM) sur le playthrough, ce que `buildPlaythroughs` ne fait pas
-  aujourd'hui.
+  réglage de métronome. Les passages stricts, dont le BPM est imposé et non
+  mesuré, sont déjà enregistrés à part avec leur tempo (`pt.strict.bpm`) et ont
+  leur propre courbe : le chantier ne demande plus aucune donnée nouvelle.
 
 - **Validation des silences / durées** — aujourd'hui rien ne signale qu'on
   maintient une note trop longtemps (ou qu'on ne respecte pas un silence), ni
@@ -63,10 +75,9 @@ dans le `CHANGELOG`.
 - **Scoring des jeux complets en mode libre** — attribuer une note à une lecture
   libre complète selon le respect du tempo, les fausses notes, les durées, etc.
   Donne un repère global de progression sans imposer le cadre du mode strict.
-
-- **Sélection multi-mesures en mode entraînement** — étendre le mode
-  entraînement actuel pour sélectionner une plage de mesures (et non une seule),
-  afin de travailler un passage en boucle.
+  Premier morceau livré : le classement de fin affiche déjà le nombre de fausses
+  notes de chaque lecture et les mesures où elles sont tombées ; reste à en
+  faire une note.
 
 - **Wishlist / statut « à venir »** — les statuts actuels (déchiffrage,
   perfectionnement, répertoire) sont tous calculés à partir de la pratique. Il
@@ -103,12 +114,6 @@ dans le `CHANGELOG`.
   modèle de transcription type Onsets and Frames (Magenta.js) ou Basic Pitch
   (Spotify), pensés pour l'offline plus que le temps réel — et à évaluer en
   conditions réelles (micro de laptop, acoustique de la pièce).
-
-- **Clavier à l'écran** — afficher une bande clavier sous la partition, avec
-  les notes attendues allumées et les notes jouées en vert/rouge (l'équivalent
-  logiciel des touches lumineuses type ROLI Piano). Aide les débutants qui
-  n'ont pas encore le réflexe portée → touche, en complément du feedback sur
-  la portée.
 
 - **Validation des doigtés par caméra** — le MIDI dit quelle note est jouée,
   jamais avec quel doigt. Les doigtés sont pourtant déjà annotés par morceau

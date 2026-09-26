@@ -19,13 +19,16 @@
 --        select vault.create_secret('re_xxxxx', 'resend_api_key');
 --      (rotation: select vault.update_secret(
 --         (select id from vault.secrets where name='resend_api_key'), 're_yyyyy');)
---   4. To send from feedback@<your-domain>: verify the domain in Resend (DNS).
---      Until then, use 'onboarding@resend.dev' as `from` (delivers only to the
---      Resend account email) — see FROM_ADDR below.
+--   4. Verify the sending domain in Resend (DNS) — done for arabesque.app; the
+--      why and the records are in supabase/auth.md and NAMING.md, not repeated
+--      here. FROM_ADDR below must name that same verified domain.
 --
 -- Apply:
 --   psql "$SUPABASE_DB_URL" -f supabase/feedback.sql
 -- (idempotent: if not exists + create or replace + drop ... if exists)
+--
+-- Reading the feedback back (the anon role cannot: insert only) goes through
+-- the Management API — see the header of scripts/feedback.mjs.
 --
 -- Debugging deliveries (pg_net logs responses):
 --   select status_code, content from net._http_response order by created desc limit 5;
@@ -38,8 +41,53 @@ create table if not exists public.feedback (
   message    text not null,
   email      text,
   category   text,          -- 'bug' | 'idea' | 'score' | 'other' (free text; UI-constrained)
-  context    jsonb          -- app_version, locale, user_agent, viewport, anonymized stats
+  context    jsonb,         -- app_version, locale, user_agent, viewport, anonymized stats,
+                            -- recent JS errors (public/js/errorLog.js bounds their size)
+  screenshot text,          -- data URL of the screen as sent, opt-out (see below)
+  status     text not null default 'new'   -- constrained just below
 );
+
+-- A picture of the viewport the reporter was looking at, as a data URL (WebP,
+-- or JPEG where WebP is not available), produced in the browser by
+-- public/js/screenshot.js.
+--
+-- Why a column and not Supabase Storage: uploading from the browser would mean
+-- a storage policy letting `anon` INSERT into storage.objects, which hands the
+-- publishable key a brand-new power — arbitrary file upload into the project,
+-- off-table and unbounded. It would also split one submission into two
+-- unrelated requests, so a row can end up naming an object that never arrived.
+-- A column keeps the existing security property exactly as it was: one table,
+-- one insert-only policy, nothing else granted. The cost is storage — at ~80 kB
+-- of base64 per report it is single-digit MB a year against the free tier's
+-- 500 MB, and TOAST keeps the value out of the main heap so the listing query,
+-- which never selects it, does not slow down.
+alter table public.feedback
+  add column if not exists screenshot text;
+
+-- The ceiling the client encodes against (screenshot.js walks quality down
+-- until it fits, and sends nothing rather than overflow). It is here because
+-- the client is not the only thing that can POST with a publishable key: this
+-- is what stops a hand-rolled insert from parking megabytes in the table. The
+-- message column has no such bound, which is the older gap, not a new one.
+alter table public.feedback drop constraint if exists feedback_screenshot_size;
+alter table public.feedback
+  add constraint feedback_screenshot_size
+  check (screenshot is null or length(screenshot) <= 400000);
+
+-- Which feedback is still to deal with. Without it the only way to tell was to
+-- remember which dates had been read; `scripts/feedback.mjs` reads and writes
+-- this column. The alter is what reaches a database the create table skipped.
+alter table public.feedback
+  add column if not exists status text not null default 'new';
+
+alter table public.feedback drop constraint if exists feedback_status_check;
+alter table public.feedback
+  add constraint feedback_status_check check (status in ('new', 'done'));
+
+-- The listing reads the pending ones, newest first, and nothing else.
+create index if not exists feedback_status_new_idx
+  on public.feedback (created_at desc)
+  where status = 'new';
 
 -- RLS: the anon role may only INSERT. No select/update/delete — feedback is
 -- read out-of-band (SQL / admin), never exposed back to the client.
@@ -50,7 +98,9 @@ create policy feedback_anon_insert
   on public.feedback
   for insert
   to anon
-  with check (true);
+  -- The column has a default, so the app never sends it; spelling it out here
+  -- stops a hand-rolled POST from filing feedback pre-marked as dealt with.
+  with check (status = 'new');
 
 create or replace function public.notify_new_feedback()
 returns trigger
@@ -60,7 +110,7 @@ set search_path = public, extensions, vault
 as $$
 declare
   api_key   text;
-  from_addr text := 'Arabesque <onboarding@resend.dev>';  -- test mode; switch to feedback@<domain> once verified in Resend
+  from_addr text := 'Arabesque <bonjour@arabesque.app>';  -- the domain is verified in Resend (supabase/auth.md)
   to_addr   text := 'ivan.schneider@hey.com';
   excerpt   text;
 begin
@@ -94,11 +144,17 @@ begin
       'html', format(
         '<p><strong>New feedback</strong>%s</p>'
         '<blockquote style="border-left:3px solid #ddd;padding-left:12px;color:#333">%s</blockquote>'
-        '<p style="color:#666">— %s</p>'
+        '<p style="color:#666">— %s</p>%s'
         '<p style="color:#999;font-size:13px">id <code>%s</code></p>',
         coalesce(' · ' || new.category, ''),
         excerpt,
         coalesce(nullif(new.email, ''), 'anonymous'),
+        -- The image is too big to inline in the notification; say it exists and
+        -- how to look at it, or it never gets looked at.
+        case when new.screenshot is null then ''
+             else '<p style="color:#666">📷 Screenshot attached — <code>node scripts/feedback.mjs shot ' ||
+                  left(new.id::text, 8) || '</code></p>'
+        end,
         new.id
       )
     )

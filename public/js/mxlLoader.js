@@ -68,7 +68,14 @@ async function fetchScoreBytes(url) {
     if (bytes) return bytes
   }
 
-  const response = await fetch(url)
+  // Tagged, because the page tells the two failures apart: a request that never
+  // reached a server is fixed by finding a network, a bad answer is not.
+  let response
+  try {
+    response = await fetch(url)
+  } catch (cause) {
+    throw Object.assign(new Error(`Could not reach ${url}`, { cause }), { unreachable: true })
+  }
   if (!response.ok) {
     throw new Error(`Failed to fetch ${url}: ${response.statusText}`)
   }

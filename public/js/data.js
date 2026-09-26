@@ -1,16 +1,42 @@
-// Data page: local backup (export/import) + account (passwordless sign-in,
-// and deleting the account again).
+// Data page: profiles, local backup (export/import) + account (passwordless
+// sign-in, and deleting the account again).
 //
-// This page is the home for everything data-related: the export/import that
-// used to live in the ⚙️ menu, and signing in by email — with the link or the
-// code it carries, see supabaseClient.js. Signing in is what turns cloud sync
-// on; this page is where that becomes true for the device.
+// This page is the home for everything data-related: who the data belongs to
+// on this device (profiles.js), the export/import that used to live in the ⚙️
+// menu, and signing in by email (see supabaseClient.js). Signing in is what
+// turns cloud sync on; this page is where that becomes true for the device,
+// every profile on it included.
 import { initStorage } from './storage.js'
 import { initPracticeTracker } from './practiceTracker.js'
 import { lastSyncAt } from './sync.js'
 import { initAutoSync, requestSync } from './autoSync.js'
 import { deleteCurrentUser } from './account.js'
 import { t, locale } from './i18n.js'
+import { recordError } from './errorLog.js'
+import {
+  AVATARS,
+  MAIN_PROFILE_ID,
+  listProfiles,
+  currentProfileId,
+  profileName,
+  freeAvatar,
+  addProfile,
+  updateProfile,
+  removeProfile,
+  switchProfile,
+} from './profiles.js'
+
+// The file name of a backup carries the profile it came from — except the
+// main profile's, which keeps the name it always had.
+function backupSlug(profile) {
+  if (profile.id === MAIN_PROFILE_ID) return ''
+  const slug = profile.name
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '')
+  return slug ? `${slug}-` : ''
+}
 
 export function dataApp() {
   const storage = initStorage()
@@ -18,11 +44,61 @@ export function dataApp() {
   // Loaded lazily in init() so export/import work without waiting on (or even
   // reaching) the @supabase/supabase-js CDN module.
   let supabase = null
-  let authRedirectUrl = null
   let pendingSignIn = () => null
   let setPendingSignIn = () => {}
 
   return {
+    // --- Profiles ---
+    profiles: listProfiles(),
+    currentProfileId: currentProfileId(),
+    avatars: AVATARS,
+    profileName,
+    newProfile: { name: '', avatar: freeAvatar() },
+    // The profile whose deletion is being confirmed, or null.
+    deletingProfileId: null,
+
+    get currentProfile() {
+      return this.profileById(this.currentProfileId)
+    },
+    get deletingProfileName() {
+      return profileName(this.profileById(this.deletingProfileId))
+    },
+    profileById(id) {
+      return this.profiles.find((p) => p.id === id)
+    },
+    activateProfile(id) {
+      switchProfile(id)
+      // Same page, other profile: every module read the profile at import
+      // time, so the page starts over (profiles.js).
+      window.location.reload()
+    },
+    patchProfile(id, patch) {
+      updateProfile(id, patch)
+      this.profiles = listProfiles()
+    },
+    createProfile() {
+      if (!this.newProfile.name.trim()) return
+      addProfile(this.newProfile)
+      this.profiles = listProfiles()
+      this.newProfile = { name: '', avatar: freeAvatar() }
+    },
+    // Not the main profile (profiles.js has the reason), and not the current
+    // one: its database is open on this page, and IndexedDB will not drop a
+    // database with a connection on it.
+    canDeleteProfile(id) {
+      return id !== MAIN_PROFILE_ID && id !== this.currentProfileId
+    },
+    // The profile goes from the list at once; its database is dropped by the
+    // next page that opens one (storage.js), and its rows on the server by
+    // the next sync, which carries the tombstone to the other devices too.
+    deleteProfile(id) {
+      if (!this.canDeleteProfile(id)) return
+      removeProfile(id)
+      this.deletingProfileId = null
+      this.profiles = listProfiles()
+      requestSync().catch(() => {})
+    },
+
     cloudConfigured: false,
     authReady: false,
     user: null, // the signed-in Supabase user, or null
@@ -30,12 +106,12 @@ export function dataApp() {
     authStatus: 'idle', // 'idle' | 'sending' | 'sent' | 'verifying' | 'error'
     authError: '',
     authErrorLabel: '', // i18n key naming which step failed
-    // The code from the sign-in email — the half of it that reaches us wherever
-    // the mail is read (see supabaseClient.js for why a link cannot).
+    // The code from the sign-in email (see supabaseClient.js for why it is a
+    // code and not a link).
     otp: '',
 
     // Whether the email is out and we are waiting for its code. Written once
-    // here rather than as a compound status test in three places of the markup.
+    // here rather than as a compound status test in both branches of the markup.
     get codeSent() {
       return this.authStatus === 'sent' || this.authStatus === 'verifying'
     },
@@ -55,18 +131,17 @@ export function dataApp() {
       try {
         const mod = await import('./supabaseClient.js')
         supabase = mod.supabase
-        authRedirectUrl = mod.authRedirectUrl
         pendingSignIn = mod.pendingSignIn
         setPendingSignIn = mod.setPendingSignIn
         this.cloudConfigured = !!supabase
       } catch (err) {
-        console.error('Supabase client failed to load:', err)
+        recordError(err, 'Supabase client could not be loaded')
         this.cloudConfigured = false
       }
       if (supabase) {
         const { data } = await supabase.auth.getSession()
         this.setSession(data.session)
-        // Keep the UI in sync with sign-in/out and the magic-link redirect.
+        // Keep the UI in sync with signing in and out.
         supabase.auth.onAuthStateChange((_event, session) => this.setSession(session))
         // Came back from the mail app (or reloaded): reopen the code form on
         // the address that was asked for, rather than starting over.
@@ -79,7 +154,10 @@ export function dataApp() {
         // reports the outcome instead of syncing silently. The callback keeps
         // "Last synced" honest for the syncs that do fire on their own.
         initAutoSync({ storage, practiceTracker }, {
-          onSynced: () => { this.lastSync = lastSyncAt() },
+          onSynced: (summary) => {
+            this.lastSync = lastSyncAt()
+            if (summary.profilesChanged) this.profiles = listProfiles()
+          },
         })
         // Opening this page is a natural moment to sync. syncNow() is a no-op
         // when signed out.
@@ -118,7 +196,7 @@ export function dataApp() {
         })
         this.syncStatus = 'done'
       } catch (err) {
-        console.error('Sync error:', err)
+        // Kept for a feedback report by requestSync itself.
         this.syncStatus = 'error'
         this.syncError = err.message || String(err)
       }
@@ -129,16 +207,13 @@ export function dataApp() {
       return new Date(this.lastSync).toLocaleString(locale())
     },
 
-    // Asks for the sign-in email, which carries both a link and a code.
+    // Asks for the sign-in email, which carries a code and nothing else.
     async requestSignInEmail() {
       const email = this.email.trim()
       if (!email || this.authStatus === 'sending') return
       this.authStatus = 'sending'
       this.authError = ''
-      const { error } = await supabase.auth.signInWithOtp({
-        email,
-        options: { emailRedirectTo: authRedirectUrl() },
-      })
+      const { error } = await supabase.auth.signInWithOtp({ email })
       if (error) {
         this.authStatus = 'error'
         this.authError = error.message
@@ -149,7 +224,6 @@ export function dataApp() {
       }
     },
 
-    // Signing in with the code rather than the link (see supabaseClient.js).
     async verifyOtp() {
       const token = this.otp.replace(/\s/g, '')
       if (!token || this.authStatus === 'verifying') return
@@ -206,7 +280,7 @@ export function dataApp() {
         this.confirmingDelete = false
         this.deleteStatus = 'done'
       } catch (err) {
-        console.error('Account deletion error:', err)
+        recordError(err, 'Account could not be deleted')
         this.deleteStatus = 'error'
         this.deleteError = err.message || String(err)
       }
@@ -219,14 +293,14 @@ export function dataApp() {
         const url = URL.createObjectURL(blob)
         const a = document.createElement('a')
         a.href = url
-        a.download = `arabesque-backup-${new Date().toISOString().split('T')[0]}.json`
+        a.download = `arabesque-backup-${backupSlug(this.currentProfile)}${new Date().toISOString().split('T')[0]}.json`
         document.body.appendChild(a)
         a.click()
         document.body.removeChild(a)
         URL.revokeObjectURL(url)
         alert(t('library.exportOk'))
       } catch (error) {
-        console.error('Export error:', error)
+        recordError(error, 'Backup could not be exported')
         alert(t('library.exportError', { error: error.message }))
       }
     },
@@ -247,7 +321,7 @@ export function dataApp() {
           )
         }
       } catch (error) {
-        console.error('Import error:', error)
+        recordError(error, 'Backup could not be imported')
         alert(t('library.importError', { error: error.message }))
       }
       event.target.value = ''

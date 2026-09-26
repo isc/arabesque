@@ -6,22 +6,56 @@ class FingeringAnnotationTest < CapybaraTestBase
   CHORD_SCORE_URL = '/test-fixtures/chord.xml'
   TWO_VOICE_SCORE_URL = '/test-fixtures/two-voice-fingerings.xml'
   CHOPIN_WALTZ_URL = 'scores/Waltz_in_A_MinorChopin.mxl'
+  BEAMED_MORDENT_URL = '/test-fixtures/fingering-over-beamed-mordent.xml'
 
   def setup
     page.driver.set_cookie('test-env', 'true')
   end
 
-  def test_clicking_chord_notes_opens_fingering_modal
+  # Every head of a chord opens the pad on its own note. The pad used to say
+  # nothing about which one, so on a dense score the player could not tell
+  # whether the note they meant was the note they hit; its title names it now, in
+  # the language the app is in.
+  def test_clicking_chord_notes_opens_the_fingering_modal_on_the_note_clicked
     visit "/score.html?url=#{CHORD_SCORE_URL}"
     wait_for_score_render
-    noteheads = all('svg g.vf-notehead', minimum: 3)
 
-    # Verify clicking each notehead in the chord opens the fingering modal
-    noteheads.each do |notehead|
+    names = all('svg g.vf-notehead', minimum: 3).map do |notehead|
       notehead.click
       assert_selector 'dialog#fingeringModal[open]'
+      name = find('[data-testid="fingering-note"]').text
       click_on 'Close'
+      assert_no_selector 'dialog#fingeringModal[open]'
+      name
     end
+
+    # The chord is C4-E4-G4, named in French and with the octave the rest of the
+    # world numbers by (middle C is 4, where OSMD's own Pitch says 1). It is
+    # written on the treble staff, so every head of it is the right hand's.
+    assert_equal ['do4 · MD', 'mi4 · MD', 'sol4 · MD'], names.sort
+  end
+
+  # Which hand the note belongs to is the other half of "did I click the one I
+  # meant". It is the staff the note is written on: this fixture puts its
+  # octave-3 notes on the bass staff and everything above on the treble.
+  def test_the_fingering_modal_names_the_hand_the_note_is_written_for
+    visit "/score.html?url=#{TWO_VOICE_SCORE_URL}"
+    wait_for_score_render
+
+    names = all('svg g.vf-notehead', minimum: 2).map do |notehead|
+      notehead.click
+      assert_selector 'dialog#fingeringModal[open]'
+      name = find('[data-testid="fingering-note"]').text
+      click_on 'Close'
+      assert_no_selector 'dialog#fingeringModal[open]'
+      name
+    end
+
+    bass, treble = names.partition { |name| name.start_with?(*%w[do3 ré3 mi3 fa3 sol3 la3 si3]) }
+    refute_empty bass
+    refute_empty treble
+    assert(bass.all? { |name| name.end_with?(' · MG') }, "attendu MG : #{bass}")
+    assert(treble.all? { |name| name.end_with?(' · MD') }, "attendu MD : #{treble}")
   end
 
   def test_add_fingering_and_persist_after_reload
@@ -107,6 +141,34 @@ class FingeringAnnotationTest < CapybaraTestBase
     assert_text 'Partition terminée'
   end
 
+  # Training — reinforcement included — is painted on the score itself: the
+  # purple measure highlight and the repeat dots above it. Entering a fingering
+  # on a note that has none redraws the score, and the redraw used to take the
+  # mode down with it, overlay and banked repetitions and all.
+  def test_adding_fingering_keeps_the_training_overlay
+    visit "/score.html?url=/test-fixtures/two-measures.xml"
+    wait_for_score_render
+
+    click_on 'Mode Entraînement'
+    assert_text 'Mode Entraînement Actif'
+
+    # Bank one clean repetition of measure 1, so the dots have something to lose
+    play_note('C4')
+    assert_selector 'svg circle.repeat-indicator.filled', count: 1
+
+    # The D4 of measure 2 has no fingering yet, so validating one re-renders
+    all('.vf-notehead')[1].click
+    assert_selector 'dialog#fingeringModal[open]'
+    click_button '3'
+    click_button '✓ Valider'
+    wait_for_score_render
+    assert_fingering '3'
+
+    assert_selector 'svg rect.measure-click-area.selected'
+    assert_selector 'svg circle.repeat-indicator', count: 3
+    assert_selector 'svg circle.repeat-indicator.filled', count: 1
+  end
+
   def test_fingering_on_pickup_measure_persists_correctly
     visit "/score.html?url=#{PICKUP_SCORE_URL}"
     wait_for_score_render
@@ -151,6 +213,24 @@ class FingeringAnnotationTest < CapybaraTestBase
 
     # The 3 belongs to G4, the middle note, so only the middle label may change.
     assert_equal %w[5 2 1], first_beat_fingerings
+  end
+
+  # A fingering over a beamed, stem-up note clears the ornament on the same note.
+  # OSMD placed it from a first draw that had the ornament under the beam, and
+  # the digits landed on the mordent once the stems reached the beam (feedback
+  # 8ab0a2f9, BWV 847 bar 34).
+  def test_a_fingering_clears_the_ornament_of_a_beamed_note
+    visit "/score.html?url=#{BEAMED_MORDENT_URL}"
+    wait_for_score_render(8)
+
+    label_bottom, mordent_top = page.evaluate_script(<<~JS)
+      (() => {
+        const label = [...document.querySelectorAll('#score svg g.vf-text text')].find((t) => t.textContent === '323')
+        const mordent = document.querySelector('#score svg .vf-stavenote .vf-modifiers path')
+        return [label.getBoundingClientRect().bottom, mordent.getBoundingClientRect().top]
+      })()
+    JS
+    assert_operator label_bottom, :<=, mordent_top + 0.5
   end
 
   private

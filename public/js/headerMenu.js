@@ -15,8 +15,11 @@
 // non-identifying context merged into a report (practice stats on the library,
 // current score on the score page).
 import { CHANGELOG } from './changelog.js'
-import { feedbackEnabled, buildBaseContext, submitFeedback } from './feedback.js'
+import { feedbackEnabled, buildBaseContext, submitFeedback, defaultFeedbackEmail } from './feedback.js'
 import { getLang, locale } from './i18n.js'
+import { INSTALL_AVAILABLE_EVENT, installAvailable, promptInstall } from './installPrompt.js'
+import { nativePairingAvailable, openNativePairing } from './midi.js'
+import { recordError } from './errorLog.js'
 
 const CHANGELOG_SEEN_KEY = 'arabesque:changelog-seen'
 const CHANGELOG_DATE_FORMATTER = new Intl.DateTimeFormat(locale(), {
@@ -41,6 +44,26 @@ export function headerMenu() {
     },
     closeMenu() {
       this.menuOpen = false
+    },
+
+    // --- Install (Android / desktop Chrome) ---
+    // Read once here for the value the menu is built with; the binding on the
+    // anchor below keeps it current. See installPrompt.js for the timing.
+    canInstall: installAvailable(),
+    install() {
+      this.closeMenu()
+      promptInstall()
+    },
+
+    // --- Pair a MIDI keyboard (iOS wrapper only) ---
+    // Read once, like canInstall above: the shim offering the sheet is
+    // installed at document start or never (see midi.js). It belongs in the
+    // shared menu rather than a page's own header because everywhere else the
+    // keyboard is connected in the OS, and there is nothing to offer at all.
+    canPairMIDI: nativePairingAvailable(),
+    pairMIDI() {
+      this.closeMenu()
+      openNativePairing()
     },
 
     // --- Changelog ("Nouveautés") ---
@@ -79,13 +102,33 @@ export function headerMenu() {
     feedback: { message: '', email: '', category: '' },
     feedbackStatus: 'idle', // 'idle' | 'sending' | 'sent' | 'error'
     feedbackError: '',
+    // A picture of the screen the modal is covering, or null when the capture
+    // could not be made. Attached by default and shown in the form, so it is
+    // never a surprise — the checkbox opts out.
+    feedbackShot: null,
+    feedbackShotWanted: true,
 
-    openFeedback() {
-      this.feedback = { message: '', email: '', category: '' }
+    async openFeedback() {
+      this.feedback = { message: '', email: defaultFeedbackEmail(), category: '' }
       this.feedbackStatus = 'idle'
       this.feedbackError = ''
+      this.feedbackShot = null
+      this.feedbackShotWanted = true
       this.menuOpen = false
       this.showFeedbackModal = true
+      // Loaded and run only here: every page carries this menu, and next to
+      // none of them ever opens the form. Nothing waits on the result — null,
+      // from a capture that failed or a browser that could not make one, simply
+      // means the form offers no picture and the report goes as words alone.
+      const { captureViewport } = await import('./screenshot.js')
+      this.feedbackShot = await captureViewport()
+    },
+
+    // The picture goes when the dialog does: it is a few hundred kB of data URL
+    // on a component that outlives the form, and the next report makes its own.
+    closeFeedback() {
+      this.showFeedbackModal = false
+      this.feedbackShot = null
     },
 
     async sendFeedback() {
@@ -98,11 +141,12 @@ export function headerMenu() {
           message,
           email: this.feedback.email,
           category: this.feedback.category,
+          screenshot: this.feedbackShotWanted ? this.feedbackShot : null,
           context: { ...buildBaseContext(), ...(this.feedbackContext?.() ?? {}) },
         })
         this.feedbackStatus = 'sent'
       } catch (err) {
-        console.error('Feedback error:', err)
+        recordError(err, 'Feedback could not be sent')
         this.feedbackStatus = 'error'
         this.feedbackError = err.message || String(err)
       }
@@ -113,7 +157,9 @@ export function headerMenu() {
 // The ⚙️ trigger + popover. Replaces a [data-menu-slot] placeholder so it lands
 // exactly where each page wants it in the header.
 const TRIGGER_HTML = `
-<div class="pt-popover-anchor" @click.outside="closeMenu()">
+<div class="pt-popover-anchor"
+     @${INSTALL_AVAILABLE_EVENT}.window="canInstall = $event.detail"
+     @click.outside="closeMenu()">
   <button type="button" class="pt-icon-button pt-changelog-btn" :aria-pressed="menuOpen" :aria-label="$t('menu.open')" @click="toggleMenu()">
     ⚙️
     <span class="pt-changelog-dot" x-show="hasUnseenChangelog" aria-hidden="true"></span>
@@ -121,6 +167,8 @@ const TRIGGER_HTML = `
   <div class="pt-popover" x-show="menuOpen" x-cloak>
     <div class="pt-popover__section">
       <a href="score.html" class="pt-menu-item" @click="closeMenu()" x-text="$t('library.loadScore')">📄 Charger une partition</a>
+      <button type="button" class="pt-menu-item" x-show="canInstall" @click="install()" x-text="$t('menu.install')">📲 Installer l'application</button>
+      <button type="button" class="pt-menu-item" x-show="canPairMIDI" @click="pairMIDI()" x-text="$t('score.connectMidi')">🎹 Connecter clavier MIDI</button>
       <button type="button" class="pt-menu-item" @click="openChangelog()">
         <span x-text="$t('library.changelog')">✨ Nouveautés</span>
         <span class="pt-menu-dot" x-show="hasUnseenChangelog" aria-hidden="true"></span>
@@ -142,7 +190,7 @@ const TRIGGER_HTML = `
   </div>
 </div>`
 
-// The changelog + feedback dialogs, appended to <body> (inside the page's
+// The changelog and feedback dialogs, appended to <body> (inside the page's
 // <html x-data> root, so the bindings resolve against the component).
 const MODALS_HTML = `
 <dialog class="pt-changelog-dialog" :open="showChangelogModal">
@@ -151,29 +199,32 @@ const MODALS_HTML = `
       <p><strong x-text="$t('library.changelog')">✨ Nouveautés</strong></p>
       <button :aria-label="$t('common.close')" rel="prev" @click="showChangelogModal = false"></button>
     </header>
-    <template x-for="entry in changelog" :key="entry.date">
-      <section class="pt-changelog-entry">
-        <h4 x-text="formatChangelogDate(entry.date)"></h4>
-        <ul>
-          <template x-for="(item, i) in changelogItems(entry)" :key="i">
-            <li x-text="item"></li>
-          </template>
-        </ul>
-      </section>
-    </template>
+    <div class="pt-modal-body">
+      <template x-for="entry in changelog" :key="entry.date">
+        <section class="pt-changelog-entry">
+          <h4 x-text="formatChangelogDate(entry.date)"></h4>
+          <ul>
+            <template x-for="(item, i) in changelogItems(entry)" :key="i">
+              <li x-text="item"></li>
+            </template>
+          </ul>
+        </section>
+      </template>
+    </div>
   </article>
 </dialog>
 <dialog :open="showFeedbackModal">
   <article>
     <header>
       <p><strong x-text="$t('feedback.title')">💬 Votre avis</strong></p>
-      <button :aria-label="$t('common.close')" rel="prev" @click="showFeedbackModal = false"></button>
+      <button :aria-label="$t('common.close')" rel="prev" @click="closeFeedback()"></button>
     </header>
+    <div class="pt-modal-body">
     <template x-if="feedbackStatus === 'sent'">
       <div>
         <p x-text="$t('feedback.thanks')">Merci, c'est bien reçu !</p>
         <footer>
-          <button type="button" @click="showFeedbackModal = false" x-text="$t('common.close')">Fermer</button>
+          <button type="button" @click="closeFeedback()" x-text="$t('common.close')">Fermer</button>
         </footer>
       </div>
     </template>
@@ -199,6 +250,15 @@ const MODALS_HTML = `
           <input type="email" x-model="feedback.email" maxlength="320" :disabled="feedbackStatus === 'sending'" :placeholder="$t('feedback.emailPlaceholder')" />
           <small x-text="$t('feedback.emailHint')"></small>
         </label>
+        <template x-if="feedbackShot">
+          <div class="pt-feedback-shot">
+            <label>
+              <input type="checkbox" x-model="feedbackShotWanted" :disabled="feedbackStatus === 'sending'" />
+              <span x-text="$t('feedback.screenshotLabel')">Joindre l'image de la partition affichée</span>
+            </label>
+            <img class="pt-feedback-shot__preview" x-show="feedbackShotWanted" :src="feedbackShot" :alt="$t('feedback.screenshotAlt')" />
+          </div>
+        </template>
         <small class="pt-feedback-privacy" x-text="$t('feedback.privacy')"></small>
         <p x-show="feedbackStatus === 'error'" role="alert" class="pt-feedback-error">
           <span x-text="$t('feedback.error')">L'envoi a échoué.</span>
@@ -209,6 +269,7 @@ const MODALS_HTML = `
         </footer>
       </form>
     </template>
+    </div>
   </article>
 </dialog>`
 

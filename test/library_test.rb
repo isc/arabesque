@@ -26,6 +26,13 @@ class LibraryTest < CapybaraTestBase
     assert_selector 'tr td', text: 'Chopin'
   end
 
+  def test_search_ignores_accents
+    fill_in 'Rechercher une partition', with: 'burgmuller'
+
+    assert_selector 'tbody tr', count: 3
+    assert_selector 'tr td', text: 'Burgmüller'
+  end
+
   def test_clicking_score_navigates_to_score_page
     page.driver.set_cookie('test-env', 'true')
     fill_in 'Rechercher une partition', with: 'Carol of the Bells'
@@ -108,13 +115,13 @@ class LibraryTest < CapybaraTestBase
   def test_search_filters_scores_by_multiple_words_in_any_order
     # Test "Bach INV"
     fill_in 'Rechercher une partition', with: 'Bach INV'
-    assert_selector 'tbody tr', count: 3
+    assert_selector 'tbody tr', count: 4
     assert_selector 'tr td', text: 'Invention'
     assert_selector 'tr td', text: 'J.S. Bach'
 
     # Test "INV Bach" - word order doesn't matter
     fill_in 'Rechercher une partition', with: 'INV Bach'
-    assert_selector 'tbody tr', count: 3
+    assert_selector 'tbody tr', count: 4
   end
 
   private
@@ -122,7 +129,4 @@ class LibraryTest < CapybaraTestBase
   # The changelog, feedback, data-page link and language controls now live
   # behind the ⚙️ header menu; open it before interacting with those items.
   # (Backup import/export moved to the data page — see data_test.rb.)
-  def open_menu
-    find('button[aria-label="Menu"]').click
-  end
 end

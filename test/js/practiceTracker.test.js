@@ -1,21 +1,47 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import 'fake-indexeddb/auto'
 import {
   initPracticeTracker,
   computePlaythroughDuration,
   computeSessionDuration,
+  MIN_PRACTICE_MS_FOR_STATUS,
+  AGGREGATES_VERSION,
+  measuresToReinforce,
+  hasHotSpots,
 } from '../../public/js/practiceTracker.js'
+import { playthroughHands, playthroughGroups } from '../../public/js/hands.js'
 import { initStorage } from '../../public/js/storage.js'
 
 describe('practiceTracker', () => {
   let tracker
   let storage
 
+  const BASE = new Date('2026-06-10T10:00:00.000Z').getTime()
+
+  // The tracker times every attempt off the wall clock, so the suite runs on a
+  // frozen one: nothing moves unless a test moves it, and a duration is then
+  // exactly the milliseconds it was given rather than that plus whatever the
+  // scheduler cost. Only Date is faked — fake-indexeddb runs its transactions
+  // on the real timers.
+  let clock
+
+  function advanceClock(ms) {
+    clock += ms
+    vi.setSystemTime(clock)
+  }
+
   beforeEach(async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    clock = BASE
+    vi.setSystemTime(clock)
     indexedDB = new IDBFactory()
     storage = initStorage()
     tracker = initPracticeTracker(storage)
     await tracker.init()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
   })
 
   describe('session management', () => {
@@ -89,12 +115,83 @@ describe('practiceTracker', () => {
     })
   })
 
+  // A strict run is handed over once it is over, each measure already timed at
+  // the tempo it was played at, and it must reach the journal like any other
+  // practice: measures worked, practice time, run played in full — and, since
+  // its time is the metronome's, the verdict the engine gave it.
+  describe('strict runs', () => {
+    const VERDICT = { bpm: 120, total: 6, hit: 5, offTempoEarly: 0, offTempoLate: 1, missed: 0, wrongNotes: 1 }
+
+    // One clock reading for the whole run: two of them, a millisecond apart,
+    // would put 4001 in the journal.
+    function strictRun() {
+      const runStartedAt = Date.now() - 4000
+      const startedAt = new Date(runStartedAt).toISOString()
+      return {
+        verdict: VERDICT,
+        wholeScore: true,
+        completed: true,
+        measures: [
+          { sourceMeasureIndex: 0, startedAt, durationMs: 2000, hands: 'both' },
+          {
+            sourceMeasureIndex: 1,
+            startedAt: new Date(runStartedAt + 2000).toISOString(),
+            durationMs: 2000,
+            wrongNotes: 1,
+            clean: false,
+            hands: 'both',
+          },
+        ],
+      }
+    }
+
+    async function playStrict(run = strictRun()) {
+      tracker.startSession('/scores/test.xml', 'Test', 'Composer', 'strict', 2)
+      tracker.recordStrictRun(run)
+      return tracker.endSession()
+    }
+
+    it('puts the run in the daily log with its verdict', async () => {
+      await playStrict()
+
+      const [entry] = await tracker.getDailyLog(new Date())
+      expect(entry.measuresWorked).toEqual([0, 1])
+      expect(entry.totalPracticeTimeMs).toBe(4000)
+      expect(entry.timesPlayedInFull).toBe(1)
+      expect(entry.fullPlaythroughs[0].strict).toEqual(VERDICT)
+    })
+
+    it('does not file a run stopped mid-piece as a playthrough', async () => {
+      await playStrict({ ...strictRun(), wholeScore: false, completed: false })
+
+      const [entry] = await tracker.getDailyLog(new Date())
+      expect(entry.measuresWorked).toEqual([0, 1])
+      expect(entry.fullPlaythroughs).toEqual([])
+    })
+
+    it('lists strict runs apart from free ones', async () => {
+      await playStrict()
+      tracker.startSession('/scores/test.xml', 'Test', 'Composer', 'free', 2)
+      await playMeasure(0, 50)
+      await playMeasure(1, 50)
+      tracker.markScoreCompleted()
+      await tracker.endSession()
+
+      const [day] = await tracker.getScoreHistory('/scores/test.xml')
+      expect(day.timesPlayedInFull).toBe(2)
+      const groups = playthroughGroups(day.fullPlaythroughs)
+      expect(groups.map((g) => g.key)).toEqual(['free-both', 'strict-both'])
+      expect(groups[0].playthroughs[0].strict).toBeNull()
+      expect(groups[1].playthroughs[0].strict).toEqual(VERDICT)
+    })
+  })
+
   describe('session duration', () => {
     it('calculates duration based only on measure timestamps, not session start time', async () => {
       tracker.startSession('/scores/test.xml', 'Test', 'Composer', 'training')
 
-      // Wait 100ms to simulate user delay before starting to play
-      await sleep(100)
+      // 100ms of user delay before starting to play
+      advanceClock(100)
 
       // Play first and second measures
       await playMeasure(0, 50)
@@ -104,10 +201,8 @@ describe('practiceTracker', () => {
 
       const stats = await tracker.getScoreStats('/scores/test.xml')
 
-      // Duration should be approximately 100ms (two measures of ~50ms each)
-      // NOT ~200ms which would include the initial 100ms delay
-      expect(stats.totalPracticeTimeMs).toBeGreaterThan(80)
-      expect(stats.totalPracticeTimeMs).toBeLessThan(150)
+      // Two measures of 50ms, NOT 200ms — the initial 100ms delay is excluded.
+      expect(stats.totalPracticeTimeMs).toBe(100)
     })
 
     it('calculates correct duration for daily log', async () => {
@@ -115,7 +210,7 @@ describe('practiceTracker', () => {
       tracker.startSession('/scores/test.xml', 'Test Score', 'Composer', 'training')
 
       // Wait before starting to play
-      await sleep(100)
+      advanceClock(100)
 
       await playMeasure(0, 50)
 
@@ -124,9 +219,8 @@ describe('practiceTracker', () => {
       const dailyLog = await tracker.getDailyLog(today)
 
       expect(dailyLog).toHaveLength(1)
-      // Should be ~50ms, not ~150ms
-      expect(dailyLog[0].totalPracticeTimeMs).toBeGreaterThan(30)
-      expect(dailyLog[0].totalPracticeTimeMs).toBeLessThan(100)
+      // The measure alone: 50ms, not 150ms.
+      expect(dailyLog[0].totalPracticeTimeMs).toBe(50)
     })
   })
 
@@ -177,12 +271,11 @@ describe('practiceTracker', () => {
     it('stays dechiffrage if thresholds met but score never completed', async () => {
       tracker.startSession('/scores/test.xml', 'Test', 'Composer', 'training')
 
-      for (let i = 0; i < 3; i++) {
-        tracker.startMeasureAttempt(0)
-        tracker.endMeasureAttempt(true)
-      }
-      tracker.startMeasureAttempt(1)
-      tracker.endMeasureAttempt(true)
+      // Timed attempts: with instant ones the score would fall under the
+      // practice floor, and the assertion would be about the floor rather than
+      // about the missing playthrough.
+      for (let i = 0; i < 3; i++) await playMeasure(0, 20_000)
+      await playMeasure(1, 20_000)
 
       // No markScoreCompleted()
       await tracker.endSession()
@@ -222,6 +315,40 @@ describe('practiceTracker', () => {
       expect(stats.status).toBe('repertoire')
     })
 
+    // The floor under the badge: a piece opened and barely touched is not
+    // being sight-read, and wears nothing at all.
+    describe('the practice floor', () => {
+      // One measure attempt lasting exactly `ms` — a single interval is under
+      // every aberration threshold, so the aggregate banks it to the millisecond.
+      async function practiseFor(ms) {
+        tracker.startSession('/scores/test.xml', 'Test', 'Composer', 'training')
+        await playMeasure(0, ms)
+        await tracker.endSession()
+        return tracker.getScoreStats('/scores/test.xml')
+      }
+
+      it('leaves a score one millisecond short of the minimum unlabelled', async () => {
+        const stats = await practiseFor(MIN_PRACTICE_MS_FOR_STATUS - 1)
+
+        expect(stats.totalPracticeTimeMs).toBe(MIN_PRACTICE_MS_FOR_STATUS - 1)
+        expect(stats.status).toBeNull()
+      })
+
+      it('awards dechiffrage exactly at the minimum', async () => {
+        const stats = await practiseFor(MIN_PRACTICE_MS_FOR_STATUS)
+
+        expect(stats.totalPracticeTimeMs).toBe(MIN_PRACTICE_MS_FOR_STATUS)
+        expect(stats.status).toBe('dechiffrage')
+      })
+
+      it('adds short sessions up rather than judging them one by one', async () => {
+        await practiseFor(MIN_PRACTICE_MS_FOR_STATUS / 2)
+        expect((await tracker.getScoreStats('/scores/test.xml')).status).toBeNull()
+
+        expect((await practiseFor(MIN_PRACTICE_MS_FOR_STATUS / 2)).status).toBe('dechiffrage')
+      })
+    })
+
     it('stays perfectionnement when only one session has played the piece (mastery alone is not enough)', async () => {
       tracker.startSession('/scores/test.xml', 'Test', 'Composer', 'free')
 
@@ -240,6 +367,155 @@ describe('practiceTracker', () => {
     })
   })
 
+  describe('the hands a run was played with', () => {
+    const BOTH = { right: true, left: true }
+    const RIGHT = { right: true, left: false }
+    const LEFT = { right: false, left: true }
+
+    // A run through a two-bar score, one hand selection per bar. Each bar takes
+    // long enough for the run to clear the practice floor under the statuses,
+    // so what a run is worth is judged on the hands that played it.
+    async function playThrough(...handsPerMeasure) {
+      tracker.startSession('/scores/test.xml', 'Test', 'Composer', 'free', 2)
+      for (const [index, hands] of handsPerMeasure.entries()) {
+        await playMeasure(index, 40_000, hands)
+      }
+      tracker.markScoreCompleted()
+      return tracker.endSession()
+    }
+
+    it('stores the ticked hands on every attempt', async () => {
+      const session = await playThrough(RIGHT, { right: false, left: false })
+
+      expect(session.measures.map((m) => m.attempts[0].hands)).toEqual(['right', 'none'])
+    })
+
+    it('reads an attempt recorded before hands were tracked as two-handed', () => {
+      expect(playthroughHands([{ clean: true }, { clean: false }])).toBe('both')
+    })
+
+    it('does not count a one-hand run as the piece played in full', async () => {
+      await playThrough(RIGHT, RIGHT)
+
+      const stats = await tracker.getScoreStats('/scores/test.xml')
+      expect(stats.timesCompleted).toBe(0)
+      expect(stats.timesCompletedOneHand).toBe(1)
+      expect(stats.lastCompletedAt).toBeUndefined()
+      expect(stats.status).toBe('dechiffrage')
+    })
+
+    // Feedback e8e4c2c5: a prelude worked hands apart all week, then played
+    // through once with both, and it was in Perfectionnement.
+    it('does not count clean one-hand passes towards the statuses', async () => {
+      for (let i = 0; i < 3; i++) {
+        await playThrough(RIGHT, RIGHT)
+        await playThrough(LEFT, LEFT)
+      }
+      await playThrough(BOTH, BOTH)
+
+      const stats = await tracker.getScoreStats('/scores/test.xml')
+      expect(stats.measures[0].cleanAttempts).toBe(1)
+      expect(stats.measures[0].cleanAttemptsOneHand).toBe(6)
+      expect(stats.measures[0].errorRate).toBe(0)
+      expect(stats.status).toBe('dechiffrage')
+    })
+
+    // Aggregates are kept, not recomputed: the rows written before the rule
+    // changed go on saying Perfectionnement until the sessions are replayed.
+    describe('aggregates counted by other rules', () => {
+      beforeEach(async () => {
+        for (let i = 0; i < 3; i++) await playThrough(RIGHT, RIGHT)
+        await playThrough(BOTH, BOTH)
+      })
+
+      // The row as the previous build left it: the same sessions, with every
+      // clean pass counted as a clean pass of the bar.
+      async function writtenByOlderRules() {
+        const { rulesVersion, ...row } = await storage.getAggregate('/scores/test.xml')
+        for (const measure of Object.values(row.measures)) {
+          measure.cleanAttempts += measure.cleanAttemptsOneHand
+          delete measure.cleanAttemptsOneHand
+        }
+        await storage.saveAggregate({ ...row, status: 'perfectionnement' })
+      }
+
+      it('are replayed on the next load', async () => {
+        await writtenByOlderRules()
+
+        await initPracticeTracker(storage).init()
+
+        const stats = await tracker.getScoreStats('/scores/test.xml')
+        expect(stats.status).toBe('dechiffrage')
+        expect(stats.totalSessions).toBe(4)
+        expect(stats.measures[0].cleanAttempts).toBe(1)
+        expect(stats.rulesVersion).toBe(AGGREGATES_VERSION)
+      })
+
+      it('leave the rows counted by these rules alone', async () => {
+        const row = await storage.getAggregate('/scores/test.xml')
+        await storage.saveAggregate({ ...row, status: 'repertoire' })
+
+        await initPracticeTracker(storage).init()
+
+        expect((await tracker.getScoreStats('/scores/test.xml')).status).toBe('repertoire')
+      })
+    })
+
+    it("keeps a one-hand run out of the calendar's playthroughs", async () => {
+      await playThrough(RIGHT, RIGHT)
+
+      const calendar = await tracker.getPracticeCalendar()
+      expect([...calendar.values()][0].timesPlayedInFull).toBe(0)
+    })
+
+    it('lists a one-hand run apart from a two-hand one', async () => {
+      await playThrough(RIGHT, RIGHT)
+      await playThrough(BOTH, BOTH)
+      await playThrough(LEFT, LEFT)
+
+      const [day] = await tracker.getScoreHistory('/scores/test.xml')
+      expect(day.timesPlayedInFull).toBe(1)
+      expect(playthroughGroups(day.fullPlaythroughs).map((g) => g.hands)).toEqual(['both', 'right', 'left'])
+    })
+
+    it('only calls a run two-handed when both hands were on throughout', async () => {
+      await playThrough(BOTH, RIGHT)
+
+      const [day] = await tracker.getScoreHistory('/scores/test.xml')
+      expect(day.fullPlaythroughs[0].hands).toBe('mixed')
+      expect(day.timesPlayedInFull).toBe(0)
+    })
+
+    it('gives the first measure the new hands when one is unticked before it is finished', async () => {
+      tracker.startSession('/scores/test.xml', 'Test', 'Composer', 'free', 2)
+      tracker.startMeasureAttempt(0, true, BOTH)
+      advanceClock(20_000)
+      tracker.setActiveHands(RIGHT)
+      advanceClock(20_000)
+      await tracker.endMeasureAttempt(true)
+      await playMeasure(1, 40_000, RIGHT)
+      tracker.markScoreCompleted()
+      await tracker.endSession()
+
+      const [day] = await tracker.getScoreHistory('/scores/test.xml')
+      expect(day.fullPlaythroughs[0].hands).toBe('right')
+    })
+
+    it('leaves the hands alone once the first measure is finished', async () => {
+      tracker.startSession('/scores/test.xml', 'Test', 'Composer', 'free', 2)
+      await playMeasure(0, 40_000, BOTH)
+      tracker.startMeasureAttempt(1, false, RIGHT)
+      tracker.setActiveHands(BOTH)
+      advanceClock(40_000)
+      await tracker.endMeasureAttempt(true)
+      tracker.markScoreCompleted()
+      await tracker.endSession()
+
+      const [day] = await tracker.getScoreHistory('/scores/test.xml')
+      expect(day.fullPlaythroughs[0].hands).toBe('mixed')
+    })
+  })
+
   describe('measures to reinforce', () => {
     // Sessions as the ranking takes them: oldest first, one entry per measure.
     const session = (measures) => ({
@@ -254,29 +530,29 @@ describe('practiceTracker', () => {
     })
 
     it('returns nothing without sessions', () => {
-      expect(tracker.rankMeasuresToReinforce([])).toEqual([])
+      expect(measuresToReinforce([])).toEqual([])
     })
 
     it('excludes measures played without a fumble', () => {
-      const result = tracker.rankMeasuresToReinforce([session({ 0: [[0]], 1: [[2]] })])
+      const result = measuresToReinforce([session({ 0: [[0]], 1: [[2]] })])
       expect(result.map((m) => m.sourceMeasureIndex)).toEqual([1])
     })
 
     it('drops a measure once it has been played cleanly three times in a row', () => {
       const fumbled = [session({ 0: [[2]] })]
-      expect(tracker.rankMeasuresToReinforce([...fumbled, session({ 0: [[0], [0]] })])).toHaveLength(1)
-      expect(tracker.rankMeasuresToReinforce([...fumbled, session({ 0: [[0], [0], [0]] })])).toEqual([])
+      expect(measuresToReinforce([...fumbled, session({ 0: [[0], [0]] })])).toHaveLength(1)
+      expect(measuresToReinforce([...fumbled, session({ 0: [[0], [0], [0]] })])).toEqual([])
     })
 
     it('sorts by wrong notes, then by duration', () => {
-      const result = tracker.rankMeasuresToReinforce([
+      const result = measuresToReinforce([
         session({ 0: [[2, 100]], 1: [[3, 100]], 2: [[2, 300]] }),
       ])
       expect(result.map((m) => m.sourceMeasureIndex)).toEqual([1, 2, 0])
     })
 
     it('sums wrong notes across sessions and keeps the last duration', () => {
-      const result = tracker.rankMeasuresToReinforce([
+      const result = measuresToReinforce([
         session({ 0: [[1, 100]] }),
         session({ 0: [[2, 300]] }),
       ])
@@ -284,14 +560,53 @@ describe('practiceTracker', () => {
     })
 
     it('respects the limit', () => {
-      const result = tracker.rankMeasuresToReinforce([session({ 0: [[3]], 1: [[2]], 2: [[1]] })], 2)
+      const result = measuresToReinforce([session({ 0: [[3]], 1: [[2]], 2: [[1]] })], { limit: 2 })
       expect(result.map((m) => m.sourceMeasureIndex)).toEqual([0, 1])
+    })
+
+    describe('per hand selection', () => {
+      // One measure's attempts, each [wrongNotes, hands].
+      const played = (attempts) => ({
+        measures: [{
+          sourceMeasureIndex: 0,
+          attempts: attempts.map(([wrongNotes, hands]) => ({ wrongNotes, clean: wrongNotes === 0, hands })),
+        }],
+      })
+
+      it('offers a bar fumbled with one hand only for that hand', () => {
+        const sessions = [played([[2, 'left']])]
+        expect(measuresToReinforce(sessions, { hands: 'left' })).toHaveLength(1)
+        expect(measuresToReinforce(sessions, { hands: 'right' })).toEqual([])
+        expect(measuresToReinforce(sessions, { hands: 'both' })).toEqual([])
+      })
+
+      it('reads an attempt recorded before hands were tracked as two-handed', () => {
+        const sessions = [played([[2, undefined]])]
+        expect(measuresToReinforce(sessions, { hands: 'both' })).toHaveLength(1)
+        expect(measuresToReinforce(sessions, { hands: 'right' })).toEqual([])
+      })
+
+      it('does not retire a two-hand fumble on clean one-hand passes', () => {
+        const sessions = [played([[2, 'both'], [0, 'right'], [0, 'right'], [0, 'right']])]
+        expect(measuresToReinforce(sessions, { hands: 'both' })).toHaveLength(1)
+        expect(measuresToReinforce(sessions, { hands: 'right' })).toEqual([])
+      })
+
+      it('ignores bars played with neither hand ticked', () => {
+        expect(measuresToReinforce([played([[2, 'none']])])).toEqual([])
+      })
+
+      it('answers for every selection when none is asked about', () => {
+        const sessions = [played([[2, 'left'], [0, 'both'], [0, 'both'], [0, 'both']])]
+        expect(measuresToReinforce(sessions, { hands: 'both' })).toEqual([])
+        expect(measuresToReinforce(sessions).map((m) => m.hands)).toEqual(['left'])
+      })
     })
 
     it('flags a measure whose error rate stops falling, and ranks it first', () => {
       const stagnating = { 0: [[1]] } // fumbled in every session
       const improving = { 1: [[4]] } // heavier, but on the mend below
-      const result = tracker.rankMeasuresToReinforce([
+      const result = measuresToReinforce([
         session({ ...stagnating, ...improving }),
         session({ ...stagnating, 1: [[1], [0]] }),
         session({ ...stagnating, 1: [[0]] }),
@@ -302,7 +617,7 @@ describe('practiceTracker', () => {
 
     it('needs three sessions before calling a measure stagnant', () => {
       const twoSessions = [session({ 0: [[1]] }), session({ 0: [[1]] })]
-      expect(tracker.rankMeasuresToReinforce(twoSessions)[0].stagnant).toBe(false)
+      expect(measuresToReinforce(twoSessions)[0].stagnant).toBe(false)
     })
 
     it('suggests measures from the session under way, before any playthrough', async () => {
@@ -335,6 +650,61 @@ describe('practiceTracker', () => {
 
       expect(await tracker.getMeasuresToReinforce('/scores/test.xml')).toEqual([])
       expect(await tracker.getMeasuresToReinforce(null)).toEqual([])
+    })
+
+    it('suggests for the hands asked about', async () => {
+      tracker.startSession('/scores/test.xml', 'Test', 'Composer', 'free')
+      tracker.startMeasureAttempt(1, false, { right: false, left: true })
+      tracker.recordWrongNote()
+      await tracker.endMeasureAttempt()
+
+      expect(await tracker.getMeasuresToReinforce('/scores/test.xml')).toEqual([])
+      const left = await tracker.getMeasuresToReinforce('/scores/test.xml', 'left')
+      expect(left.map((m) => m.sourceMeasureIndex)).toEqual([1])
+    })
+
+    // The library's 🎯 chip: a bar reinforcement would offer that also stands
+    // out from the rest of the piece.
+    describe('hot spots', () => {
+      const clean = [[0], [0], [0]]
+
+      it('finds a bar fumbled far more often than the rest of the piece', () => {
+        expect(hasHotSpots([session({ 0: clean, 1: clean, 2: [[1], [1], [0]] })])).toBe(true)
+      })
+
+      it('finds none in a piece fumbled evenly, though reinforcement has bars to offer', () => {
+        const even = [session({ 0: [[1], [0], [1]], 1: [[1], [1], [0]], 2: [[0], [1], [1]] })]
+        expect(measuresToReinforce(even)).not.toEqual([])
+        expect(hasHotSpots(even)).toBe(false)
+      })
+
+      it('needs more than one unlucky attempt', () => {
+        expect(hasHotSpots([session({ 0: [[0]], 1: [[0]], 2: [[1]] })])).toBe(false)
+        expect(hasHotSpots([session({ 0: clean, 1: clean, 2: [[1], [1], [1]] })])).toBe(true)
+      })
+
+      it('lets a bar go once it has been played cleanly three times in a row', () => {
+        const steady = [[0], [0], [0], [0], [0], [0]]
+        expect(hasHotSpots([session({ 0: steady, 1: [[1], [1], [0], [0]] })])).toBe(true)
+        expect(hasHotSpots([session({ 0: steady, 1: [[1], [1], [0], [0], [0]] })])).toBe(false)
+      })
+
+      it('finds none without sessions or without a fumble', () => {
+        expect(hasHotSpots([])).toBe(false)
+        expect(hasHotSpots([session({ 0: clean })])).toBe(false)
+      })
+
+      it('asks of both hands unless told otherwise', () => {
+        const attempts = (wrongNotes, hands) => wrongNotes.map((w) => ({ wrongNotes: w, clean: w === 0, hands }))
+        const sessions = [{
+          measures: [
+            { sourceMeasureIndex: 0, attempts: [...attempts([0, 0, 0], 'both'), ...attempts([0, 0, 0], 'left')] },
+            { sourceMeasureIndex: 1, attempts: [...attempts([0, 0, 0], 'both'), ...attempts([1, 1, 1], 'left')] },
+          ],
+        }]
+        expect(hasHotSpots(sessions)).toBe(false)
+        expect(hasHotSpots(sessions, 'left')).toBe(true)
+      })
     })
   })
 
@@ -626,7 +996,10 @@ describe('practiceTracker', () => {
       await playMeasure(1, 50)
       await playMeasure(2, 50)
 
-      // Now restart from measure 0 (simulates clicking on measure 0)
+      // Now restart from measure 0 (simulates clicking on measure 0), a moment
+      // after measure 2 ended — an attempt finishing on the very millisecond a
+      // playthrough starts belongs to it.
+      advanceClock(10)
       tracker.restartPlaythrough()
       await playMeasure(0, 30)
       await playMeasure(1, 30)
@@ -638,10 +1011,9 @@ describe('practiceTracker', () => {
       const history = await tracker.getScoreHistory('/scores/test.xml')
 
       expect(history[0].fullPlaythroughs).toHaveLength(1)
-      // Duration should be ~90ms (from restart to completion)
-      // NOT ~190ms (which would include the initial measures 1, 2)
-      expect(history[0].fullPlaythroughs[0].durationMs).toBeGreaterThan(70)
-      expect(history[0].fullPlaythroughs[0].durationMs).toBeLessThan(150)
+      // 90ms, from restart to completion — NOT 190ms, which would include the
+      // initial measures 1, 2.
+      expect(history[0].fullPlaythroughs[0].durationMs).toBe(90)
     })
 
     it('consecutive playthroughs have correct independent timings', async () => {
@@ -668,13 +1040,9 @@ describe('practiceTracker', () => {
       // Playthroughs are sorted by most recent first
       const [secondPlaythrough, firstPlaythrough] = history[0].fullPlaythroughs
 
-      // First playthrough should be ~150ms
-      expect(firstPlaythrough.durationMs).toBeGreaterThan(120)
-      expect(firstPlaythrough.durationMs).toBeLessThan(200)
-
-      // Second playthrough should be ~60ms (not affected by first)
-      expect(secondPlaythrough.durationMs).toBeGreaterThan(40)
-      expect(secondPlaythrough.durationMs).toBeLessThan(100)
+      expect(firstPlaythrough.durationMs).toBe(150)
+      // The second one is timed on its own, not from the first.
+      expect(secondPlaythrough.durationMs).toBe(60)
     })
   })
 
@@ -703,9 +1071,32 @@ describe('practiceTracker', () => {
       const history = await tracker.getScoreHistory('/scores/test.xml')
 
       expect(history[0].fullPlaythroughs).toHaveLength(1)
-      // Duration should be ~100ms (time from start of measure 0 to end of measure 1)
-      expect(history[0].fullPlaythroughs[0].durationMs).toBeGreaterThan(80)
-      expect(history[0].fullPlaythroughs[0].durationMs).toBeLessThan(200)
+      // From the start of measure 0 to the end of measure 1.
+      expect(history[0].fullPlaythroughs[0].durationMs).toBe(100)
+    })
+
+    it("counts a run's wrong notes and the measures they fell in, from its restart on", async () => {
+      tracker.startSession('/scores/test.xml', 'Test', 'Composer', 'free', 3)
+      // Fumbled before the run restarts: not the run's.
+      tracker.startMeasureAttempt(1, false)
+      tracker.recordWrongNote()
+      advanceClock(50)
+      await tracker.endMeasureAttempt()
+
+      advanceClock(10)
+      tracker.restartPlaythrough()
+      for (const [measure, wrong] of [[0, 0], [2, 2], [1, 1], [2, 1]]) {
+        tracker.startMeasureAttempt(measure, measure === 0)
+        for (let i = 0; i < wrong; i++) tracker.recordWrongNote()
+        advanceClock(30)
+        await tracker.endMeasureAttempt()
+      }
+      tracker.markScoreCompleted()
+      await tracker.endSession()
+
+      const [run] = (await tracker.getScoreHistory('/scores/test.xml'))[0].fullPlaythroughs
+      expect(run.wrongNotes).toBe(4)
+      expect(run.wrongMeasures).toEqual([1, 2])
     })
 
     it('does not track measuresReinforced for free mode', async () => {
@@ -717,8 +1108,6 @@ describe('practiceTracker', () => {
       expect(history[0].measuresReinforced).toEqual([])
     })
   })
-
-  const BASE = new Date('2026-06-10T10:00:00.000Z').getTime()
 
   // Lay out {dur, gapBefore} segments on a timeline starting at BASE: the cursor
   // advances by each gap, then by each measure duration. Both duration functions
@@ -864,14 +1253,10 @@ describe('practiceTracker', () => {
     })
   })
 
-  function sleep(ms) {
-    return new Promise((resolve) => setTimeout(resolve, ms))
-  }
-
-  async function playMeasure(measureIndex, delayMs = 0) {
-    tracker.startMeasureAttempt(measureIndex)
-    if (delayMs > 0) await sleep(delayMs)
-    tracker.endMeasureAttempt(true)
+  async function playMeasure(measureIndex, delayMs = 0, activeHands = undefined) {
+    tracker.startMeasureAttempt(measureIndex, measureIndex === 0, activeHands)
+    advanceClock(delayMs)
+    await tracker.endMeasureAttempt(true)
   }
 
   async function playSession(scoreId, measures, mode = 'training', totalMeasures = null, markComplete = false) {
@@ -882,6 +1267,70 @@ describe('practiceTracker', () => {
     if (markComplete) tracker.markScoreCompleted()
     await tracker.endSession()
   }
+
+  // Cloud sync replays every stored session to rebuild the aggregates, and
+  // sessions do not carry a title — so what the rebuild is given is what the
+  // practice journal shows afterwards.
+  describe('rebuildAggregates', () => {
+    it('renames a score the catalog knows', async () => {
+      await playSession('scores/test.xml', [0])
+
+      await tracker.rebuildAggregates(() => ({ title: 'Consolation', composer: 'Burgmüller' }))
+
+      const stats = await tracker.getScoreStats('scores/test.xml')
+      expect(stats.scoreTitle).toBe('Consolation')
+      expect(stats.composer).toBe('Burgmüller')
+    })
+
+    it('keeps the title of a score the catalog has never heard of', async () => {
+      await playSession('scores/burgmuller-consolation.mxl', [0])
+
+      // The sync runs on a later page load, the library's — no score open, so
+      // nothing for the rebuild to borrow a title from. `null` is what a
+      // device whose cached catalog predates the score answers, and what an
+      // uploaded file answers for good.
+      const later = initPracticeTracker(storage)
+      await later.init()
+      await later.rebuildAggregates(() => null)
+
+      const stats = await later.getScoreStats('scores/burgmuller-consolation.mxl')
+      expect(stats.scoreTitle).toBe('Test')
+      expect(stats.composer).toBe('Composer')
+    })
+
+    it('names a score pulled from another device from the session itself', async () => {
+      // No catalog entry, no aggregate here: a session synced from a device
+      // that has a score this one has never opened.
+      await storage.saveSession({
+        id: 'from-another-device',
+        scoreId: 'scores/burgmuller-ballade.mxl',
+        scoreTitle: 'Ballade Op. 100 No. 15',
+        composer: 'Burgmüller',
+        mode: 'free',
+        startedAt: '2026-06-09T10:00:00.000Z',
+        endedAt: '2026-06-09T10:05:00.000Z',
+        measures: [{ sourceMeasureIndex: 0, attempts: [{ startedAt: '2026-06-09T10:00:00.000Z', durationMs: 1000, clean: true }] }],
+      })
+
+      await tracker.rebuildAggregates(() => null)
+
+      const stats = await tracker.getScoreStats('scores/burgmuller-ballade.mxl')
+      expect(stats.scoreTitle).toBe('Ballade Op. 100 No. 15')
+      expect(stats.composer).toBe('Burgmüller')
+    })
+
+    it('does not file the score being played under another id', async () => {
+      await playSession('scores/played-yesterday.xml', [0])
+      // A sync can land while a piece is open: the tracker is mid-session on
+      // one score while the rebuild walks every other score's sessions.
+      tracker.startSession('scores/open-right-now.xml', 'Open Right Now', 'Somebody', 'free')
+
+      await tracker.rebuildAggregates(() => null)
+
+      const stats = await tracker.getScoreStats('scores/played-yesterday.xml')
+      expect(stats.scoreTitle).toBe('Test')
+    })
+  })
 
   describe('getAllScores', () => {
     it('returns all practiced scores', async () => {

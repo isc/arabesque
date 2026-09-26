@@ -3,19 +3,12 @@
 //
 // Only sessions are written; the app then recomputes its own aggregates from
 // them, so the statuses on screen are whatever the real rules make of this
-// history rather than values written by hand. The rules live in
-// practiceTracker.js (computeScoreStatus) and are, at the time of writing:
-//
-//   repertoire        every measure at >= 10 clean attempts, >= 3 practice
-//                     days, >= 10 completed playthroughs
-//   perfectionnement  >= half the measures at >= 3 clean attempts, and at
-//                     least one completed playthrough
-//   dechiffrage       anything else
-//
-// If a screenshot comes out with every piece in "Déchiffrage", those rules
-// have moved and the profiles below need matching to them again.
+// history rather than values written by hand. Those rules are STATUS_THRESHOLDS
+// in practiceTracker.js, applied by computeScoreStatus(); this file logs them at
+// seed time rather than restating them, so a capture run always shows the bar
+// the profiles below are being matched against.
 import { initStorage } from './js/storage.js'
-import { initPracticeTracker } from './js/practiceTracker.js'
+import { initPracticeTracker, STATUS_THRESHOLDS } from './js/practiceTracker.js'
 import { fetchCatalogMeta } from './js/sync.js'
 
 const FLAG = 'arabesque:demo-seeded'
@@ -135,6 +128,7 @@ async function seedPracticeHistory() {
     fingerings: [],
   })
   const tracker = initPracticeTracker(storage)
+  console.log('[demo] status thresholds in force:', STATUS_THRESHOLDS)
   const meta = await fetchCatalogMeta()
   await tracker.rebuildAggregates((scoreId) => meta[scoreId] ?? null)
   localStorage.setItem(FLAG, '1')

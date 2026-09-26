@@ -1,4 +1,5 @@
-import { t, locale } from './i18n.js'
+import { t, tn, locale } from './i18n.js'
+import { TWO_HANDS } from './hands.js'
 
 // Built once: the active locale is fixed for the page lifetime (switching
 // language reloads), so the verbose-date formatter needn't rebuild per call.
@@ -9,13 +10,38 @@ export function isTestEnv() {
 }
 
 // Runs `fn` once the browser has nothing better to do. The one policy for
-// "wanted, but not at the cost of what the page is doing right now" — a warm-up
-// import, an endpoint whose answer only feeds an optional control. Resolved per
-// call rather than once at module load: this module is imported by the node
+// "wanted, but not at the cost of what the page is doing right now", such as a
+// warm-up import. Resolved per call rather than once at module load: this module is imported by the node
 // test environment too, where there is no window to read it off.
 export function onIdle(fn) {
   if (typeof requestIdleCallback === 'function') return requestIdleCallback(fn)
   return setTimeout(fn, 0)
+}
+
+// The page coming back to the foreground: a tab switched back to, or — the case
+// that matters on an iPad — an app resumed, since the wrapper's webview is
+// suspended and woken rather than reloaded. Everything that waits for this
+// wants the same triggers, so they are written once here.
+//
+// visibilitychange carries the tab. It does not carry the app: a library page
+// woken with the wrapper kept the evening before's practice under
+// "aujourd'hui" until a navigation rebuilt it, so nothing on the page had
+// heard. What the wrapper does hear is didBecomeActive, and it now forwards it
+// as this event (ios/Arabesque/ViewController.swift). No visibility guard on
+// that one — the app becoming active is the signal, and what WKWebView reports
+// for document.visibilityState across a suspension is the very thing that
+// could not be relied on.
+//
+// Both can fire for a single return. Every caller is idempotent — a day key
+// that hasn't changed, a sync inside its throttle window, a wake lock already
+// held — so the duplicate costs a comparison.
+export const NATIVE_FOREGROUND_EVENT = 'arabesque:foreground'
+
+export function onForeground(fn) {
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') fn()
+  })
+  document.addEventListener(NATIVE_FOREGROUND_EVENT, fn)
 }
 
 // Pixel offset for the currently-visible sticky bars (topbar + modebar +
@@ -33,6 +59,14 @@ function getStickyOffset() {
     offset += el.getBoundingClientRect().height
   }
   return offset
+}
+
+// True when something at viewport y `top` falls inside the headroom the sticky
+// bars own — where scrollSystemIntoView refuses to leave anything it is asked
+// to keep in view. One owner for that arithmetic: the callers ask the question
+// rather than recomputing the offset.
+export function isUnderStickyBars(top) {
+  return top < getStickyOffset()
 }
 
 export function applyStickyOffset() {
@@ -66,9 +100,14 @@ function findSystemTopAnchor(referenceTop, svg) {
 // sticky bars, leaving getStickyOffset() of headroom for the above-staff
 // markings. Shared by the measure cursor (musicxml.js) and the playback cursor
 // (playback.js) so both autoscroll paths behave identically.
-export function scrollSystemIntoView(referenceTop, svg) {
+// `hangingTop` (viewport space, optional) is anything drawn higher than the
+// scanned band and owed the same headroom — the training dots, which hang over
+// the noteheads rather than over the staff, and so can go further up than the
+// <text> this scan was written for ever does.
+export function scrollSystemIntoView(referenceTop, svg, hangingTop = null) {
   if (!svg) return
-  const anchorTop = findSystemTopAnchor(referenceTop, svg)
+  let anchorTop = findSystemTopAnchor(referenceTop, svg)
+  if (hangingTop != null) anchorTop = Math.min(anchorTop, hangingTop)
   const targetY = window.scrollY + anchorTop - getStickyOffset()
   window.scrollTo({ top: Math.max(0, targetY), behavior: 'smooth' })
 }
@@ -87,6 +126,28 @@ export function formatDuration(ms) {
   const hours = Math.floor(totalMinutes / 60)
   const minutes = totalMinutes % 60
   return `${hours}h ${minutes}m`
+}
+
+// Captions a run of the score with the hands that played it. Two hands is the
+// plain case and captions nothing: an unlabelled run is the piece played whole.
+// The hand is named short, "MD", unless `words` asks for 'handsFull' — what a
+// control whose caption this is should be named when read aloud.
+export function withHands(text, hands, words = 'hands') {
+  return hands === TWO_HANDS ? text : `${text} · ${t(`${words}.${hands}`)}`
+}
+
+// Captions a group of runs (see hands' playthroughGroups): "… · mode strict · MD",
+// each qualifier only when it isn't the default.
+export function withRunKind(text, { hands, strict }) {
+  return withHands(strict ? `${text} · ${t('score.strictRuns')}` : text, hands)
+}
+
+// The strict band's passage line, from the first and last bar of the loop. A
+// one-bar passage is a range only on paper: "boucle des mesures 6 à 6" is how
+// a computer counts, not how a pianist says it (feedback 506f2060). The number
+// of bars picks the wording, so each language says the single one its own way.
+export function loopRangeText(from, to) {
+  return tn('score.loopRange', to - from + 1, { from, to })
 }
 
 export function statusLabel(status) {
@@ -125,4 +186,37 @@ export function formatDate(date) {
   if (diffDays === 0) return t('date.today')
   if (diffDays === 1) return t('date.yesterday')
   return formatVerboseDate(compareDate)
+}
+
+// Where a bar clicked lands when a passage is being picked by its two ends. The
+// first click says where the passage starts and arms the second; a click at or
+// after it then says where it ends. Anything else — a click before the start,
+// or one made with nothing armed — starts the pick over.
+//
+// Strict mode's loop and training mode's passage are picked with exactly this
+// gesture, so it is written once: `armed` is only ever raised while the mode
+// offers an end to pick, which is what `loop` carries into the next click.
+export function pickPassageMeasure({ measureIndex, start, armed, loop }) {
+  if (armed && measureIndex >= start) return { start, end: measureIndex, armed: false }
+  return { start: measureIndex, end: null, armed: loop }
+}
+
+// The words a text offers the search box: accents folded away, punctuation
+// dropped, so "Burgmüller" is filed under "burgmuller" and found by someone
+// whose keyboard has no umlaut (feedback 928aef27).
+export function searchWords(text) {
+  return text
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '')
+    .split(/[^\p{L}\p{N}]+/u)
+    .filter(Boolean)
+}
+
+// Does a text answer a search? Both sides are searchWords() output: a query
+// word matches when it starts one of the text's, in any order. The text's
+// words come in already folded because the caller has a whole catalog of them
+// to weigh against one query, and folding is the expensive half.
+export function matchesSearch(words, query) {
+  return query.every((q) => words.some((w) => w.startsWith(q)))
 }

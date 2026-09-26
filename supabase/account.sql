@@ -16,8 +16,8 @@
 -- a service-role key to hold, for what is one DELETE. A security definer
 -- function keeps it inside the SQL that is already applied by hand.
 --
--- Why deleting the auth user is enough: training_sessions and user_fingerings
--- both reference auth.users (id) ON DELETE CASCADE (supabase/sync.sql), so the
+-- Why deleting the auth user is enough: training_sessions, user_fingerings and
+-- profiles all reference auth.users (id) ON DELETE CASCADE (supabase/sync.sql), so the
 -- row that authorises the data and the data itself go together. Feedback rows
 -- are deliberately NOT touched: they carry no user_id, are never readable by
 -- the client, and can be sent without ever having an account.

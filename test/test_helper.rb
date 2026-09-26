@@ -1,3 +1,4 @@
+require 'json'
 require 'time'
 require 'capybara'
 require 'capybara/dsl'
@@ -59,11 +60,122 @@ class CapybaraTestBase < Minitest::Test
   include Capybara::DSL
   include Capybara::Minitest::Assertions
 
+  # esm.sh is the one host the app fetches code from at runtime —
+  # @supabase/supabase-js (supabaseClient.js) and @tonejs/piano (playback.js).
+  # No browser test wants either: what they assert is the app's own behaviour,
+  # and reaching a CDN only lends the suite that CDN's latency and uptime.
+  #
+  # It is not only slowness. Loading @supabase/supabase-js has a side effect on
+  # the page — the client claims its storage key and drops any session it does
+  # not recognise. FeedbackFormTest writes a session by hand (no refresh_token,
+  # no expires_at: a page reading the address out of it needs neither), and
+  # supabase-js binned it about half a second into the page, taking the test's
+  # first assertion down whenever a shard needed longer than that to click
+  # through the ⚙️ menu. The sync that fetches the client is one library.js
+  # starts after the load event, so `visit` cannot wait for it and no ordering
+  # inside the test can avoid it.
+  #
+  # Blocked in the browser rather than intercepted in Ruby: setBlockedURLs costs
+  # nothing per request, where Ferrum's url_blacklist would put a CDP round-trip
+  # in front of every one of score.html's vendored files.
+  #
+  # before_setup, not setup: every test file writes its own setup and none of
+  # them calls super, so a setup here would simply be overridden.
+  #
+  # The block is per browser page, not per browser: a window opened later
+  # (visit_with_real_clock) has a CDP session of its own and starts unblocked,
+  # so it has to ask for the block again.
+  def before_setup
+    super
+    block_cdn
+  end
+
+  def block_cdn
+    page.driver.browser.page.command('Network.setBlockedURLs', urls: ['https://esm.sh/*'])
+  end
+
   def teardown
     Capybara.reset_sessions!
   end
 
   # Wait for a file matching pattern to appear in download dir
+  # The ⚙️ popover, shared by every page that mounts the header menu.
+  def open_menu
+    find('.pt-changelog-btn').click
+    assert_selector '.pt-popover', visible: true
+  end
+
+  # Empty a filled field from the keyboard, for the tests that need the page to
+  # react to the clearing the way it reacts to a player — Capybara's `fill_in`
+  # with an empty string sets the value from the driver, which leaves x-model
+  # none the wiser.
+  #
+  # One backspace per character, and not the obvious select-all-then-delete,
+  # because no select-all chord survives the trip through the driver on both
+  # platforms. ctrl+A is select-all on Linux but the readline "go to start of
+  # line" on macOS, where it selects nothing and the backspace after it eats a
+  # single character — a green CI and a field left holding all but its last
+  # letter on the machine the test was written on. Reaching for ⌘ instead does
+  # not save it: select-all on macOS is a browser-level command, not something
+  # the page performs, so a ⌘A synthesised through CDP selects nothing either
+  # and truncates by one just the same (⌘⇧← likewise). Counting characters is
+  # dull and works everywhere; please leave it dull.
+  def clear_field(locator)
+    field = find_field(locator)
+    field.send_keys(:end, *([:backspace] * field.value.length))
+  end
+
+  # Nothing in the suite may reach the real feedback table, so that one POST is
+  # answered locally and its body kept for the assertions. Every other request
+  # the page makes goes through untouched.
+  CAPTURE_SUBMISSIONS = <<~JS.freeze
+    window.__sent = []
+    const realFetch = window.fetch.bind(window)
+    window.fetch = (input, init) => {
+      const url = String(input?.url ?? input)
+      if (!url.includes('/rest/v1/feedback')) return realFetch(input, init)
+      window.__sent.push(JSON.parse(init.body))
+      return Promise.resolve({ ok: true, status: 201, text: () => Promise.resolve('') })
+    }
+  JS
+
+  def capture_submissions
+    page.execute_script(CAPTURE_SUBMISSIONS)
+  end
+
+  # Returns once the form has stopped moving, which is not when it opens. The
+  # picture of the screen (screenshot.js) is taken after the dialog is up and
+  # lands above Envoyer as a preview some 200px tall. Landing between the moment
+  # the driver measures the button and the moment it presses there, it moves the
+  # button out from under the press: the click goes to the preview, nothing is
+  # sent, and the test times out on "Merci" with the form still open. That
+  # happened on loaded full-suite runs; holding the screenshot module's download
+  # back 110ms reproduces it more often than not.
+  #
+  # Decoded, not merely present: the <img> gets its height a task after it is
+  # inserted, and that is the move that matters.
+  def open_feedback
+    open_menu
+    click_on '💬 Avis'
+    assert_selector 'dialog[open] textarea'
+    assert_selector('.pt-feedback-shot__preview') { |preview| preview[:naturalHeight].to_i.positive? }
+  end
+
+  def send_feedback(message)
+    fill_in 'Message', with: message
+    click_button 'Envoyer'
+    assert_text 'Merci'
+    # The footer button, not the header's ✕ — both are labelled "Fermer".
+    find('dialog footer button', text: 'Fermer').click
+  end
+
+  # Through JSON: a bare null coming back from the driver is indistinguishable
+  # from a key that was never there, and "nothing attached" is what some of
+  # these assertions are about.
+  def sent_reports
+    JSON.parse(page.evaluate_script('JSON.stringify(window.__sent)'))
+  end
+
   def wait_for_download(pattern, timeout: Capybara.default_max_wait_time)
     Timeout.timeout(timeout) do
       loop do
@@ -123,9 +235,77 @@ class CapybaraTestBase < Minitest::Test
     cdp.command('Emulation.setVirtualTimePolicy', policy: 'pause')
     yield
   ensure
-    # Hand the page back to the wall clock so teardown and any later
-    # interaction behave normally.
+    # Let the page's own timers fire again, so teardown and any later
+    # interaction on it behave normally. This is NOT the wall clock: see
+    # visit_with_real_clock for what `advance` actually does and what it costs.
     cdp&.command('Emulation.setVirtualTimePolicy', policy: 'advance')
+  end
+
+  # Carry on the test on a page whose clock has never been driven.
+  #
+  # Chrome cannot turn virtual time back off, and `advance` is not "real time"
+  # — it means "when the page runs out of immediate work, jump the clock to the
+  # next pending timer". So once with_clock_control has returned, the page's
+  # clock runs away as fast as the CPU can spin timers, and it keeps running
+  # away across `visit`, since virtual time belongs to the renderer rather than
+  # to the document. Measured on library.html, whose day-rollover poll is armed
+  # for every virtual minute: 4 days ahead of the wall clock by the time
+  # `visit` returned, 38 days a real second later.
+  #
+  # Anything the page then reads out of `new Date()` is fiction. The practice
+  # journal lays out the last fourteen days from it, so a run recorded seconds
+  # earlier fell off the far end of its own window and every day read "Aucune
+  # pratique" — on the slow runs of a loaded suite, where the drift had longer
+  # to accumulate before the page read the date.
+  #
+  # A window is a renderer of its own, and virtual time is only ever enabled on
+  # the one that asked for it. This one shares the browser context, so the
+  # origin's cookies and IndexedDB — the practice data the test just recorded —
+  # come with it. The driven page is closed rather than left behind: its timers
+  # spin at the speed of the CPU for as long as it exists, and the suite runs
+  # eight of these at once.
+  def visit_with_real_clock(path)
+    driven = page.current_window
+    page.switch_to_window(page.open_new_window)
+    driven.close
+    block_cdn
+    visit path
+  end
+
+  # Leave every IndexedDB open request unanswered on the page visited next, the
+  # way a machine under load can for seconds at a time and an unavailable
+  # IndexedDB does for good.
+  #
+  # Not Ferrum's evaluate_on_new_document: that keeps its scripts on the
+  # browser, so every later page in the worker process would inherit the stall.
+  # A page-level script dies with the page teardown in reset_sessions!.
+  def stall_indexeddb
+    page.driver.browser.page.command(
+      'Page.addScriptToEvaluateOnNewDocument',
+      source: 'indexedDB.open = () => ({})'
+    )
+  end
+
+  # Keep hold of every IndexedDB connection the page visited next opens, for
+  # lose_indexeddb_connections to close from under it. A page-level script,
+  # like stall_indexeddb's and for the same reason.
+  def track_indexeddb_connections
+    page.driver.browser.page.command('Page.addScriptToEvaluateOnNewDocument', source: <<~JS)
+      window.__idbConnections = []
+      const open = IDBFactory.prototype.open
+      IDBFactory.prototype.open = function (...args) {
+        const request = open.apply(this, args)
+        request.addEventListener('success', () => window.__idbConnections.push(request.result))
+        return request
+      }
+    JS
+  end
+
+  # What WebKit does to a page whose app sat in the background long enough
+  # (see withDb in storage.js): its next transaction throws "The database
+  # connection is closing".
+  def lose_indexeddb_connections
+    page.execute_script('window.__idbConnections.forEach((db) => db.close())')
   end
 
   # Click a button by its label without going through the browser's real input
@@ -160,6 +340,54 @@ class CapybaraTestBase < Minitest::Test
     end
   end
 
+  # Hold every timer the page arms inside the block, and fire them all on the
+  # way out — so a test can *choose* the order of two things the page leaves
+  # unordered instead of racing them.
+  #
+  # with_clock_control cannot do this job. Parking virtual time parks the page's
+  # IndexedDB work along with it, so anything that has to read or write the
+  # practice journal in the meantime — entering reinforcement does both — never
+  # gets there. Here real time runs on untouched and only setTimeout is
+  # deferred, which is all these orderings ever hang on.
+  #
+  # A held timer the page then cancels is dropped rather than fired: cancelling
+  # deferred work is exactly what several of these orderings turn on, and a
+  # harness that fired it anyway would report the bug it was written to rule out.
+  # So the ids handed back are real ones and clearTimeout is held with them.
+  #
+  # setTimeout is restored before the queue is drained, so a callback that arms
+  # another timer gets the real one rather than piling back onto the queue being
+  # walked.
+  def with_timers_held
+    page.execute_script(<<~JS)
+      window.__heldTimers = new Map()
+      // Bound: called off a plain object, the natives throw "Illegal invocation".
+      window.__realTimers = {
+        set: window.setTimeout.bind(window),
+        clear: window.clearTimeout.bind(window),
+      }
+      // Far above anything Chrome has handed out, so a timer armed before the
+      // block and cancelled inside it falls through to the real clearTimeout
+      // instead of matching one of these by accident.
+      let nextId = 1e6
+      window.setTimeout = (fn, _ms, ...args) => {
+        window.__heldTimers.set(++nextId, () => fn(...args))
+        return nextId
+      }
+      window.clearTimeout = (id) => {
+        if (!window.__heldTimers.delete(id)) window.__realTimers.clear(id)
+      }
+    JS
+    yield
+  ensure
+    page.execute_script(<<~JS)
+      window.setTimeout = window.__realTimers.set
+      window.clearTimeout = window.__realTimers.clear
+      for (const fire of window.__heldTimers.values()) fire()
+      window.__heldTimers.clear()
+    JS
+  end
+
   # Write records into an IndexedDB store and block until the transaction has
   # actually committed.
   #
@@ -187,6 +415,18 @@ class CapybaraTestBase < Minitest::Test
     assert committed, "seeding the '#{store}' store did not commit"
   end
 
+  # Aggregate rows as the current build writes them. A row stamped with other
+  # rules, or with none, is replayed from the sessions on the next page load
+  # (AGGREGATES_VERSION in practiceTracker.js) — and a row planted with no
+  # sessions behind it is replayed into nothing.
+  def seed_aggregates(rows)
+    version = page.evaluate_async_script(<<~JS)
+      const done = arguments[arguments.length - 1];
+      import('/js/practiceTracker.js').then((tracker) => done(tracker.AGGREGATES_VERSION));
+    JS
+    seed_store('aggregates', rows.map { |row| { rulesVersion: version }.merge(row) })
+  end
+
   # Block until an IndexedDB store holds `count` records matching `where`, a JS
   # expression evaluated against each `record`.
   #
@@ -198,15 +438,43 @@ class CapybaraTestBase < Minitest::Test
   def wait_for_records(store, where: 'true', count: 1, timeout: Capybara.default_max_wait_time)
     deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + timeout
     loop do
-      matching = count_records(store, where)
-      return if matching >= count
+      matching = count_records(store, where, deadline)
+      return if matching && matching >= count
 
       if Process.clock_gettime(Process::CLOCK_MONOTONIC) > deadline
-        flunk "'#{store}' still held #{matching} record(s) matching #{where.inspect} " \
+        flunk "'#{store}' still held #{matching || 0} record(s) matching #{where.inspect} " \
               "after #{timeout}s, expected #{count}"
       end
       sleep 0.05
     end
+  end
+
+  # The fingering record a score is stored under, and the keys it holds.
+  # Polls rather than asserting once: the BPM field is debounced, so the value
+  # lands in the app a moment after the last keystroke.
+  def wait_for_stored_tempo(score_url, bpm, name: 'playbackBpm', timeout: 5)
+    key = "arabesque:#{name}:#{score_url}"
+    Timeout.timeout(timeout) do
+      sleep 0.05 until page.evaluate_script("localStorage.getItem(#{key.inspect})") == bpm
+    end
+  end
+
+  def stored_fingering_keys(score_url)
+    (stored_fingering_record(score_url)&.fetch('fingerings') || {}).keys.sort
+  end
+
+  def stored_fingering_record(score_url)
+    page.evaluate_async_script(<<~JS, score_url)
+      const [scoreUrl, done] = [arguments[0], arguments[arguments.length - 1]];
+      const request = indexedDB.open('arabesque', 3);
+      request.onerror = () => done(null);
+      request.onsuccess = () => {
+        const db = request.result;
+        const record = db.transaction('fingerings', 'readonly').objectStore('fingerings').get(scoreUrl);
+        record.onerror = () => { db.close(); done(null); };
+        record.onsuccess = () => { db.close(); done(record.result ?? null); };
+      };
+    JS
   end
 
   # Helper to simulate MIDI input events
@@ -253,6 +521,31 @@ class CapybaraTestBase < Minitest::Test
         window.dispatchEvent(new CustomEvent('mock-midi-input', { detail: { data } }));
       }
     JS
+  end
+
+  # Replays a performance recorded off a real keyboard (test/fixtures/cassettes/)
+  # through the mock MIDI input, at its recorded timing: messages that share a
+  # timestamp go out in the same turn, which is what makes a chord a chord and a
+  # held note held.
+  def replay_cassette(name, wait_for_end: true)
+    messages = JSON.parse(File.read(File.join(__dir__, 'fixtures', 'cassettes', "#{name}.json")))['data']
+    page.execute_script(<<~JS, messages)
+      const messages = arguments[0];
+      window.__cassetteDone = false;
+      (async () => {
+        for (let i = 0; i < messages.length; i++) {
+          const delay = i > 0 ? messages[i].timestamp - messages[i - 1].timestamp : 0;
+          if (delay > 0) await new Promise((resolve) => setTimeout(resolve, delay));
+          window.dispatchEvent(new CustomEvent('mock-midi-input', { detail: { data: messages[i].data } }));
+        }
+        window.__cassetteDone = true;
+      })();
+    JS
+    return unless wait_for_end
+
+    Timeout.timeout(Capybara.default_max_wait_time) do
+      sleep 0.02 until page.evaluate_script('window.__cassetteDone')
+    end
   end
 
   # Records every change in the number of lit noteheads, from now until the page
@@ -307,28 +600,67 @@ class CapybaraTestBase < Minitest::Test
     assert_selector 'svg g.vf-stavenote', count: expected_notes if expected_notes
   end
 
-  # Helper to click on a measure in the score
+  # Helper to click on a measure in the score. One click area per engraved
+  # measure, in score order, so a repeated measure is clicked by its number
+  # whichever pass the playback sequence is on. A bar split across two systems
+  # has one on each, which this counts as two: select those by
+  # data-measure-index instead.
   def click_measure(measure_number)
     page.all('svg rect.measure-click-area')[measure_number - 1].trigger('click')
   end
 
+  # Helper method to display the browser console logs.
+  # Should remain unused in committed files but can be used by the AI agent when debugging.
+  def console_logs
+    logs = page.driver.browser.options.logger.string
+    logs.split("\n").map do |line|
+      next if line.empty?
+
+      first_character = line.strip[0]
+      next if ['◀', '▶'].include? first_character
+
+      line
+    end.compact
+  end
+
   private
 
-  def count_records(store, where)
-    page.evaluate_async_script(<<~JS, store)
-      const [store, done] = [arguments[0], arguments[arguments.length - 1]];
+  # How many records the store holds, or nil if IndexedDB has not answered by
+  # `deadline` — which wait_for_records, the only caller, owns: its timeout is
+  # the only one, so a failure carries the message that names the store.
+  #
+  # The count is left on a global and picked up by a plain, synchronous
+  # evaluation rather than returned by evaluate_async_script, which arms a
+  # timer of its own inside the page to enforce its timeout. After a test has
+  # driven the virtual clock (see with_clock_control), that timer is due the
+  # instant it is set, so the script reports a timeout before IndexedDB has had
+  # any chance to answer, whatever the store holds. wait_for_store and
+  # seed_store have the same hazard but run before the clock is driven.
+  def count_records(store, where, deadline)
+    page.execute_script(<<~JS, store)
+      const store = arguments[0];
+      window.__recordCount = null;
+      const answer = (n) => { window.__recordCount = n };
       const request = indexedDB.open('arabesque', 3);
-      request.onerror = () => done(0);
+      request.onerror = () => answer(0);
       request.onsuccess = () => {
         const db = request.result;
         const all = db.transaction(store, 'readonly').objectStore(store).getAll();
-        all.onerror = () => { db.close(); done(0); };
+        all.onerror = () => { db.close(); answer(0); };
         all.onsuccess = () => {
           db.close();
-          done(all.result.filter((record) => #{where}).length);
+          answer(all.result.filter((record) => #{where}).length);
         };
       };
     JS
+
+    loop do
+      count = page.evaluate_script('window.__recordCount')
+      return count if count
+      return nil if Process.clock_gettime(Process::CLOCK_MONOTONIC) > deadline
+
+      sleep 0.02
+    end
   end
 
   def parse_midi_notation(notation)
@@ -370,6 +702,23 @@ end
 # Runs once per process, which is once per worker (rake test:parallel) and once
 # per runner (rake test:shard); both spawn real processes, so each pays its own
 # cold start and each gets its own warm-up.
+#
+# Not on a single-process local run, though. Measured at 0.94s against a 5.8s
+# run of one browser test file (5 interleaved pairs of ornaments_test.rb), so
+# it is genuinely additive — the first real test does not claim it back — and
+# it is a sixth of every iteration of an edit-test loop. It stays on where it
+# earns that: CI, the only place the flake has ever been seen and where one
+# costs a red build rather than a rerun, and rake test:parallel, which sets
+# WARM_UP_BROWSER because eight Chromes starting at once is the local run most
+# like CI and the one most exposed to a cold start — and where the warm-up is
+# paid once in wall clock (0.8s of 22s) rather than once per iteration.
+#
+# Two things this costs, both deliberate. A local single-file run is now less
+# faithful to CI, which is precisely the property scripts/test-in-docker.sh
+# exists to protect: an exception to that principle, not an oversight. And if
+# the cold start ever does bite locally it will look like the first browser
+# test of the process failing for no reason — that is this decision, and
+# `CI=1 ruby -Itest test/whatever_test.rb` puts the warm-up back.
 def warm_up_browser
   session = Capybara.current_session
   session.visit('/score.html?url=/test-fixtures/two-measures.xml')
@@ -380,4 +729,4 @@ ensure
   Capybara.reset_sessions!
 end
 
-warm_up_browser
+warm_up_browser if ENV['CI'] || ENV['WARM_UP_BROWSER']

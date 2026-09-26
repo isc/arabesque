@@ -3,9 +3,13 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="app-version" content="dev" />
     <title data-i18n="support.pageTitle">Arabesque · Assistance</title>
     <link rel="icon" href="favicon.svg" type="image/svg+xml" />
     <link rel="stylesheet" href="styles.css" />
+    <script type="module" src="js/errorLog.js"></script>
+    <script type="module" src="js/version.js"></script>
+    <script type="module" src="js/appStore.js"></script>
     <script type="module">
       import { initI18n } from './js/i18n.js'
       initI18n()
@@ -39,6 +43,9 @@
         qui fait le pont avec le clavier. En USB, branchez-le et c'est tout ; en
         Bluetooth, touchez le bouton antenne en bas à droite pour ouvrir l'appairage
         du système, l'appairage étant propre à chaque app sur iOS.
+      </p>
+      <p data-app-store hidden>
+        <a href="https://apps.apple.com/app/id6800314187" data-i18n="common.appStore">Arabesque pour iPhone et iPad, sur l'App Store</a>
       </p>
 
       <h2 data-i18n="support.noteTitle">Le clavier n'est pas détecté</h2>

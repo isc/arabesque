@@ -27,15 +27,64 @@ still loses a test to timing now and then. For the same reason CI does not run
 workers inside a runner; it uses `rake test:shard` (`SHARD_INDEX`/`SHARD_COUNT`)
 to give each slice a runner of its own.
 
+A single-file run skips the browser warm-up that CI and `test:parallel` still
+do at the end of `test/test_helper.rb` — about 1s of a 6s run. If the *first*
+browser test of such a run fails for no visible reason, that is the cold start
+the warm-up exists to absorb: rerun with `CI=1` to put it back.
+
 No Ruby or Chrome on the machine? `scripts/test-in-docker.sh` runs any of the
 above in a container built from `test/Dockerfile`, on the same Ruby as CI:
 ```bash
 scripts/test-in-docker.sh                              # the whole suite
 scripts/test-in-docker.sh ruby -Itest test/data_test.rb  # one file
 CPUS=4 scripts/test-in-docker.sh rake test             # mimic a CI runner
+scripts/test-in-docker.sh --stop                       # drop every test container
 ```
+Commands go into a container that stays up between runs, one per checkout; the
+script header says why and what it costs. `--stop` drops them all, including
+ones left behind by worktrees that no longer exist.
+
+**IMPORTANT:** A new browser test is not done when it passes. Run it **at least
+five times** — and once through the whole suite, where eight workers contend —
+before believing it. One green run is the single most common way a flake reaches
+`main` from here, because the run that proves the feature is also the run that
+is trusted.
+
+Two that got through on one green run, both worth recognising again:
+
+- A test asserted on an element Alpine had not revealed yet. Alpine hides with
+  `x-show` immediately but *reveals* from a `setTimeout` of its own, and inside
+  `with_clock_control` that timer is virtual time like any other — so with the
+  clock parked the element stayed `display: none` while Capybara waited on the
+  wall clock. It passed whenever the CDP pause command landed late enough for
+  the 0ms timer to slip through, which on an idle machine is most of the time.
+  `advance_clock` after the click is the fix; `advance_clock(1)` is not enough,
+  the helper's own tolerance satisfies it before the budget lands.
+- A test planted a `localStorage` session and read it back three interactions
+  later. `visit` returns at the load event, but the page keeps initialising —
+  and half a second in, supabase-js claimed its key and deleted a session it
+  did not recognise. Comfortably inside the window locally, outside it on a
+  loaded shard. Anything the app writes on its own is a clock the test is
+  racing: block it (`test_helper.rb` blocks esm.sh for exactly this) or wait
+  for the state you need rather than assuming `visit` means "settled".
+
+Both passed alone and failed under load, which is the signature: if a test only
+ever fails on CI, suspect a race with something the page does after `visit`,
+not the runner being slow.
 
 PR titles and descriptions must be in English.
+
+## Branch previews
+
+Every pull request is deployed at
+`https://arabesque.app/previews/<branch-slug>/library.html` (slug: the branch
+name with anything but letters, digits and `-` turned into `-`), refreshed on
+each push and removed when the PR closes; `.github/workflows/preview.yml`
+posts the link as a sticky comment. Production and previews are both served
+from the `gh-pages` branch — `deploy-pages.yml` publishes `public/` at its
+root, previews go under `previews/`. A preview is on the same origin as
+production, so it reads and writes the same IndexedDB and localStorage: runs
+played on a preview land in the real practice journal.
 
 ## Library
 
@@ -48,27 +97,166 @@ ruby scripts/generate_fingerprints.rb
 `public/data/fingerprints.json` must stay in sync with the catalog: one
 fingerprint per score file, including each part of a collection.
 
+Correcting a score in place — a wrong trill, a measure re-engraved — does reach
+devices that already opened the piece: the service worker serves `/scores/` from
+the cache and refreshes behind the answer, so the fix lands on the opening after
+the one that fetched it (`public/sw.js`). Nothing to bump, no filename to
+change. What does **not** follow the correction is everything keyed to the old
+notation — fingerings by `m<bar>:staff:voice:noteIndex`, practice aggregates by
+`sourceMeasureIndex`, both counting bars by position. Adding, removing or
+renumbering a measure silently re-points both, locally and in Supabase. Fixing
+an accidental is free; changing the measure count is not.
+
+The one exception is splitting a bar so a system can break inside it: write the
+second half as `<measure number="N" implicit="yes">`, N being the bar it
+completes, and both halves stay one bar — same index, note count running on —
+so nothing re-points (`barCounter` in `public/js/fingeringKeys.js`).
+
 A catalog entry with `parts: [{title, file}]` instead of `file` is a
 **collection** (e.g. the Hanon exercises): one library row, a part navigator on
 the score page, and practice data, fingerings and fingerprints kept per part
 file. The Hanon files were produced by `scripts/split_hanon.rb` from the
 combined MuseScore export.
 
+### Promoting a player's fingerings into a score
+
+A player who worked a piece out with their teacher has a year of fingerings in
+their own IndexedDB and no way to give them to the next person who opens the
+same score. `scripts/import-fingerings.mjs` writes them into the file in
+`public/scores/`:
+
+```bash
+node scripts/import-fingerings.mjs --player <email> --dry-run     # a signed-in player's, from Supabase
+node scripts/import-fingerings.mjs backup.json --dry-run          # or from an export
+node scripts/import-fingerings.mjs --player <email> --score Canon_in_D --dry-run  # narrow to some scores
+node scripts/import-fingerings.mjs --player <email> --score Canon_in_D            # write it
+```
+
+`--player` reads the fingerings Supabase keeps for a signed-in player
+(`--profile` for another of their profiles), with the token
+`scripts/lib/supabase.mjs` uses. `backup.json` is what the app's own
+**📤 Exporter sauvegarde** button (data page) writes, for a player who never
+signed in — its `fingerings` array is the input, one record per score file,
+collections included. A record still keyed the way fingerings were before
+#350 is converted as the app converts it; the script header has the rest of
+the reasoning.
+
+Always start with `--dry-run`, and always look at the result on the branch
+preview before merging: a key names a note by its position in the engraving, so
+a key from another edition of the same piece lands on the wrong note. Keys that
+match nothing are reported rather than dropped, which is the signal. The script
+is idempotent and writes nothing when a file comes out unchanged, so re-running
+it is free; after it runs, nothing else has to be regenerated (fingerprints
+depend on pitches, not on fingerings).
+
+**A player's own fingering always wins over a shipped one** — `injectFingerings`
+clears the note's fingerings before writing theirs — so publishing cannot
+overwrite anybody's work. The one exception: a note where a player *cleared*
+their fingering with the × stores nothing, so a fingering shipped there later
+does appear for them.
+
 ## Changelog in-app
 
-`public/js/changelog.js` feeds the "Nouveautés" modal on the library page. The
-bar is high: an entry must be worth the reader's time. Add **real user-facing
-changes** here — a new feature, a notable behaviour change, a fix the player
-would have noticed. Do NOT add per-score notation fixes, refactors, CI, lint, or
-purely technical changes. When in doubt, leave it out.
+The "Nouveautés" modal on the library page and the `CHANGELOG` file are two
+views of the same entries. The bar is high: an entry must be worth the reader's
+time. Add **real user-facing changes** — a new feature, a notable behaviour
+change, a fix the player would have noticed. Do NOT add per-score notation
+fixes, refactors, CI, lint, or purely technical changes. When in doubt, leave it
+out.
 
-Entries are **bilingual**: each entry's `items` is `{ fr: [...], en: [...] }`
-with the same count in the same order. New entries must include both languages
-(the modal shows the active UI language via `changelogItems()` in library.js).
+**IMPORTANT:** Never edit `public/js/changelog.js` or `CHANGELOG` by hand. One
+entry is **one new file** in `changelog.d/`, named `YYYY-MM-DD-a-short-slug.md`
+for the day it is meant to ship, holding the item in both languages:
 
-**IMPORTANT:** After shipping a significant feature, add a French entry at the
-top of `CHANGELOG` (antechronological order), grouping items under the
-publication date (`YYYY-MM-DD`). Keep each item short and concrete.
+```markdown
+# fr
+Le décompte du mode strict se voit. Le bandeau affiche les temps de la mesure
+de départ, celui en cours en évidence.
+
+# en
+The strict-mode count-in can be seen. The band shows the beats of the count-in
+bar, the one sounding picked out.
+```
+
+**IMPORTANT:** That length is the point of the example, not an accident. An
+entry is read in a modal, one of forty, by someone who wants to know what
+changed — **a title sentence, then one or two sentences, and never more than
+320 characters per section**. Cut the justification, the implementation, the
+pixel counts, the second example, and every clause that says the title again in
+other words. Over the limit means the entry is doing the work of a commit
+message: keep the title and the one sentence a player would act on, and let the
+rest live in the PR. `parseFragment` refuses a section over that limit and
+`test/js/changelog.test.js` holds the published entries to the same bar, so it
+fails the pull request rather than reaching the modal.
+
+A file per change is a file git merges; a line at the top of those two files is
+a conflict with every other PR open that day. Both sections are required — one
+item per file is what keeps "same count, same order" true by construction — and
+`test/js/changelog.test.js` fails on a fragment that is malformed or missing its
+English half. Write the French once: `CHANGELOG` is rendered from it, opening
+sentence bolded.
+
+`scripts/changelog.mjs` does the rest. The Pages deploy and the branch previews
+run `build`, which assembles the pending fragments into the file the app imports
+on the checked-out copy, never committed back — entries reach production the
+moment the PR merges, and a PR's own preview shows its entry in the modal (a
+plain checkout does not: `PENDING` is empty there). `fold` is housekeeping, run
+when `changelog.d/` gets long: it moves the fragments into `CHANGELOG` and
+`changelog.js` and deletes them.
+
+The date in the file name is the day the entry is published, which is normally
+the day it is written. If the branch then sits for days, `git mv` the fragment
+to the ship date — an entry landing under a date already shown gets no "new"
+dot in the menu.
+
+## User feedback
+
+The app's Feedback button files into `public.feedback` on Supabase. The anon key
+the frontend ships can only INSERT, so reading happens out of band — through the
+Management API, with the token the Supabase CLI already keeps outside the repo:
+
+```bash
+node scripts/feedback.mjs list          # what is still to deal with
+node scripts/feedback.mjs shot <id>     # write its screenshot to a file
+node scripts/feedback.mjs treat <id>    # mark one as dealt with
+```
+
+A report carries a picture of the screen behind the modal
+(`public/js/screenshot.js`, opt-out in the form); `list` marks those with 📷 and
+`shot` writes the image out. Neither `list` nor `show` ever prints the value
+itself — a few hundred kB of base64 would bury the entry.
+
+It also carries the JavaScript errors the app ran into in the hour before, if
+any (`public/js/errorLog.js`): `list` marks those with ⚠ and their number,
+`show` prints them with their stacks. An error the app catches and gets past
+but wants to hear about goes through `recordError(error, where)` from the same
+module, in place of the `console.error` — it logs it too.
+
+The header of `scripts/feedback.mjs` has the rest (`show`, `untreat`, flags).
+Each new feedback also emails ivan.schneider@hey.com, so there is nothing to poll.
+
+`supabase/feedback.sql` is the canonical DDL — the project has no migration
+system, so a schema change is applied by hand **and** written there.
+
+## Supabase auth config
+
+`supabase/auth.md` is the canonical record of how the sign-in email is sent and
+what it says — the SMTP block, the code's length and lifetime, the rate limit,
+and the template itself. **Never PATCH one of those settings by hand:** the
+Management API groups them, and naming one member of a group silently clears the
+rest. That is not theoretical — it wiped SMTP and put the magic link back into
+production on 2026-09-08. Go through the applier, which only sends whole groups
+and checks that nothing else moved:
+
+```bash
+node scripts/apply-auth-config.mjs          # show what differs, change nothing
+node scripts/apply-auth-config.mjs --apply  # push supabase/auth.md
+```
+
+`test/js/authConfig.test.js` guards the file's invariants offline (no token, so
+it runs in CI): the template carries a code and never a link, the settings table
+names exactly what the applier sends, and the sender matches `feedback.sql`.
+`auth.md` also lists the four ways sign-in email has broken silently.
 
 ## Playwright Browser Testing
 
@@ -96,16 +284,71 @@ refs, then `click`/`fill`/`eval` against them.
 
 `scripts/demo/capture.sh` regenerates the whole screenshot set from real
 simulators — run it after any UI change the listing shows. `scripts/demo/record.sh`
-records the walkthrough App Review needs, since a reviewer has no MIDI keyboard.
-Both seed a practice history and play a piece through the mock MIDI input, and
-both work on a throwaway copy of `public/` — no demo hook ever ships. See
-`scripts/demo/README.md`, which also has the wording for the review notes.
+records a walkthrough off a simulator. Both seed a practice history and play a
+piece through the mock MIDI input, and both work on a throwaway copy of
+`public/` — no demo hook ever ships.
+
+The video App Review watches is neither: Apple requires a **filmed** one,
+showing a physical device and the MIDI keyboard pairing and playing together.
+It is committed at `public/video/review-demo.mp4`, and the review notes in
+`scripts/appstore/listing_fr.py` link to it — replacing that file replaces the
+video. `scripts/demo/README.md` has what a re-film must show and how to
+compress it.
+
+The landing page's hero video (`public/video/hero.{fr,en}.mp4`) is built by
+`landing-video/` — a HyperFrames composition over real app screenshots, seeded
+from the practice history on Supabase (`npm run backup`). Its README has the
+whole run; nothing it needs lives outside the repo except the Supabase token
+and ffmpeg. `tmp/cap/`, if a checkout has one, is a superseded prototype.
 
 `scripts/appstore/push_listing.py` writes the listing itself — description,
 keywords, URLs, categories, age rating, screenshots — through the App Store
 Connect API, from the copy in `scripts/appstore/listing_fr.py`. It never
-submits for review, and App Privacy has no API and stays manual. Credentials
-live outside the repo; see `scripts/appstore/README.md`.
+submits for review, and App Privacy has no API and stays manual.
+
+`scripts/appstore/testflight_invite.py <email>` invites a TestFlight tester,
+making the external group, build attachment and beta review submission it needs
+on the way; `--status` reports where the review is. Credentials for both live
+outside the repo; see `scripts/appstore/README.md`.
+
+## New HTML pages
+
+Every page carries `<meta name="app-version" content="dev" />` and loads
+`<script type="module" src="js/version.js"></script>` ahead of its entry
+script — that is how a page notices it was served with another deploy's
+JavaScript and reloads itself once (`public/js/version.js` explains why).
+`scripts/stamp-version.mjs` fails at deploy time if a page is missing either
+marker, and `test/js/version.test.js` catches it earlier.
+
+Ahead of even that, first among its scripts, every page loads
+`<script type="module" src="js/errorLog.js"></script>`: the listeners that
+keep the JavaScript errors a feedback report carries, which only see what is
+thrown after they are installed. `test/js/errorLog.test.js` holds every page to
+it.
+
+A page of the app itself — not the landing, privacy or support pages — also
+loads `<script type="module" src="js/swRegister.js"></script>`, which installs
+the offline cache (`public/sw.js`), and carries the two install markers that
+travel with it — a manifest without a worker is not installable:
+
+```html
+<link rel="manifest" href="manifest.webmanifest" />
+<meta name="theme-color" content="#f7f7f9" />
+```
+
+`test/js/swShell.test.js` asserts that the set of pages carrying the manifest is
+exactly the set registering the worker, and that the theme colour matches the
+manifest's. The precache list is generated from
+`public/` by the same deploy step, so a new file is covered without being
+listed anywhere; add a new top-level directory to `SHELL_SKIP` in
+`scripts/stamp-version.mjs` if it must stay out.
+
+Neither mechanism runs from a checkout: both sides say `dev` there, so the
+version check never fires and the worker is never registered. To exercise the
+worker, stamp a version in (`node scripts/stamp-version.mjs testsha`), serve
+`public/` over HTTPS or localhost, and put it back with
+`node scripts/stamp-version.mjs dev` — the manifest is deliberately not
+committed.
 
 ## Code Style
 

@@ -1,26 +1,51 @@
-import { noteName } from './midi.js'
 import { traced, ENABLED as PERF_TRACE } from './perfTrace.js' // TEMP diagnostic
 import {
   extractNotesFromScore as extractNotes,
   isNoteActiveForHands as isNoteActiveForHandsShared,
   sourceMeasuresToResetOnEntry,
+  nextPlayableMeasure,
+  firstPassMeasureIndexes,
+  firstPassIndexOf,
   svgNoteheadFor,
+  carryOverNoteStates,
 } from './noteExtraction.js'
-import { scrollSystemIntoView } from './utils.js'
+import { scrollSystemIntoView, isUnderStickyBars } from './utils.js'
 import { arrayBufferToXml, isMusicXml } from './mxlLoader.js'
+import { stripPlaybackTempoMarks } from './tempoMarks.js'
 import { t } from './i18n.js'
+import { recordError } from './errorLog.js'
 
 let osmdInstance = null
 let allNotes = []
+// Raised by a sheet coming in and lowered by the note-model rebuild that
+// follows it — the one rebuild that starts a session, where every later one
+// only redraws a score already up (see extractNotesFromScore).
+let sheetJustLoaded = false
 let noteDataByKey = new Map() // Map<fingeringKey, noteData> for O(1) lookups
-let playbackSequence = [] // Ordered list of source measure indices for playback (handles repeats)
+// Map<the key a note used to be filed under, the keys it is filed under now>,
+// built by the same walk that names the notes -- see migrateLegacyFingerings.
+let legacyKeyMap = new Map()
 let currentMeasureIndex = 0
 let trainingMode = false
 let targetRepeatCount = 3
 let repeatCount = 0
+// Whether the traversal of the passage under way is still flawless — one
+// measure's worth of it by default, the whole passage when a range is picked.
 let currentRepetitionIsClean = true
+// The passage training mode works on, as playback indices. A null end is the
+// shape training has always had and is still the default: the passage is the
+// single measure under the cursor, and filling its dots moves the work one bar
+// down the score. A range picked on the sheet bounds it instead, and a
+// repetition is then one traversal of the whole thing — which is what puts the
+// joins between its measures, and the slurs across them, inside the work.
+let trainingStart = 0
+let trainingEnd = null
 let currentSystemIndex = null
-let measureClickRectangles = []
+// The click rectangles of each bar, by sourceMeasureIndex: a repeated bar is
+// drawn once, so the passes must share its rects instead of stacking identical
+// ones. One rect per bar, but for a bar split across two systems (see
+// barCounter in fingeringKeys.js), which gets one on each.
+const measureClickRectangles = new Map()
 let playedSourceMeasures = new Set() // Track source measures that have been fully played
 
 // Reinforcement mode variables
@@ -41,15 +66,61 @@ const MEASURE_CLICK_PADDING = 15
 // Delay in ms before resetting measure progress in training mode
 const TRAINING_RESET_DELAY_MS = 200
 
+// The beat a finished measure — or a finished run — holds the sheet for before
+// clearing it, so the last notes played can be seen lit. At most one is ever in
+// flight, and the work waiting at the end of it belongs to the state that armed
+// it: whatever the engine was working on then. Change what it is working on and
+// the beat is dropped, because firing it would land its cursor, its dots or its
+// whole-score clear on top of whatever came next. Reinforcement is one click
+// away in the header the moment a piece is finished, which is how that used to
+// happen: the clear of the finished run wiped the drill just armed over it,
+// leaving plain training mode on measure 1 for good.
+let pendingBeat = null
+
+function afterTheBeat(fn) {
+  clearTimeout(pendingBeat)
+  pendingBeat = setTimeout(fn, TRAINING_RESET_DELAY_MS)
+}
+
+// The end of the score, the run finished or not: a beat later the cursor is
+// back at the top, and the page is told.
+function backToTheTopAfterTheBeat() {
+  afterTheBeat(() => {
+    resetProgress()
+    callbacks.onBackToTop?.()
+  })
+}
+
+function dropPendingBeat() {
+  clearTimeout(pendingBeat)
+  pendingBeat = null
+}
+
+// A mistake used to leave no trace at all: the repetition was silently spoiled
+// and the player, seeing the dot refuse to fill, had no way to know a stray key
+// had counted as an extra note. The notehead they owed lights up for a moment
+// instead. The duration lives in the stylesheet, next to the colour, and the
+// end of the animation takes the class back off; the reset paths clear it too,
+// alongside the played/active classes, in case no animation ever ran.
+function flashWrongNote(noteData) {
+  const notehead = svgNotehead(noteData)
+  if (!notehead || notehead.classList.contains('wrong-note')) return
+
+  notehead.classList.add('wrong-note')
+  notehead.addEventListener('animationend', () => notehead.classList.remove('wrong-note'), {
+    once: true,
+  })
+}
+
 let callbacks = {
   onScoreCompleted: null,
-  onNoteError: null,
   onTrainingComplete: null,
   onMeasureStarted: null,
   onMeasureCompleted: null,
   onWrongNote: null,
   onPlaythroughRestart: null,
   onReinforcementComplete: null,
+  onBackToTop: null,
   // Return true from this callback to bypass the default jumpToMeasure
   // (strict mode uses it to set its start point instead).
   onMeasureClicked: null,
@@ -77,9 +148,19 @@ export function initMusicXML() {
     setCallbacks,
     setActiveHands: (hands) => {
       activeHands = { ...activeHands, ...hands }
+      // The measure under way starts over with the new hands: a hand ticked
+      // back would otherwise owe every note it missed since the downbeat, the
+      // other hand's already green and unplayable again.
+      resetNotesFromIndex(currentMeasureIndex, currentMeasureIndex)
+      // Dropping a hand can leave the cursor on a measure only that hand plays.
+      const landing = cursorMeasureFor(currentMeasureIndex)
+      if (landing === currentMeasureIndex) return
+      currentMeasureIndex = landing
+      updateMeasureCursor()
     },
     getOsmdInstance: () => osmdInstance,
     getAllNotes: () => allNotes,
+    getExpectedGroup: expectedGroup,
     getScoreMetadata: () => ({
       title: osmdInstance?.Sheet?.Title?.text || null,
       composer: osmdInstance?.Sheet?.Composer?.text || null,
@@ -98,30 +179,52 @@ export function initMusicXML() {
     setTrainingMode: (enabled) => {
       trainingMode = enabled
       repeatCount = 0
-      currentMeasureIndex = 0
       currentRepetitionIsClean = true
       resetProgress()
 
       if (enabled) {
         updateMeasureCursor()
       } else {
-        measureClickRectangles.forEach((rect) => rect.classList.remove('selected'))
+        clearMeasureClasses('selected', 'training-range')
         document.getElementById('repeat-indicators')?.remove()
       }
     },
+    // The passage to work: from `start` to `end` inclusive, or — with `end`
+    // null — the single measure at `start`, the work then moving on down the
+    // score bar by bar. Either way it starts from the top of the passage with
+    // no dot banked, so picking one is always a fresh count of three.
+    setTrainingRange: (start, end = null) => {
+      // Normalised against the active hands: a passage whose first bar the one
+      // ticked hand rests through starts where that hand actually plays, and
+      // never after its own end.
+      dropPendingBeat()
+      trainingStart = cursorMeasureFor(start)
+      trainingEnd = end == null ? null : Math.max(trainingStart, end)
+      // Closing a passage on its second click leaves the cursor where the first
+      // one already put it. The dots still start over, but none of
+      // jumpToMeasure's score-wide clearing is owed for shading a few bars.
+      if (trainingStart === currentMeasureIndex) {
+        resetMeasureProgress()
+        updateMeasureCursor()
+      } else {
+        jumpToMeasure(trainingStart)
+      }
+      // The normalised pair, so the page can show the passage the engine is
+      // actually working rather than the raw indices it clicked.
+      return { start: trainingStart, end: trainingEnd }
+    },
     jumpToMeasure: (measureIndex) => jumpToMeasure(measureIndex),
-    markStrictStartMeasure: (measureIndex) => {
-      measureClickRectangles.forEach((rect) => rect.classList.remove('strict-start'))
-      if (measureIndex == null) return
-      measureClickRectangles[measureIndex]?.classList.add('strict-start')
-    },
-    setCurrentMeasureIndex: (index) => {
-      currentMeasureIndex = index
-    },
-    getPlayedSourceMeasures: () => new Set(playedSourceMeasures),
-    setPlayedSourceMeasures: (measures) => {
-      playedSourceMeasures.clear()
-      for (const m of measures) playedSourceMeasures.add(m)
+    // Marks where a strict run starts — or, for a looped passage with an end,
+    // shades the measures it covers up to `endIndex` (inclusive), which says
+    // where it starts as well. Null clears both.
+    markStrictRange: (startIndex, endIndex = null) => {
+      clearMeasureClasses('strict-start', 'strict-range')
+      if (startIndex == null) return
+      if (endIndex == null) {
+        markMeasure(startIndex, 'strict-start')
+        return
+      }
+      paintMeasureRange('strict-range', startIndex, endIndex)
     },
     resetMeasureProgress: () => {
       for (const measureData of allNotes) {
@@ -131,14 +234,20 @@ export function initMusicXML() {
       }
     },
     getNoteDataByKey: () => noteDataByKey,
+    getLegacyFingeringKeyMap: () => legacyKeyMap,
     svgNote,
     svgNotehead,
+    graphicalMeasureForNote,
     setReinforcementMode: (measures) => {
       if (!measures || measures.length === 0) return
 
+      dropPendingBeat()
       reinforcementMode = true
       reinforcementMeasures = measures.map((m) => m.sourceMeasureIndex)
       reinforcementIndex = 0
+      // Reinforcement brings its own list of measures to work, one at a time:
+      // any passage the player had picked is not what is being drilled now.
+      resetTrainingRange()
 
       // Enable training mode (resets repeatCount and currentRepetitionIsClean)
       trainingMode = true
@@ -146,8 +255,7 @@ export function initMusicXML() {
       currentRepetitionIsClean = true
 
       // Jump to the first measure to reinforce
-      const firstMeasure = reinforcementMeasures[0]
-      const playbackIndex = allNotes.findIndex((m) => m.sourceMeasureIndex === firstMeasure)
+      const playbackIndex = firstPassIndexOf(allNotes, reinforcementMeasures[0])
       if (playbackIndex >= 0) {
         jumpToMeasure(playbackIndex)
         scrollToMeasure(playbackIndex)
@@ -162,6 +270,50 @@ function resetReinforcementState() {
   reinforcementIndex = 0
 }
 
+// Back to the default passage: the single measure under the cursor, the work
+// walking on down the score from there.
+function resetTrainingRange() {
+  trainingStart = 0
+  trainingEnd = null
+}
+
+// The passage under work: playback indices, inclusive. `bounded` says the
+// player picked it, so finishing it leaves it on the stand; unbounded, the
+// passage is the measure under the cursor and finishing walks on down the score.
+function trainingPassage() {
+  if (trainingEnd == null) return { first: currentMeasureIndex, last: currentMeasureIndex, bounded: false }
+  return { first: trainingStart, last: trainingEnd, bounded: true }
+}
+
+// What finishing the measure under the cursor does in training mode. A
+// repetition is one traversal of the passage — `first` to `last`, which are the
+// same measure until the player picks a range — and only a flawless traversal
+// banks a dot. `next` is the measure the cursor would move to, already resolved
+// against the active hands.
+//
+// Written apart from the engine because this is the whole of the rule: a single
+// measure is the passage of length one, so the behaviour training has always
+// had falls out of it rather than sitting beside it as a second case.
+export function trainingStep({ next, first, last, bounded, banked, target, clean, measureCount }) {
+  // Still inside the passage: the traversal carries on into the next measure
+  // with the dots — and the wrong note two bars back — untouched. `next` is
+  // always past `index`, so a one-measure passage never takes this branch.
+  if (next <= last) return { action: 'step', to: next, banked }
+
+  // The traversal is over. `banked` is what the dots should show for it —
+  // emptying them is the move's business, a pause later, so that the dot just
+  // earned fills where the player can see it.
+  const filled = clean ? banked + 1 : banked
+  // Short of the target, the passage starts again.
+  if (filled < target) return { action: 'restart', to: first, banked: filled }
+  // Every dot filled. A picked passage is done and stays on the stand for
+  // another go; an unpicked one moves the work one measure down the score, and
+  // ends with the score itself.
+  if (bounded) return { action: 'passageDone', to: first, banked: filled }
+  if (next >= measureCount) return { action: 'scoreDone', banked: filled }
+  return { action: 'advance', to: next, banked: filled }
+}
+
 function setCallbacks(cbs) {
   callbacks = { ...callbacks, ...cbs }
 }
@@ -170,16 +322,36 @@ function isNoteActiveForHands(noteData) {
   return isNoteActiveForHandsShared(noteData, activeHands)
 }
 
+function nextPlayable(from) {
+  return nextPlayableMeasure(allNotes, from, activeHands)
+}
+
+// Where the cursor goes when it has to be somewhere: the last measure when the
+// rest of the score has nothing for the active hands.
+function cursorMeasureFor(from) {
+  return Math.min(nextPlayable(from), Math.max(allNotes.length - 1, 0))
+}
+
+// True when the cursor sits where a run through the whole score begins. Not
+// always its first measure: with one hand unticked, a score can open on a bar
+// that hand rests through, and the run starts after it.
+function atScoreStart() {
+  return currentMeasureIndex === cursorMeasureFor(0)
+}
+
+// Callers must have `allNotes` for the current score in place: the cursor is
+// placed on the first measure the active hands play, which reads them.
 function resetPlaybackState() {
-  currentMeasureIndex = 0
   repeatCount = 0
   currentRepetitionIsClean = true
   currentSystemIndex = null
   heldMidiNotes.clear()
   playedSourceMeasures.clear()
+  currentMeasureIndex = cursorMeasureFor(0)
   measureStartTime = null
   measureWrongNotes = 0
   resetReinforcementState()
+  resetTrainingRange()
 }
 
 async function loadMusicXML(file) {
@@ -196,17 +368,48 @@ async function loadMusicXML(file) {
 
     await renderMusicXML(xmlContent)
   } catch (error) {
-    console.error('Erreur lors du chargement du MusicXML:', error)
+    recordError(error, 'MusicXML file could not be loaded')
     alert(t('errors.musicXmlLoad'))
   }
 }
 
+// OSMD engraves the title block into the SVG at a size fixed in its own units
+// (1 unit = 10px), so it never answers to the viewport: 40px of title is a tenth
+// of a 1280px window and a third of a 390px phone, above 148px of header before
+// the first staff. Scale the block with the container instead — but per rule,
+// with its own floor: at the factor that brings the title down to a sensible 20px,
+// the composer and arranger land on 10px, which is not readable.
+//
+// The font is not ours to change: OSMD exposes a single DefaultFontFamily,
+// which also draws dynamics, tempo marks and directions — all of which want the
+// serif they have. Size is the only lever, and it is the one that was wrong.
+const TITLE_RULES = {
+  // rule:              [full size, floor]
+  SheetTitleHeight:     [4.0, 2.0],
+  SheetSubtitleHeight:  [2.0, 1.4],
+  SheetComposerHeight:  [2.0, 1.4],
+  SheetAuthorHeight:    [2.0, 1.4],
+  TitleTopDistance:     [5.0, 2.0],
+}
+// The width at which the title is engraved at its full, OSMD-default size.
+const FULL_TITLE_WIDTH = 900
+
+// Called before every render, never only on the way down: the rules are a
+// property of the OSMD instance and persist between renders, so a phone turned
+// to landscape has to grow the title back as well as shrink it.
+function scaleTitleBlock() {
+  const width = document.getElementById('score')?.clientWidth || FULL_TITLE_WIDTH
+  const scale = Math.min(1, width / FULL_TITLE_WIDTH)
+  for (const [rule, [full, floor]] of Object.entries(TITLE_RULES)) {
+    osmdInstance.rules[rule] = Math.max(floor, full * scale)
+  }
+}
+
 // `reextract: false` re-draws at the container's current width without rebuilding
-// the note model. osmd.render() replaces every graphical object, but allNotes
-// holds *source* notes, which survive it — so played/active flags plus the
-// training and reinforcement state stay put, where extractNotesFromScore() would
-// reset them all. Either way the SVG elements are new, so the caller repaints the
-// marks (app.js does it in repaintScore).
+// the note model — nothing about the sheet changed, only the width it is laid out
+// to. Either way the session is kept (see extractNotesFromScore) and the SVG
+// elements are new, so the caller repaints the marks (app.js does it in
+// repaintScore).
 // `afterDraw` runs between the draw and the indexing, and is how the initial
 // load gets the score on screen sooner: the fresh SVG is in the DOM once
 // render() returns, but nothing is painted until the task ends, and indexing is
@@ -217,42 +420,133 @@ async function loadMusicXML(file) {
 // but un-indexed (no allNotes, no measure click handlers).
 async function renderScore({ reextract = true, afterDraw = null } = {}) {
   if (!osmdInstance) return
+  scaleTitleBlock()
   osmdInstance.render()
-  disableInvisibleNoteClicks()
+  fixUpInvisibleNotes()
   if (afterDraw) await afterDraw()
   // Must precede setupMeasureClickHandlers, which reads allNotes.
   if (reextract) extractNotesFromScore()
   setupMeasureClickHandlers()
 }
 
-// OSMD renders print-object="no" notes (e.g. the realized gruppetto written alongside
-// the turn symbol in the Pathétique 2nd movement) with a fully transparent fill rather
-// than removing them, to preserve layout. These invisible noteheads still capture clicks:
-// OSMD's VexFlow patch tags the note/notehead groups with pointer-events="bounding-box",
-// so they intercept clicks over their whole box (fill ignored) and steal them from the
-// real note drawn underneath. We skip these notes during extraction, so they have no
-// fingering entry and a click on them silently does nothing. Clear the attribute on the
-// group and its tagged descendants so the click falls through to the visible note below.
-function disableInvisibleNoteClicks() {
+// Two fix-ups for the notes a score hides with print-object="no", both DOM work on the freshly
+// drawn SVG: OSMD renders such notes with a fully transparent fill rather than removing them,
+// to preserve layout, so their elements are all there to be adjusted.
+//
+// Clicks: an invisible notehead still captures them. OSMD's VexFlow patch tags the
+// note/notehead groups with pointer-events="bounding-box", so they intercept clicks over
+// their whole box (fill ignored) and steal them from the real note drawn underneath — e.g.
+// the realized gruppetto written alongside the turn symbol in the Pathétique 2nd movement.
+// We skip these notes during extraction, so they have no fingering entry and a click on them
+// silently does nothing. Clearing the attribute on the group and its tagged descendants lets
+// the click fall through to the visible note below.
+//
+// Colour: a note hidden only because another voice writes the same pitch at the same time — how
+// MuseScore asks for one head to serve both voices — gets its head, stem and beam from OSMD,
+// inked like the visible note it shares its head with. Where VexFlow gives the two heads places
+// of their own, the hidden one moves into the visible note's notehead group — see
+// unisonNoteheadPair() — so our played/active colouring reaches it. Where it merges them, OSMD
+// inks the hidden head anyway, on top of the visible one: a filled eighth over an open half note
+// reads as a quarter (Liebestraum bar 42). That head goes back to transparent — see areSideBySide().
+// A stopgap for OSMD 2.1.3: once a release carries the upstream fix,
+// https://github.com/opensheetmusicdisplay/opensheetmusicdisplay/pull/1732, OSMD leaves that head
+// transparent itself and the else branch below has nothing left to do.
+function fixUpInvisibleNotes() {
+  const groups = []
+  const pairs = []
   for (const measure of osmdInstance.Sheet.SourceMeasures) {
     for (const container of measure.verticalSourceStaffEntryContainers || []) {
       for (const staffEntry of container.staffEntries || []) {
         for (const voiceEntry of staffEntry?.voiceEntries || []) {
-          for (const note of voiceEntry.notes || []) {
+          const notes = voiceEntry.notes || []
+          for (let noteheadIndex = 0; noteheadIndex < notes.length; noteheadIndex++) {
+            const note = notes[noteheadIndex]
             if (note.PrintObject !== false) continue
             const group = osmdInstance.rules.GNote(note)?.getSVGGElement?.()
             if (!group) continue
-            group.setAttribute('pointer-events', 'none')
-            group.querySelectorAll('[pointer-events]').forEach((el) => el.setAttribute('pointer-events', 'none'))
+            groups.push(group)
+            const pair = unisonNoteheadPair(note, noteheadIndex)
+            if (pair) pairs.push(pair)
           }
         }
       }
     }
   }
+
+  // Measure before touching anything: a getBBox() that follows a DOM write forces a layout
+  // flush, and one per hidden note would re-lay the whole score dozens of times over. Same
+  // read-then-write split as alignFingeringLabelsToNoteheads().
+  const sideBySide = pairs.map(areSideBySide)
+
+  for (const group of groups) {
+    group.setAttribute('pointer-events', 'none')
+    group.querySelectorAll('[pointer-events]').forEach((el) => el.setAttribute('pointer-events', 'none'))
+  }
+  // The head moves into the visible note's notehead group so the played/active colouring
+  // reaches it: the CSS paints every path inside the group, so both heads light up together
+  // under the single keypress that validates the pitch.
+  pairs.forEach(({ hiddenPath, visibleHead }, i) => {
+    if (sideBySide[i]) visibleHead.appendChild(hiddenPath)
+    else hiddenPath.setAttribute('fill', '#00000000')
+  })
+}
+
+// The head of an invisible note and the notehead group of the visible unison it hides behind,
+// or null when the note is not one of those unisons — OSMD's visibleUnisonNoteSharingNotehead()
+// decides that, and inks the head from it. Only a beamed note gets a head: an unbeamed one
+// keeps its stem and flag transparent, and a head on its own would be a note nobody plays.
+function unisonNoteheadPair(note, noteheadIndex) {
+  if (!note.NoteBeam) return null
+  const partner = note.visibleUnisonNoteSharingNotehead?.()
+  if (!partner) return null
+  const hiddenPath = svgNotehead({ note, noteheadIndex })?.querySelector('path')
+  const visibleHead = svgNotehead({
+    note: partner,
+    noteheadIndex: partner.ParentVoiceEntry.Notes.indexOf(partner),
+  })
+  const visiblePath = visibleHead?.querySelector('path')
+  return hiddenPath && visiblePath ? { hiddenPath, visibleHead, visiblePath } : null
+}
+
+// Whether VexFlow gave the two heads places of their own rather than merging them into one.
+// Merged heads report the exact same x, and the visible one is then all the ink both stems
+// need — a second head on top of it would only overprint, a filled one hiding an open one.
+function areSideBySide({ hiddenPath, visiblePath }) {
+  const boxes = getBoundingBoxesForNotes([hiddenPath, visiblePath])
+  // A head that cannot be measured (a detached or hidden SVG) is one we leave hidden.
+  return boxes.length === 2 && Math.abs(boxes[0].x - boxes[1].x) >= 1
+}
+
+// A stopgap for OSMD 2.1.3, like fixUpInvisibleNotes, until a release carries the upstream fix,
+// https://github.com/opensheetmusicdisplay/opensheetmusicdisplay/pull/1744. OSMD lays out what goes
+// above a staff — fingerings among them — from a first, offscreen draw of each measure, in which the
+// notes are drawn before their beams. A beam only stretches its notes' stems as it is drawn itself,
+// and an ornament sits on the end of its stem: on a beamed stem-up note, that first draw put the
+// ornament lower than it ends up — by the whole stretch, under the beam where the stretch is long —
+// and the fingering came down onto it (feedback 8ab0a2f9, BWV 847 bar 34). Stretching the stems as
+// the measure is formatted puts the ornament where it will be drawn, in both draws. The upstream fix
+// does it in draw() and gives the notes their stave first, which only matters with a beam rule
+// (OptimizeExtremeLedgerBeams) this app leaves off.
+function stretchBeamedStemsOnFormat() {
+  const measure = opensheetmusicdisplay.VexFlowMeasure.prototype
+  if (measure.format.stretchesBeamedStems) return
+  const format = measure.format
+  measure.format = function (...args) {
+    const result = format.apply(this, args)
+    const beams = [
+      ...Object.values(this.vfbeams ?? {}).flat(),
+      ...(this.autoVfBeams ?? []),
+      ...(this.autoTupletVfBeams ?? []),
+    ]
+    for (const beam of beams) if (!beam.postFormatted) beam.postFormat()
+    return result
+  }
+  measure.format.stretchesBeamedStems = true
 }
 
 async function renderMusicXML(xmlContent) {
   try {
+    stretchBeamedStemsOnFormat()
     const scoreContainer = document.getElementById('score')
     const osmd = new opensheetmusicdisplay.OpenSheetMusicDisplay(scoreContainer, {
       drawPartNames: false,
@@ -265,20 +559,38 @@ async function renderMusicXML(xmlContent) {
     })
     osmd.rules.MetronomeMarkYShift = -2.8;
     await osmd.load(xmlContent)
+    stripPlaybackTempoMarks(osmd.Sheet.SourceMeasures)
     osmdInstance = osmd
     window.osmdInstance = osmd
+    sheetJustLoaded = true
   } catch (error) {
-    console.error('Erreur lors du rendu MusicXML avec OSMD:', error)
+    recordError(error, 'OSMD could not render the score')
   }
 }
 
+// Rebuilds the note model from the sheet OSMD holds — for a score just loaded,
+// and again whenever one already up is redrawn from a sheet that changed under
+// it (a fingering added or removed). Only the first starts a session: where the
+// player stands in the piece is not a property of the drawing, so the training
+// cursor, the repetitions banked, the reinforcement queue and the measures
+// already played survive a rebuild. Entering a fingering used to wipe all of
+// it, purple overlay and all. The per-note played/active flags are the one
+// thing that cannot simply stay put — they live on the noteData objects the
+// rebuild throws away — so they are carried over from the outgoing model,
+// which extractNotes() leaves untouched.
 function extractNotesFromScore() {
-  trainingMode = false
-  resetPlaybackState()
+  const outgoingNotes = sheetJustLoaded ? null : allNotes
+  sheetJustLoaded = false
 
   const result = extractNotes(osmdInstance)
   allNotes = result.allNotes
-  playbackSequence = result.playbackSequence
+  legacyKeyMap = result.legacyKeyMap
+  if (outgoingNotes) {
+    carryOverNoteStates(outgoingNotes, allNotes)
+  } else {
+    trainingMode = false
+    resetPlaybackState()
+  }
   // Build fingeringKey -> noteData map for O(1) lookups.
   // Ornament expansions create multiple notes with the same fingeringKey but noteheadIndex=-1.
   // Prefer entries with a valid noteheadIndex so fingering click handlers can match SVG noteheads.
@@ -292,26 +604,27 @@ function extractNotesFromScore() {
   }
 }
 
-function resetMeasureProgress(resetRepeatCount = true) {
+// Clears the measure under the cursor for another go at it. `keepRepeats` holds
+// the dots already banked; `keepRepetition` says the traversal under way runs on
+// into this measure — a step inside a passage rather than a fresh pass over it,
+// so a wrong note two bars back still counts against it. `notesCleared` is for
+// a caller that has just wiped a range reaching this measure: walking its
+// noteheads again is a second DOM query per note for no change.
+function resetMeasureProgress({ keepRepeats = false, keepRepetition = false, notesCleared = false } = {}) {
   if (currentMeasureIndex >= allNotes.length) return
 
   const measureData = allNotes[currentMeasureIndex]
   if (!measureData) return
 
-  for (const noteData of measureData.notes) {
-    const notehead = svgNotehead(noteData)
-    notehead?.classList.remove('played-note', 'active-note')
-    noteData.played = false
-    noteData.active = false
-  }
+  if (!notesCleared) resetNotesFromIndex(currentMeasureIndex, currentMeasureIndex)
 
-  if (resetRepeatCount) repeatCount = 0
-  currentRepetitionIsClean = true
+  if (!keepRepeats) repeatCount = 0
+  if (!keepRepetition) currentRepetitionIsClean = true
 
   // Reset practice tracking for new attempt
   measureStartTime = Date.now()
   measureWrongNotes = 0
-  callbacks.onMeasureStarted?.(measureData.sourceMeasureIndex)
+  callbacks.onMeasureStarted?.(measureData.sourceMeasureIndex, atScoreStart())
 }
 
 // Reset the visual state (played-note class) for notes of a specific source measure
@@ -332,42 +645,68 @@ function updateMeasureCursor() {
 
   if (!trainingMode || currentMeasureIndex >= allNotes.length) return
 
-  measureClickRectangles.forEach((rect) => rect.classList.remove('selected'))
+  clearMeasureClasses('selected', 'training-range')
 
-  const currentRect = measureClickRectangles[currentMeasureIndex]
-  if (!currentRect) return
+  // A picked passage is shaded whole, the measure under the cursor more
+  // strongly — the same two-tone reading as strict mode's loop, so what is
+  // being worked and where the player is in it are both visible at a glance.
+  // Nothing to shade when the passage is just the cursor: `selected` says it.
+  const { first, last, bounded } = trainingPassage()
+  if (bounded) paintMeasureRange('training-range', first, last)
 
-  currentRect.classList.add('selected')
+  const currentRects = measureRects(currentMeasureIndex)
+  if (currentRects.length === 0) return
 
-  const measureData = allNotes[currentMeasureIndex]
-  if (!measureData?.notes?.length) return
+  for (const rect of currentRects) rect.classList.add('selected')
 
-  const noteElements = measureData.notes.map((n) => svgNote(n.note))
-  const svg = noteElements[0]?.ownerSVGElement
-  if (svg) createRepeatIndicators(noteElements, svg)
+  const measured = measureNoteBounds(currentMeasureIndex)
+  if (measured) createRepeatIndicators(measured)
 }
 
-function createRepeatIndicators(noteElements, svg) {
+// The dots are centred over the measure's noteheads, hanging
+// REPEAT_INDICATOR_RISE above the topmost one — so how high they fly is the
+// measure's business, not the staff's: over a bar that climbs above the staff
+// they end up well above the top staff line the autoscroll anchors on, which is
+// what left them under the sticky bars.
+const REPEAT_INDICATOR_RISE = 40
+const REPEAT_INDICATOR_RADIUS = 6
+const REPEAT_INDICATOR_SPACING = 18
+
+// A measure's noteheads as one box in SVG user space, with the SVG holding
+// them. Null when the measure has no notes on the page. The dots are drawn from
+// it and the autoscroll predicts them from it, so both read one geometry. Only
+// the noteheads of the first system the bar is drawn on: the dots go where the
+// bar starts, not across the gap to the next system.
+function measureNoteBounds(measureIndex) {
+  const notes = allNotes[measureIndex]?.notes
+  if (!notes?.length) return null
+
+  const noteElements = notesBySystem(notes)[0].map((n) => svgNote(n.note))
+  const svg = noteElements[0]?.ownerSVGElement
+  if (!svg) return null
+
   const boxes = getBoundingBoxesForNotes(noteElements)
+  if (boxes.length === 0) return null
 
-  if (boxes.length === 0) return
+  return { svg, bounds: calculateCombinedBounds(boxes) }
+}
 
-  const bounds = calculateCombinedBounds(boxes)
+const repeatIndicatorCenterY = (bounds) => bounds.minY - REPEAT_INDICATOR_RISE
+
+function createRepeatIndicators({ svg, bounds }) {
   const centerX = (bounds.minX + bounds.maxX) / 2
-  const circleY = bounds.minY - 40
-  const circleRadius = 6
-  const circleSpacing = 18
+  const circleY = repeatIndicatorCenterY(bounds)
 
   const indicatorsGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g')
   indicatorsGroup.id = 'repeat-indicators'
 
   for (let i = 0; i < targetRepeatCount; i++) {
     const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle')
-    const offsetX = (i - (targetRepeatCount - 1) / 2) * circleSpacing
+    const offsetX = (i - (targetRepeatCount - 1) / 2) * REPEAT_INDICATOR_SPACING
     circle.setAttribute('cx', centerX + offsetX)
     circle.setAttribute('cy', circleY)
-    circle.setAttribute('r', circleRadius)
-    circle.className.baseVal = i < repeatCount ? 'repeat-indicator filled' : 'repeat-indicator'
+    circle.setAttribute('r', REPEAT_INDICATOR_RADIUS)
+    circle.className.baseVal = repeatIndicatorClass(i, repeatCount, currentRepetitionIsClean)
     circle.dataset.index = i
     indicatorsGroup.appendChild(circle)
   }
@@ -375,13 +714,22 @@ function createRepeatIndicators(noteElements, svg) {
   svg.appendChild(indicatorsGroup)
 }
 
+// Classes for the dot at `index`: filled once its repetition is banked, red
+// while the repetition under way is spoiled — only a flawless run fills a dot,
+// and nothing else on screen says so.
+export function repeatIndicatorClass(index, banked, clean) {
+  if (index < banked) return 'repeat-indicator filled'
+  if (index === banked && !clean) return 'repeat-indicator spoiled'
+  return 'repeat-indicator'
+}
+
 function updateRepeatIndicators() {
   if (!osmdInstance || !trainingMode) return
 
-  const indicators = document.querySelectorAll('.repeat-indicator')
-  indicators.forEach((circle, index) => {
-    circle.classList.toggle('filled', index < repeatCount)
-  })
+  const indicators = document.getElementById('repeat-indicators')?.children ?? []
+  for (let i = 0; i < indicators.length; i++) {
+    indicators[i].className.baseVal = repeatIndicatorClass(i, repeatCount, currentRepetitionIsClean)
+  }
 }
 
 function getBoundingBoxesForNotes(noteElements) {
@@ -397,34 +745,19 @@ function getBoundingBoxesForNotes(noteElements) {
     .filter(Boolean)
 }
 
-// Walk up from each element to the nearest matching ancestor, deduping.
-// Used to find the unique vf-measure groups (one per staff) that contain
-// a measure's notes.
-function uniqueAncestors(elements, selector) {
-  const seen = new Set()
-  for (const el of elements) {
-    const ancestor = el.closest(selector)
-    if (ancestor) seen.add(ancestor)
-  }
-  return [...seen]
-}
-
-// Bounding boxes of the 5 horizontal staff lines (per staff) inside each
-// vf-measure that contains the given notes. VexFlow renders these as plain
-// <path> elements with zero height (horizontal segments). We use them to
-// stretch the measure highlight up to the top staff line / down to the
-// bottom one, *without* picking up tempo markings, clefs, key signatures
-// etc. that also live inside vf-measure but render above the staff.
-function getStaffLineBoxes(noteElements) {
-  const measureGroups = uniqueAncestors(noteElements, 'g.vf-measure')
+// The top and bottom staff line of every staff of one of OSMD's
+// SourceMeasures, as zero-size boxes in SVG units. They stretch the measure
+// highlight up to the top staff line / down to the bottom one, *without*
+// picking up tempo markings, clefs, key signatures etc. that render above the
+// staff — and cover every staff, not just those holding notes, so a bar the
+// right hand sits out can still be clicked on its treble staff.
+function staffLineBoxes(sourceMeasure) {
   const boxes = []
-  for (const m of measureGroups) {
-    for (const child of m.children) {
-      if (child.tagName !== 'path') continue
-      try {
-        const box = child.getBBox()
-        if (box.height === 0 && box.width > 0) boxes.push(box)
-      } catch { /* getBBox may throw on detached elements */ }
+  for (const graphicalMeasure of osmdInstance.graphic.MeasureList[sourceMeasure.measureListIndex] || []) {
+    const stave = graphicalMeasure?.stave
+    if (!stave) continue
+    for (const line of [0, stave.getNumLines() - 1]) {
+      boxes.push({ x: stave.getX(), y: stave.getYForLine(line), width: 0, height: 0 })
     }
   }
   return boxes
@@ -461,7 +794,45 @@ export function measureClickRectDimensions(bounds) {
   }
 }
 
-function createMeasureRectangle(svg, bounds, measureIndex) {
+// The rects drawn for a playback position, i.e. those of the bar it plays —
+// the same rects for every pass through a repeated bar. Empty when the bar
+// has none on the page.
+function measureRects(measureIndex) {
+  return measureClickRectangles.get(allNotes[measureIndex]?.sourceMeasureIndex) ?? []
+}
+
+function markMeasure(measureIndex, className) {
+  for (const rect of measureRects(measureIndex)) rect.classList.add(className)
+}
+
+// Strips `classes` off every measure rect. The rects are keyed by bar, so a
+// repeated bar is one set of rects however many times it is played.
+function clearMeasureClasses(...classes) {
+  for (const rects of measureClickRectangles.values()) {
+    for (const rect of rects) rect.classList.remove(...classes)
+  }
+}
+
+// Shades [from, to] inclusive. Strict mode's picked loop and training mode's
+// passage are the same two-tone reading, so they are drawn by the same code.
+function paintMeasureRange(className, from, to) {
+  for (let i = from; i <= to; i++) markMeasure(i, className)
+}
+
+// A bar's notes, one array per system it is drawn on, in order: a single one,
+// but for a bar the file splits across two systems (see barCounter in
+// fingeringKeys.js).
+function notesBySystem(notes) {
+  const groups = new Map()
+  for (const noteData of notes) {
+    const system = graphicalMeasureForNote(noteData.note).parentMusicSystem
+    if (!groups.has(system)) groups.set(system, [])
+    groups.get(system).push(noteData)
+  }
+  return [...groups.values()]
+}
+
+function createMeasureRectangle(bounds, measureIndex) {
   const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect')
   rect.classList.add('measure-click-area')
   const { x, y, width, height } = measureClickRectDimensions(bounds)
@@ -500,31 +871,34 @@ function setupMeasureClickHandlers() {
 
   const rectsBySvg = new Map()
 
-  allNotes.forEach((measureData, measureIndex) => {
-    if (!measureData?.notes?.length) return
+  for (const measureIndex of firstPassMeasureIndexes(allNotes)) {
+    const measureData = allNotes[measureIndex]
+    const rects = []
+    for (const notes of notesBySystem(measureData.notes)) {
+      const noteElements = notes.map((n) => svgNote(n.note))
+      const noteBoxes = getBoundingBoxesForNotes(noteElements)
+      if (noteBoxes.length === 0) continue
 
-    const noteElements = measureData.notes.map((n) => svgNote(n.note))
-    const noteBoxes = getBoundingBoxesForNotes(noteElements)
-    if (noteBoxes.length === 0) return
+      const svg = noteElements[0].ownerSVGElement
+      if (!svg) continue
 
-    const svg = noteElements[0].ownerSVGElement
-    if (!svg) return
+      // Horizontal bounds come from the noteheads (so the rect hugs the
+      // notes). Vertical bounds are the union of the noteheads (catches
+      // low ledger-line notes below the bass staff) and the outer staff
+      // lines of every staff of the measure.
+      const hBounds = calculateCombinedBounds(noteBoxes)
+      const sourceMeasures = new Set(notes.map((n) => n.note.SourceMeasure))
+      const staffLines = [...sourceMeasures].flatMap(staffLineBoxes)
+      const vBounds = calculateCombinedBounds([...noteBoxes, ...staffLines])
+      const bounds = { minX: hBounds.minX, maxX: hBounds.maxX, minY: vBounds.minY, maxY: vBounds.maxY }
+      const rect = createMeasureRectangle(bounds, measureIndex)
 
-    // Horizontal bounds come from the noteheads (so the rect hugs the
-    // notes). Vertical bounds are the union of the noteheads (catches
-    // low ledger-line notes below the bass staff) and the actual staff
-    // lines (so the top of the rect reaches the top staff line even
-    // when no note sits up there).
-    const hBounds = calculateCombinedBounds(noteBoxes)
-    const staffBoxes = getStaffLineBoxes(noteElements)
-    const vBounds = calculateCombinedBounds([...noteBoxes, ...staffBoxes])
-    const bounds = { minX: hBounds.minX, maxX: hBounds.maxX, minY: vBounds.minY, maxY: vBounds.maxY }
-    const rect = createMeasureRectangle(svg, bounds, measureIndex)
-
-    if (!rectsBySvg.has(svg)) rectsBySvg.set(svg, [])
-    rectsBySvg.get(svg).push(rect)
-    measureClickRectangles.push(rect)
-  })
+      if (!rectsBySvg.has(svg)) rectsBySvg.set(svg, [])
+      rectsBySvg.get(svg).push(rect)
+      rects.push(rect)
+    }
+    measureClickRectangles.set(measureData.sourceMeasureIndex, rects)
+  }
 
   for (const [svg, rects] of rectsBySvg) {
     const group = document.createElementNS('http://www.w3.org/2000/svg', 'g')
@@ -536,25 +910,32 @@ function setupMeasureClickHandlers() {
 
 function removeMeasureClickHandlers() {
   document.querySelectorAll('g.measure-click-areas').forEach((g) => g.remove())
-  measureClickRectangles = []
+  measureClickRectangles.clear()
 }
 
 function jumpToMeasure(measureIndex) {
   if (measureIndex < 0 || measureIndex >= allNotes.length) return
-  currentMeasureIndex = measureIndex
-  // Don't clear playedSourceMeasures - we want to track all measures played across jumps
+  dropPendingBeat()
+  currentMeasureIndex = cursorMeasureFor(measureIndex)
   resetNotesFromIndex(measureIndex)
   resetMeasureProgress()
   updateMeasureCursor()
   updateRepeatIndicators()
-  // Notify tracker that user is restarting from measure 0
-  if (measureIndex === 0) {
+  // A jump inside a run keeps the measures already played to its credit: going
+  // back over a passage shouldn't cost the rest of the score. Landing on the
+  // measure the run starts from is a new run instead, and the tracker restarts
+  // its clock there — so what has been played starts over with it, or a couple
+  // of measures could finish a score timed from the restart and top the
+  // ranking. Not always measure 1: with one hand unticked the run starts after
+  // the bars that hand rests through.
+  if (atScoreStart()) {
+    playedSourceMeasures.clear()
     callbacks.onPlaythroughRestart?.()
   }
 }
 
 function scrollToMeasure(measureIndex) {
-  const rect = measureClickRectangles[measureIndex]
+  const [rect] = measureRects(measureIndex)
   if (!rect) return
 
   // Anchor on the system's top staff line (matching the playback cursor) rather
@@ -563,7 +944,53 @@ function scrollToMeasure(measureIndex) {
   // repeat jumped back to the top.
   const note = allNotes[measureIndex]?.notes?.[0]?.note
   const referenceTop = systemTopStaffLineY(note) ?? rect.getBoundingClientRect().top
-  scrollSystemIntoView(referenceTop, rect.ownerSVGElement)
+  scrollSystemIntoView(referenceTop, rect.ownerSVGElement, repeatIndicatorsTopY(measureIndex))
+}
+
+// Viewport y of the top of the dots `measureIndex` carries — predicted from the
+// noteheads rather than read off the SVG, because the scroll is decided before
+// the cursor is drawn there. Null outside training mode, which has no dots.
+function repeatIndicatorsTopY(measureIndex) {
+  if (!trainingMode) return null
+
+  const measured = measureNoteBounds(measureIndex)
+  if (!measured) return null
+
+  const top = repeatIndicatorCenterY(measured.bounds) - REPEAT_INDICATOR_RADIUS
+  return svgYToViewport(top, measured.svg)
+}
+
+const isTrillPitch = (sentinel, midiNote) => midiNote === sentinel.trillMidi || midiNote === sentinel.trillUpperMidi
+
+// Whether `midiNote` belongs to a trill still sounding at `timestamp` — which
+// covers whatever the other hand plays meanwhile. See trillSentinel.
+function isTrillStillSounding(notes, midiNote, timestamp) {
+  return notes.some(
+    (n) => n.isTrillEnd && isTrillPitch(n, midiNote) && n.trillFrom <= timestamp && timestamp < n.trillUntil,
+  )
+}
+
+// What the player owes next: the notes of the active hands at the earliest
+// timestamp not yet played in the measure under the cursor, keyed by where they
+// sit so a caller can tell one wait from the next. Null between the last note
+// of a measure and the beat that moves the cursor on. A note already held down
+// stays in the group, flagged active, until the rest of the chord joins it.
+function expectedGroup() {
+  const pending = allNotes[currentMeasureIndex]?.notes.filter((n) => isNoteActiveForHands(n) && !n.played) ?? []
+  if (pending.length === 0) return null
+  const timestamp = Math.min(...pending.map((n) => n.timestamp))
+  return {
+    key: `${currentMeasureIndex}:${timestamp}`,
+    timestamp,
+    notes: pending.filter((n) => n.timestamp === timestamp),
+  }
+}
+
+// Where the player is in the measure: the latest note validated, or the note
+// due when none is yet.
+function lastValidatedTimestamp(notes, expectedTimestamp) {
+  const latest = notes.reduce((max, n) => (n.played ? Math.max(max, n.timestamp) : max), -Infinity)
+  return latest === -Infinity ? expectedTimestamp : latest
 }
 
 // A held key can't be re-struck. A note is covered by a currently-held key when a tie
@@ -594,10 +1021,13 @@ function activateNote(midiNote) {
   if (!expectedNote) return false
 
   // Handle trill sentinel: allow free alternation between trillMidi and trillUpperMidi.
+  // Strict mode asks the same musical question through requiredSequence /
+  // advanceEvent (noteExtraction.js, strictMatching.js) and answers it more
+  // tightly — strict alternation rather than either pitch in any order. The two
+  // should become one rule; see the note over requiredSequence.
   // The sentinel is consumed when the player presses the next real note after the trill.
   if (expectedNote.isTrillEnd) {
-    const { trillMidi, trillUpperMidi } = expectedNote
-    const isTrillNote = midiNote === trillMidi || midiNote === trillUpperMidi
+    const isTrillNote = isTrillPitch(expectedNote, midiNote)
 
     // Find the next non-sentinel note to decide whether the trill should end
     const nextAfterTrill = activeNotes.find(
@@ -653,28 +1083,42 @@ function activateNote(midiNote) {
   }
 
   if (matchingIndices.length === 0) {
-    // Wrong note - mark repetition as dirty in training mode
-    if (trainingMode) currentRepetitionIsClean = false
+    // A trill going on is not a wrong note, and advances nothing. It is judged
+    // where the player is, not at the note due next, which may already lie
+    // past the trill's end.
+    if (isTrillStillSounding(activeNotes, midiNote, lastValidatedTimestamp(activeNotes, expectedTimestamp))) return true
+
+    // Wrong note - mark repetition as dirty in training mode, and redden its dot
+    // right away rather than leaving the player to discover at the bar line that
+    // it won't fill. Only the first wrong note of a repetition changes anything.
+    if (trainingMode && currentRepetitionIsClean) {
+      currentRepetitionIsClean = false
+      updateRepeatIndicators()
+    }
 
     // Initialize practice tracking on first wrong note if not already set
     if (measureStartTime === null) {
       measureStartTime = Date.now()
       measureWrongNotes = 0
-      callbacks.onMeasureStarted?.(measureData.sourceMeasureIndex)
+      callbacks.onMeasureStarted?.(measureData.sourceMeasureIndex, atScoreStart())
     }
 
     measureWrongNotes++
-    callbacks.onWrongNote?.()
+    callbacks.onWrongNote?.(midiNote)
 
     const expected = activeNotes.find((n) => !n.played && !n.active)
-    if (expected) callbacks.onNoteError?.(expected.noteName, noteName(midiNote))
+    if (expected) flashWrongNote(expected)
     return false
   }
 
   // Mark matching notes as active (highlighted but not validated yet)
   for (const index of matchingIndices) {
     const noteData = measureData.notes[index]
-    svgNotehead(noteData)?.classList.add('active-note')
+    // Drop any flash still running: the note the player owed has just arrived,
+    // and it should read as played rather than stay red until the animation ends.
+    const notehead = svgNotehead(noteData)
+    notehead?.classList.remove('wrong-note')
+    notehead?.classList.add('active-note')
     noteData.active = true
   }
 
@@ -722,14 +1166,11 @@ function markTimestampGroupPlayed(group) {
 function cascadeHeldTieValidations() {
   for (;;) {
     const measureData = allNotes[currentMeasureIndex]
-    if (!measureData?.notes?.length) return
+    const next = expectedGroup()
+    if (!next) return
 
-    const pending = measureData.notes.filter((n) => isNoteActiveForHands(n) && !n.played)
-    if (pending.length === 0) return
-
-    const nextTimestamp = Math.min(...pending.map((n) => n.timestamp))
     const group = measureData.notes.filter(
-      (n) => isNoteActiveForHands(n) && n.timestamp === nextTimestamp,
+      (n) => isNoteActiveForHands(n) && n.timestamp === next.timestamp,
     )
     // Only auto-advance when every note is already held by a tie - otherwise the
     // player still owes a fresh keypress for this group.
@@ -763,17 +1204,109 @@ function deactivateNote(midiNote) {
 // Scroll to next measure if it's on a different system, positioning it near the top
 function scrollToNextMeasureIfNeeded(nextIndex) {
   if (nextIndex >= allNotes.length) return
+  // A repetition in place leaves the dots where they already stood: measuring
+  // them again would spend a getBBox per notehead on a scroll that cannot be owed.
+  if (nextIndex === currentMeasureIndex) return
 
   const nextMeasureData = allNotes[nextIndex]
   if (!nextMeasureData || !nextMeasureData.notes || nextMeasureData.notes.length === 0) return
 
   const nextMeasureFirstNote = nextMeasureData.notes[0].note
   const nextSystemIndex = getSystemIndexForNote(nextMeasureFirstNote)
+  const systemChanged = currentSystemIndex !== null && nextSystemIndex !== currentSystemIndex
 
-  if (currentSystemIndex !== null && nextSystemIndex !== currentSystemIndex) {
+  // Staying on the system is not staying put: a bar that climbs above the staff
+  // carries its dots under the sticky bars, with nothing else to bring them back.
+  const dotsTop = repeatIndicatorsTopY(nextIndex)
+  const dotsHidden = dotsTop !== null && isUnderStickyBars(dotsTop)
+
+  if (systemChanged || dotsHidden) {
     scrollToMeasure(nextIndex)
     currentSystemIndex = nextSystemIndex
   }
+}
+
+// Moves the training cursor onto `to` and opens the measure there. What the
+// passage lit is wiped first, from `clearFrom` to wherever the cursor had got
+// to — a step further into a passage passes no `clearFrom` and leaves the
+// measures behind it lit, the way free mode does. The cursor lands before the
+// reset, so the attempt the journal opens is against the measure about to be
+// played rather than the one just finished.
+function moveTrainingCursorTo(to, { keepRepeats = false, clearFrom = null } = {}) {
+  // The range always reaches `to`, so the landing measure is cleared here.
+  const cleared = clearFrom != null
+  if (cleared) resetNotesFromIndex(clearFrom, Math.max(currentMeasureIndex, to))
+  scrollToNextMeasureIfNeeded(to)
+  const moved = to !== currentMeasureIndex
+  currentMeasureIndex = to
+  // Wiping the passage and starting the traversal's verdict over are the same
+  // decision: what clears the sheet clears the verdict with it.
+  resetMeasureProgress({ keepRepeats, keepRepetition: !cleared, notesCleared: cleared })
+  // A repetition in place — the common ending, twice in every three — leaves
+  // the cursor and the shading exactly as they are, so only the dots need
+  // saying. Rebuilding the cursor there costs a getBBox per notehead to draw
+  // the same circles in the same spot.
+  if (moved) updateMeasureCursor()
+  else updateRepeatIndicators()
+}
+
+// A measure of the passage is over: bank it or move on, per trainingStep.
+function advanceTraining() {
+  const passage = trainingPassage()
+  const { action, to, banked } = trainingStep({
+    next: nextPlayable(currentMeasureIndex + 1),
+    ...passage,
+    banked: repeatCount,
+    target: targetRepeatCount,
+    clean: currentRepetitionIsClean,
+    measureCount: allNotes.length,
+  })
+  // Set before the pause below, so the dot that has just been earned fills
+  // where the player can see it rather than after the score has moved on.
+  repeatCount = banked
+  updateRepeatIndicators()
+
+  if (action === 'scoreDone') {
+    callbacks.onTrainingComplete?.()
+    backToTheTopAfterTheBeat()
+    return
+  }
+  if (action === 'passageDone') callbacks.onTrainingComplete?.()
+
+  // A step further into the passage leaves the measures behind it lit and the
+  // repetition's verdict standing. A finished traversal starts the passage over
+  // from a dark sheet; only a passage that is done rather than merely spoiled
+  // empties the dots.
+  const options = action === 'step'
+    ? { keepRepeats: true }
+    : { keepRepeats: action === 'restart', clearFrom: passage.first }
+  afterTheBeat(() => moveTrainingCursorTo(to, options))
+}
+
+// Reinforcement drills a list of measures, one at a time and three clean
+// repetitions each — its own count, not a passage's.
+function advanceReinforcement() {
+  if (currentRepetitionIsClean) repeatCount++
+  updateRepeatIndicators()
+
+  if (repeatCount < targetRepeatCount) {
+    afterTheBeat(() => moveTrainingCursorTo(currentMeasureIndex, { keepRepeats: true, clearFrom: currentMeasureIndex }))
+    return
+  }
+
+  reinforcementIndex++
+  if (reinforcementIndex >= reinforcementMeasures.length) {
+    resetReinforcementState()
+    callbacks.onReinforcementComplete?.()
+    return
+  }
+
+  const nextPlaybackIndex = firstPassIndexOf(allNotes, reinforcementMeasures[reinforcementIndex])
+  afterTheBeat(() => {
+    resetMeasureProgress()
+    jumpToMeasure(nextPlaybackIndex)
+    scrollToMeasure(nextPlaybackIndex)
+  })
 }
 
 // Helper function to handle post-validation logic (scroll, measure completion)
@@ -791,7 +1324,7 @@ function handleNoteValidated(measureData, noteData, validatedCount) {
     if (measureStartTime === null) {
       measureStartTime = Date.now()
       measureWrongNotes = 0
-      callbacks.onMeasureStarted?.(measureData.sourceMeasureIndex)
+      callbacks.onMeasureStarted?.(measureData.sourceMeasureIndex, atScoreStart())
     }
   }
 
@@ -806,83 +1339,46 @@ function handleNoteValidated(measureData, noteData, validatedCount) {
       sourceMeasureIndex: measureData.sourceMeasureIndex,
       durationMs: attemptDuration,
       wrongNotes: measureWrongNotes,
-      clean: currentRepetitionIsClean,
+      // This measure's own verdict, not the passage's: a fumble in the third bar
+      // of a passage spoils the repetition, but the first two were played clean
+      // and the journal — and the measures it suggests reinforcing — must go on
+      // saying so.
+      clean: measureWrongNotes === 0,
     })
 
     if (trainingMode) {
-      if (currentRepetitionIsClean) {
-        repeatCount++
-      }
-      updateRepeatIndicators()
-
-      if (repeatCount >= targetRepeatCount) {
-        if (reinforcementMode) {
-          reinforcementIndex++
-          if (reinforcementIndex >= reinforcementMeasures.length) {
-            // All reinforcement measures completed
-            resetReinforcementState()
-            callbacks.onReinforcementComplete?.()
-          } else {
-            // Go to the next measure to reinforce
-            const nextSourceMeasure = reinforcementMeasures[reinforcementIndex]
-            const nextPlaybackIndex = allNotes.findIndex((m) => m.sourceMeasureIndex === nextSourceMeasure)
-            setTimeout(() => {
-              resetMeasureProgress()
-              jumpToMeasure(nextPlaybackIndex)
-              scrollToMeasure(nextPlaybackIndex)
-            }, TRAINING_RESET_DELAY_MS)
-          }
-        } else if (currentMeasureIndex + 1 >= allNotes.length) {
-          callbacks.onTrainingComplete?.()
-          setTimeout(() => {
-            resetProgress()
-          }, TRAINING_RESET_DELAY_MS)
-        } else {
-          setTimeout(() => {
-            resetMeasureProgress()
-            // Scroll to next measure before incrementing
-            scrollToNextMeasureIfNeeded(currentMeasureIndex + 1)
-            currentMeasureIndex++
-            updateMeasureCursor()
-            updateRepeatIndicators()
-          }, TRAINING_RESET_DELAY_MS)
-        }
-      } else {
-        setTimeout(() => {
-          resetMeasureProgress(false)
-          updateRepeatIndicators()
-        }, TRAINING_RESET_DELAY_MS)
-      }
+      // Reinforcement drills its own list of measures one by one, so it banks a
+      // dot per measure and moves down the list rather than over a passage.
+      if (reinforcementMode) return advanceReinforcement()
+      advanceTraining()
     } else {
       // Mark current source measure as played
       const currentSourceMeasure = measureData.sourceMeasureIndex
       playedSourceMeasures.add(currentSourceMeasure)
 
-      if (currentMeasureIndex + 1 < allNotes.length) {
-        const toReset = sourceMeasuresToResetOnEntry(
-          allNotes,
-          currentMeasureIndex,
-          playedSourceMeasures,
-        )
+      const next = nextPlayable(currentMeasureIndex + 1)
+      const toReset = sourceMeasuresToResetOnEntry(allNotes, currentMeasureIndex, next, playedSourceMeasures)
+
+      if (next < allNotes.length) {
         for (const sourceMeasureIndex of toReset) {
           resetSourceMeasureVisualState(sourceMeasureIndex)
         }
-        // Scroll to next measure before incrementing
-        scrollToNextMeasureIfNeeded(currentMeasureIndex + 1)
-        currentMeasureIndex++
+        // Scroll to the next measure before moving onto it
+        scrollToNextMeasureIfNeeded(next)
+        currentMeasureIndex = next
         // Reset practice tracking for next measure in free mode
         measureStartTime = null
         measureWrongNotes = 0
       } else {
-        // Only trigger completion if all unique source measures were played
-        const allSourceMeasures = new Set(allNotes.map((m) => m.sourceMeasureIndex))
-        const allMeasuresPlayed = [...allSourceMeasures].every((sm) => playedSourceMeasures.has(sm))
+        // Complete when every source measure the active hands play has been
+        // played. Derived from the hands rather than counted as we go, so a run
+        // still adds up after the hand toggles moved mid-way through it.
+        const owed = allNotes.filter((m) => m.notes.some(isNoteActiveForHands))
+        const allMeasuresPlayed = owed.every((m) => playedSourceMeasures.has(m.sourceMeasureIndex))
         if (allMeasuresPlayed) {
           callbacks.onScoreCompleted?.(currentMeasureIndex)
         }
-        setTimeout(() => {
-          resetProgress()
-        }, TRAINING_RESET_DELAY_MS)
+        backToTheTopAfterTheBeat()
       }
     }
   }
@@ -911,13 +1407,16 @@ function systemTopStaffLineY(note) {
   try {
     const system = graphicalMeasureForNote(note).parentMusicSystem
     const svgY = system.graphicalMeasures[0][0].stave.getYForLine(0)
-    const svg = svgNote(note).ownerSVGElement
-    const point = svg.createSVGPoint()
-    point.y = svgY
-    return point.matrixTransform(svg.getScreenCTM()).y
+    return svgYToViewport(svgY, svgNote(note).ownerSVGElement)
   } catch {
     return null
   }
+}
+
+function svgYToViewport(svgY, svg) {
+  const point = svg.createSVGPoint()
+  point.y = svgY
+  return point.matrixTransform(svg.getScreenCTM()).y
 }
 
 function getSystemIndexForNote(note) {
@@ -942,19 +1441,19 @@ function getSystemIndexForNote(note) {
 
     return 0
   } catch (error) {
-    console.warn('Failed to get system index for note:', error)
+    recordError(error, 'System holding a note could not be found')
     return 0
   }
 }
 
-function resetNotesFromIndex(fromIndex = 0) {
-  for (let i = fromIndex; i < allNotes.length; i++) {
+function resetNotesFromIndex(fromIndex = 0, toIndex = allNotes.length - 1) {
+  for (let i = fromIndex; i <= toIndex; i++) {
     const measureData = allNotes[i]
     if (!measureData) continue
     for (const noteData of measureData.notes) {
       const notehead = svgNotehead(noteData)
       if (notehead) {
-        notehead.classList.remove('played-note', 'active-note')
+        notehead.classList.remove('played-note', 'active-note', 'wrong-note')
       }
       noteData.played = false
       noteData.active = false
@@ -964,6 +1463,7 @@ function resetNotesFromIndex(fromIndex = 0) {
 
 function resetProgress() {
   if (!osmdInstance) return
+  dropPendingBeat()
   resetNotesFromIndex()
   resetPlaybackState()
 }

@@ -13,9 +13,9 @@
   },
   "keywords": [],
   "author": "",
-  "license": "ISC",
+  "license": "MIT",
   "devDependencies": {
-    "@playwright/cli": "^0.1.11",
+    "@playwright/cli": "^0.1.19",
     "fake-indexeddb": "^6.2.5",
     "vitest": "^4.0.16"
   }

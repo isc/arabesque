@@ -23,8 +23,10 @@ private enum Strings {
 }
 
 /// Full-screen WKWebView hosting the existing web app, plus the glue between
-/// the native MIDIBridge and the injected Web MIDI shim. A small overlay
-/// button opens the system Bluetooth MIDI pairing sheet.
+/// the native MIDIBridge and the injected Web MIDI shim. The web app's own
+/// "connect a keyboard" button asks through that bridge for the system
+/// Bluetooth MIDI pairing sheet, which is the only way to pair a BLE device
+/// here — iOS pairs them per app, not in Settings.
 final class ViewController: UIViewController {
   private var webView: WKWebView!
   private let midiBridge = MIDIBridge()
@@ -32,10 +34,20 @@ final class ViewController: UIViewController {
   /// the network, so without it a failed load is a blank white screen with no
   /// way out — the state an offline launch lands in.
   private lazy var loadFailureView: UIView = makeLoadFailureView()
+  /// Samples the page's wake lock (see refreshScreenAwake).
+  private var wakeLockPoll: Timer?
+  /// The Bluetooth pairing sheet while it is up, and the input endpoints there
+  /// were when it went up — see dismissPairingIfKeyboardArrived.
+  private weak var pairingSheet: UIViewController?
+  private var inputsBeforePairing: Set<Int32> = []
 
   private var appURL: URL {
     let configured = Bundle.main.object(forInfoDictionaryKey: "PTWebAppURL") as? String
     return URL(string: configured ?? "https://arabesque.app/")!
+  }
+
+  deinit {
+    wakeLockPoll?.invalidate()
   }
 
   override func viewDidLoad() {
@@ -46,24 +58,26 @@ final class ViewController: UIViewController {
     overrideUserInterfaceStyle = .light
     view.backgroundColor = .systemBackground
 
-    // Keep the screen on while practising. The web app asks for a screen wake
-    // lock, but WebKit only grants it in Safari proper — not in a WKWebView,
-    // nor in a home-screen web app (webkit.org/b/254545) — and the refusal is
-    // silent, so the iPad simply fell asleep mid-piece. Playing a score means
-    // minutes without touching the glass, which is exactly what the idle timer
-    // is watching for. iOS applies this only while the app is in the
-    // foreground, and restores normal behaviour by itself once it isn't.
-    UIApplication.shared.isIdleTimerDisabled = true
-
     let contentController = WKUserContentController()
-    if let shimURL = Bundle.main.url(forResource: "webmidi-shim", withExtension: "js"),
-      let shim = try? String(contentsOf: shimURL) {
+    // webmidi-shim emulates the Web MIDI API WebKit doesn't have, and talks
+    // back through the message handler registered just below; wakelock-shim
+    // replaces the screen wake lock WebKit refuses to grant in a WKWebView,
+    // and is read back by polling (see "Keeping the screen on").
+    for name in ["webmidi-shim", "wakelock-shim"] {
+      guard let shimURL = Bundle.main.url(forResource: name, withExtension: "js"),
+        let shim = try? String(contentsOf: shimURL) else { continue }
       contentController.addUserScript(
         WKUserScript(source: shim, injectionTime: .atDocumentStart, forMainFrameOnly: true))
     }
     contentController.add(WeakScriptMessageHandler(self), name: "midiBridge")
 
     let configuration = WKWebViewConfiguration()
+    // The other half of the WKAppBoundDomains opt-in in project.yml. Declaring
+    // that key puts every WKWebView in the app into a restricted mode where the
+    // shims above — injected scripts and message handlers — would be refused;
+    // this restores it, for the listed domains only. A PTWebAppURL pointing
+    // anywhere else stops loading at all, with "App-bound domain failure".
+    configuration.limitsNavigationsToAppBoundDomains = true
     configuration.userContentController = contentController
     configuration.allowsInlineMediaPlayback = true
     configuration.mediaTypesRequiringUserActionForPlayback = []
@@ -100,21 +114,11 @@ final class ViewController: UIViewController {
       loadFailureView.trailingAnchor.constraint(equalTo: webView.trailingAnchor),
     ])
 
-    // Added last so pairing stays reachable over both the webview and the
-    // failure screen: a keyboard can be paired while the app is still offline.
-    let bluetoothButton = makeBluetoothButton()
-    view.addSubview(bluetoothButton)
-    NSLayoutConstraint.activate([
-      bluetoothButton.trailingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.trailingAnchor, constant: -12),
-      bluetoothButton.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -12),
-    ])
-
-    // Coming back to a failure screen is the moment the connection has often
-    // just been fixed — in Settings, or by plugging in — so spend the reload
-    // rather than making the button the only way forward.
     NotificationCenter.default.addObserver(
-      self, selector: #selector(reloadIfLoadFailed),
+      self, selector: #selector(appDidBecomeActive),
       name: UIApplication.didBecomeActiveNotification, object: nil)
+
+    startPollingWakeLock()
 
     midiBridge.delegate = self
     midiBridge.start()
@@ -128,9 +132,22 @@ final class ViewController: UIViewController {
     webView.load(URLRequest(url: appURL))
   }
 
-  @objc private func reloadIfLoadFailed() {
-    guard !loadFailureView.isHidden else { return }
-    loadWebApp()
+  @objc private func appDidBecomeActive() {
+    // Coming back to a failure screen is the moment the connection has often
+    // just been fixed — in Settings, or by plugging in — so spend the reload
+    // rather than making the button the only way forward.
+    if !loadFailureView.isHidden { loadWebApp() }
+    // iOS restored the idle timer while the app was away and re-applies this
+    // flag as it stands on the way back; the page may have changed since it
+    // was last polled, and the next tick is up to ten seconds off.
+    refreshScreenAwake()
+    // Nothing on the page hears the app wake up. A webview suspended with it
+    // and woken hours later is not reloaded, and across that gap
+    // visibilitychange is not something the pages that print "today" can be
+    // built on — the library's journal was still filing the evening before's
+    // practice under "aujourd'hui". This notification is what they wanted, and
+    // the app is the only one holding it. utils.js onForeground() listens.
+    evaluate("document.dispatchEvent(new Event('arabesque:foreground'))")
   }
 
   private func makeLoadFailureView() -> UIView {
@@ -180,29 +197,39 @@ final class ViewController: UIViewController {
 
   // MARK: - Bluetooth MIDI pairing
 
-  private func makeBluetoothButton() -> UIButton {
-    var config = UIButton.Configuration.gray()
-    config.image = UIImage(systemName: "antenna.radiowaves.left.and.right")
-    config.cornerStyle = .capsule
-    let button = UIButton(configuration: config, primaryAction: UIAction { [weak self] _ in
-      self?.presentBluetoothMIDIPairing()
-    })
-    button.alpha = 0.6
-    button.accessibilityLabel = "Bluetooth MIDI"
-    button.translatesAutoresizingMaskIntoConstraints = false
-    return button
-  }
-
+  /// Presented at the page's request: shim `pairBluetooth()` → `{type: 'pair'}`.
   private func presentBluetoothMIDIPairing() {
     let central = CABTMIDICentralViewController()
     central.navigationItem.rightBarButtonItem = UIBarButtonItem(
       barButtonSystemItem: .done, target: self, action: #selector(dismissPresented))
     let navigation = UINavigationController(rootViewController: central)
     navigation.modalPresentationStyle = .formSheet
+    inputsBeforePairing = currentInputIDs()
+    pairingSheet = navigation
     present(navigation, animated: true)
   }
 
+  /// Closes the sheet once the keyboard paired in it has connected, which is
+  /// the tap on Done the user would otherwise spend on a screen that has
+  /// nothing left to say. Only an input that was not there when the sheet went
+  /// up counts: the list also changes when a device drops, and the sheet is
+  /// often opened with another keyboard already plugged in.
+  private func dismissPairingIfKeyboardArrived() {
+    guard let sheet = pairingSheet, presentedViewController === sheet,
+      !currentInputIDs().subtracting(inputsBeforePairing).isEmpty else { return }
+    pairingSheet = nil
+    dismiss(animated: true)
+  }
+
+  /// CoreMIDI's own virtual endpoint is filtered out by portInfos(), which
+  /// matters here: iOS creates it when Bluetooth MIDI Central opens, so
+  /// without that filter the sheet would close itself as it appeared.
+  private func currentInputIDs() -> Set<Int32> {
+    Set(midiBridge.portInfos().filter { $0.type == "input" }.map(\.id))
+  }
+
   @objc private func dismissPresented() {
+    pairingSheet = nil
     dismiss(animated: true)
   }
 
@@ -215,9 +242,37 @@ final class ViewController: UIViewController {
     evaluate("window.__pianoTrainerMIDI && window.__pianoTrainerMIDI.setPorts(\(json))")
   }
 
+  // MARK: - Keeping the screen on
+
+  /// Asks the page whether it is holding a screen wake lock — the only thing
+  /// that knows when the screen is watched rather than touched (see README,
+  /// "Keeping the screen on"). Asking rather than being told is the point: a
+  /// document replaced by a navigation, or dropped from the back/forward
+  /// cache, never gets to give its lock back, and a single message missed that
+  /// way would leave the iPad lit for the rest of the session.
+  ///
+  /// iOS applies the flag only while the app is in the foreground, and restores
+  /// normal behaviour by itself once it isn't.
+  private func refreshScreenAwake() {
+    webView.evaluateJavaScript("!!(window.__arabesqueWakeLock && window.__arabesqueWakeLock.held)") { result, _ in
+      UIApplication.shared.isIdleTimerDisabled = (result as? Bool) ?? false
+    }
+  }
+
+  /// Ten seconds is nothing against an Auto-Lock counted in minutes: it costs
+  /// at most that much screen after a score is left, and delays nothing —
+  /// opening one is polled long before the idle timer could have fired. The
+  /// timer is idle while the app is suspended and picks up on its own
+  /// afterwards, with `appDidBecomeActive` covering the gap.
+  private func startPollingWakeLock() {
+    wakeLockPoll = Timer.scheduledTimer(withTimeInterval: 10, repeats: true) { [weak self] _ in
+      self?.refreshScreenAwake()
+    }
+  }
+
   private func evaluate(_ script: String) {
     webView.evaluateJavaScript(script) { _, error in
-      if let error { print("midiBridge JS error: \(error)") }
+      if let error { print("Arabesque: JS error — \(error)") }
     }
   }
 }
@@ -231,6 +286,7 @@ extension ViewController: MIDIBridgeDelegate {
 
   func midiBridgePortsChanged(_ bridge: MIDIBridge) {
     pushPorts()
+    dismissPairingIfKeyboardArrived()
   }
 }
 
@@ -239,12 +295,13 @@ extension ViewController: MIDIBridgeDelegate {
 extension ViewController: WKScriptMessageHandler {
   func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
     guard message.name == "midiBridge",
-      let body = message.body as? [String: Any],
-      let type = body["type"] as? String else { return }
+      let body = message.body as? [String: Any] else { return }
 
-    switch type {
+    switch body["type"] as? String {
     case "ready":
       pushPorts()
+    case "pair":
+      presentBluetoothMIDIPairing()
     case "send":
       guard let idString = body["id"] as? String, let id = Int32(idString),
         let data = body["data"] as? [Any] else { return }

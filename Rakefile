@@ -15,8 +15,8 @@ end
 # and it changes no assertion: each worker gets its own Capybara server, its
 # own browser and its own profile.
 #
-# Splitting is per test method, not per file: one file (arabesque_test.rb)
-# holds a third of the suite, so file-level splitting would leave it as the
+# Splitting is per test method, not per file: files range from one test to
+# over twenty, so file-level splitting would leave the biggest as the
 # critical path.
 #
 # Two ways to use it, because the work is CPU-bound (OSMD rendering), not
@@ -110,8 +110,13 @@ namespace :test do
     running = Array.new(workers) do |index|
       shard = TestSharding.slice(ids, index, workers)
       log = "tmp/test-shard-#{index}.log"
-      # Array form: no shell, so the regex needs no quoting.
-      pid = Process.spawn(*TestSharding.command(shard), out: log, err: %i[child out])
+      # Array form: no shell, so the regex needs no quoting. WARM_UP_BROWSER
+      # asks for the browser warm-up test_helper.rb otherwise skips off CI: a
+      # full-suite run is where the cold-start flake is likeliest, eight
+      # Chromes starting at once, and where the warm-up is paid once in wall
+      # clock rather than on every iteration of an edit-test loop.
+      pid = Process.spawn({ 'WARM_UP_BROWSER' => '1' }, *TestSharding.command(shard),
+                          out: log, err: %i[child out])
       [pid, index, log, shard.size]
     end
 

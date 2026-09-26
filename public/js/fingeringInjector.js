@@ -1,6 +1,33 @@
+import { fileNumbering } from './fingeringKeys.js'
+
 function getElementInt(parent, tagName, defaultValue) {
   const el = parent.querySelector(tagName)
   return el ? parseInt(el.textContent, 10) : defaultValue
+}
+
+// Every note of a parsed MusicXML document that can carry a fingering, in
+// document order, each with the key it is filed under: { note, key }.
+//
+// This is the one walk that reads the score as the file writes it, and it has
+// to name the same notes as the walk over OSMD's sheet in noteExtraction.js --
+// the browser stores a fingering under the name that walk gives, and finds it
+// again under the name this one gives. Injection has to happen before
+// osmd.load(), so the two walks cannot be merged; separated from the injection
+// itself, this one can at least be held against the other on every score in the
+// library (test/fingering_key_scheme_test.rb). scripts/import-fingerings.mjs
+// walks the file as text and numbers it with the same fileNumbering().
+export function* fingeringNotesInDocument(doc) {
+  const numbering = fileNumbering()
+  for (const part of doc.querySelectorAll('part')) {
+    numbering.part([...part.querySelectorAll('staves')].map((el) => parseInt(el.textContent, 10)))
+    for (const measure of part.querySelectorAll('measure')) {
+      numbering.measure(parseInt(measure.getAttribute('number'), 10), measure.getAttribute('implicit') === 'yes')
+      for (const note of measure.querySelectorAll('note')) {
+        if (note.querySelector('rest')) continue
+        yield { note, key: numbering.note(getElementInt(note, 'staff', 1), getElementInt(note, 'voice', 1)).key }
+      }
+    }
+  }
 }
 
 // Returns whatever costs least to hand to osmd.load(), which accepts either a
@@ -14,33 +41,10 @@ export function injectFingerings(xmlString, fingerings) {
     return xmlString
   }
 
-  const parser = new DOMParser()
-  const doc = parser.parseFromString(xmlString, 'text/xml')
-
-  for (const part of doc.querySelectorAll('part')) {
-    for (const measure of part.querySelectorAll('measure')) {
-      const measureNumber = parseInt(measure.getAttribute('number'), 10)
-      const noteCounters = new Map()
-
-      for (const note of measure.querySelectorAll('note')) {
-        if (note.querySelector('rest')) continue
-
-        // Convert 1-based MusicXML indices to 0-based
-        const staff = getElementInt(note, 'staff', 1) - 1
-        const voice = getElementInt(note, 'voice', 1) - 1
-
-        const counterKey = `${staff}:${voice}`
-        const noteIndex = noteCounters.get(counterKey) || 0
-        noteCounters.set(counterKey, noteIndex + 1)
-
-        const fingeringKey = `${measureNumber}:${staff}:${voice}:${noteIndex}`
-        if (fingerings[fingeringKey] !== undefined) {
-          injectFingeringIntoNote(doc, note, fingerings[fingeringKey])
-        }
-      }
-    }
+  const doc = new DOMParser().parseFromString(xmlString, 'text/xml')
+  for (const { note, key } of fingeringNotesInDocument(doc)) {
+    if (fingerings[key] !== undefined) injectFingeringIntoNote(doc, note, fingerings[key])
   }
-
   return doc
 }
 

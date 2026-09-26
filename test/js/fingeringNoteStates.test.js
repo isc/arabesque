@@ -1,8 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import {
-  applyPositionalNoteStates,
-  chooseCurrentPassOccurrences,
-} from '../../public/js/fingeringEditor.js'
+import { carryOverNoteStates } from '../../public/js/noteExtraction.js'
+import { chooseCurrentPassOccurrences } from '../../public/js/fingeringEditor.js'
 
 // Build a minimal allNotes-like structure. Two occurrences of the same source note
 // (a repeated measure) share a fingeringKey but sit at different playback indices.
@@ -17,38 +15,34 @@ function makeAllNotes(states) {
   }))
 }
 
-function captureStates(allNotes) {
-  return allNotes.map(({ notes }) => notes.map(({ played, active }) => ({ played, active })))
-}
-
-describe('applyPositionalNoteStates', () => {
+describe('carryOverNoteStates', () => {
   it('keeps the two occurrences of a repeated note independent', () => {
     // First pass of a repeated measure was played; the repeat (second occurrence) was not.
-    const original = makeAllNotes([
+    const outgoing = makeAllNotes([
       [{ key: 'm1n1', played: true }], // playback index 0: first pass, played
       [{ key: 'm1n1', played: false }], // playback index 1: repeat, not yet played
     ])
-    const saved = captureStates(original)
 
-    // Simulate the re-extraction after a fingering change: a fresh structure, all reset.
-    const fresh = makeAllNotes([[{ key: 'm1n1' }], [{ key: 'm1n1' }]])
-    applyPositionalNoteStates(fresh, saved)
+    // What the re-extraction after a fingering change builds: same shape, all reset.
+    const rebuilt = makeAllNotes([[{ key: 'm1n1' }], [{ key: 'm1n1' }]])
+    carryOverNoteStates(outgoing, rebuilt)
 
-    expect(fresh[0].notes[0].played).toBe(true)
+    expect(rebuilt[0].notes[0].played).toBe(true)
     // The repeat must NOT inherit the first pass's "played" state (the bug this fixes).
-    expect(fresh[1].notes[0].played).toBe(false)
+    expect(rebuilt[1].notes[0].played).toBe(false)
   })
 
-  it('restores played and active per playback position', () => {
-    const fresh = makeAllNotes([[{ key: 'a' }, { key: 'b' }], [{ key: 'a' }, { key: 'b' }]])
-    const saved = [
-      [{ played: true, active: false }, { played: false, active: true }],
-      [{ played: false, active: false }, { played: false, active: false }],
-    ]
-    applyPositionalNoteStates(fresh, saved)
-    expect(fresh[0].notes[0]).toMatchObject({ played: true, active: false })
-    expect(fresh[0].notes[1]).toMatchObject({ played: false, active: true })
-    expect(fresh[1].notes[0]).toMatchObject({ played: false, active: false })
+  it('carries played and active over per playback position', () => {
+    const outgoing = makeAllNotes([
+      [{ key: 'a', played: true }, { key: 'b', active: true }],
+      [{ key: 'a' }, { key: 'b' }],
+    ])
+    const rebuilt = makeAllNotes([[{ key: 'a' }, { key: 'b' }], [{ key: 'a' }, { key: 'b' }]])
+    carryOverNoteStates(outgoing, rebuilt)
+
+    expect(rebuilt[0].notes[0]).toMatchObject({ played: true, active: false })
+    expect(rebuilt[0].notes[1]).toMatchObject({ played: false, active: true })
+    expect(rebuilt[1].notes[0]).toMatchObject({ played: false, active: false })
   })
 })
 
