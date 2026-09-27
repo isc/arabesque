@@ -4,6 +4,11 @@
 // entries. Exactly one match is the whole point: a marker that has drifted or
 // been duplicated must stop the deploy, loudly, rather than silently ship a
 // file with the old value still in it.
+//
+// The replacement goes in as written. Handed to String#replace as a string,
+// its `$'`, `$&` and `$$` would be read as patterns — and it carries free
+// text: a changelog entry holding `$'` would splice the rest of changelog.js
+// into a string literal, and every page importing the file would fail to load.
 import { readFileSync, writeFileSync } from 'node:fs'
 
 export function replaceOnce(file, pattern, replacement) {
@@ -13,5 +18,5 @@ export function replaceOnce(file, pattern, replacement) {
     console.error(`${file}: expected exactly one ${pattern}, found ${count}`)
     process.exit(1)
   }
-  writeFileSync(file, before.replace(pattern, replacement))
+  writeFileSync(file, before.replace(pattern, () => replacement))
 }

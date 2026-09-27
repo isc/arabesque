@@ -34,6 +34,25 @@ class DataTest < CapybaraTestBase
     File.delete(exported_file)
   end
 
+  # A piece left mid-way is closed by the next page to open, through the
+  # tracker's init. This page used to open storage alone, which left the
+  # session just played open: missing from the export, and from "Synchroniser
+  # maintenant", which only pushes ended sessions.
+  def test_the_piece_just_left_is_closed_before_anything_is_exported
+    visit '/score.html?url=/test-fixtures/two-measures.xml'
+    wait_for_score_render(2)
+    play_note('C4')
+    wait_for_records('sessions', where: '!record.endedAt')
+    # The clean close runs on beforeunload, and here its writes would land
+    # before the page is gone. On a device they often don't, which is the case
+    # at hand: with them never landing, the open row and the snapshot pagehide
+    # leaves in localStorage are all the next page gets.
+    page.execute_script('IDBObjectStore.prototype.put = () => ({})')
+
+    visit '/data.html'
+    wait_for_records('sessions', where: 'record.endedAt')
+  end
+
   def test_import_invalid_backup
     invalid_backup = { exportDate: '2026-01-13T12:00:00.000Z' }.to_json
 

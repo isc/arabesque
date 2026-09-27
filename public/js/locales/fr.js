@@ -1,4 +1,4 @@
-// French strings. Keys mirror en.js exactly. See js/i18n.js.
+// French strings. Keys mirror en.js exactly (test/js/locales.test.js). See js/i18n.js.
 export default {
   common: {
     openLibrary: 'Ouvrir la bibliothèque',
@@ -263,7 +263,7 @@ export default {
     playbackPausedAt: 'En pause à la mesure {n} — cliquez sur une mesure pour reprendre ailleurs.',
     countIn: 'Départ',
     strictHint: 'Cliquez sur une mesure pour démarrer la lecture à partir de ce point.',
-    strictStartAt: 'Départ à la mesure {n}.',
+    startAt: 'Départ à la mesure {n}.',
     loopBtn: '🔁 Boucle',
     loopTitle: 'Rejouer le passage en boucle, le tempo évoluant à chaque passage',
     trainerModeAria: 'Progression du tempo',

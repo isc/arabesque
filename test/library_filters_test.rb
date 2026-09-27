@@ -91,7 +91,7 @@ class LibraryFiltersTest < CapybaraTestBase
     composers = all('tbody tr td:nth-child(2)').map(&:text).uniq
     refute_empty composers
     composers.each do |c|
-      refute_match(/Bach|Mozart|Debussy|Traditional/, c, "Expected only Romantic composers, got #{c}")
+      refute_match(/Bach|Mozart|Debussy|Traditionnel/, c, "Expected only Romantic composers, got #{c}")
     end
   end
 

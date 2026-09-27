@@ -197,11 +197,12 @@ export function foldIntoMarkdown(existing, entries) {
   // Oldest first, each prepended in turn, so the newest ends up on top.
   for (const entry of [...entries].reverse()) {
     const bullets = entry.items.fr.map(renderMarkdownItem).join('\n\n')
+    const heading = `${entry.date}\n\n`
     // A date already at the top gains bullets under its heading rather than a
-    // second heading of its own.
-    out = out.startsWith(`${entry.date}\n\n`)
-      ? out.replace(`${entry.date}\n\n`, `${entry.date}\n\n${bullets}\n\n`)
-      : `${entry.date}\n\n${bullets}\n\n${out}`
+    // second heading of its own. Spliced rather than String#replace'd: the
+    // bullets are free text, and a `$'` in one would be read as a pattern.
+    const rest = out.startsWith(heading) ? out.slice(heading.length) : out
+    out = `${heading}${bullets}\n\n${rest}`
   }
   return out
 }

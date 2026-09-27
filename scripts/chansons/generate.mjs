@@ -8,10 +8,11 @@
 // same list, so a song added here is in the library at once. Then re-run
 // scripts/generate_fingerprints.rb: the songs are found by playing their
 // first notes like any other score.
-import { readFileSync, writeFileSync, mkdirSync } from 'node:fs'
+import { writeFileSync, mkdirSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 import { COLLECTION, SONGS } from './songs.mjs'
+import { replaceOnce } from '../replace-once.mjs'
 
 const DIVISIONS = 4 // per quarter
 const VALUES = { w: 16, h: 8, q: 4, e: 2 }
@@ -246,8 +247,6 @@ SONGS.forEach((song, index) => {
 // The catalog keeps its hand layout: only the collection's own lines move.
 const parts = SONGS.map((song, i) => `      { "title": ${JSON.stringify(song.title)}, "file": ${JSON.stringify(fileNameOf(song, i))} }`)
 const block = `    { "title": ${JSON.stringify(COLLECTION.title)}, "composer": ${JSON.stringify(COLLECTION.composer)}, "parts": [\n${parts.join(',\n')}\n    ] }`
-const catalog = readFileSync(CATALOG, 'utf8')
 const pattern = new RegExp(`    \\{ "title": ${JSON.stringify(COLLECTION.title)}, "composer": [^\\n]*"parts": \\[\\n(?:      [^\\n]*\\n)*    \\] \\}`)
-if (!pattern.test(catalog)) throw new Error(`No "${COLLECTION.title}" collection in ${CATALOG} to rewrite`)
-writeFileSync(CATALOG, catalog.replace(pattern, block))
+replaceOnce(CATALOG, pattern, block)
 console.log(`${SONGS.length} songs written to ${OUT_DIR}, catalog updated`)
