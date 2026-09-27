@@ -6,9 +6,12 @@
 // divided milliseconds, which a clock change makes 23 or 25 hours long.
 
 const DAY_KEY = /^\d{4}-\d{2}-\d{2}$/
+const isDayKey = (date) => typeof date === 'string' && DAY_KEY.test(date)
+const dayKeyParts = (key) => key.split('-').map(Number)
 
-// The day a moment falls on, as 'YYYY-MM-DD'.
+// The day a moment falls on, as 'YYYY-MM-DD' — or the day a key already names.
 export function localDayKey(date) {
+  if (isDayKey(date)) return date
   const d = new Date(date)
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
@@ -17,7 +20,7 @@ export function localDayKey(date) {
 // which in a few timezones happens at midnight — can't land the result on the
 // neighbouring day.
 export function shiftDayKey(key, delta) {
-  const [year, month, day] = key.split('-').map(Number)
+  const [year, month, day] = dayKeyParts(key)
   return localDayKey(new Date(year, month - 1, day + delta, 12))
 }
 
@@ -26,8 +29,8 @@ export function shiftDayKey(key, delta) {
 // Date('YYYY-MM-DD')` would read it as UTC midnight, which west of Greenwich
 // is the evening before.
 export function startOfLocalDay(date) {
-  if (typeof date === 'string' && DAY_KEY.test(date)) {
-    const [year, month, day] = date.split('-').map(Number)
+  if (isDayKey(date)) {
+    const [year, month, day] = dayKeyParts(date)
     return new Date(year, month - 1, day)
   }
   const d = new Date(date)

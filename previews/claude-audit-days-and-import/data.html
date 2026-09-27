@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="app-version" content="fbbfd3ed2482" />
+    <meta name="app-version" content="35dc8d65d5c5" />
     <title data-i18n="data.pageTitle">Arabesque · Données</title>
     <link rel="icon" href="favicon.svg" type="image/svg+xml" />
     <link rel="manifest" href="manifest.webmanifest" />
@@ -99,7 +99,7 @@
               <!-- Email sent: waiting for the code it carries. -->
               <template x-if="codeSent">
                 <div class="pt-stack">
-                  <p class="pt-sync-ok" x-text="$t('data.codeSent')">E-mail envoyé !</p>
+                  <p class="pt-sync-ok" x-text="$t('data.codeSent')">E-mail envoyé ! Vérifiez votre boîte mail (et les spams).</p>
                   <form @submit.prevent="verifyOtp()" class="pt-account-form">
                     <input
                       type="text"
@@ -126,7 +126,7 @@
                     :placeholder="$t('data.emailPlaceholder')"
                     :aria-label="$t('data.emailLabel')"
                   />
-                  <button type="submit" :aria-busy="authStatus === 'sending'" :disabled="!email.trim() || authStatus === 'sending'" x-text="$t('data.sendCode')">Recevoir un code</button>
+                  <button type="submit" :aria-busy="authStatus === 'sending'" :disabled="!email.trim() || authStatus === 'sending'" x-text="$t('data.sendCode')">Recevoir un code de connexion</button>
                 </form>
               </template>
               <!-- Shown on any authError: a rejected code keeps the status on

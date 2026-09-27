@@ -3,6 +3,9 @@ import { TWO_HANDS, NO_HANDS, attemptHands, handsKey, playthroughHands } from '.
 import { scopedKey } from './profiles.js'
 import { localDayKey, shiftDayKey } from './days.js'
 
+// The day a session counts for: the one it started on, where the player is.
+const sessionDay = (session) => localDayKey(session.startedAt)
+
 // Where a session interrupted by a page teardown waits to be closed properly
 // (see stashPendingSession). The profile's own: the snapshot must be replayed
 // into the database the session came from, whoever opens the app next.
@@ -40,7 +43,7 @@ const INTERRUPTION_NORMALIZATION = {
 // is derived once, when a session ends, and then kept — so changing what it
 // counts leaves every row already written telling the old story. Bump this
 // with such a change, and init() replays the sessions of any row that carries
-// another number, on every device: an old backup imported included.
+// another number, on every device.
 //   2 — a bar's clean passes count both hands only
 //   3 — a practice day is the player's own day, not the UTC date (days.js)
 export const AGGREGATES_VERSION = 3
@@ -610,21 +613,25 @@ export function initPracticeTracker(storageInstance = null) {
   }
 
   // Recompute every aggregate from scratch by replaying all stored sessions in
-  // chronological order. Used after cloud sync pulls sessions from another
-  // device, and when the rules change (see AGGREGATES_VERSION). `metaFor(scoreId)` supplies { title, composer } from the catalog —
-  // pass one: sessions don't carry the title, so rebuilding without it leaves
-  // every aggregate untitled and the practice journal shows "Untitled"
-  // throughout. fetchCatalogMeta() in sync.js builds a suitable map.
+  // chronological order. Used after sessions arrive from elsewhere — a sync's
+  // pull, a backup's import — and when the rules change (see
+  // AGGREGATES_VERSION). `metaFor(scoreId)` supplies { title, composer } from
+  // the catalog — pass one: sessions stored before they carried their own name
+  // would otherwise leave their scores untitled, and the practice journal shows
+  // "Untitled". rebuildAggregatesFromCatalog() in sync.js passes it.
+  // `fallbackNames` (scoreId → { title, composer }) are names to fall back on
+  // below every other, as an imported backup's aggregates offer.
   //
   // Folded in memory and written in one transaction: a replay walks every
   // session ever played, and a read and a write per session made it seconds
   // long on WebKit, during which a page closed left the aggregates half built.
-  async function rebuildAggregates(metaFor = () => null) {
+  async function rebuildAggregates(metaFor = () => null, fallbackNames = new Map()) {
     const [sessions, aggregates] = await Promise.all([storage.getSessions(), storage.getAllAggregates()])
     sessions.sort((a, b) => (a.startedAt || '').localeCompare(b.startedAt || ''))
     // What the aggregates already knew, before they are thrown away — all a
-    // session stored before sessions carried their own name can offer.
-    const known = new Map(aggregates.map((a) => [a.scoreId, { title: a.scoreTitle, composer: a.composer }]))
+    // session stored before sessions carried their own name can offer. Only
+    // a row that has a name: an untitled one would hide the fallback's.
+    const known = new Map(aggregates.filter((a) => a.scoreTitle).map((a) => [a.scoreId, { title: a.scoreTitle, composer: a.composer }]))
     // Where a replayed session gets its name: the catalog first, so a score
     // renamed there is renamed here; then the session's own record; then the
     // snapshot. The catalog alone is not enough — it does not hold a file the
@@ -635,6 +642,7 @@ export function initPracticeTracker(storageInstance = null) {
       metaFor(session.scoreId) ??
       (session.scoreTitle ? { title: session.scoreTitle, composer: session.composer } : null) ??
       known.get(session.scoreId) ??
+      fallbackNames.get(session.scoreId) ??
       {}
     const rebuilt = new Map()
     for (const session of sessions) {
@@ -945,9 +953,9 @@ export function initPracticeTracker(storageInstance = null) {
     }
 
     if (!aggregate.practiceDays) aggregate.practiceDays = []
-    const sessionDay = localDayKey(session.startedAt)
-    if (!aggregate.practiceDays.includes(sessionDay)) {
-      aggregate.practiceDays.push(sessionDay)
+    const day = sessionDay(session)
+    if (!aggregate.practiceDays.includes(day)) {
+      aggregate.practiceDays.push(day)
     }
 
     const sessionDuration = computeSessionDuration(session)
@@ -1081,7 +1089,7 @@ export function initPracticeTracker(storageInstance = null) {
   async function getPracticeCalendar() {
     const byDay = new Map()
     for (const session of await storage.getSessions()) {
-      const key = localDayKey(session.startedAt)
+      const key = sessionDay(session)
       if (!byDay.has(key)) byDay.set(key, { practiceTimeMs: 0, timesPlayedInFull: 0 })
       const day = byDay.get(key)
       day.practiceTimeMs += computeSessionDuration(session)
@@ -1094,23 +1102,17 @@ export function initPracticeTracker(storageInstance = null) {
     return (await getDailyLogs([date]))[0]
   }
 
-  // The journal asks for a run of consecutive days at once. Reading them one at
-  // a time means one storage.getSessions() per day, and that has no index on
-  // startedAt: it cursors the whole store and filters in JS, so every extra day
-  // deserializes every session again. One read for the whole span instead, with
-  // the aggregate lookups shared across days.
+  // The journal asks for a run of consecutive days at once: one read of the
+  // sessions for all of them, sorted into their days here, and the aggregate
+  // lookups shared across days.
   async function getDailyLogs(dates) {
     if (dates.length === 0) return []
 
-    const bounds = dates.map((d) => new Date(d).setHours(0, 0, 0, 0))
-    const start = new Date(Math.min(...bounds))
-    const end = new Date(Math.max(...bounds))
-    end.setHours(23, 59, 59, 999)
-
-    const sessions = await storage.getSessions(null, { start, end })
+    const wanted = new Set(dates.map(localDayKey))
     const byDay = new Map()
-    for (const session of sessions) {
-      const key = localDayKey(session.startedAt)
+    for (const session of await storage.getSessions()) {
+      const key = sessionDay(session)
+      if (!wanted.has(key)) continue
       if (!byDay.has(key)) byDay.set(key, [])
       byDay.get(key).push(session)
     }
@@ -1192,13 +1194,12 @@ export function initPracticeTracker(storageInstance = null) {
     }
   }
 
-  // A score's days, newest first, each keyed by the player's own day like the
-  // journal's (days.js).
+  // A score's days, newest first, keyed like the journal's.
   async function getScoreHistory(scoreId) {
     const sessions = await storage.getSessions(scoreId)
     const byDay = new Map()
     for (const session of sessions) {
-      const date = localDayKey(session.startedAt)
+      const date = sessionDay(session)
       if (!byDay.has(date)) byDay.set(date, newEntry({ date }))
       addSession(byDay.get(date), session)
     }

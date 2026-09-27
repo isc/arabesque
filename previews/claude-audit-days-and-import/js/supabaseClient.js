@@ -1,8 +1,12 @@
-// Browser Supabase client for auth + cloud sync (data page only).
+// Browser Supabase client for auth + cloud sync.
 //
-// Imported solely by the data page so the library/score pages don't pull in the
-// @supabase/supabase-js bundle. The client persists the session in localStorage
-// and auto-refreshes the token.
+// Imported on demand: by the data page always, and by the app's other pages
+// only once an account is signed in on this device (autoSync.js), so a
+// signed-out player's library and score pages never pull in the
+// @supabase/supabase-js bundle. Where it comes from, and when, is written in
+// the privacy policy (privacy.hostingBody): it names esm.sh as the one party
+// that sees the player's IP address. The client persists the session in
+// localStorage and auto-refreshes the token.
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4'
 import { SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, AUTH_STORAGE_KEY, supabaseConfigured } from './supabaseConfig.js'
 
