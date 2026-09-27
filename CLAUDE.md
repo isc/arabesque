@@ -283,12 +283,11 @@ refs, then `click`/`fill`/`eval` against them.
 ## App Store screenshots and review video
 
 `scripts/demo/capture.sh` regenerates the whole screenshot set from real
-simulators — run it after any UI change the listing shows. `scripts/demo/record.sh`
-records a walkthrough off a simulator. Both seed a practice history and play a
-piece through the mock MIDI input, and both work on a throwaway copy of
+simulators — run it after any UI change the listing shows. It seeds a practice
+history and plays a piece through the mock MIDI input, on a throwaway copy of
 `public/` — no demo hook ever ships.
 
-The video App Review watches is neither: Apple requires a **filmed** one,
+The video App Review watches is not generated: Apple requires a **filmed** one,
 showing a physical device and the MIDI keyboard pairing and playing together.
 It is committed at `public/video/review-demo.mp4`, and the review notes in
 `scripts/appstore/listing_fr.py` link to it — replacing that file replaces the
