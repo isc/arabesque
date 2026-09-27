@@ -1,4 +1,5 @@
 import { t, tn, locale } from './i18n.js'
+import { startOfLocalDay, daysBetween } from './days.js'
 import { TWO_HANDS } from './hands.js'
 
 // Built once: the active locale is fixed for the page lifetime (switching
@@ -154,12 +155,11 @@ export function statusLabel(status) {
   return status ? t(`status.${status}`) : status
 }
 
+// `date` as a Date, a timestamp, an ISO string or a day key (a score's history
+// hands its days over as keys): see days.js for why each needs care.
 function daysAgo(date) {
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  const compareDate = new Date(date)
-  compareDate.setHours(0, 0, 0, 0)
-  return { compareDate, diffDays: Math.floor((today - compareDate) / (1000 * 60 * 60 * 24)) }
+  const compareDate = startOfLocalDay(date)
+  return { compareDate, diffDays: daysBetween(compareDate, new Date()) }
 }
 
 // Compact relative date for table cells. formatDate is the verbose

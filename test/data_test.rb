@@ -53,6 +53,24 @@ class DataTest < CapybaraTestBase
     wait_for_records('sessions', where: 'record.endedAt')
   end
 
+  # A backup joins the practice already on the device, as a sync's pull does.
+  # Its aggregates used to be written over this device's, so the statuses and
+  # practice times forgot everything played here on that score.
+  def test_an_imported_backup_counts_alongside_the_practice_already_here
+    seed_store('sessions', [{
+      id: 'played-here', scoreId: '/scores/test-roundtrip.xml', mode: 'free',
+      startedAt: '2026-01-11T12:00:00.000Z', endedAt: '2026-01-11T12:01:00.000Z',
+      measures: [{ sourceMeasureIndex: 0,
+                   attempts: [{ startedAt: '2026-01-11T12:00:00.000Z', durationMs: 60_000, wrongNotes: 0, clean: true }] }]
+    }])
+
+    accept_alert do
+      attach_file 'backup-import', File.expand_path('fixtures/initial-backup.json', __dir__), make_visible: true
+    end
+
+    wait_for_records('aggregates', where: "record.scoreId === '/scores/test-roundtrip.xml' && record.totalSessions === 2")
+  end
+
   def test_import_invalid_backup
     invalid_backup = { exportDate: '2026-01-13T12:00:00.000Z' }.to_json
 

@@ -17,6 +17,7 @@ describe('practiceTracker', () => {
   let storage
 
   const BASE = new Date('2026-06-10T10:00:00.000Z').getTime()
+  const DAY_MS = 24 * 60 * 60 * 1000
 
   // The tracker times every attempt off the wall clock, so the suite runs on a
   // frozen one: nothing moves unless a test moves it, and a duration is then
@@ -287,10 +288,9 @@ describe('practiceTracker', () => {
     it('progresses to repertoire once every measure has 10+ clean attempts, 3+ days, and 10+ completions', async () => {
       // 10 sessions × 1 clean attempt/measure = 10 cleanAttempts per measure
       // 10 markScoreCompleted = 10 timesCompleted
-      // First 3 sessions land on distinct days to satisfy practiceDays >= 3
-      const days = ['2026-01-01', '2026-01-02', '2026-01-03', ...Array(7).fill('2026-01-04')]
-
-      for (const day of days) {
+      // The first 3 a day apart, for the 3 practice days the tracker counts.
+      for (let session = 0; session < 10; session++) {
+        if (session === 1 || session === 2) advanceClock(DAY_MS)
         tracker.startSession('/scores/test.xml', 'Test', 'Composer', 'free')
 
         for (const m of [0, 1]) {
@@ -299,16 +299,7 @@ describe('practiceTracker', () => {
         }
 
         tracker.markScoreCompleted()
-        const session = await tracker.endSession()
-
-        session.startedAt = `${day}T10:00:00.000Z`
-        await storage.saveSession(session)
-
-        const agg = await storage.getAggregate('/scores/test.xml')
-        if (agg && !agg.practiceDays.includes(day)) {
-          agg.practiceDays.push(day)
-          await storage.saveAggregate(agg)
-        }
+        await tracker.endSession()
       }
 
       const stats = await tracker.getScoreStats('/scores/test.xml')
@@ -1043,6 +1034,35 @@ describe('practiceTracker', () => {
       expect(firstPlaythrough.durationMs).toBe(150)
       // The second one is timed on its own, not from the first.
       expect(secondPlaythrough.durationMs).toBe(60)
+    })
+  })
+
+  // Half past midnight in Paris is still the day before in UTC, and a session
+  // played then belongs to the morning it was played in (days.js).
+  describe('the player’s own day', () => {
+    const TZ = process.env.TZ
+    afterEach(() => {
+      if (TZ === undefined) delete process.env.TZ
+      else process.env.TZ = TZ
+    })
+
+    async function playAtHalfPastMidnightInParis() {
+      process.env.TZ = 'Europe/Paris'
+      clock = new Date('2026-06-09T22:30:00.000Z').getTime()
+      vi.setSystemTime(clock)
+      await playSession('/scores/test.xml', [0])
+    }
+
+    it('files the session under that day in the score’s history', async () => {
+      await playAtHalfPastMidnightInParis()
+      const [day] = await tracker.getScoreHistory('/scores/test.xml')
+      expect(day.date).toBe('2026-06-10')
+    })
+
+    it('counts that day among the practice days', async () => {
+      await playAtHalfPastMidnightInParis()
+      const stats = await tracker.getScoreStats('/scores/test.xml')
+      expect(stats.practiceDays).toEqual(['2026-06-10'])
     })
   })
 

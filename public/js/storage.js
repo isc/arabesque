@@ -292,28 +292,32 @@ export function initStorage() {
       }
     },
 
+    // What a backup brings joins what this device holds, as a sync's pull
+    // does: sessions by id, and a score's fingerings only where the backup's
+    // are newer than the ones here — an old file must not undo an edit made
+    // since. Its aggregates are written only for the names they carry: the
+    // caller rebuilds every aggregate from the sessions afterwards
+    // (rebuildAggregatesFromCatalog), which is what makes the imported
+    // practice count alongside this device's own.
     async importBackup(backupData) {
       if (!backupData || !backupData.sessions) {
         throw new Error('Invalid backup data format')
       }
 
-      const importCounts = await withDb(async (db) => {
+      return withDb(async (db) => {
         const transaction = db.transaction([SESSIONS_STORE, AGGREGATES_STORE, FINGERINGS_STORE], 'readwrite')
-        const counts = {
-          sessions: putAllToStore(transaction, SESSIONS_STORE, backupData.sessions),
-          aggregates: putAllToStore(transaction, AGGREGATES_STORE, backupData.aggregates),
-          fingerings: putAllToStore(transaction, FINGERINGS_STORE, backupData.fingerings),
-        }
+        const importedSessions = putAllToStore(transaction, SESSIONS_STORE, backupData.sessions)
+        putAllToStore(transaction, AGGREGATES_STORE, backupData.aggregates)
+        const fingerings = transaction.objectStore(FINGERINGS_STORE)
+        const newer = await Promise.all((backupData.fingerings ?? []).map(async ({ synced, ...record }) => {
+          const here = await promisifyRequest(fingerings.get(record.scoreUrl))
+          if (here && (here.updatedAt || 0) >= (record.updatedAt || 0)) return false
+          fingerings.put(record)
+          return true
+        }))
         await promisifyTransaction(transaction)
-        return counts
+        return { importedSessions, importedFingerings: newer.filter(Boolean).length }
       })
-
-      return {
-        success: true,
-        importedSessions: importCounts.sessions,
-        importedAggregates: importCounts.aggregates,
-        importedFingerings: importCounts.fingerings,
-      }
     },
 
     // Swap the whole aggregates store for `aggregates`, in one transaction.

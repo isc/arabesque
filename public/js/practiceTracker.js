@@ -1,6 +1,7 @@
 import { initStorage } from './storage.js'
 import { TWO_HANDS, NO_HANDS, attemptHands, handsKey, playthroughHands } from './hands.js'
 import { scopedKey } from './profiles.js'
+import { localDayKey, shiftDayKey } from './days.js'
 
 // Where a session interrupted by a page teardown waits to be closed properly
 // (see stashPendingSession). The profile's own: the snapshot must be replayed
@@ -41,7 +42,8 @@ const INTERRUPTION_NORMALIZATION = {
 // with such a change, and init() replays the sessions of any row that carries
 // another number, on every device: an old backup imported included.
 //   2 — a bar's clean passes count both hands only
-export const AGGREGATES_VERSION = 2
+//   3 — a practice day is the player's own day, not the UTC date (days.js)
+export const AGGREGATES_VERSION = 3
 
 // Reinforcement suggestions look at this many of a score's most recent
 // sessions. What was fumbled months ago says nothing about what needs work
@@ -385,22 +387,6 @@ export function computeSessionDuration(session) {
   const attempts = sessionAttempts(session)
   if (attempts.length === 0) return 0
   return normalizedPlayingTime(attempts, attempts[0].start, lastAttemptEnd(attempts))
-}
-
-// Day the session belongs to in the viewer's timezone — the journal and the
-// calendar are calendars, so a session played at 00:30 belongs to that morning,
-// not to the previous UTC day.
-export function localDayKey(date) {
-  const d = new Date(date)
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-}
-
-// The day `delta` days away from `key`. Built at midday so a DST transition —
-// which in a few timezones happens at midnight — can't land the result on the
-// neighbouring day.
-export function shiftDayKey(key, delta) {
-  const [year, month, day] = key.split('-').map(Number)
-  return localDayKey(new Date(year, month - 1, day + delta, 12))
 }
 
 // What a year of the calendar adds up to. The streaks are deliberately not in
@@ -959,7 +945,7 @@ export function initPracticeTracker(storageInstance = null) {
     }
 
     if (!aggregate.practiceDays) aggregate.practiceDays = []
-    const sessionDay = session.startedAt.substring(0, 10)
+    const sessionDay = localDayKey(session.startedAt)
     if (!aggregate.practiceDays.includes(sessionDay)) {
       aggregate.practiceDays.push(sessionDay)
     }
@@ -1149,47 +1135,47 @@ export function initPracticeTracker(storageInstance = null) {
           aggregateCache.set(session.scoreId, await storage.getAggregate(session.scoreId))
         }
         const aggregate = aggregateCache.get(session.scoreId)
-
-        scoreMap.set(session.scoreId, {
+        scoreMap.set(session.scoreId, newEntry({
           scoreId: session.scoreId,
           scoreTitle: aggregate?.scoreTitle || null,
           composer: aggregate?.composer || null,
-          totalMeasures: null,
-          sessions: [],
-          measuresWorked: new Set(),
-          measuresReinforced: new Set(),
-          totalPracticeTimeMs: 0,
-          lastPlayedAt: null,
-        })
+        }))
       }
-
-      const entry = scoreMap.get(session.scoreId)
-      entry.sessions.push(session)
-
-      if (session.totalMeasures) {
-        entry.totalMeasures = session.totalMeasures
-      }
-
-      const sessionDuration = computeSessionDuration(session)
-      entry.totalPracticeTimeMs += sessionDuration
-
-      const sessionLastPlayedAt = getLastMeasureEndTime(session)
-      if (!entry.lastPlayedAt || sessionLastPlayedAt > entry.lastPlayedAt) {
-        entry.lastPlayedAt = sessionLastPlayedAt
-      }
-
-      for (const measure of session.measures) {
-        const measureIndex = Number(measure.sourceMeasureIndex)
-        entry.measuresWorked.add(measureIndex)
-        if (session.mode === 'training') {
-          entry.measuresReinforced.add(measureIndex)
-        }
-      }
+      addSession(scoreMap.get(session.scoreId), session)
     }
 
     return Array.from(scoreMap.values())
       .map(withPlaythroughs)
       .sort((a, b) => b.lastPlayedAt - a.lastPlayedAt)
+  }
+
+  // A line of the journal — a score, on a day — or a day of a score's history:
+  // the sessions grouped under it, and what they add up to (addSession).
+  function newEntry(fields) {
+    return {
+      ...fields,
+      totalMeasures: null,
+      sessions: [],
+      measuresWorked: new Set(),
+      measuresReinforced: new Set(),
+      totalPracticeTimeMs: 0,
+      lastPlayedAt: null,
+    }
+  }
+
+  // What a session adds to the entry it is grouped under, the same for both
+  // groupings.
+  function addSession(entry, session) {
+    entry.sessions.push(session)
+    if (session.totalMeasures) entry.totalMeasures = session.totalMeasures
+    entry.totalPracticeTimeMs += computeSessionDuration(session)
+    const lastPlayedAt = getLastMeasureEndTime(session)
+    if (!entry.lastPlayedAt || lastPlayedAt > entry.lastPlayedAt) entry.lastPlayedAt = lastPlayedAt
+    for (const measure of session.measures) {
+      const measureIndex = Number(measure.sourceMeasureIndex)
+      entry.measuresWorked.add(measureIndex)
+      if (session.mode === 'training') entry.measuresReinforced.add(measureIndex)
+    }
   }
 
   // The tail both groupings share: the sets they filled become sorted arrays,
@@ -1206,54 +1192,19 @@ export function initPracticeTracker(storageInstance = null) {
     }
   }
 
+  // A score's days, newest first, each keyed by the player's own day like the
+  // journal's (days.js).
   async function getScoreHistory(scoreId) {
     const sessions = await storage.getSessions(scoreId)
-
-    // Group sessions by date
-    const dateMap = new Map()
-
+    const byDay = new Map()
     for (const session of sessions) {
-      const dateKey = session.startedAt.substring(0, 10)
-
-      if (!dateMap.has(dateKey)) {
-        dateMap.set(dateKey, {
-          date: dateKey,
-          sessions: [],
-          measuresWorked: new Set(),
-          measuresReinforced: new Set(),
-          totalPracticeTimeMs: 0,
-          totalMeasures: null,
-          lastPlayedAt: null,
-        })
-      }
-
-      const entry = dateMap.get(dateKey)
-      entry.sessions.push(session)
-
-      if (session.totalMeasures) {
-        entry.totalMeasures = session.totalMeasures
-      }
-
-      const sessionDuration = computeSessionDuration(session)
-      entry.totalPracticeTimeMs += sessionDuration
-
-      const sessionLastPlayedAt = getLastMeasureEndTime(session)
-      if (!entry.lastPlayedAt || sessionLastPlayedAt > entry.lastPlayedAt) {
-        entry.lastPlayedAt = sessionLastPlayedAt
-      }
-
-      for (const measure of session.measures) {
-        const measureIndex = Number(measure.sourceMeasureIndex)
-        entry.measuresWorked.add(measureIndex)
-        if (session.mode === 'training') {
-          entry.measuresReinforced.add(measureIndex)
-        }
-      }
+      const date = localDayKey(session.startedAt)
+      if (!byDay.has(date)) byDay.set(date, newEntry({ date }))
+      addSession(byDay.get(date), session)
     }
-
-    return Array.from(dateMap.values())
+    return Array.from(byDay.values())
       .map(withPlaythroughs)
-      .sort((a, b) => new Date(b.date) - new Date(a.date))
+      .sort((a, b) => b.date.localeCompare(a.date))
   }
 
   async function getAllScores() {

@@ -1,6 +1,51 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import 'fake-indexeddb/auto'
 import { initStorage } from '../../public/js/storage.js'
+import { initPracticeTracker } from '../../public/js/practiceTracker.js'
+import { rebuildAggregatesFromCatalog } from '../../public/js/sync.js'
+
+// A backup brought to a device that has practice of its own joins it, the way
+// a sync's pull does: it used to be written over it.
+describe('importing a backup', () => {
+  let storage
+  const measures = [{ sourceMeasureIndex: 0, attempts: [{ startedAt: '2026-06-10T10:00:00.000Z', durationMs: 60_000, wrongNotes: 0, clean: true }] }]
+  const session = (id) => ({ id, scoreId: 'scores/a.mxl', startedAt: '2026-06-10T10:00:00.000Z', endedAt: '2026-06-10T10:01:00.000Z', measures })
+
+  beforeEach(async () => {
+    indexedDB = new IDBFactory()
+    storage = initStorage()
+    await storage.init()
+  })
+
+  it('keeps a score’s fingerings entered here since the backup was made', async () => {
+    await storage.putFingeringRecord({ scoreUrl: 'scores/a.mxl', fingerings: { n1: 3 }, updatedAt: 2000 })
+
+    const { importedFingerings } = await storage.importBackup({
+      sessions: [],
+      fingerings: [
+        { scoreUrl: 'scores/a.mxl', fingerings: { n1: 1 }, updatedAt: 1000 },
+        { scoreUrl: 'scores/b.mxl', fingerings: { n2: 2 }, updatedAt: 1000 },
+      ],
+    })
+
+    expect(importedFingerings).toBe(1)
+    expect((await storage.getFingerings('scores/a.mxl')).fingerings).toEqual({ n1: 3 })
+    expect((await storage.getFingerings('scores/b.mxl')).fingerings).toEqual({ n2: 2 })
+  })
+
+  it('counts the imported practice alongside this device’s once the aggregates are rebuilt', async () => {
+    const tracker = initPracticeTracker(storage)
+    await storage.saveSession(session('here'))
+    await tracker.rebuildAggregates()
+
+    await storage.importBackup({ sessions: [session('there')], aggregates: [{ scoreId: 'scores/a.mxl', scoreTitle: 'A', totalSessions: 1 }] })
+    await rebuildAggregatesFromCatalog(tracker)
+
+    const aggregate = await storage.getAggregate('scores/a.mxl')
+    expect(aggregate.totalSessions).toBe(2)
+    expect(aggregate.scoreTitle).toBe('A')
+  })
+})
 
 // close() stands in for WebKit dropping the connection under the page: both
 // leave transaction() throwing "The database connection is closing". See withDb.
