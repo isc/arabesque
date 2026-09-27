@@ -94,10 +94,7 @@ https://arabesque.app/video/review-demo.mp4
 WHAT THE VIDEO SHOWS (37s, unedited, single take)
 Filmed with a second camera: a physical iPad running the app, on the music \
 desk of the piano it is paired with — an upright with a Bluetooth MIDI \
-transmitter (AURES2UP). Both the iPad and the keyboard are in frame throughout. \
-It predates one change: the pairing sheet opened from an antenna button in the \
-bottom-right corner, where it now opens from "Connecter clavier MIDI" at the \
-top of the score page, or from the ⚙️ menu.
+transmitter (AURES2UP). Both the iPad and the keyboard are in frame throughout.
 
 0:00 the app is launched from the iPad home screen
 0:04 a score is opened from the library ("Sur le pont d'Avignon")
