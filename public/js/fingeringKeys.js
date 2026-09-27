@@ -31,9 +31,9 @@
 
 // Old keys have a digit, `N` (NaN) or `u` (undefined) where new ones have `m`, so
 // the two can share a record without ever being mistaken for one another --
-// which they have to, because a record syncs whole and last-write-wins, and a
-// device still running the old build must show nothing rather than something
-// wrong.
+// which they have to, because a record syncs whole (merged note by note at
+// most, sync.js), and a device still running the old build must show nothing
+// rather than something wrong.
 const KEY_PREFIX = 'm'
 
 export function fingeringKey(measureIndex, staff, voice, noteIndex) {
@@ -167,4 +167,17 @@ export function migrateLegacyFingerings(fingerings, legacyToCurrent) {
     }
   }
   return { fingerings: migrated, added }
+}
+
+// A stored record with its old keys translated, or null when it has none. The
+// version its last sync left (`synced`) is translated with it: sync.js merges
+// against that version, and a base still in the old keys would read every
+// translated note as a new one — bringing back a fingering since deleted on
+// another device.
+export function migrateFingeringRecord(record, legacyToCurrent) {
+  const migrated = migrateLegacyFingerings(record.fingerings, legacyToCurrent)
+  if (!migrated) return null
+  const base = record.synced && migrateLegacyFingerings(record.synced.fingerings, legacyToCurrent)
+  const synced = base ? { synced: { ...record.synced, fingerings: base.fingerings } } : {}
+  return { record: { ...record, fingerings: migrated.fingerings, ...synced }, added: migrated.added }
 }

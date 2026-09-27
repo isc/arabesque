@@ -80,9 +80,11 @@ describe('autoSync', () => {
   })
 
   it('syncs another profile under the same account', async () => {
-    // The instance autoSync just loaded, so both see the same state.
     const profiles = await import('../../public/js/profiles.js')
     profiles.switchProfile(profiles.addProfile({ name: 'Charlie' }).id)
+    // A page reads its profile when it loads: the one after the switch.
+    vi.resetModules()
+    autoSync = await import('../../public/js/autoSync.js')
     autoSync.initAutoSync(deps, { syncOnOpen: true })
     await vi.waitFor(() => expect(runSync).toHaveBeenCalledTimes(1))
     expect(runSync).toHaveBeenCalledWith(expect.objectContaining({ userId: 'user-1' }))

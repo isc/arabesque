@@ -18,14 +18,18 @@ function installLocalStorage() {
   }
 }
 
+// A page: the module reads the profile it is on when it loads.
+async function openPage() {
+  vi.resetModules()
+  return import('../../public/js/profiles.js')
+}
+
 describe('profiles', () => {
   let profiles
 
   beforeEach(async () => {
     installLocalStorage()
-    // The module caches what it parsed for the life of a page; a test is a page.
-    vi.resetModules()
-    profiles = await import('../../public/js/profiles.js')
+    profiles = await openPage()
   })
 
   it('is the main profile alone until someone adds to it, without writing anything', () => {
@@ -39,14 +43,29 @@ describe('profiles', () => {
     expect(profiles.scopedKey('arabesque:pending-session', 'p-1')).toBe('arabesque:pending-session@p-1')
   })
 
-  it('adds a profile after the main one and switches to it for the next page', () => {
+  it('adds a profile after the main one and switches to it for the next page', async () => {
     const charlie = profiles.addProfile({ name: ' Charlie ', avatar: '🐻' })
     expect(charlie).toMatchObject({ name: 'Charlie', avatar: '🐻' })
     expect(profiles.listProfiles().map((p) => p.id)).toEqual([MAIN, charlie.id])
 
     profiles.switchProfile(charlie.id)
+    profiles = await openPage()
     expect(profiles.currentProfile()).toEqual(charlie)
     expect(profiles.scopedKey('arabesque')).toBe(`arabesque@${charlie.id}`)
+  })
+
+  // The stored choice is the next page's. This one's database, keys and synced
+  // rows are all named after the profile it opened on.
+  it('keeps the page on the profile it opened on, whatever is stored since', async () => {
+    const charlie = profiles.addProfile({ name: 'Charlie' })
+    profiles.switchProfile(charlie.id)
+    profiles = await openPage()
+
+    profiles.mergeProfiles([{ id: charlie.id, name: '', avatar: '', updated_at: charlie.updatedAt + 1, deleted: true }])
+
+    expect(profiles.currentProfileId()).toBe(charlie.id)
+    expect(profiles.scopedKey('arabesque')).toBe(`arabesque@${charlie.id}`)
+    expect((await openPage()).currentProfileId()).toBe(MAIN)
   })
 
   it('offers each new profile an avatar nobody wears', () => {
@@ -55,31 +74,28 @@ describe('profiles', () => {
     expect(profiles.freeAvatar()).toBe(profiles.AVATARS[2])
   })
 
-  it('only switches to a profile that exists', () => {
+  it('only switches to a profile that exists', async () => {
     profiles.switchProfile('p-nope')
-    expect(profiles.currentProfileId()).toBe(MAIN)
+    expect((await openPage()).currentProfileId()).toBe(MAIN)
   })
 
   it('falls back to the main profile when the stored current one is gone', async () => {
     localStorage.setItem(PROFILES_KEY, JSON.stringify({ current: 'p-gone', profiles: [{ id: MAIN, name: 'Ivan', avatar: '🎹' }] }))
-    vi.resetModules()
-    profiles = await import('../../public/js/profiles.js')
+    profiles = await openPage()
     expect(profiles.currentProfileId()).toBe(MAIN)
     expect(profiles.currentProfile().name).toBe('Ivan')
   })
 
   it('stamps a profile stored before stamps existed, so it can be sent', async () => {
     localStorage.setItem(PROFILES_KEY, JSON.stringify({ current: MAIN, profiles: [{ id: MAIN, name: 'Ivan', avatar: '🎹' }, { id: 'p-old', name: 'Charlie', avatar: '🐻' }] }))
-    vi.resetModules()
-    profiles = await import('../../public/js/profiles.js')
+    profiles = await openPage()
     const rows = profiles.mergeProfiles([]).toPush
     expect(rows.map((r) => r.updated_at)).toEqual([0, 0])
   })
 
   it('starts over from a stored value it cannot read', async () => {
     localStorage.setItem(PROFILES_KEY, '{not json')
-    vi.resetModules()
-    profiles = await import('../../public/js/profiles.js')
+    profiles = await openPage()
     expect(profiles.listProfiles()).toHaveLength(1)
     expect(profiles.currentProfileId()).toBe(MAIN)
   })
@@ -89,18 +105,33 @@ describe('profiles', () => {
     expect(profiles.currentProfile()).toMatchObject({ id: MAIN, name: 'Ivan', avatar: '🎈' })
   })
 
-  it('removes a profile with the keys scoped to it, landing back on the main one', () => {
+  it('removes a profile with the keys scoped to it, landing back on the main one', async () => {
     const charlie = profiles.addProfile({ name: 'Charlie' })
     profiles.switchProfile(charlie.id)
-    localStorage.setItem(profiles.scopedKey('arabesque:pending-session'), '{}')
+    localStorage.setItem(profiles.scopedKey('arabesque:pending-session', charlie.id), '{}')
     localStorage.setItem('arabesque:pending-session', 'main')
 
     profiles.removeProfile(charlie.id)
 
     expect(profiles.listProfiles().map((p) => p.id)).toEqual([MAIN])
-    expect(profiles.currentProfileId()).toBe(MAIN)
     expect(localStorage.getItem(`arabesque:pending-session@${charlie.id}`)).toBeNull()
     expect(localStorage.getItem('arabesque:pending-session')).toBe('main')
+    expect((await openPage()).currentProfileId()).toBe(MAIN)
+  })
+
+  // Another tab can store a profile at any moment: a merge must start from
+  // what is stored now, or writing it back drops that profile.
+  it('merges into what another tab stored since, not into what it read before', () => {
+    profiles.listProfiles()
+    localStorage.setItem(PROFILES_KEY, JSON.stringify({
+      current: MAIN,
+      profiles: [{ id: MAIN, name: '', avatar: '🎹', updatedAt: 0 }, { id: 'p-tab', name: 'Léa', avatar: '🦊', updatedAt: 50 }],
+      removed: [],
+    }))
+
+    profiles.mergeProfiles([{ id: 'p-phone', name: 'Tom', avatar: '🐻', updated_at: 60, deleted: false }])
+
+    expect(profiles.listProfiles().map((p) => p.id)).toEqual([MAIN, 'p-tab', 'p-phone'])
   })
 
   it('never removes the main profile', () => {
@@ -147,14 +178,24 @@ describe('profiles', () => {
 
     it('drops a profile removed elsewhere, and does not take it back', () => {
       const charlie = profiles.addProfile({ name: 'Charlie' })
-      profiles.switchProfile(charlie.id)
       const tomb = { id: charlie.id, name: '', avatar: '', updated_at: charlie.updatedAt + 5, deleted: true }
       profiles.mergeProfiles([tomb])
       expect(profiles.listProfiles().map((p) => p.id)).toEqual([MAIN])
-      expect(profiles.currentProfileId()).toBe(MAIN)
       // The tombstone is now this device's too, and a stale live row loses to it.
       const { toPush } = profiles.mergeProfiles([{ ...tomb, deleted: false }])
       expect(toPush.find((r) => r.id === charlie.id)).toMatchObject({ deleted: true, updated_at: charlie.updatedAt + 5 })
+    })
+
+    // removeProfile sweeps them at once; a removal learnt from another device
+    // leaves them for storage.js to sweep on its next open.
+    it('forgets the keys of a profile removed on another device', () => {
+      const charlie = profiles.addProfile({ name: 'Charlie' })
+      localStorage.setItem(`arabesque:last-sync@${charlie.id}`, 'x')
+      profiles.mergeProfiles([{ id: charlie.id, name: '', avatar: '', updated_at: charlie.updatedAt + 1, deleted: true }])
+
+      profiles.pruneRemovedProfileKeys()
+
+      expect(localStorage.getItem(`arabesque:last-sync@${charlie.id}`)).toBeNull()
     })
 
     it('keeps a local removal over a server row with the same stamp', () => {

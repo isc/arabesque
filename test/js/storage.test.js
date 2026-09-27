@@ -2,6 +2,18 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 import 'fake-indexeddb/auto'
 import { initStorage } from '../../public/js/storage.js'
 
+// `synced` is this device's own exchange with the server (sync.js): another
+// device importing it would merge against a version it never had.
+describe('a backup', () => {
+  it('leaves out what a fingering record last exchanged with the server', async () => {
+    indexedDB = new IDBFactory()
+    const storage = initStorage()
+    await storage.putFingeringRecord({ scoreUrl: 's', fingerings: { n1: 1 }, updatedAt: 5, synced: { fingerings: { n1: 1 }, updatedAt: 5 } })
+
+    expect((await storage.exportBackup()).fingerings).toEqual([{ scoreUrl: 's', fingerings: { n1: 1 }, updatedAt: 5 }])
+  })
+})
+
 // close() stands in for WebKit dropping the connection under the page: both
 // leave transaction() throwing "The database connection is closing". See withDb.
 describe('storage on a lost connection', () => {

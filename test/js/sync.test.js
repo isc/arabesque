@@ -70,8 +70,7 @@ function endedSession(id, scoreId) {
 }
 
 // The page globals the modules touch (the suite runs in node): a localStorage
-// for the profile list, fresh for every test along with the modules, since
-// profiles.js caches what it read.
+// for the profile list, fresh for every test along with the modules.
 function installLocalStorage() {
   const store = new Map()
   globalThis.localStorage = {
@@ -87,19 +86,26 @@ describe('runSync', () => {
   let storage
   let practiceTracker
   let runSync
+  let mergeFingerings
   let profiles
 
-  beforeEach(async () => {
-    installLocalStorage()
+  // A page: fresh modules — profiles.js reads the profile the page is on when
+  // it loads — and that profile's database.
+  async function openPage() {
     vi.resetModules()
-    indexedDB = new IDBFactory()
-    ;({ runSync } = await import('../../public/js/sync.js'))
+    ;({ runSync, mergeFingerings } = await import('../../public/js/sync.js'))
     profiles = await import('../../public/js/profiles.js')
     const { initStorage } = await import('../../public/js/storage.js')
     const { initPracticeTracker } = await import('../../public/js/practiceTracker.js')
     storage = initStorage()
     practiceTracker = initPracticeTracker(storage)
     await storage.init()
+  }
+
+  beforeEach(async () => {
+    installLocalStorage()
+    indexedDB = new IDBFactory()
+    await openPage()
   })
 
   it('pushes local-only ended sessions to the server', async () => {
@@ -192,12 +198,108 @@ describe('runSync', () => {
     expect((await storage.getFingerings('/s/2.xml')).fingerings).toEqual({ n2: 3 })
   })
 
+  describe('fingerings changed on both sides', () => {
+    const URL_1 = '/s/1.xml'
+    // The record as this device last exchanged it with the server, at 1000.
+    const record = (fingerings, updatedAt, synced) => ({ scoreUrl: URL_1, fingerings, updatedAt, synced: { fingerings: synced, updatedAt: 1000 } })
+    const serverRow = (fingerings, updatedAt) => ({ user_id: USER, score_url: URL_1, fingerings, updated_at: updatedAt })
+
+    // The iPad left open for days adds n3 to its stale copy; the phone had
+    // added n2 and synced. Each side used to replace the other whole.
+    it('keeps what each side added since they last met', async () => {
+      await storage.putFingeringRecord(record({ n1: 1, n3: 3 }, 3000, { n1: 1 }))
+      const supabase = makeFakeSupabase({ fingerings: [serverRow({ n1: 1, n2: 2 }, 2000)] })
+
+      await runSync({ supabase, storage, practiceTracker })
+
+      const local = await storage.getFingerings(URL_1)
+      expect(local.fingerings).toEqual({ n1: 1, n2: 2, n3: 3 })
+      expect(supabase._fingerings.get(URL_1).fingerings).toEqual({ n1: 1, n2: 2, n3: 3 })
+      expect(supabase._fingerings.get(URL_1).updated_at).toBe(local.updatedAt)
+    })
+
+    it('sends nothing on the next sync once the two agree', async () => {
+      await storage.putFingeringRecord({ scoreUrl: URL_1, fingerings: { n1: 1 }, updatedAt: 1000 })
+      const supabase = makeFakeSupabase()
+
+      await runSync({ supabase, storage, practiceTracker })
+      const second = await runSync({ supabase, storage, practiceTracker })
+
+      expect(second.fingeringsPushed).toBe(0)
+      expect(second.fingeringsPulled).toBe(0)
+    })
+
+    // Written back over the record as read, a sync would put back the version
+    // it sent and drop the note entered while it was out.
+    it('leaves a fingering entered during the sync for the next one', async () => {
+      await storage.putFingeringRecord(record({ n1: 1 }, 2000, {}))
+      const supabase = makeFakeSupabase({ fingerings: [serverRow({}, 1000)] })
+      const from = supabase.from.bind(supabase)
+      supabase.from = (name) => {
+        const table = from(name)
+        if (name !== 'user_fingerings') return table
+        return { ...table, upsert: async (rows) => { await storage.setFingering(URL_1, 'n2', 2); return table.upsert(rows) } }
+      }
+
+      await runSync({ supabase, storage, practiceTracker })
+      expect((await storage.getFingerings(URL_1)).fingerings).toEqual({ n1: 1, n2: 2 })
+
+      supabase.from = from
+      await runSync({ supabase, storage, practiceTracker })
+      expect(supabase._fingerings.get(URL_1).fingerings).toEqual({ n1: 1, n2: 2 })
+    })
+  })
+
+  // A sync writes a record back with its fingerings and its `synced` as one
+  // map, and IndexedDB keeps them one: an edit made in place moved the base
+  // along with it, and the next merge then took the edit for the server's.
+  describe('fingerings entered after a sync', () => {
+    const URL_1 = '/s/1.xml'
+
+    it('are merged, not taken for the version the two last shared', async () => {
+      await storage.putFingeringRecord({ scoreUrl: URL_1, fingerings: { n1: 1 }, updatedAt: 1000 })
+      const supabase = makeFakeSupabase()
+      await runSync({ supabase, storage, practiceTracker })
+
+      await storage.setFingering(URL_1, 'n2', 2)
+      supabase.from('user_fingerings').upsert([{ user_id: USER, profile_id: MAIN, score_url: URL_1, fingerings: { n1: 1, n3: 3 }, updated_at: 2000 }])
+      await runSync({ supabase, storage, practiceTracker })
+
+      expect(supabase._fingerings.get(URL_1).fingerings).toEqual({ n1: 1, n2: 2, n3: 3 })
+    })
+
+    // A score this device never had fingerings for: its first ones used to go
+    // up whole, over those the phone had put there.
+    it('join those another device entered first', async () => {
+      await storage.setFingering(URL_1, 'n3', 3)
+      const supabase = makeFakeSupabase({ fingerings: [{ user_id: USER, score_url: URL_1, fingerings: { n1: 1, n2: 2 }, updated_at: 1000 }] })
+
+      await runSync({ supabase, storage, practiceTracker })
+
+      expect(supabase._fingerings.get(URL_1).fingerings).toEqual({ n1: 1, n2: 2, n3: 3 })
+    })
+  })
+
+  describe('mergeFingerings', () => {
+    const merge = (mine, theirs, was, { mineAt = 3000, theirsAt = 2000 } = {}) =>
+      mergeFingerings({ fingerings: mine, updatedAt: mineAt, synced: { fingerings: was } }, { fingerings: theirs, updatedAt: theirsAt })
+
+    it('clears a note on one side when the other left it as it was', () => {
+      expect(merge({ n1: 1 }, { n1: 1, n2: 2, n4: 4 }, { n1: 1, n2: 2 })).toEqual({ n1: 1, n4: 4 })
+      expect(merge({ n1: 1, n2: 2, n4: 4 }, { n1: 1 }, { n1: 1, n2: 2 })).toEqual({ n1: 1, n4: 4 })
+    })
+
+    it('gives a note both sides changed to the newer record', () => {
+      expect(merge({ n1: 5 }, { n1: 7 }, { n1: 1 })).toEqual({ n1: 5 })
+      expect(merge({ n1: 5 }, { n1: 7 }, { n1: 1 }, { mineAt: 2000, theirsAt: 3000 })).toEqual({ n1: 7 })
+    })
+  })
+
   describe('profiles', () => {
     it('tags what it pushes with the profile the page is on, and pulls only that profile', async () => {
       const charlie = profiles.addProfile({ name: 'Charlie' })
       profiles.switchProfile(charlie.id)
-      // The storage opened above is the main profile's; the page would have
-      // opened Charlie's. What matters here is the rows, not the database.
+      await openPage()
       await storage.saveSession(endedSession('c1', '/s/1.xml'))
       await storage.putFingeringRecord({ scoreUrl: '/s/1.xml', fingerings: { n1: 2 }, updatedAt: 10 })
       const remote = endedSession('m1', '/s/2.xml')
@@ -246,16 +348,33 @@ describe('runSync', () => {
     it('drops a profile removed on another device, and pushes nothing of it', async () => {
       const charlie = profiles.addProfile({ name: 'Charlie' })
       profiles.switchProfile(charlie.id)
+      await openPage()
       await storage.saveSession(endedSession('c1', '/s/1.xml'))
       const supabase = makeFakeSupabase({
         profiles: [{ user_id: USER, id: charlie.id, name: '', avatar: '', updated_at: charlie.updatedAt + 1, deleted: true }],
       })
 
       const r = await runSync({ supabase, storage, practiceTracker })
+      // The merge made the main profile the stored choice. A later sync from
+      // the same page, still on Charlie's database, used to push Charlie's
+      // practice as the main profile's.
+      const second = await runSync({ supabase, storage, practiceTracker })
 
-      expect(r.pushed).toBe(0)
+      expect(r.pushed + second.pushed).toBe(0)
       expect(supabase._sessions.size).toBe(0)
       expect(profiles.listProfiles().map((p) => p.id)).toEqual([MAIN])
+    })
+
+    it('pushes nothing of a profile another tab has removed', async () => {
+      const charlie = profiles.addProfile({ name: 'Charlie' })
+      profiles.switchProfile(charlie.id)
+      await openPage()
+      await storage.saveSession(endedSession('c1', '/s/1.xml'))
+      profiles.removeProfile(charlie.id)
+
+      const r = await runSync({ supabase: makeFakeSupabase(), storage, practiceTracker })
+
+      expect(r.pushed).toBe(0)
     })
   })
 })

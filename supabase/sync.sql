@@ -13,9 +13,10 @@
 --     immutable once ended; sync pushes ids the server lacks and pulls ids the
 --     client lacks. Aggregates are NOT stored here — they are recomputed locally
 --     from sessions after a pull.
---   - user_fingerings: one row per (user, profile, score); last-write-wins on
---     updated_at (a JS epoch-ms value), which is safe because the workflow
---     always pulls before editing.
+--   - user_fingerings: one row per (user, profile, score), stamped with
+--     updated_at (a JS epoch-ms value). A device sends or takes a row whole,
+--     and when both it and the server changed one since they last met, it
+--     merges the two note by note before sending (public/js/sync.js).
 --   - profiles: the people sharing the account's devices (public/js/profiles.js).
 --     One row per (user, profile); the newest updated_at wins, and a removed
 --     profile keeps its row as a tombstone (deleted) so that a device that
@@ -57,7 +58,7 @@ create table if not exists public.user_fingerings (
   profile_id text not null default 'main',
   score_url  text not null,
   fingerings jsonb not null,
-  updated_at bigint not null,        -- client updatedAt (epoch ms) for last-write-wins
+  updated_at bigint not null,        -- client updatedAt (epoch ms): which side changed (sync.js)
   primary key (user_id, profile_id, score_url)
 );
 -- The table predates profiles: its key is widened to the profile.
