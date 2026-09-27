@@ -140,7 +140,7 @@ export default {
     exercises: '{n} exercises',
     timesPlayed: 'Played {n}×',
     timesPlayedOneHand: '{n}× one hand',
-    importOk: '✅ Backup imported successfully!\n\n{sessions} session(s) imported\n{aggregates} aggregate(s) imported\n{fingerings} fingering(s) imported',
+    importOk: '✅ Backup imported successfully!\n\n{sessions} session(s) imported\n{fingerings} fingering(s) imported',
     importError: '❌ Import failed: {error}',
     exportOk: '✅ Backup exported successfully!',
     exportError: '❌ Export failed: {error}',

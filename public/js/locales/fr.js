@@ -137,7 +137,7 @@ export default {
     exercises: '{n} exercices',
     timesPlayed: '{n}× joué',
     timesPlayedOneHand: '{n}× une main',
-    importOk: '✅ Sauvegarde importée avec succès !\n\n{sessions} session(s) importée(s)\n{aggregates} agrégat(s) importé(s)\n{fingerings} doigté(s) importé(s)',
+    importOk: '✅ Sauvegarde importée avec succès !\n\n{sessions} session(s) importée(s)\n{fingerings} doigté(s) importé(s)',
     importError: "❌ Erreur lors de l'import : {error}",
     exportOk: '✅ Sauvegarde exportée avec succès !',
     exportError: "❌ Erreur lors de l'export : {error}",

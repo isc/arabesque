@@ -9,7 +9,7 @@
 // the profiles below are being matched against.
 import { initStorage } from './js/storage.js'
 import { initPracticeTracker, STATUS_THRESHOLDS } from './js/practiceTracker.js'
-import { fetchCatalogMeta } from './js/sync.js'
+import { importBackup } from './js/sync.js'
 
 const FLAG = 'arabesque:demo-seeded'
 
@@ -121,16 +121,11 @@ function buildSessions() {
 async function seedPracticeHistory() {
   const storage = initStorage()
   await storage.init()
-  await storage.importBackup({
-    exportDate: new Date().toISOString(),
-    sessions: buildSessions(),
-    aggregates: [],
-    fingerings: [],
-  })
-  const tracker = initPracticeTracker(storage)
+  await importBackup(
+    { storage, practiceTracker: initPracticeTracker(storage) },
+    { exportDate: new Date().toISOString(), sessions: buildSessions(), aggregates: [], fingerings: [] },
+  )
   console.log('[demo] status thresholds in force:', STATUS_THRESHOLDS)
-  const meta = await fetchCatalogMeta()
-  await tracker.rebuildAggregates((scoreId) => meta[scoreId] ?? null)
   localStorage.setItem(FLAG, '1')
   localStorage.setItem('arabesque:returning', '1')
 }
