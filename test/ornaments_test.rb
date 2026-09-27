@@ -200,6 +200,35 @@ class OrnamentsTest < CapybaraTestBase
     assert_selector 'svg circle.repeat-indicator.filled', count: 1
   end
 
+  # A trill's head is its main note's, and a redraw used to look for it on the
+  # first of the notes the trill is spelled out in, which has none: a played
+  # trill went black when the phone was turned.
+  def test_a_played_trill_stays_lit_through_a_redraw
+    load_score('trill-ornament.xml', 2)
+    play_notes(%w[Ab4 Bb4 Ab4])
+    assert_selector 'svg g.vf-notehead.played-note', count: 1
+
+    relayout_score
+
+    assert_selector 'svg g.vf-notehead.played-note', count: 1
+  end
+
+  # A trill note struck between two notes of the other hand is still the
+  # trill, on a repeat's second pass as on its first: the trill's span stayed
+  # on the first pass's timestamps, and there each such note was a wrong one.
+  def test_a_trill_under_the_other_hand_on_a_repeat
+    visit '/score.html?url=/test-fixtures/trill-under-repeat.xml'
+    wait_for_score_render(7)
+
+    2.times do
+      play_chord(%w[C5 C3])
+      play_notes(%w[D5 C5 D5 D3 C5 E3 D5 F3])
+    end
+    play_chord(%w[E5 C3])
+
+    assert_selector 'dialog[open] tr.is-current', text: 'sans faute'
+  end
+
   def test_turn_with_hidden_realization_is_not_doubled
     # Beethoven's "Pathetique" encodes its turns as a <turn/> symbol AND the turn's
     # realized notes written as invisible (print-object="no") notes in a second voice.

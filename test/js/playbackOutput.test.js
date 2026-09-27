@@ -23,16 +23,19 @@ vi.mock('@tonejs/piano', () => ({
   },
 }))
 
-// One measure holding one quarter note, plus the OSMD sheet playback reads the
-// tempo off.
-function score(notes = [{ midiNumber: 60, timestamp: 0, note: { Length: { RealValue: 0.25 } } }]) {
-  const allNotes = [{
-    measureIndex: 0,
-    sourceMeasureIndex: 0,
+// A quarter note as the extractor hands it over: `soundTs` is how long it sounds.
+const quarter = (midiNumber, extra) => ({ midiNumber, timestamp: 0, soundTs: 0.25, note: { Length: { RealValue: 0.25 } }, ...extra })
+
+// Bars of a whole note each, the first holding one quarter note by default,
+// plus the OSMD sheet playback reads the tempo off.
+function score(...bars) {
+  const allNotes = (bars.length ? bars : [[quarter(60)]]).map((notes, measureIndex) => ({
+    measureIndex,
+    sourceMeasureIndex: measureIndex,
     notes,
     cursorStops: [],
     duration: 1,
-  }]
+  }))
   const osmd = { Sheet: { SourceMeasures: [{ TempoInBPM: 120 }] } }
   return [allNotes, osmd]
 }
@@ -98,7 +101,7 @@ describe('playback output', () => {
   // at the chord's end, not 500ms after its own late start.
   it('rolls an arpeggiated chord and holds every note to its end', async () => {
     const arpeggio = { type: 7 }
-    const chord = [67, 60, 64].map((midiNumber) => ({ midiNumber, timestamp: 0, note: { Length: { RealValue: 0.25 }, Arpeggio: arpeggio } }))
+    const chord = [67, 60, 64].map((midiNumber) => quarter(midiNumber, { note: { Length: { RealValue: 0.25 }, Arpeggio: arpeggio } }))
     const sent = []
     const pb = await load({ midiOutput: { send: (bytes) => sent.push([performance.now(), ...bytes]) } })
     const t0 = performance.now()
@@ -108,5 +111,23 @@ describe('playback output', () => {
     const at = (status) => sent.filter(([, s]) => s === status).map(([t, , midi]) => [t - t0, midi])
     expect(at(0x90)).toEqual([[0, 60], [40, 64], [80, 67]])
     expect(at(0x80).sort(([, a], [, b]) => a - b)).toEqual([[500, 60], [500, 64], [500, 67]])
+  })
+
+  // A whole note tied into half the next bar is one sound, three seconds long
+  // at 120 BPM. It used to be let go at the end of its first note, and the
+  // half it is tied into, which strikes nothing, stayed silent.
+  it('holds a tied note to the end of the tie', async () => {
+    const sent = []
+    const pb = await load({ midiOutput: { send: (bytes) => sent.push([performance.now(), ...bytes]) } })
+    const t0 = performance.now()
+    await pb.play(...score(
+      [{ midiNumber: 72, timestamp: 0, soundTs: 1.5, note: { Length: { RealValue: 1 } } }],
+      [{ midiNumber: 72, timestamp: 1, soundTs: 0.5, isTieContinuation: true, note: { Length: { RealValue: 0.5 } } }],
+    ))
+    vi.advanceTimersByTime(3500)
+
+    const at = (status) => sent.filter(([, s]) => s === status).map(([t, , midi]) => [t - t0, midi])
+    expect(at(0x90)).toEqual([[0, 72]])
+    expect(at(0x80)).toEqual([[3000, 72], [3000, 72]])
   })
 })

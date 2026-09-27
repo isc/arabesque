@@ -30,7 +30,7 @@ const TICK_MS = 250
 
 export function initialHint() {
   return {
-    // Which note is owed (see musicxml's expectedGroup), and since when.
+    // Which note is owed (see musicxml's owedGroup), and since when.
     key: null,
     since: 0,
     wrongs: 0,
@@ -145,7 +145,7 @@ function caption(notes) {
     .filter((group) => group.notes.length)
 }
 
-export function initKeyboardHint({ expectedGroup, eligible, onVisibleChange, onCaptionChange, now = () => performance.now() }) {
+export function initKeyboardHint({ owedGroup, eligible, onVisibleChange, onCaptionChange, now = () => performance.now() }) {
   let state = initialHint()
   // While the keyboard is up, the page follows the player at TICK_MS, so the
   // lit keys move with the cursor however it moved (the beat that ends a
@@ -181,7 +181,7 @@ export function initKeyboardHint({ expectedGroup, eligible, onVisibleChange, onC
   }
 
   function tick() {
-    const group = expectedGroup()
+    const group = owedGroup()
     const asked = eligible()
     dispatch({ type: 'tick', key: group?.key ?? null, now: now(), eligible: asked })
     // Up but out of sight (strict mode, listening): nothing to draw.

@@ -99,10 +99,8 @@ export function midiApp() {
   const musicxml = initMusicXML()
   const fingeringEditor = initFingeringEditor({
     getOsmdInstance: musicxml.getOsmdInstance,
-    getAllNotes: musicxml.getAllNotes,
     getNoteDataByKey: musicxml.getNoteDataByKey,
     svgNote: musicxml.svgNote,
-    svgNotehead: musicxml.svgNotehead,
     graphicalMeasureForNote: musicxml.graphicalMeasureForNote,
   })
   const storage = initStorage()
@@ -348,7 +346,7 @@ export function midiApp() {
       })
       this.$watch('reinforcementMode', () => this.$nextTick(applyStickyOffset))
       keyHint = initKeyboardHint({
-        expectedGroup: musicxml.getExpectedGroup,
+        owedGroup: musicxml.getOwedGroup,
         eligible: () => this.keyHintContext && document.visibilityState === 'visible',
         onVisibleChange: (visible) => { this.keyHintVisible = visible },
         onCaptionChange: (caption) => { this.keyHintCaption = caption },
@@ -1552,13 +1550,11 @@ export function midiApp() {
     // What the redraw cannot take is the session behind those marks — renderScore
     // keeps it across a rebuild of the note model — so this only paints it back.
     repaintScore() {
-      const { currentMeasureIndex } = musicxml.getTrainingState()
       fingeringEditor.alignFingeringLabelsToNoteheads()
       this.setupFingeringHandlers()
-      fingeringEditor.paintNoteStates(currentMeasureIndex)
-      // After paintNoteStates, which owns played-note for the free and training
-      // modes: a strict hit wears the same class, and the two paint it from
-      // stores of their own.
+      musicxml.repaintNoteMarks()
+      // After the free and training marks: a strict hit wears the same class,
+      // and the two paint it from stores of their own.
       strictPlaythrough.repaintMarks()
       musicxml.updateMeasureCursor()
       // The click rectangles are rebuilt by the redraw, so the marker went with them.

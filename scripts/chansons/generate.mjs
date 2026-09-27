@@ -188,12 +188,6 @@ function songXml(song) {
       }
       parts.push(`<attributes>${attrs.join('')}</attributes>`)
     }
-    if (song.fine != null && number === song.fine + 1) {
-      parts.push('<direction placement="above"><direction-type><words font-weight="bold">Fin</words></direction-type><sound fine="yes"/></direction>')
-    }
-    if (song.dc === number) {
-      parts.push('<direction placement="above"><direction-type><words font-weight="bold" halign="right">D.C.</words></direction-type><sound dacapo="yes"/></direction>')
-    }
 
     const expected = number === 0 ? writtenIn(staves[0][0], total) : total
     staves.forEach((staff, s) => {
@@ -206,6 +200,16 @@ function songXml(song) {
       const events = sung(beamed(measure.events, time), measure.syllables)
       for (const event of events) parts.push(noteXml(event, staffNumber, voice, total))
     })
+
+    // Fine closes the bar the piece ends in, and a D.C. that leads back to it
+    // says so. The book prints « Fin » and « D.C. », but OSMD — whose cursor
+    // the app follows, and which works out the playing order (noteExtraction.js)
+    // — reads the Italian words only, and only there: « Fin », or « Fine » at
+    // the head of the next bar, and the piece ran on past its end.
+    const closing = (words, sound) =>
+      `<direction placement="above"><direction-type><words font-weight="bold" halign="right">${words}</words></direction-type><sound ${sound}="yes"/></direction>`
+    if (song.fine === number) parts.push(closing('Fine', 'fine'))
+    if (song.dc === number) parts.push(closing(song.fine != null ? 'D.C. al Fine' : 'D.C.', 'dacapo'))
 
     const last = i === staves[0].length - 1
     // The book closes the measure marked Fin with a double bar, unless the

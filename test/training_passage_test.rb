@@ -104,6 +104,29 @@ class TrainingPassageTest < CapybaraTestBase
     assert_selector 'svg circle.repeat-indicator.filled', count: 1
   end
 
+  # A step further into a passage clears only the bar it lands on, so back at
+  # the top of a repeat the passage's other bars stay lit, and a redraw keeps
+  # them so: it paints back what training left, not what free play would
+  # have. (repeat-endings.xml is played C4 D4 E4, then C4 D4 again and F4.)
+  def test_a_redraw_keeps_a_passage_lit_through_a_repeat
+    visit '/score.html'
+    load_score('repeat-endings.xml', 4)
+    enter_training_mode
+    pick_passage(1, 4)
+
+    play_note('C4')
+    wait_for_training_cursor(2)
+    play_note('D4')
+    wait_for_training_cursor(3)
+    play_note('E4')
+    assert_selector 'svg g.vf-notehead.played-note', count: 2
+
+    relayout_score
+
+    assert_selector 'svg g.vf-notehead.played-note', count: 2
+    assert_no_selector 'svg g.vf-measure[id="1"] g.vf-notehead.played-note'
+  end
+
   def test_turning_the_passage_off_puts_the_work_back_on_one_measure
     open_two_measures
     enter_training_mode

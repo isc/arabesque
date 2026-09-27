@@ -11,6 +11,21 @@ class ScoreNavigationTest < CapybaraTestBase
     visit '/score.html'
   end
 
+  # A first ending two bars long, then a D.C. al Fine: the notes asked for are
+  # the bars the cursor visits, in the order OSMD walks the sheet. That order
+  # used to be worked out apart from it, and here asked for the ending's second
+  # bar again on the way back through, and never took the D.C.
+  #
+  # da-capo-al-fine.xml is one note a bar, C4 to A4: bars 3-5 repeated, the
+  # ending 4-5 played the first time only, then from the top to the Fine at 2.
+  def test_a_long_first_ending_and_a_da_capo_al_fine
+    load_score('da-capo-al-fine.xml', 6)
+
+    play_notes(%w[C4 D4 E4 F4 G4 E4 A4 C4 D4])
+
+    assert_text 'Partition terminée'
+  end
+
   def test_repeat_endings_playback_sequence
     # Score has:
     # - Measure 1: C4 (repeat start)
@@ -50,6 +65,20 @@ class ScoreNavigationTest < CapybaraTestBase
 
     # Score should be completed after playing the correct sequence
     assert_text 'Partition terminée'
+  end
+
+  # A redraw paints back what free play left on the score: back at the top of
+  # the repeat, the bars about to be played again stay cleared. It used to
+  # work the marks out again from the note model, and showed the first pass.
+  def test_a_redraw_keeps_the_bars_the_repeat_cleared
+    load_score('repeat-endings.xml', 4)
+    play_notes(%w[C4 D4 E4])
+    assert_selector 'svg g.vf-notehead.played-note', count: 1
+
+    relayout_score
+
+    assert_selector 'svg g.vf-notehead.played-note', count: 1
+    assert_selector 'svg g.vf-measure[id="3"] g.vf-notehead.played-note'
   end
 
   def test_free_play_allows_clicking_measure_to_reposition

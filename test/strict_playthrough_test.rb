@@ -100,7 +100,6 @@ class StrictPlaythroughTest < CapybaraTestBase
   # no-op for the rest of the session — including the one leaving strict mode
   # relies on. Held as data, the verdict is painted back by repaintScore().
   def test_the_marks_survive_a_relayout
-    original_size = page.current_window.size
     load_score('two-measures.xml', 2)
     start_strict_mode
 
@@ -109,21 +108,12 @@ class StrictPlaythroughTest < CapybaraTestBase
     within('dialog.pt-result-dialog') { click_on 'Fermer' }
     assert_selector 'svg g.vf-notehead.missed-note', count: 2
 
-    # Stamped so what follows cannot be satisfied by the drawing that is up now:
-    # a relayout engraves every notehead afresh, stamp and all.
-    page.execute_script(
-      "document.querySelectorAll('svg g.vf-notehead').forEach((n) => (n.dataset.beforeRelayout = '1'))"
-    )
-    page.current_window.resize_to(500, 900)
-    # Our own resize handler drives the redraw, 250ms after the last event.
-    assert_no_selector 'svg g.vf-notehead[data-before-relayout]', wait: 5
+    relayout_score
 
     assert_selector 'svg g.vf-notehead.missed-note', count: 2
     # And reachable, rather than stranded on the nodes the redraw took away.
     click_measure(1)
     assert_no_selector 'svg g.vf-notehead.missed-note'
-  ensure
-    page.current_window.resize_to(*original_size)
   end
 
   # Regression: a strict run used to leave no trace at all — its notes go to the

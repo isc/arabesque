@@ -22,6 +22,13 @@ let allNotes = []
 // only redraws a score already up (see extractNotesFromScore).
 let sheetJustLoaded = false
 let noteDataByKey = new Map() // Map<fingeringKey, noteData> for O(1) lookups
+// The played/active marks free play and training leave on the noteheads, by
+// the fingering key of the note each head draws. A redraw replaces the
+// elements they are painted on, and the note model cannot say what showed: a
+// head is shared by every pass over its bar, and each mode clears its own way
+// on the way back through a repeat. Kept as they are painted (setMark), the
+// marks go back on with repaintNoteMarks(), as strict mode keeps its verdict.
+const noteMarks = new Map() // Map<fingeringKey, Set<class>>
 // Map<the key a note used to be filed under, the keys it is filed under now>,
 // built by the same walk that names the notes -- see migrateLegacyFingerings.
 let legacyKeyMap = new Map()
@@ -160,7 +167,8 @@ export function initMusicXML() {
     },
     getOsmdInstance: () => osmdInstance,
     getAllNotes: () => allNotes,
-    getExpectedGroup: expectedGroup,
+    repaintNoteMarks,
+    getOwedGroup: owedGroup,
     getScoreMetadata: () => ({
       title: osmdInstance?.Sheet?.Title?.text || null,
       composer: osmdInstance?.Sheet?.Composer?.text || null,
@@ -236,7 +244,6 @@ export function initMusicXML() {
     getNoteDataByKey: () => noteDataByKey,
     getLegacyFingeringKeyMap: () => legacyKeyMap,
     svgNote,
-    svgNotehead,
     graphicalMeasureForNote,
     setReinforcementMode: (measures) => {
       if (!measures || measures.length === 0) return
@@ -589,6 +596,7 @@ function extractNotesFromScore() {
     carryOverNoteStates(outgoingNotes, allNotes)
   } else {
     trainingMode = false
+    noteMarks.clear()
     resetPlaybackState()
   }
   // Build fingeringKey -> noteData map for O(1) lookups.
@@ -632,9 +640,7 @@ function resetMeasureProgress({ keepRepeats = false, keepRepetition = false, not
 function resetSourceMeasureVisualState(sourceMeasureIndex) {
   for (const measureData of allNotes) {
     if (measureData.sourceMeasureIndex !== sourceMeasureIndex) continue
-    for (const noteData of measureData.notes) {
-      svgNotehead(noteData)?.classList.remove('played-note', 'active-note')
-    }
+    for (const noteData of measureData.notes) clearMarks(noteData)
   }
 }
 
@@ -971,18 +977,38 @@ function isTrillStillSounding(notes, midiNote, timestamp) {
 }
 
 // What the player owes next: the notes of the active hands at the earliest
-// timestamp not yet played in the measure under the cursor, keyed by where they
-// sit so a caller can tell one wait from the next. Null between the last note
-// of a measure and the beat that moves the cursor on. A note already held down
-// stays in the group, flagged active, until the rest of the chord joins it.
+// timestamp not yet played in the measure under the cursor. Null between the
+// last note of a measure and the beat that moves the cursor on. A note already
+// held down stays in the group, flagged active, until the rest of the chord
+// joins it.
 function expectedGroup() {
-  const pending = allNotes[currentMeasureIndex]?.notes.filter((n) => isNoteActiveForHands(n) && !n.played) ?? []
-  if (pending.length === 0) return null
-  const timestamp = Math.min(...pending.map((n) => n.timestamp))
+  return firstGroupOf(pendingNotes())
+}
+
+// What the on-screen keyboard shows as owed: the same group, but for a trill's
+// placeholder (isTrillEnd), which is no key to press — any trill note keeps
+// the trill going, and it is the note after it that ends it and moves on
+// (activateNote). Only a trill closing the measure, with nothing after it, is
+// its own note to show.
+function owedGroup() {
+  const pending = pendingNotes()
+  const pressable = pending.filter((n) => !n.isTrillEnd)
+  return firstGroupOf(pressable.length ? pressable : pending)
+}
+
+function pendingNotes() {
+  return allNotes[currentMeasureIndex]?.notes.filter((n) => isNoteActiveForHands(n) && !n.played) ?? []
+}
+
+// The notes at the earliest of these timestamps, keyed by where they sit so a
+// caller can tell one wait from the next.
+function firstGroupOf(notes) {
+  if (notes.length === 0) return null
+  const timestamp = Math.min(...notes.map((n) => n.timestamp))
   return {
     key: `${currentMeasureIndex}:${timestamp}`,
     timestamp,
-    notes: pending.filter((n) => n.timestamp === timestamp),
+    notes: notes.filter((n) => n.timestamp === timestamp),
   }
 }
 
@@ -1118,7 +1144,7 @@ function activateNote(midiNote) {
     // and it should read as played rather than stay red until the animation ends.
     const notehead = svgNotehead(noteData)
     notehead?.classList.remove('wrong-note')
-    notehead?.classList.add('active-note')
+    setMark(noteData, 'active-note', true, notehead)
     noteData.active = true
   }
 
@@ -1150,8 +1176,8 @@ function markTimestampGroupPlayed(group) {
     if (noteData.played) continue
     const notehead = svgNotehead(noteData)
     // Turn notes without visual noteheads (noteheadIndex = -1) have no element
-    notehead?.classList.remove('active-note')
-    notehead?.classList.add('played-note')
+    setMark(noteData, 'active-note', false, notehead)
+    setMark(noteData, 'played-note', true, notehead)
     noteData.played = true
     noteData.active = false
   }
@@ -1195,7 +1221,7 @@ function deactivateNote(midiNote) {
   // Find active notes with this MIDI number and deactivate them
   for (const noteData of measureData.notes) {
     if (noteData.active && noteData.midiNumber === midiNote) {
-      svgNotehead(noteData)?.classList.remove('active-note')
+      setMark(noteData, 'active-note', false)
       noteData.active = false
     }
   }
@@ -1392,6 +1418,32 @@ function svgNotehead(noteData) {
   return svgNoteheadFor(osmdInstance, noteData)
 }
 
+// Paints one mark on a note's head, or takes it off, and keeps what the head
+// shows for the next redraw (see noteMarks). A note with no head of its own —
+// an ornament's spelled-out notes — has nothing to keep.
+function setMark(noteData, cls, on, notehead = svgNotehead(noteData)) {
+  notehead?.classList.toggle(cls, on)
+  if (noteData.noteheadIndex < 0) return
+  const marks = noteMarks.get(noteData.fingeringKey) ?? new Set()
+  if (on) marks.add(cls)
+  else marks.delete(cls)
+  if (marks.size > 0) noteMarks.set(noteData.fingeringKey, marks)
+  else noteMarks.delete(noteData.fingeringKey)
+}
+
+function clearMarks(noteData) {
+  svgNotehead(noteData)?.classList.remove('played-note', 'active-note', 'wrong-note')
+  if (noteData.noteheadIndex >= 0) noteMarks.delete(noteData.fingeringKey)
+}
+
+// Puts the marks back on a score that has just been redrawn.
+function repaintNoteMarks() {
+  for (const [key, marks] of noteMarks) {
+    const noteData = noteDataByKey.get(key)
+    if (noteData) svgNotehead(noteData)?.classList.add(...marks)
+  }
+}
+
 // Navigate up the OSMD hierarchy: note → parentVoiceEntry → parentStaffEntry → parentMeasure.
 function graphicalMeasureForNote(note) {
   return osmdInstance.rules.GNote(note).parentVoiceEntry.parentStaffEntry.parentMeasure
@@ -1451,10 +1503,7 @@ function resetNotesFromIndex(fromIndex = 0, toIndex = allNotes.length - 1) {
     const measureData = allNotes[i]
     if (!measureData) continue
     for (const noteData of measureData.notes) {
-      const notehead = svgNotehead(noteData)
-      if (notehead) {
-        notehead.classList.remove('played-note', 'active-note', 'wrong-note')
-      }
+      clearMarks(noteData)
       noteData.played = false
       noteData.active = false
     }
