@@ -222,7 +222,7 @@ const MODALS_HTML = `
     <div class="pt-modal-body">
     <template x-if="feedbackStatus === 'sent'">
       <div>
-        <p x-text="$t('feedback.thanks')">Merci, c'est bien reçu !</p>
+        <p x-text="$t('feedback.thanks')">Merci, c’est bien reçu ! 🙏</p>
         <footer>
           <button type="button" @click="closeFeedback()" x-text="$t('common.close')">Fermer</button>
         </footer>
@@ -235,9 +235,9 @@ const MODALS_HTML = `
           <span x-text="$t('feedback.categoryLabel')">Type</span>
           <select x-model="feedback.category" :disabled="feedbackStatus === 'sending'">
             <option value="" x-text="$t('feedback.categoryNone')">—</option>
-            <option value="bug" x-text="$t('feedback.categoryBug')">Bug</option>
-            <option value="idea" x-text="$t('feedback.categoryIdea')">Idée</option>
-            <option value="score" x-text="$t('feedback.categoryScore')">Partition</option>
+            <option value="bug" x-text="$t('feedback.categoryBug')">🐞 Bug</option>
+            <option value="idea" x-text="$t('feedback.categoryIdea')">💡 Idée</option>
+            <option value="score" x-text="$t('feedback.categoryScore')">🎼 Partition souhaitée</option>
             <option value="other" x-text="$t('feedback.categoryOther')">Autre</option>
           </select>
         </label>
@@ -254,7 +254,7 @@ const MODALS_HTML = `
           <div class="pt-feedback-shot">
             <label>
               <input type="checkbox" x-model="feedbackShotWanted" :disabled="feedbackStatus === 'sending'" />
-              <span x-text="$t('feedback.screenshotLabel')">Joindre l'image de la partition affichée</span>
+              <span x-text="$t('feedback.screenshotLabel')">Joindre l’image de l’écran</span>
             </label>
             <img class="pt-feedback-shot__preview" x-show="feedbackShotWanted" :src="feedbackShot" :alt="$t('feedback.screenshotAlt')" />
           </div>

@@ -12,6 +12,10 @@
 // sync there, a profile removed anywhere is dropped everywhere, and its rows
 // on the server go with it.
 //
+// What goes up — sessions, fingerings, each profile's name and avatar — is
+// what the privacy policy says the account holds (privacy.accountBody): sync
+// anything more and that text has to say so too.
+//
 // runSync() takes its dependencies (the supabase client, storage,
 // practiceTracker) so it stays page-agnostic.
 import { currentProfileId, mergeProfiles, scopedKey } from './profiles.js'
