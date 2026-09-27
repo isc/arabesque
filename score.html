@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="app-version" content="cdc7c152f25e" />
+    <meta name="app-version" content="caa87e4a716b" />
     <title data-i18n="score.pageTitle">Arabesque</title>
     <link rel="icon" href="favicon.svg" type="image/svg+xml" />
     <link rel="manifest" href="manifest.webmanifest" />
@@ -76,7 +76,7 @@
   <body @keydown.escape.window="handleEscape()">
     <div class="pt-stickybars">
     <header class="pt-topbar">
-      <a href="library.html" class="pt-topbar__back" data-i18n="score.back">&larr; Bibliothèque</a>
+      <a href="library.html" class="pt-topbar__back" data-i18n="score.back">← Bibliothèque</a>
       <div class="pt-topbar__title" x-show="osmdInstance" x-cloak>
         <span x-text="collection ? collection.title : (scoreTitle || $t('score.titleFallback'))"></span>
         <small x-show="scoreComposer" x-text="scoreComposer"></small>
