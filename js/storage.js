@@ -254,14 +254,9 @@ export function initStorage() {
       return (await dbGet(SESSIONS_STORE, id)) || null
     },
 
-    async getSessions(scoreId = null, dateRange = null) {
-      const sessions = await withStore(SESSIONS_STORE, 'readonly', (store) =>
+    getSessions(scoreId = null) {
+      return withStore(SESSIONS_STORE, 'readonly', (store) =>
         promisifyRequest(scoreId ? store.index('scoreId').getAll(scoreId) : store.getAll()))
-      if (!dateRange) return sessions
-      return sessions.filter((session) => {
-        const sessionDate = new Date(session.startedAt)
-        return sessionDate >= dateRange.start && sessionDate <= dateRange.end
-      })
     },
 
     // Aggregates methods
@@ -292,28 +287,32 @@ export function initStorage() {
       }
     },
 
+    // What a backup brings joins what this device holds, as a sync's pull
+    // does: the sessions it does not have yet, and a score's fingerings only
+    // where the backup's are newer than the ones here — an old file must not
+    // undo an edit made since. Aggregates are derived, and not taken: the
+    // caller replays them from the sessions (importBackup in sync.js).
     async importBackup(backupData) {
       if (!backupData || !backupData.sessions) {
         throw new Error('Invalid backup data format')
       }
 
-      const importCounts = await withDb(async (db) => {
-        const transaction = db.transaction([SESSIONS_STORE, AGGREGATES_STORE, FINGERINGS_STORE], 'readwrite')
+      return withDb(async (db) => {
+        const transaction = db.transaction([SESSIONS_STORE, FINGERINGS_STORE], 'readwrite')
+        const [sessionIds, fingerings] = await Promise.all([
+          promisifyRequest(transaction.objectStore(SESSIONS_STORE).getAllKeys()),
+          promisifyRequest(transaction.objectStore(FINGERINGS_STORE).getAll()),
+        ])
+        const here = new Set(sessionIds)
+        const stamps = new Map(fingerings.map((f) => [f.scoreUrl, f.updatedAt || 0]))
+        const newer = (backupData.fingerings ?? []).filter((f) => !stamps.has(f.scoreUrl) || (f.updatedAt || 0) > stamps.get(f.scoreUrl))
         const counts = {
-          sessions: putAllToStore(transaction, SESSIONS_STORE, backupData.sessions),
-          aggregates: putAllToStore(transaction, AGGREGATES_STORE, backupData.aggregates),
-          fingerings: putAllToStore(transaction, FINGERINGS_STORE, backupData.fingerings),
+          importedSessions: putAllToStore(transaction, SESSIONS_STORE, backupData.sessions.filter((s) => !here.has(s.id))),
+          importedFingerings: putAllToStore(transaction, FINGERINGS_STORE, newer),
         }
         await promisifyTransaction(transaction)
         return counts
       })
-
-      return {
-        success: true,
-        importedSessions: importCounts.sessions,
-        importedAggregates: importCounts.aggregates,
-        importedFingerings: importCounts.fingerings,
-      }
     },
 
     // Swap the whole aggregates store for `aggregates`, in one transaction.

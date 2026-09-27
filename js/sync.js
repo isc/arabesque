@@ -53,7 +53,7 @@ function chunk(arr, size) {
 // frequent enough that re-fetching and re-mapping it each time is pure waste.
 let catalogMeta = null
 
-export async function fetchCatalogMeta() {
+async function fetchCatalogMeta() {
   if (catalogMeta) return catalogMeta
   try {
     const res = await fetch('data/scores.json')
@@ -72,6 +72,26 @@ export async function fetchCatalogMeta() {
   } catch {
     return {}
   }
+}
+
+// Aggregates are derived: once sessions arrive from elsewhere — pulled by a
+// sync, imported from a backup — they are replayed from every session there
+// is, the scores named from the catalog. `fallbackNames` as rebuildAggregates
+// takes them.
+async function rebuildAggregatesFromCatalog(practiceTracker, fallbackNames) {
+  const meta = await fetchCatalogMeta()
+  await practiceTracker.rebuildAggregates((scoreId) => meta[scoreId] ?? null, fallbackNames)
+}
+
+// A backup brought to this device joins what it holds, the way a pull does: its
+// sessions and newer fingerings go in (storage.importBackup), and the
+// aggregates are replayed from every session. The backup's own aggregates only
+// lend their names, to scores nothing on this device can name.
+export async function importBackup({ storage, practiceTracker }, backup) {
+  const imported = await storage.importBackup(backup)
+  const names = new Map((backup.aggregates ?? []).filter((a) => a.scoreTitle).map((a) => [a.scoreId, { title: a.scoreTitle, composer: a.composer }]))
+  await rebuildAggregatesFromCatalog(practiceTracker, names)
+  return imported
 }
 
 // Pull missing sessions, push local-only sessions, reconcile fingerings, then
@@ -185,10 +205,7 @@ export async function runSync({ supabase, storage, practiceTracker, userId = nul
   }
 
   // --- Recompute aggregates locally if we pulled any sessions ---
-  if (pulled > 0) {
-    const meta = await fetchCatalogMeta()
-    await practiceTracker.rebuildAggregates((scoreId) => meta[scoreId] ?? null)
-  }
+  if (pulled > 0) await rebuildAggregatesFromCatalog(practiceTracker)
 
   setLastSync(new Date().toISOString(), profileId)
   return { pushed: toPush.length, pulled, fingeringsPushed: fingeringsToPush.length, fingeringsPulled, profilesChanged }

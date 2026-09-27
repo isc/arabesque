@@ -15,6 +15,7 @@
 // non-identifying context merged into a report (practice stats on the library,
 // current score on the score page).
 import { CHANGELOG } from './changelog.js'
+import { startOfLocalDay } from './days.js'
 import { feedbackEnabled, buildBaseContext, submitFeedback, defaultFeedbackEmail } from './feedback.js'
 import { getLang, locale } from './i18n.js'
 import { INSTALL_AVAILABLE_EVENT, installAvailable, promptInstall } from './installPrompt.js'
@@ -86,8 +87,7 @@ export function headerMenu() {
     },
 
     formatChangelogDate(iso) {
-      const [y, m, d] = iso.split('-').map(Number)
-      return CHANGELOG_DATE_FORMATTER.format(new Date(y, m - 1, d))
+      return CHANGELOG_DATE_FORMATTER.format(startOfLocalDay(iso))
     },
 
     // Entries carry their items per language ({ fr: [...], en: [...] }),

@@ -1,4 +1,5 @@
 import { t, tn, locale } from './i18n.js'
+import { startOfLocalDay, daysBetween } from './days.js'
 import { TWO_HANDS } from './hands.js'
 
 // Built once: the active locale is fixed for the page lifetime (switching
@@ -154,19 +155,11 @@ export function statusLabel(status) {
   return status ? t(`status.${status}`) : status
 }
 
-function daysAgo(date) {
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  const compareDate = new Date(date)
-  compareDate.setHours(0, 0, 0, 0)
-  return { compareDate, diffDays: Math.floor((today - compareDate) / (1000 * 60 * 60 * 24)) }
-}
-
 // Compact relative date for table cells. formatDate is the verbose
 // counterpart ("vendredi 8 mai") used for headings.
 export function formatRelativeDate(date) {
   if (!date) return ''
-  const { diffDays } = daysAgo(date)
+  const diffDays = daysBetween(date, new Date())
   if (diffDays === 0) return t('date.today')
   if (diffDays === 1) return t('date.yesterday')
   if (diffDays < 30) return t('date.daysAgo', { n: diffDays })
@@ -177,15 +170,18 @@ export function formatRelativeDate(date) {
 
 // "vendredi 8 mai" — the long form, whatever the day. formatDate() below is
 // the same thing with a relative shortcut for the two most recent days.
+//
+// Each takes a Date, a timestamp, an ISO string or a day key (a score's history
+// hands its days over as keys): see days.js for why each needs care.
 export function formatVerboseDate(date) {
-  return VERBOSE_DATE_FORMATTER.format(new Date(date))
+  return VERBOSE_DATE_FORMATTER.format(startOfLocalDay(date))
 }
 
 export function formatDate(date) {
-  const { compareDate, diffDays } = daysAgo(date)
+  const diffDays = daysBetween(date, new Date())
   if (diffDays === 0) return t('date.today')
   if (diffDays === 1) return t('date.yesterday')
-  return formatVerboseDate(compareDate)
+  return formatVerboseDate(date)
 }
 
 // Where a bar clicked lands when a passage is being picked by its two ends. The
