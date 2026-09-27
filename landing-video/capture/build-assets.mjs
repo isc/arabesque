@@ -46,23 +46,14 @@ const { ctx, page } = await launch({ now: NOW })
 // 1. Seed the library from the backup export (idempotent: keyed puts). The
 // import control moved to the data page (⚙️ menu → Gestion des données) when
 // the header was consolidated; it used to sit on the library page. The import
-// finishes on an alert(), which doubles as a precise completion signal —
-// awaited, not accepted: Playwright dismisses dialogs on its own.
+// rebuilds the aggregates from the sessions, as a sync does — a Supabase fetch
+// carries none — and finishes on an alert(), which doubles as a precise
+// completion signal: awaited, not accepted, Playwright dismisses dialogs on
+// its own.
 await page.goto(`${BASE}/data.html`, { waitUntil: 'networkidle' })
 const imported = page.waitForEvent('dialog')
 await page.setInputFiles('#backup-import', BACKUP)
 await imported
-// An export carries its aggregates, a Supabase fetch has none: rebuild them from
-// the sessions either way, as sync does, so the statuses match today's rules.
-await page.evaluate(async () => {
-  const { initStorage } = await import('/js/storage.js')
-  const { initPracticeTracker } = await import('/js/practiceTracker.js')
-  const { fetchCatalogMeta } = await import('/js/sync.js')
-  const storage = initStorage()
-  await storage.init()
-  const meta = await fetchCatalogMeta()
-  await initPracticeTracker(storage).rebuildAggregates((scoreId) => meta[scoreId] ?? null)
-})
 await page.goto(`${BASE}/library.html`, { waitUntil: 'networkidle' })
 await page.waitForFunction(() => document.querySelectorAll('tbody tr').length > 10)
 await sleep(700)
