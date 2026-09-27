@@ -9,7 +9,7 @@
 import { initStorage } from './storage.js'
 import { initPracticeTracker } from './practiceTracker.js'
 import { localDayKey } from './days.js'
-import { lastSyncAt, rebuildAggregatesFromCatalog } from './sync.js'
+import { lastSyncAt, importBackup as importBackupFile } from './sync.js'
 import { initAutoSync, requestSync } from './autoSync.js'
 import { deleteCurrentUser } from './account.js'
 import { t, locale } from './i18n.js'
@@ -316,8 +316,7 @@ export function dataApp() {
       const file = event.target.files[0]
       if (!file) return
       try {
-        const result = await storage.importBackup(JSON.parse(await file.text()))
-        await rebuildAggregatesFromCatalog(practiceTracker)
+        const result = await importBackupFile({ storage, practiceTracker }, JSON.parse(await file.text()))
         alert(t('library.importOk', { sessions: result.importedSessions, fingerings: result.importedFingerings }))
       } catch (error) {
         recordError(error, 'Backup could not be imported')

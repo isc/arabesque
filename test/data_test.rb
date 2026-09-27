@@ -3,16 +3,16 @@ require 'tempfile'
 require 'json'
 
 class DataTest < CapybaraTestBase
+  FIXTURE = File.expand_path('fixtures/initial-backup.json', __dir__)
+
   def setup
     page.driver.set_cookie('test-env', 'true')
     visit '/data.html'
   end
 
   def test_import_export_roundtrip
-    fixture_path = File.expand_path('fixtures/initial-backup.json', __dir__)
-
     accept_alert do
-      attach_file 'backup-import', fixture_path, make_visible: true
+      attach_file 'backup-import', FIXTURE, make_visible: true
     end
 
     accept_alert do
@@ -22,7 +22,7 @@ class DataTest < CapybaraTestBase
     exported_file = wait_for_download('arabesque-backup-*.json')
     assert exported_file, 'Export file should be downloaded'
 
-    imported_data = JSON.parse(File.read(fixture_path))
+    imported_data = JSON.parse(File.read(FIXTURE))
     exported_data = JSON.parse(File.read(exported_file))
 
     assert exported_data['exportDate'], 'Export should have exportDate'
@@ -55,20 +55,18 @@ class DataTest < CapybaraTestBase
 
   # A backup joins the practice already on the device, as a sync's pull does.
   # Its aggregates used to be written over this device's, so the statuses and
-  # practice times forgot everything played here on that score.
+  # practice times forgot everything played here on that score. The score is
+  # in no catalog and its sessions carry no name: the title can only come from
+  # the backup's aggregate.
   def test_an_imported_backup_counts_alongside_the_practice_already_here
-    seed_store('sessions', [{
-      id: 'played-here', scoreId: '/scores/test-roundtrip.xml', mode: 'free',
-      startedAt: '2026-01-11T12:00:00.000Z', endedAt: '2026-01-11T12:01:00.000Z',
-      measures: [{ sourceMeasureIndex: 0,
-                   attempts: [{ startedAt: '2026-01-11T12:00:00.000Z', durationMs: 60_000, wrongNotes: 0, clean: true }] }]
-    }])
+    seed_store('sessions', [JSON.parse(File.read(FIXTURE))['sessions'].first.merge('id' => 'played-here')])
 
     accept_alert do
-      attach_file 'backup-import', File.expand_path('fixtures/initial-backup.json', __dir__), make_visible: true
+      attach_file 'backup-import', FIXTURE, make_visible: true
     end
 
-    wait_for_records('aggregates', where: "record.scoreId === '/scores/test-roundtrip.xml' && record.totalSessions === 2")
+    wait_for_records('aggregates', where: "record.scoreId === '/scores/test-roundtrip.xml' && record.totalSessions === 2 " \
+                                          "&& record.scoreTitle === 'Test Roundtrip Score'")
   end
 
   def test_import_invalid_backup

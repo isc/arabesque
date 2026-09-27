@@ -43,6 +43,7 @@ describe('practiceTracker', () => {
 
   afterEach(() => {
     vi.useRealTimers()
+    vi.unstubAllEnvs()
   })
 
   describe('session management', () => {
@@ -291,15 +292,7 @@ describe('practiceTracker', () => {
       // The first 3 a day apart, for the 3 practice days the tracker counts.
       for (let session = 0; session < 10; session++) {
         if (session === 1 || session === 2) advanceClock(DAY_MS)
-        tracker.startSession('/scores/test.xml', 'Test', 'Composer', 'free')
-
-        for (const m of [0, 1]) {
-          tracker.startMeasureAttempt(m)
-          tracker.endMeasureAttempt(true)
-        }
-
-        tracker.markScoreCompleted()
-        await tracker.endSession()
+        await playSession('/scores/test.xml', [0, 1], 'free', null, true)
       }
 
       const stats = await tracker.getScoreStats('/scores/test.xml')
@@ -1039,31 +1032,15 @@ describe('practiceTracker', () => {
 
   // Half past midnight in Paris is still the day before in UTC, and a session
   // played then belongs to the morning it was played in (days.js).
-  describe('the player’s own day', () => {
-    const TZ = process.env.TZ
-    afterEach(() => {
-      if (TZ === undefined) delete process.env.TZ
-      else process.env.TZ = TZ
-    })
+  it('files a session under the player’s own day, in its history and its practice days', async () => {
+    vi.stubEnv('TZ', 'Europe/Paris')
+    clock = new Date('2026-06-09T22:30:00.000Z').getTime()
+    vi.setSystemTime(clock)
+    await playSession('/scores/test.xml', [0])
 
-    async function playAtHalfPastMidnightInParis() {
-      process.env.TZ = 'Europe/Paris'
-      clock = new Date('2026-06-09T22:30:00.000Z').getTime()
-      vi.setSystemTime(clock)
-      await playSession('/scores/test.xml', [0])
-    }
-
-    it('files the session under that day in the score’s history', async () => {
-      await playAtHalfPastMidnightInParis()
-      const [day] = await tracker.getScoreHistory('/scores/test.xml')
-      expect(day.date).toBe('2026-06-10')
-    })
-
-    it('counts that day among the practice days', async () => {
-      await playAtHalfPastMidnightInParis()
-      const stats = await tracker.getScoreStats('/scores/test.xml')
-      expect(stats.practiceDays).toEqual(['2026-06-10'])
-    })
+    const [day] = await tracker.getScoreHistory('/scores/test.xml')
+    expect(day.date).toBe('2026-06-10')
+    expect((await tracker.getScoreStats('/scores/test.xml')).practiceDays).toEqual(['2026-06-10'])
   })
 
   describe('getScoreHistory', () => {
@@ -1292,6 +1269,20 @@ describe('practiceTracker', () => {
   // sessions do not carry a title — so what the rebuild is given is what the
   // practice journal shows afterwards.
   describe('rebuildAggregates', () => {
+    // A score the catalog does not know, played before sessions carried their
+    // own name: an untitled row already here must not hide a name the caller
+    // brings (an imported backup's).
+    it('falls back on the names it is given, past an untitled row', async () => {
+      await playSession('/scores/own.xml', [0])
+      const [session] = await storage.getSessions('/scores/own.xml')
+      await storage.saveSession({ ...session, scoreTitle: undefined, composer: undefined })
+      await storage.saveAggregate({ scoreId: '/scores/own.xml', scoreTitle: null })
+
+      await tracker.rebuildAggregates(() => null, new Map([['/scores/own.xml', { title: 'Gymnopédie', composer: 'Satie' }]]))
+
+      expect((await storage.getAggregate('/scores/own.xml')).scoreTitle).toBe('Gymnopédie')
+    })
+
     it('renames a score the catalog knows', async () => {
       await playSession('scores/test.xml', [0])
 

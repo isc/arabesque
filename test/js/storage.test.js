@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 import 'fake-indexeddb/auto'
 import { initStorage } from '../../public/js/storage.js'
 import { initPracticeTracker } from '../../public/js/practiceTracker.js'
-import { rebuildAggregatesFromCatalog } from '../../public/js/sync.js'
+import { importBackup } from '../../public/js/sync.js'
 
 // A backup brought to a device that has practice of its own joins it, the way
 // a sync's pull does: it used to be written over it.
@@ -33,17 +33,22 @@ describe('importing a backup', () => {
     expect((await storage.getFingerings('scores/b.mxl')).fingerings).toEqual({ n2: 2 })
   })
 
-  it('counts the imported practice alongside this device’s once the aggregates are rebuilt', async () => {
-    const tracker = initPracticeTracker(storage)
+  // The backup's aggregates only lend their names, below this device's own:
+  // an untitled row in the file used to leave the score untitled here.
+  it('counts the imported practice alongside this device’s, keeping its names', async () => {
+    const practiceTracker = initPracticeTracker(storage)
     await storage.saveSession(session('here'))
-    await tracker.rebuildAggregates()
+    await storage.saveAggregate({ scoreId: 'scores/a.mxl', scoreTitle: 'Gymnopédie', totalSessions: 1 })
 
-    await storage.importBackup({ sessions: [session('there')], aggregates: [{ scoreId: 'scores/a.mxl', scoreTitle: 'A', totalSessions: 1 }] })
-    await rebuildAggregatesFromCatalog(tracker)
+    const { importedSessions } = await importBackup({ storage, practiceTracker }, {
+      sessions: [session('here'), session('there')],
+      aggregates: [{ scoreId: 'scores/a.mxl', scoreTitle: null }],
+    })
 
+    expect(importedSessions).toBe(1)
     const aggregate = await storage.getAggregate('scores/a.mxl')
     expect(aggregate.totalSessions).toBe(2)
-    expect(aggregate.scoreTitle).toBe('A')
+    expect(aggregate.scoreTitle).toBe('Gymnopédie')
   })
 })
 
