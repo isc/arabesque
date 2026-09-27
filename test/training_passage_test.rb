@@ -13,7 +13,14 @@ class TrainingPassageTest < CapybaraTestBase
   end
 
   def test_a_picked_passage_is_drilled_as_one_and_says_so
-    open_two_measures
+    visit '/score.html?url=/test-fixtures/two-measures.xml'
+    wait_for_score_render(2)
+    # A free run first: the drill's result must not show its ranking (below).
+    play_notes(%w[C4 D4])
+    assert_selector 'dialog[open] tr.is-current'
+    find('dialog[open] button[aria-label="Close"]').click
+    assert_no_selector 'dialog[open]'
+
     enter_training_mode
     pick_passage(1, 2)
 
@@ -33,6 +40,9 @@ class TrainingPassageTest < CapybaraTestBase
     wait_for_training_cursor(2)
     play_note('D4')
     assert_text 'Vous avez enchaîné les mesures 1 à 2 3× sans erreur.'
+    # The ranking is the free runs' own. A drill used to show the last one's,
+    # "maintenant" beside a time that was not the drill's.
+    assert_no_selector 'dialog[open] .pt-playthrough-table'
   end
 
   def test_a_wrong_note_in_the_second_measure_spoils_the_whole_passage
@@ -108,10 +118,26 @@ class TrainingPassageTest < CapybaraTestBase
     assert_selector 'svg rect.measure-click-area.selected', count: 1
   end
 
+  # While the piece is being listened to, a bar clicked moves the listening
+  # (see barClickOwner). The band stops asking for one, as the strict band
+  # does, and says where the passage stands instead.
+  def test_the_band_asks_for_a_bar_only_while_the_click_picks_the_passage
+    open_two_measures
+    enter_training_mode
+    arm_passage(1)
+
+    listen_then_pause
+    assert_text 'Départ à la mesure 1.'
+    assert_no_text 'cliquez sur la dernière mesure du passage'
+
+    click_on '⏹ Stop'
+    assert_text 'Départ à la mesure 1 — cliquez sur la dernière mesure du passage.'
+  end
+
   private
 
-  # Uploaded rather than opened by URL: only the test that reads the journal
-  # back needs a score id.
+  # Uploaded rather than opened by URL: only the tests that read the journal
+  # back or rank a free run need a score id.
   def open_two_measures
     visit '/score.html'
     load_score('two-measures.xml', 2)
@@ -125,11 +151,16 @@ class TrainingPassageTest < CapybaraTestBase
 
   # The gesture: 🔁, then the first bar of the passage and its last.
   def pick_passage(first, last)
+    arm_passage(first)
+    click_measure(last)
+  end
+
+  # Its first half: 🔁 and the first bar, the band waiting for the last.
+  def arm_passage(first)
     click_on '🔁 Boucle'
     assert_text 'Cliquez sur la première puis la dernière mesure du passage à travailler.'
     click_measure(first)
-    assert_text 'cliquez sur la dernière mesure du passage'
-    click_measure(last)
+    assert_text "Départ à la mesure #{first} — cliquez sur la dernière mesure du passage."
   end
 
   # The cursor moves a beat after the measure is finished (the engine pauses so

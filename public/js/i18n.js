@@ -23,7 +23,7 @@ function detectLang() {
   } catch {
     /* localStorage unavailable */
   }
-  // `navigator` is absent in the node test environment (and Node < 21), so guard it.
+  // `navigator` is absent under Node < 21, where the unit tests may run.
   const navLang = typeof navigator !== 'undefined' ? navigator.language || '' : ''
   const nav = navLang.slice(0, 2).toLowerCase()
   return SUPPORTED.includes(nav) ? nav : FALLBACK

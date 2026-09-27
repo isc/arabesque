@@ -327,6 +327,26 @@ class CapybaraTestBase < Minitest::Test
     find_button(label).trigger('click')
   end
 
+  # ▶ Écouter, then ⏸ straight away: the piece held at its first bar with no
+  # timer left pending, so nothing asserted afterwards can race it running out.
+  # The block, if given, runs while it plays.
+  #
+  # The clock is parked for the one stretch where the piece could run out from
+  # under the test. Alpine puts an x-show element back on screen from a
+  # setTimeout of its own — hiding is immediate, showing is deferred a tick.
+  # That tick is virtual time like any other, so a parked clock would leave the
+  # playback band, and the ⏸ in it, at display:none however long Capybara waits
+  # on the wall clock. 50ms lets it through, and is far short of the first bar.
+  def listen_then_pause
+    with_clock_control do
+      trigger_click_on('▶ Écouter')
+      advance_clock(50)
+      yield if block_given?
+      trigger_click_on('⏸ Pause')
+    end
+    assert_text 'En pause à la mesure 1'
+  end
+
   # Advance the parked clock by `ms` of virtual time and block until the page
   # has actually consumed it. Chrome burns the budget as fast as the CPU
   # allows, so this returns in a few real milliseconds.

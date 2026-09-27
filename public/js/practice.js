@@ -102,6 +102,14 @@ export function practiceApp() {
       // syncs down arrives on the branch above — so the grid is redrawn from
       // the history already in memory rather than read again.
       onDayChange(() => this.redraw())
+
+      // Reached again through history.back() — the top C key, or a day's
+      // score and back — the page can come out of the back/forward cache as it
+      // stood before the practice, init() never running again. Read the
+      // history again, as the library does.
+      window.addEventListener('pageshow', (event) => {
+        if (event.persisted) this.reload()
+      })
     },
 
     async reload() {

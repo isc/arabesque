@@ -134,6 +134,9 @@ or only those the PR explains.
 
 - `public/data/scores.json`: one entry, next to its siblings (same composer,
   same set).
+- A composer new to the library also gets a period in
+  `public/js/musicalPeriods.js`, under the exact name `scores.json` uses —
+  without one, no period filter shows the piece.
 - Fingerprints: `ruby scripts/generate_fingerprints.rb`, or
   `scripts/test-in-docker.sh ruby scripts/generate_fingerprints.rb` when the
   machine has no Ruby. Check the new line's notes are the piece's opening.

@@ -34,27 +34,12 @@ class PlaybackTest < CapybaraTestBase
     # No band until there is something to listen to.
     assert_no_text 'Cliquez sur une mesure pour écouter'
 
-    # The clock is parked for the one stretch where the piece could run out
-    # from under the assertions; past ⏸ there is no timer left pending.
-    with_clock_control do
-      trigger_click_on('▶ Écouter')
-      # Alpine puts an x-show element back on screen from a setTimeout of its
-      # own — hiding is immediate, showing is deferred a tick. That tick is
-      # virtual time like any other, so a parked clock leaves the band at
-      # display:none however long Capybara waits on the wall clock, and the
-      # placeholder text in the markup is what it then finds "including
-      # non-visible text". 50ms is far short of the first bar, so the piece is
-      # still where the assertions below expect it.
-      advance_clock(50)
-      assert_text 'Cliquez sur une mesure pour écouter à partir de là.'
-      trigger_click_on('⏸ Pause')
-    end
+    listen_then_pause { assert_text 'Cliquez sur une mesure pour écouter à partir de là.' }
 
     # ⏸ holds the piece rather than ending it: the band stays up and the
     # modebar still offers ⏹, not a fresh start.
     assert_text '▶ Reprendre'
     assert_text '⏹ Stop'
-    assert_text 'En pause à la mesure 1'
 
     # A bar clicked while paused is where ▶ will pick the piece up.
     click_measure(2)
@@ -91,13 +76,7 @@ class PlaybackTest < CapybaraTestBase
     # Held at its first bar before reinforcement is asked for: nothing is left
     # scheduled, so the listening can only end for the reason under test rather
     # than because the piece ran out while the assertions were being made.
-    with_clock_control do
-      trigger_click_on('▶ Écouter')
-      advance_clock(50) # Alpine shows an x-show element a tick later
-      assert_text 'Cliquez sur une mesure pour écouter à partir de là.'
-      trigger_click_on('⏸ Pause')
-    end
-    assert_text 'En pause à la mesure 1'
+    listen_then_pause
 
     # The badge is a link, not a button, so click_on's button lookup misses it.
     find('.pt-reinforce-badge').click

@@ -240,6 +240,12 @@ describe('folding into CHANGELOG', () => {
     )
   })
 
+  it('writes an item as it is, dollar signs included', () => {
+    expect(foldIntoMarkdown('2026-09-05\n\n- **Vieux.**\n', [entry('2026-09-05', "Coûte 5 $' ici.")])).toBe(
+      "2026-09-05\n\n- **Coûte 5 $' ici.**\n\n- **Vieux.**\n",
+    )
+  })
+
   it('leaves the newest date on top when several are folded at once', () => {
     const folded = foldIntoMarkdown('2026-09-04\n\n- **Vieux.**\n', [entry('2026-09-06', 'Neuf.'), entry('2026-09-05', 'Hier.')])
     expect(folded.split('\n\n').map((block) => block.split('\n')[0])).toEqual([

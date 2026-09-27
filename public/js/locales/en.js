@@ -1,4 +1,4 @@
-// English strings. Keys mirror fr.js exactly. See js/i18n.js.
+// English strings. Keys mirror fr.js exactly (test/js/locales.test.js). See js/i18n.js.
 export default {
   common: {
     openLibrary: 'Open the library',
@@ -266,7 +266,7 @@ export default {
     playbackPausedAt: 'Paused at bar {n} — click a bar to resume elsewhere.',
     countIn: 'Count-in',
     strictHint: 'Click a bar to start playback from that point.',
-    strictStartAt: 'Starting at bar {n}.',
+    startAt: 'Starting at bar {n}.',
     loopBtn: '🔁 Loop',
     loopTitle: 'Replay the passage in a loop, the tempo moving from run to run',
     trainerModeAria: 'Tempo progression',
