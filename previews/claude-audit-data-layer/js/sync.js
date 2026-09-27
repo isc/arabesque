@@ -13,9 +13,14 @@
 // sync there, a profile removed anywhere is dropped everywhere, and its rows
 // on the server go with it.
 //
+// What goes up — sessions, fingerings, each profile's name and avatar — is
+// what the privacy policy says the account holds (privacy.accountBody): sync
+// anything more and that text has to say so too.
+//
 // runSync() takes its dependencies (the supabase client, storage,
 // practiceTracker) so it stays page-agnostic.
 import { currentProfileId, listProfiles, mergeProfiles, scopedKey } from './profiles.js'
+import { NEVER_SYNCED } from './storage.js'
 
 // Per profile: the throttle in autoSync.js reads it, and a profile just
 // switched to has its own catching up to do.
@@ -50,7 +55,7 @@ function chunk(arr, size) {
 // frequent enough that re-fetching and re-mapping it each time is pure waste.
 let catalogMeta = null
 
-export async function fetchCatalogMeta() {
+async function fetchCatalogMeta() {
   if (catalogMeta) return catalogMeta
   try {
     const res = await fetch('data/scores.json')
@@ -69,6 +74,54 @@ export async function fetchCatalogMeta() {
   } catch {
     return {}
   }
+}
+
+// Aggregates are derived: once sessions arrive from elsewhere — pulled by a
+// sync, imported from a backup — they are replayed from every session there
+// is, the scores named from the catalog. `fallbackNames` as rebuildAggregates
+// takes them.
+async function rebuildAggregatesFromCatalog(practiceTracker, fallbackNames) {
+  const meta = await fetchCatalogMeta()
+  await practiceTracker.rebuildAggregates((scoreId) => meta[scoreId] ?? null, fallbackNames)
+}
+
+// A backup brought to this device joins what it holds, the way a pull does:
+// the sessions it lacks go in, its fingerings are entered as if played here
+// (importFingerings), and the aggregates are replayed from every session. The
+// backup's own aggregates only lend their names, to scores nothing on this
+// device can name.
+export async function importBackup({ storage, practiceTracker }, backup) {
+  if (!backup?.sessions) throw new Error('Invalid backup data format')
+  const importedSessions = await storage.importSessions(backup.sessions)
+  const importedFingerings = await importFingerings(storage, backup.fingerings ?? [])
+  const names = new Map((backup.aggregates ?? []).filter((a) => a.scoreTitle).map((a) => [a.scoreId, { title: a.scoreTitle, composer: a.composer }]))
+  await rebuildAggregatesFromCatalog(practiceTracker, names)
+  return { importedSessions, importedFingerings }
+}
+
+// A backup's fingerings, entered here as if on this device: merged note by
+// note into a score's record already here — the newer side keeping a note both
+// hold — and stamped now, so the next sync sends what they added. A score with
+// no record here takes the backup's, with the base a record new to this device
+// starts from, so the next sync merges it into the server's copy rather than
+// over it. With no version in common, a fingering cleared since the backup was
+// made comes back: visible, and one × away. Resolves to how many scores changed.
+async function importFingerings(storage, records) {
+  const here = new Map((await storage.getAllFingerings()).map((f) => [f.scoreUrl, f]))
+  const writes = []
+  for (const { scoreUrl, fingerings, updatedAt = 0 } of records) {
+    const local = here.get(scoreUrl)
+    if (!local) {
+      writes.push({ record: { scoreUrl, fingerings, updatedAt, synced: NEVER_SYNCED }, read: 0 })
+      continue
+    }
+    const merged = mergeFingerings({ fingerings, updatedAt, synced: NEVER_SYNCED }, { fingerings: local.fingerings, updatedAt: local.updatedAt || 0 })
+    const keys = Object.keys(merged)
+    if (keys.length === Object.keys(local.fingerings).length && keys.every((key) => merged[key] === local.fingerings[key])) continue
+    writes.push({ record: { ...local, fingerings: merged, updatedAt: Date.now() }, read: local.updatedAt ?? 0 })
+  }
+  await storage.putFingeringRecordsIfUnchanged(writes)
+  return writes.length
 }
 
 // Pull missing sessions, push local-only sessions, reconcile fingerings, then
@@ -146,10 +199,7 @@ export async function runSync({ supabase, storage, practiceTracker, userId = nul
   const { fingeringsPushed, fingeringsPulled } = await syncFingerings({ supabase, storage, uid, profileId, remoteStamps: stampsRead.data })
 
   // --- Recompute aggregates locally if we pulled any sessions ---
-  if (pulled > 0) {
-    const meta = await fetchCatalogMeta()
-    await practiceTracker.rebuildAggregates((scoreId) => meta[scoreId] ?? null)
-  }
+  if (pulled > 0) await rebuildAggregatesFromCatalog(practiceTracker)
 
   setLastSync(new Date().toISOString(), profileId)
   return { pushed: toPush.length, pulled, fingeringsPushed, fingeringsPulled, profilesChanged }

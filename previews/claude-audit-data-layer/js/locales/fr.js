@@ -137,7 +137,7 @@ export default {
     exercises: '{n} exercices',
     timesPlayed: '{n}× joué',
     timesPlayedOneHand: '{n}× une main',
-    importOk: '✅ Sauvegarde importée avec succès !\n\n{sessions} session(s) importée(s)\n{aggregates} agrégat(s) importé(s)\n{fingerings} doigté(s) importé(s)',
+    importOk: '✅ Sauvegarde importée avec succès !\n\n{sessions} session(s) importée(s)\n{fingerings} doigté(s) importé(s)',
     importError: "❌ Erreur lors de l'import : {error}",
     exportOk: '✅ Sauvegarde exportée avec succès !',
     exportError: "❌ Erreur lors de l'export : {error}",
@@ -158,7 +158,7 @@ export default {
     emailHint: 'Seulement si vous souhaitez une réponse.',
     screenshotLabel: 'Joindre l’image de l’écran',
     screenshotAlt: 'Aperçu de l’image jointe',
-    privacy: 'Votre message est envoyé avec un contexte technique (version de l’app, navigateur, taille d’écran, et selon la page le morceau ouvert ou vos totaux de pratique) pour m’aider à reproduire les problèmes. Rien d’autre, et aucun lien avec un compte.',
+    privacy: 'Votre message est envoyé avec un contexte technique (version de l’app, navigateur, taille d’écran, langue, erreurs rencontrées dans l’heure, et selon la page le morceau ouvert ou vos totaux de pratique) pour m’aider à reproduire les problèmes, et avec l’image de l’écran si la case est cochée. Rien d’autre, et aucun lien avec un compte.',
     send: 'Envoyer',
     thanks: 'Merci, c’est bien reçu ! 🙏',
     error: 'L’envoi a échoué.',
@@ -432,16 +432,16 @@ export default {
     pageTitle: 'Arabesque · Confidentialité',
     heading: 'Confidentialité',
     back: '← Bibliothèque',
-    updated: 'Dernière mise à jour : 24 août 2026.',
+    updated: 'Dernière mise à jour : 27 septembre 2026.',
     summaryTitle: 'En bref',
     summaryBody:
       "Arabesque fonctionne dans votre navigateur et garde vos données de pratique sur votre appareil. Rien n'est envoyé ailleurs tant que vous ne le demandez pas — en créant un compte pour synchroniser vos appareils, ou en envoyant un avis. Il n'y a ni publicité, ni traceur, ni revente de quoi que ce soit.",
     localTitle: 'Ce qui reste sur votre appareil',
     localBody:
-      "Vos séances de travail, vos doigtés et vos préférences (langue, morceaux vus) sont écrits dans le stockage local du navigateur. Ils ne quittent pas l'appareil de leur propre initiative, et vider les données du site les efface définitivement. La page Données permet de les exporter dans un fichier.",
+      "Vos séances de travail, vos doigtés, vos profils et vos préférences (langue, morceaux vus) sont écrits dans le stockage local du navigateur. Ils ne quittent pas l'appareil de leur propre initiative, et vider les données du site les efface définitivement. La page Données permet de les exporter dans un fichier.",
     accountTitle: 'Le compte, si vous en créez un',
     accountBody:
-      "Se connecter sert à retrouver sa pratique d'un appareil à l'autre. Cela demande une adresse e-mail, à laquelle est envoyé un code de connexion : il n'y a pas de mot de passe. Une fois connecté, vos séances et vos doigtés sont copiés sur le serveur pour être redescendus sur vos autres appareils. Aucune autre donnée n'est associée au compte.",
+      "Se connecter sert à retrouver sa pratique d'un appareil à l'autre. Cela demande une adresse e-mail, à laquelle est envoyé un code de connexion : il n'y a pas de mot de passe. Une fois connecté, vos séances, vos doigtés et vos profils (le nom et l'avatar de chacun) sont copiés sur le serveur pour être redescendus sur vos autres appareils. Aucune autre donnée n'est associée au compte.",
     accountDelete:
       "Vous pouvez supprimer votre compte depuis la page Données. Le compte et toutes les données synchronisées sont alors effacés des serveurs, sans délai et sans avoir à le demander à qui que ce soit.",
     feedbackTitle: 'Les avis que vous envoyez',
@@ -452,7 +452,7 @@ export default {
       "Pas de publicité, pas de mesure d'audience, pas de traceur tiers, pas de cookie publicitaire, pas de profilage. Vos données ne sont ni vendues, ni louées, ni partagées à des fins commerciales. Le microphone et la caméra ne sont jamais utilisés ; le clavier MIDI ne sert qu'à savoir quelles notes vous jouez, et ce flux ne quitte pas votre appareil.",
     hostingTitle: 'Hébergement et prestataires',
     hostingBody:
-      "Le site est hébergé par GitHub Pages, qui journalise les requêtes comme tout serveur web. Les comptes et les données synchronisées sont chez Supabase, sur des serveurs situés en Irlande (Union européenne). Les avis y sont également stockés, et notifiés par e-mail via Resend. La page Données charge la bibliothèque de connexion depuis le CDN esm.sh, qui voit donc votre adresse IP lors de cette requête.",
+      "Le site est hébergé par GitHub Pages, qui journalise les requêtes comme tout serveur web. Les comptes et les données synchronisées sont chez Supabase, sur des serveurs situés en Irlande (Union européenne). Les avis y sont également stockés, et notifiés par e-mail via Resend. La bibliothèque de connexion est chargée depuis le CDN esm.sh, qui voit donc votre adresse IP lors de cette requête : sur la page Données, et sur les autres pages de l'app une fois connecté.",
     retentionTitle: 'Durées de conservation',
     retentionBody:
       'Les données synchronisées sont conservées tant que le compte existe, et disparaissent avec lui. Les avis sont conservés le temps de traiter la demande et de garder la trace des corrections apportées.',
@@ -477,7 +477,7 @@ export default {
     keyboardBody:
       "Arabesque écoute le clavier via le Web MIDI, en USB comme en Bluetooth. Sur ordinateur, il faut un navigateur qui le prenne en charge : Chrome, Edge ou Opera. Safari et Firefox ne l'implémentent pas, et l'app le signale plutôt que de rester muette.",
     keyboardIos:
-      "Sur iPhone et iPad, aucun navigateur n'a le Web MIDI : c'est l'app Arabesque qui fait le pont avec le clavier. En USB, branchez-le et c'est tout ; en Bluetooth, touchez le bouton antenne en bas à droite pour ouvrir l'appairage du système, l'appairage étant propre à chaque app sur iOS.",
+      "Sur iPhone et iPad, aucun navigateur n'a le Web MIDI : c'est l'app Arabesque qui fait le pont avec le clavier. En USB, branchez-le et c'est tout ; en Bluetooth, touchez « Connecter clavier MIDI » (en haut d'une partition, ou dans le menu ⚙️) pour ouvrir l'appairage du système, l'appairage étant propre à chaque app sur iOS.",
     noteTitle: "Le clavier n'est pas détecté",
     noteBody:
       "Vérifiez qu'aucun autre logiciel ne l'occupe : un clavier MIDI ne se partage pas toujours entre deux applications. Un clavier branché après l'ouverture de la page est reconnu tout seul, mais recharger la page règle la plupart des cas restants. Sur ordinateur, l'autorisation MIDI se redemande au navigateur si elle a été refusée une fois.",
@@ -486,6 +486,6 @@ export default {
       "Tout se passe sur la page Données : exporter votre historique dans un fichier, le réimporter sur un autre appareil, vous connecter pour que la synchronisation s'en charge, et supprimer votre compte. Ce que l'app conserve et ce qu'elle envoie est détaillé dans la politique de confidentialité.",
     scoresTitle: 'Les partitions',
     scoresBody:
-      "La bibliothèque ne contient que des œuvres du domaine public. Vous pouvez aussi ouvrir vos propres fichiers MusicXML (.xml, .mxl) en les déposant sur la page partition — ils restent sur votre appareil. Une erreur dans une partition, ou une œuvre qui manque ? Le formulaire d'avis, catégorie « Partition ».",
+      "La bibliothèque ne contient que des œuvres du domaine public. Vous pouvez aussi ouvrir vos propres fichiers MusicXML (.xml, .mxl) en les déposant sur la page partition — ils restent sur votre appareil. Une erreur dans une partition, ou une œuvre qui manque ? Le formulaire d'avis, catégorie « Partition souhaitée ».",
   },
 }

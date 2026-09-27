@@ -19,6 +19,7 @@ import { headerMenu } from './headerMenu.js'
 import { listProfiles, currentProfile, profileName, switchProfile } from './profiles.js'
 import { initAutoSync } from './autoSync.js'
 import { onDayChange } from './dayRollover.js'
+import { daysBetween } from './days.js'
 import { t, tn, locale } from './i18n.js'
 import { recordError } from './errorLog.js'
 
@@ -30,7 +31,6 @@ const STATUS_RANK = Object.fromEntries(STATUS_ORDER.map((s, i) => [s, i]))
 // than as the edge of the window.
 const DAYS_TO_SHOW = 14
 const STALE_DAYS = 7
-const STALE_MS = STALE_DAYS * 24 * 60 * 60 * 1000
 // The focus chips, in the order they are offered — the library's own list, so
 // they read like STATUS_ORDER/statusLabel and PERIODS/periodLabel next door.
 const FOCUS_LABEL_KEYS = {
@@ -596,7 +596,7 @@ export function libraryApp() {
         // by design, so testing the badge for truthiness would silently drop
         // every Hanon exercise — and going quiet is what they are for.
         if (!hasMinimumPractice(agg)) return false
-        return !!agg.lastPlayedAt && Date.now() - new Date(agg.lastPlayedAt).getTime() > STALE_MS
+        return !!agg.lastPlayedAt && daysBetween(agg.lastPlayedAt, new Date()) > STALE_DAYS
       }
       return false
     },

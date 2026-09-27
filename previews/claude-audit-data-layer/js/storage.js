@@ -27,6 +27,12 @@ const PUT_LABELS = {
   [AGGREGATES_STORE]: 'IDB put aggregates',
 }
 
+// The version a fingering record new to this device last exchanged with the
+// server: none, and nothing in it. sync.js merges the server's copy against
+// it, so what was entered here joins what other devices entered first rather
+// than replacing it.
+export const NEVER_SYNCED = Object.freeze({ fingerings: Object.freeze({}), updatedAt: -1 })
+
 function promisifyRequest(request) {
   return new Promise((resolve, reject) => {
     request.onerror = () => reject(request.error)
@@ -214,13 +220,11 @@ export function initStorage() {
 
     // Fingerings methods
     //
-    // A score with no record yet gets one that has never met the server: an
-    // empty `synced`, which sync.js merges the server's copy against, so the
-    // first fingerings entered on this device join the ones already entered
-    // on others rather than replace them. A record written before `synced`
-    // existed carries none, and is left to its own rule (sync.js).
+    // A score with no record yet gets one that has never met the server
+    // (NEVER_SYNCED). A record written before `synced` existed carries none,
+    // and is left to its own rule (sync.js).
     async getFingerings(scoreUrl) {
-      return (await dbGet(FINGERINGS_STORE, scoreUrl)) || { scoreUrl, fingerings: {}, synced: { fingerings: {}, updatedAt: -1 } }
+      return (await dbGet(FINGERINGS_STORE, scoreUrl)) || { scoreUrl, fingerings: {}, synced: NEVER_SYNCED }
     },
 
     async setFingering(scoreUrl, noteKey, finger) {
@@ -279,14 +283,9 @@ export function initStorage() {
       return (await dbGet(SESSIONS_STORE, id)) || null
     },
 
-    async getSessions(scoreId = null, dateRange = null) {
-      const sessions = await withStore(SESSIONS_STORE, 'readonly', (store) =>
+    getSessions(scoreId = null) {
+      return withStore(SESSIONS_STORE, 'readonly', (store) =>
         promisifyRequest(scoreId ? store.index('scoreId').getAll(scoreId) : store.getAll()))
-      if (!dateRange) return sessions
-      return sessions.filter((session) => {
-        const sessionDate = new Date(session.startedAt)
-        return sessionDate >= dateRange.start && sessionDate <= dateRange.end
-      })
     },
 
     // Aggregates methods
@@ -319,28 +318,16 @@ export function initStorage() {
       }
     },
 
-    async importBackup(backupData) {
-      if (!backupData || !backupData.sessions) {
-        throw new Error('Invalid backup data format')
-      }
-
-      const importCounts = await withDb(async (db) => {
-        const transaction = db.transaction([SESSIONS_STORE, AGGREGATES_STORE, FINGERINGS_STORE], 'readwrite')
-        const counts = {
-          sessions: putAllToStore(transaction, SESSIONS_STORE, backupData.sessions),
-          aggregates: putAllToStore(transaction, AGGREGATES_STORE, backupData.aggregates),
-          fingerings: putAllToStore(transaction, FINGERINGS_STORE, backupData.fingerings),
-        }
+    // Sessions from elsewhere — a backup's — that this device does not have
+    // yet, as a sync's pull takes them: by id. Resolves to how many were new.
+    importSessions(sessions) {
+      return withDb(async (db) => {
+        const transaction = db.transaction([SESSIONS_STORE], 'readwrite')
+        const here = new Set(await promisifyRequest(transaction.objectStore(SESSIONS_STORE).getAllKeys()))
+        const imported = putAllToStore(transaction, SESSIONS_STORE, sessions.filter((s) => !here.has(s.id)))
         await promisifyTransaction(transaction)
-        return counts
+        return imported
       })
-
-      return {
-        success: true,
-        importedSessions: importCounts.sessions,
-        importedAggregates: importCounts.aggregates,
-        importedFingerings: importCounts.fingerings,
-      }
     },
 
     // Swap the whole aggregates store for `aggregates`, in one transaction.

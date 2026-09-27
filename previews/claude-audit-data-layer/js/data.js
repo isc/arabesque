@@ -8,7 +8,8 @@
 // every profile on it included.
 import { initStorage } from './storage.js'
 import { initPracticeTracker } from './practiceTracker.js'
-import { lastSyncAt } from './sync.js'
+import { localDayKey } from './days.js'
+import { lastSyncAt, importBackup as importBackupFile } from './sync.js'
 import { initAutoSync, requestSync } from './autoSync.js'
 import { deleteCurrentUser } from './account.js'
 import { t, locale } from './i18n.js'
@@ -301,7 +302,7 @@ export function dataApp() {
         const url = URL.createObjectURL(blob)
         const a = document.createElement('a')
         a.href = url
-        a.download = `arabesque-backup-${backupSlug(this.currentProfile)}${new Date().toISOString().split('T')[0]}.json`
+        a.download = `arabesque-backup-${backupSlug(this.currentProfile)}${localDayKey(new Date())}.json`
         document.body.appendChild(a)
         a.click()
         document.body.removeChild(a)
@@ -317,17 +318,8 @@ export function dataApp() {
       const file = event.target.files[0]
       if (!file) return
       try {
-        const backupData = JSON.parse(await file.text())
-        const result = await storage.importBackup(backupData)
-        if (result.success) {
-          alert(
-            t('library.importOk', {
-              sessions: result.importedSessions,
-              aggregates: result.importedAggregates,
-              fingerings: result.importedFingerings,
-            })
-          )
-        }
+        const result = await importBackupFile({ storage, practiceTracker }, JSON.parse(await file.text()))
+        alert(t('library.importOk', { sessions: result.importedSessions, fingerings: result.importedFingerings }))
       } catch (error) {
         recordError(error, 'Backup could not be imported')
         alert(t('library.importError', { error: error.message }))
