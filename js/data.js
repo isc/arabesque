@@ -30,7 +30,9 @@ import {
 // The file name of a backup carries the profile it came from — except the
 // main profile's, which keeps the name it always had.
 function backupSlug(profile) {
-  if (profile.id === MAIN_PROFILE_ID) return ''
+  // None when a sync learnt this page's profile was removed on another device:
+  // its practice is still here, and saving it is still worth a file.
+  if (!profile || profile.id === MAIN_PROFILE_ID) return ''
   const slug = profile.name
     .toLowerCase()
     .normalize('NFD')

@@ -1,5 +1,5 @@
 import { traced } from './perfTrace.js' // TEMP diagnostic
-import { scopedKey, listProfiles, SCOPE_SEPARATOR } from './profiles.js'
+import { scopedKey, listProfiles, pruneRemovedProfileKeys, SCOPE_SEPARATOR } from './profiles.js'
 
 // Each profile has a database of its own, named from this (profiles.js). The
 // main profile's is the bare name — the one this device had before profiles.
@@ -26,6 +26,12 @@ const PUT_LABELS = {
   [SESSIONS_STORE]: 'IDB put sessions',
   [AGGREGATES_STORE]: 'IDB put aggregates',
 }
+
+// The version a fingering record new to this device last exchanged with the
+// server: none, and nothing in it. sync.js merges the server's copy against
+// it, so what was entered here joins what other devices entered first rather
+// than replacing it.
+export const NEVER_SYNCED = Object.freeze({ fingerings: Object.freeze({}), updatedAt: -1 })
 
 function promisifyRequest(request) {
   return new Promise((resolve, reject) => {
@@ -128,15 +134,17 @@ async function openDatabase(name) {
 }
 
 // Drops the databases of profiles this device no longer lists — removed here,
-// or removed elsewhere and learnt by sync. Done on the way in rather than at
-// removal time: a profile removed while its own page is open cannot drop the
-// database that page holds, and the next open can. Only ever another
-// profile's database, never the one being opened: the current profile is
-// always listed. Best effort, and nobody waits for it: a browser without
-// indexedDB.databases() keeps the orphans, which cost nothing.
+// or removed elsewhere and learnt by sync — and the keys scoped to them. Done
+// on the way in rather than at removal time: a profile removed while its own
+// page is open cannot drop the database that page holds, and the next open
+// can. Only ever another profile's database, never the one being opened: a
+// page keeps its own even once a sync has learnt it was removed, and the next
+// page, on another profile, drops it. Best effort, and nobody waits for it: a
+// browser without indexedDB.databases() keeps the orphans, which cost nothing.
 async function pruneProfileStorage() {
+  pruneRemovedProfileKeys()
   if (!indexedDB.databases) return
-  const known = new Set(listProfiles().map((p) => scopedKey(DB_BASE_NAME, p.id)))
+  const known = new Set([scopedKey(DB_BASE_NAME), ...listProfiles().map((p) => scopedKey(DB_BASE_NAME, p.id))])
   for (const { name } of await indexedDB.databases()) {
     if (name?.startsWith(DB_BASE_NAME + SCOPE_SEPARATOR) && !known.has(name)) indexedDB.deleteDatabase(name)
   }
@@ -211,8 +219,12 @@ export function initStorage() {
     init: ensureDb,
 
     // Fingerings methods
+    //
+    // A score with no record yet gets one that has never met the server
+    // (NEVER_SYNCED). A record written before `synced` existed carries none,
+    // and is left to its own rule (sync.js).
     async getFingerings(scoreUrl) {
-      return (await dbGet(FINGERINGS_STORE, scoreUrl)) || { scoreUrl, fingerings: {} }
+      return (await dbGet(FINGERINGS_STORE, scoreUrl)) || { scoreUrl, fingerings: {}, synced: NEVER_SYNCED }
     },
 
     async setFingering(scoreUrl, noteKey, finger) {
@@ -229,6 +241,11 @@ export function initStorage() {
 
     async _updateFingerings(scoreUrl, updateFn) {
       const data = await this.getFingerings(scoreUrl)
+      // Edited as a copy: a record a sync wrote back holds one map for both
+      // its fingerings and `synced` (IndexedDB stores the two references as
+      // one object), and an edit in place would move the version the next
+      // sync merges against along with it.
+      data.fingerings = { ...data.fingerings }
       updateFn(data.fingerings)
       data.updatedAt = Date.now()
       await dbPut(FINGERINGS_STORE, data)
@@ -239,9 +256,21 @@ export function initStorage() {
     },
 
     // Overwrite a whole fingerings record ({ scoreUrl, fingerings, updatedAt }).
-    // Used by cloud sync to apply a newer remote version (last-write-wins).
     async putFingeringRecord(record) {
       await dbPut(FINGERINGS_STORE, record)
+    },
+
+    // Overwrite records, each only if the stored one still carries the stamp
+    // it was read with (`read`, 0 for none), all read and written in one
+    // transaction: a writer that read a record earlier — sync writing back what
+    // it exchanged, the score page translating old keys — must not write over
+    // a fingering entered since.
+    putFingeringRecordsIfUnchanged(entries) {
+      return withStore(FINGERINGS_STORE, 'readwrite', (store) =>
+        Promise.all(entries.map(async ({ record, read }) => {
+          const stored = await promisifyRequest(store.get(record.scoreUrl))
+          if ((stored?.updatedAt ?? 0) === read) await promisifyRequest(store.put(record))
+        })))
     },
 
     // Sessions methods
@@ -277,7 +306,9 @@ export function initStorage() {
     async exportBackup() {
       const sessions = await this.getSessions()
       const aggregates = await this.getAllAggregates()
-      const fingerings = await this.getAllFingerings()
+      // Without `synced`: it is this device's own exchange with the server, as
+      // meaningless to another device as its last-sync time.
+      const fingerings = (await this.getAllFingerings()).map(({ synced, ...record }) => record)
 
       return {
         exportDate: new Date().toISOString(),
@@ -287,31 +318,15 @@ export function initStorage() {
       }
     },
 
-    // What a backup brings joins what this device holds, as a sync's pull
-    // does: the sessions it does not have yet, and a score's fingerings only
-    // where the backup's are newer than the ones here — an old file must not
-    // undo an edit made since. Aggregates are derived, and not taken: the
-    // caller replays them from the sessions (importBackup in sync.js).
-    async importBackup(backupData) {
-      if (!backupData || !backupData.sessions) {
-        throw new Error('Invalid backup data format')
-      }
-
+    // Sessions from elsewhere — a backup's — that this device does not have
+    // yet, as a sync's pull takes them: by id. Resolves to how many were new.
+    importSessions(sessions) {
       return withDb(async (db) => {
-        const transaction = db.transaction([SESSIONS_STORE, FINGERINGS_STORE], 'readwrite')
-        const [sessionIds, fingerings] = await Promise.all([
-          promisifyRequest(transaction.objectStore(SESSIONS_STORE).getAllKeys()),
-          promisifyRequest(transaction.objectStore(FINGERINGS_STORE).getAll()),
-        ])
-        const here = new Set(sessionIds)
-        const stamps = new Map(fingerings.map((f) => [f.scoreUrl, f.updatedAt || 0]))
-        const newer = (backupData.fingerings ?? []).filter((f) => !stamps.has(f.scoreUrl) || (f.updatedAt || 0) > stamps.get(f.scoreUrl))
-        const counts = {
-          importedSessions: putAllToStore(transaction, SESSIONS_STORE, backupData.sessions.filter((s) => !here.has(s.id))),
-          importedFingerings: putAllToStore(transaction, FINGERINGS_STORE, newer),
-        }
+        const transaction = db.transaction([SESSIONS_STORE], 'readwrite')
+        const here = new Set(await promisifyRequest(transaction.objectStore(SESSIONS_STORE).getAllKeys()))
+        const imported = putAllToStore(transaction, SESSIONS_STORE, sessions.filter((s) => !here.has(s.id)))
         await promisifyTransaction(transaction)
-        return counts
+        return imported
       })
     },
 
