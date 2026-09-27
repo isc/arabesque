@@ -127,17 +127,23 @@ export function dataApp() {
     deleteError: '',
 
     async init() {
-      await storage.init()
-      try {
-        const mod = await import('./supabaseClient.js')
+      // Fetched from its CDN while the practice data opens, which it does not
+      // need. Caught at once, or a failure would also be logged as unhandled.
+      const client = import('./supabaseClient.js').catch((err) => {
+        recordError(err, 'Supabase client could not be loaded')
+        return null
+      })
+      // The tracker's init, not storage's alone: it also closes the session a
+      // score page left behind mid-piece, which is what "Synchroniser
+      // maintenant" and the export would otherwise both leave out.
+      await practiceTracker.init()
+      const mod = await client
+      if (mod) {
         supabase = mod.supabase
         pendingSignIn = mod.pendingSignIn
         setPendingSignIn = mod.setPendingSignIn
-        this.cloudConfigured = !!supabase
-      } catch (err) {
-        recordError(err, 'Supabase client could not be loaded')
-        this.cloudConfigured = false
       }
+      this.cloudConfigured = !!supabase
       if (supabase) {
         const { data } = await supabase.auth.getSession()
         this.setSession(data.session)

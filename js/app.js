@@ -68,6 +68,14 @@ function runKind(strict) {
   return strict ? RUN_KINDS.strict : RUN_KINDS.free
 }
 
+// What the strict and training bands say once a passage's first bar is picked
+// and its last is awaited: to click that bar, while a click would reach the
+// band (see barClickOwner), and otherwise only where the passage starts. One
+// copy for both: with one each, the training band missed the listening rule.
+function armedRangeText(from, clickIsTheBands) {
+  return t(clickIsTheBands ? 'score.loopHintEnd' : 'score.startAt', { n: from })
+}
+
 // How many measures the result modal names before it only counts them.
 const WRONG_MEASURES_LISTED = 6
 
@@ -912,8 +920,13 @@ export function midiApp() {
             this.countInBeat = 0
             // Not awaited here: the result modal is not going to wait on
             // IndexedDB, and the run is already fully described by `result`.
-            // Chained, so that one await covers every run a loop has filed.
-            strictRunRecorded = strictRunRecorded.then(() => this.recordStrictRun(result, { settle }))
+            // Chained, so that one await covers every run a loop has filed —
+            // and caught, since a chain left rejected skips every link after
+            // it: one run that failed to file would silently drop all the
+            // others on the page, and throw from setMode's await.
+            strictRunRecorded = strictRunRecorded
+              .then(() => this.recordStrictRun(result, { settle }))
+              .catch((error) => recordError(error, 'Strict run could not be recorded'))
             resolve(result)
           },
         })
@@ -1067,13 +1080,16 @@ export function midiApp() {
     trainingBandText() {
       const from = this.trainingStartMeasure + 1
       const times = musicxml.getTrainingState().targetRepeatCount
-      if (this.trainingRangeArmed) return t('score.loopHintEnd', { n: from })
+      // Which bar to click is only said while the click is training's:
+      // listening takes it over (see barClickOwner).
+      const clickIsTraining = this.barClickOwner === 'training'
+      if (this.trainingRangeArmed) return armedRangeText(from, clickIsTraining)
       if (this.trainingEndMeasure != null) {
         const to = this.trainingEndMeasure + 1
         // A passage of one bar is allowed, and "bars 5 to 5" is not a sentence.
         return tn('score.trainingPassage', to - from + 1, { from, to, times })
       }
-      if (this.trainingLoop) return t('score.loopHint')
+      if (this.trainingLoop && clickIsTraining) return t('score.loopHint')
       return t('score.trainingHint', { times })
     },
 
@@ -1110,12 +1126,10 @@ export function midiApp() {
       // for itself. Where the passage stands is still worth saying either way.
       const clickIsStrict = this.barClickOwner === 'strict'
       if (!this.loopEnabled) {
-        if (from > 1) return t('score.strictStartAt', { n: from })
+        if (from > 1) return t('score.startAt', { n: from })
         return clickIsStrict ? t('score.strictHint') : ''
       }
-      if (this.strictRangeArmed) {
-        return clickIsStrict ? t('score.loopHintEnd', { n: from }) : t('score.strictStartAt', { n: from })
-      }
+      if (this.strictRangeArmed) return armedRangeText(from, clickIsStrict)
       if (this.strictEndMeasure != null) return loopRangeText(from, this.strictEndMeasure + 1)
       if (from > 1) return t('score.loopRangeOpen', { from })
       return clickIsStrict ? t('score.loopHint') : ''
