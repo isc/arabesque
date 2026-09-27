@@ -8,7 +8,7 @@ import { noteLabel } from './noteExtraction.js'
 import { initStorage } from './storage.js'
 import { loadMxlAsXml } from './mxlLoader.js'
 import { injectFingerings } from './fingeringInjector.js'
-import { migrateLegacyFingerings } from './fingeringKeys.js'
+import { migrateFingeringRecord } from './fingeringKeys.js'
 import { initPlayback, getBPM } from './playback.js'
 import { initStrictPlaythrough } from './strictPlaythrough.js'
 import { initKeyboardHint } from './keyboardHint.js'
@@ -662,19 +662,21 @@ export function midiApp() {
     // lasts as long as the old build does, and a stored flag would travel no
     // better than the keys themselves.
     //
-    // The record keeps its updatedAt. The rewrite is a translation, not an
-    // edit: every device makes the same one from the same record, so it has
-    // nothing to send the others. Stamping it now would -- this page never
-    // pulls, so a stale local copy migrated here would outrank a newer edit
-    // made on another device and overwrite it at the next sync. The cloud
-    // keeps the old names until the next real edit, and each device translates
-    // them on its own first open.
+    // The record keeps its updatedAt, and the version its last sync left is
+    // translated along with it (migrateFingeringRecord). The rewrite is a
+    // translation, not an edit: every device makes the same one from the same
+    // record, so it has nothing to send the others -- and a device still on
+    // the old build, which reads only the old names, would be sent a record
+    // it shows nothing of. The cloud keeps the old names until the next real
+    // edit, and each device translates them on its own first open. Written
+    // only over the record as it was read at render time: a fingering entered
+    // since stays, and the next open translates again.
     async migrateFingeringKeys(record) {
-      const migrated = migrateLegacyFingerings(record.fingerings, musicxml.getLegacyFingeringKeyMap())
+      const migrated = migrateFingeringRecord(record, musicxml.getLegacyFingeringKeyMap())
       if (!migrated) return
-      await storage.putFingeringRecord({ ...record, fingerings: migrated.fingerings })
+      await storage.putFingeringRecordsIfUnchanged([{ record: migrated.record, read: record.updatedAt ?? 0 }])
       for (const key of migrated.added) {
-        fingeringEditor.addFingeringToDataModel(key, migrated.fingerings[key])
+        fingeringEditor.addFingeringToDataModel(key, migrated.record.fingerings[key])
       }
       if (migrated.added.length) this.rerenderScore()
     },

@@ -47,12 +47,13 @@ function mainProfile() {
 // The stored state, normalised: the main profile always first, the current
 // id always one of the list. A stored id that no profile carries any more
 // (removed from another tab, hand-edited) falls back to the main profile
-// rather than to a database nobody can reach from the UI. Parsed once per
-// page — the value only changes through writeState below.
-let cached = null
-
+// rather than to a database nobody can reach from the UI.
+//
+// Read afresh on every call, never kept: another tab can write it at any
+// moment — a profile added on the data page while the library syncs — and a
+// merge written over a stale copy would drop what that tab added, database
+// included (storage.js prunes the databases of profiles no longer listed).
 function readState() {
-  if (cached) return cached
   let stored = null
   try {
     stored = JSON.parse(localStorage.getItem(PROFILES_KEY))
@@ -65,12 +66,10 @@ function readState() {
   const profiles = listed.some((p) => p.id === MAIN_PROFILE_ID) ? listed : [mainProfile(), ...listed]
   const current = profiles.some((p) => p.id === stored?.current) ? stored.current : MAIN_PROFILE_ID
   const removed = Array.isArray(stored?.removed) ? stored.removed : []
-  cached = { current, profiles, removed }
-  return cached
+  return { current, profiles, removed }
 }
 
 function writeState(state) {
-  cached = null
   try {
     localStorage.setItem(PROFILES_KEY, JSON.stringify(state))
   } catch {
@@ -82,13 +81,20 @@ export function listProfiles() {
   return readState().profiles
 }
 
+// The profile this page was opened on. The stored choice can change under a
+// page — another tab switches, or a sync learns the profile was removed on
+// another device and falls back to the main one — but the page stays on this
+// one: its database, its keys and the rows it syncs were all named after it,
+// and a page that followed the store would push one profile's practice as
+// another's.
+const pageProfileId = readState().current
+
 export function currentProfileId() {
-  return readState().current
+  return pageProfileId
 }
 
 export function currentProfile() {
-  const { current, profiles } = readState()
-  return profiles.find((p) => p.id === current)
+  return listProfiles().find((p) => p.id === pageProfileId)
 }
 
 // What a profile is called on screen: the main one has no name until someone
@@ -145,11 +151,21 @@ export function removeProfile(id) {
     profiles: state.profiles.filter((p) => p.id !== id),
     removed: [...state.removed.filter((r) => r.id !== id), { id, updatedAt: Date.now() }],
   })
+  pruneRemovedProfileKeys()
+}
+
+// Drops the localStorage keys scoped to a removed profile — removed here, or
+// on another device and learnt by sync (mergeProfiles), which is why storage.js
+// runs this too, with its own sweep of the databases. Keyed on the tombstones
+// rather than on what is listed: a key only ends in a profile's id if
+// scopedKey put it there.
+export function pruneRemovedProfileKeys() {
+  const suffixes = readState().removed.map(({ id }) => `${SCOPE_SEPARATOR}${id}`)
+  if (!suffixes.length) return
   try {
-    const suffix = `${SCOPE_SEPARATOR}${id}`
     // Collected first: removing while walking by index skips every other key.
     const keys = Array.from({ length: localStorage.length }, (_, i) => localStorage.key(i))
-    for (const key of keys) if (key.endsWith(suffix)) localStorage.removeItem(key)
+    for (const key of keys) if (suffixes.some((suffix) => key.endsWith(suffix))) localStorage.removeItem(key)
   } catch {
     /* ignore */
   }
