@@ -1,12 +1,9 @@
 # App Store screenshots and the App Review video
 
-Two commands, one harness. Both work on a throwaway copy of `public/`, so no
-demo hook ever ships to a real user.
+`capture.sh` makes the screenshot set for the listing, on a throwaway copy of
+`public/`, so no demo hook ever ships to a real user.
 
-- `capture.sh` — the screenshot set for the listing
-- `record.sh` — a walkthrough recorded off a simulator
-
-The video App Review watches is neither of them: it is filmed, and it is
+The video App Review watches is not generated: it is filmed, and it is
 committed at `public/video/review-demo.mp4`.
 
 ## The App Review video
@@ -27,6 +24,7 @@ struck. The camera never leaves the keyboard and the iPad together.
 
 That framing is the whole point, and it is what version 1.0 was rejected for on
 2026-08-31: a simulator recording is not accepted for hardware-dependent apps.
+The script that made one (`record.sh`) is gone for that reason.
 Apple asks for three things by name, and a replacement has to keep all three —
 the current build **on a physical Apple device**, the **pairing** itself
 (sheet, Connecting…, Connected), and the workflow **with the hardware in
@@ -42,28 +40,6 @@ ffmpeg -i PXL_….mp4 -vf "fps=30,scale=810:1440" -c:v libx264 -profile:v high \
   -pix_fmt yuv420p -crf 26 -preset slow -c:a aac -b:a 96k -ac 1 \
   -movflags +faststart public/video/review-demo.mp4
 ```
-
-### The generated walkthrough
-
-```bash
-scripts/demo/record.sh                        # tmp/arabesque-review-demo.mp4
-scripts/demo/record.sh ~/Desktop/demo.mp4 iphone
-```
-
-`record.sh` still produces a simulator walkthrough, and it is still the quickest
-way to see a whole session end to end after a UI change: the score opens with a
-keyboard connected, notes turn green as they are played, a wrong note is struck
-and the piece visibly **fails to advance** until the right one arrives, the
-practice history opens on what was recorded, and training mode is switched on.
-The stall is the point — in free mode a wrong note colours nothing, so a
-sequence that stops and then resumes is what proves the app is checking rather
-than animating.
-
-Its MIDI is generated in software — the same mock input the test suite uses:
-`play.js` sends the notes `extractNotesFromScore` says the piece expects, and
-the app decides what turns green. The app handles both sources identically,
-which is why this is a fair demonstration of the app and still not an answer to
-guideline 2.1: no hardware is visible, and none is being paired.
 
 ## Screenshots
 
@@ -98,12 +74,12 @@ so an English set means adding an `en-US` localization first.
 - The two simulators named at the top of `capture.sh`. New iPhone every year:
   when the 6.9" model changes, that name is the one line to edit.
 
-## How both of them work
+## How it works
 
 `public/` is copied to a temporary directory, two scripts are injected into the
-copy, and that copy is served locally. The app's `PTWebAppURL` is pointed at it —
-one page per shot for `capture.sh`, one long-running page for `record.sh`.
-Nothing in `public/` is touched, and no demo hook ever ships to a real user.
+copy, and that copy is served locally. The app's `PTWebAppURL` is pointed at it,
+one page per shot. Nothing in `public/` is touched, and no demo hook ever ships
+to a real user.
 
 - **`seed.js`** writes a few months of practice *sessions*, then lets the app
   recompute its own aggregates. The statuses on screen — Répertoire,
