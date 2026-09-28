@@ -2,23 +2,15 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { onDayChange } from '../../public/js/dayRollover.js'
 import { NATIVE_FOREGROUND_EVENT } from '../../public/js/utils.js'
+import { installDocument } from './support/browserGlobals.js'
 
 // The page globals dayRollover.js touches (the suite runs in node).
-function fakePage() {
-  const listeners = new Map()
-  const fire = (type) => (listeners.get(type) ?? []).forEach((fn) => fn())
-  const document = {
-    visibilityState: 'visible',
-    addEventListener: (type, fn) => listeners.set(type, [...(listeners.get(type) ?? []), fn]),
-  }
+function installPage() {
+  const { document, setVisibility } = installDocument()
   return {
-    document,
-    comeBack: (state = 'visible') => {
-      document.visibilityState = state
-      fire('visibilitychange')
-    },
+    comeBack: (state = 'visible') => setVisibility(state),
     // What the iOS wrapper dispatches on didBecomeActive.
-    wake: () => fire(NATIVE_FOREGROUND_EVENT),
+    wake: () => document.dispatchEvent(new Event(NATIVE_FOREGROUND_EVENT)),
   }
 }
 
@@ -29,15 +21,13 @@ describe('onDayChange', () => {
   beforeEach(() => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date(2026, 7, 25, 22, 0, 0)) // 25 Aug 2026, 22:00 local
-    page = fakePage()
-    vi.stubGlobal('document', page.document)
+    page = installPage()
     handler = vi.fn()
     onDayChange(handler)
   })
 
   afterEach(() => {
     vi.useRealTimers()
-    vi.unstubAllGlobals()
   })
 
   it('fires when the app comes back on a later day', () => {

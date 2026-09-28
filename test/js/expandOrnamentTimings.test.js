@@ -1,12 +1,7 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect } from 'vitest'
 import { expandOrnamentNotes } from '../../public/js/noteExtraction.js'
+import { expandOrnamentTimings, rollOffsetMs } from '../../public/js/playback.js'
 import { noteWithOrnament, ORNAMENT } from './support/ornamentedNote.js'
-
-// playback.js pulls in @tonejs/piano, which is loaded from a CDN in the browser and
-// has no node package. Stub it so the pure timing helper can be imported under vitest.
-vi.mock('@tonejs/piano', () => ({ Piano: class {} }))
-
-const { expandOrnamentTimings, rollOffsetMs } = await import('../../public/js/playback.js')
 
 // What audio playback is handed for one ornamented note — the extractor's own
 // expansion — timed.

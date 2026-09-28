@@ -4,7 +4,6 @@ require_relative 'test_helper'
 # them transparent and the app has had its say (fixUpInvisibleNotes in musicxml.js).
 class InvisibleNotesTest < CapybaraTestBase
   def setup
-    page.driver.set_cookie('test-env', 'true')
     visit '/score.html'
   end
 

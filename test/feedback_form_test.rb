@@ -22,7 +22,6 @@ class FeedbackFormTest < CapybaraTestBase
   JS
 
   def setup
-    page.driver.set_cookie('test-env', 'true')
     visit '/library.html'
     capture_submissions
   end

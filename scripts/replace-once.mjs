@@ -12,11 +12,18 @@
 import { readFileSync, writeFileSync } from 'node:fs'
 
 export function replaceOnce(file, pattern, replacement) {
-  const before = readFileSync(file, 'utf8')
-  const count = (before.match(new RegExp(pattern.source, pattern.flags + 'g')) ?? []).length
-  if (count !== 1) {
-    console.error(`${file}: expected exactly one ${pattern}, found ${count}`)
+  try {
+    writeFileSync(file, replacedOnce(readFileSync(file, 'utf8'), pattern, replacement, file))
+  } catch (error) {
+    console.error(error.message)
     process.exit(1)
   }
-  writeFileSync(file, before.replace(pattern, () => replacement))
+}
+
+// The same on text in hand, throwing rather than stopping the process: `where`
+// names the text in the error.
+export function replacedOnce(text, pattern, replacement, where = 'text') {
+  const count = (text.match(new RegExp(pattern.source, pattern.flags + 'g')) ?? []).length
+  if (count !== 1) throw new Error(`${where}: expected exactly one ${pattern}, found ${count}`)
+  return text.replace(pattern, () => replacement)
 }

@@ -1,22 +1,8 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { installLocalStorage } from './support/browserGlobals.js'
 
 const PROFILES_KEY = 'arabesque:profiles'
 const MAIN = 'main'
-
-// The Storage interface the module leans on: get/set/remove, and the
-// length/key(i) walk removeProfile uses.
-function installLocalStorage() {
-  const store = new Map()
-  globalThis.localStorage = {
-    getItem: (k) => store.get(k) ?? null,
-    setItem: (k, v) => store.set(k, String(v)),
-    removeItem: (k) => store.delete(k),
-    key: (i) => [...store.keys()][i] ?? null,
-    get length() {
-      return store.size
-    },
-  }
-}
 
 // A page: the module reads the profile it is on when it loads.
 async function openPage() {
@@ -31,6 +17,7 @@ describe('profiles', () => {
     installLocalStorage()
     profiles = await openPage()
   })
+
 
   it('is the main profile alone until someone adds to it, without writing anything', () => {
     expect(profiles.listProfiles()).toEqual([{ id: MAIN, name: '', avatar: profiles.AVATARS[0], updatedAt: 0 }])

@@ -8,13 +8,8 @@ require_relative 'test_helper'
 # two-measures.xml is one whole note per bar (C4 then D4), which makes a
 # traversal of the passage exactly two keypresses.
 class TrainingPassageTest < CapybaraTestBase
-  def setup
-    page.driver.set_cookie('test-env', 'true')
-  end
-
   def test_a_picked_passage_is_drilled_as_one_and_says_so
-    visit '/score.html?url=/test-fixtures/two-measures.xml'
-    wait_for_score_render(2)
+    open_two_measures
     # A free run first: the drill's result must not show its ranking (below).
     play_notes(%w[C4 D4])
     assert_selector 'dialog[open] tr.is-current'
@@ -46,7 +41,7 @@ class TrainingPassageTest < CapybaraTestBase
   end
 
   def test_a_wrong_note_in_the_second_measure_spoils_the_whole_passage
-    open_two_measures
+    upload_two_measures
     enter_training_mode
     pick_passage(1, 2)
 
@@ -67,8 +62,7 @@ class TrainingPassageTest < CapybaraTestBase
   # measures the app offers to reinforce would follow the passage rather than
   # the playing.
   def test_each_measure_of_a_passage_is_filed_on_its_own_merits
-    visit '/score.html?url=/test-fixtures/two-measures.xml'
-    wait_for_score_render(2)
+    open_two_measures
     enter_training_mode
     pick_passage(1, 2)
 
@@ -128,7 +122,7 @@ class TrainingPassageTest < CapybaraTestBase
   end
 
   def test_turning_the_passage_off_puts_the_work_back_on_one_measure
-    open_two_measures
+    upload_two_measures
     enter_training_mode
     pick_passage(1, 2)
     assert_selector 'svg rect.measure-click-area.training-range', count: 2
@@ -145,7 +139,7 @@ class TrainingPassageTest < CapybaraTestBase
   # (see barClickOwner). The band stops asking for one, as the strict band
   # does, and says where the passage stands instead.
   def test_the_band_asks_for_a_bar_only_while_the_click_picks_the_passage
-    open_two_measures
+    upload_two_measures
     enter_training_mode
     arm_passage(1)
 
@@ -158,40 +152,6 @@ class TrainingPassageTest < CapybaraTestBase
   end
 
   private
-
-  # Uploaded rather than opened by URL: only the tests that read the journal
-  # back or rank a free run need a score id.
-  def open_two_measures
-    visit '/score.html'
-    load_score('two-measures.xml', 2)
-  end
-
-  def enter_training_mode
-    click_on 'Mode Entraînement'
-    assert_text 'Mode Entraînement Actif'
-    assert_selector 'svg rect.measure-click-area.selected'
-  end
-
-  # The gesture: 🔁, then the first bar of the passage and its last.
-  def pick_passage(first, last)
-    arm_passage(first)
-    click_measure(last)
-  end
-
-  # Its first half: 🔁 and the first bar, the band waiting for the last.
-  def arm_passage(first)
-    click_on '🔁 Boucle'
-    assert_text 'Cliquez sur la première puis la dernière mesure du passage à travailler.'
-    click_measure(first)
-    assert_text "Départ à la mesure #{first} — cliquez sur la dernière mesure du passage."
-  end
-
-  # The cursor moves a beat after the measure is finished (the engine pauses so
-  # the dot can be seen filling), so the next note has to wait for it — playing
-  # into a measure the cursor has not reached yet would count as a wrong note.
-  def wait_for_training_cursor(measure_number)
-    assert_selector %(svg rect.measure-click-area.selected[data-measure-index="#{measure_number - 1}"])
-  end
 
   def play_passage
     play_note('C4')

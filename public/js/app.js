@@ -1511,9 +1511,10 @@ export function midiApp() {
       await this.selectFingering(parseInt(this.fingeringSequence, 10))
     },
 
+    // The pad closes last, once the fingering is stored and drawn: its closing
+    // is what says the entry is done (the browser tests wait on it).
     async selectFingering(finger) {
       await storage.setFingering(this.scoreUrl, this.selectedNoteKey, finger)
-      this.closeFingeringModal()
 
       // Try to update SVG directly if fingering already exists (instant update)
       if (!fingeringEditor.updateFingeringSVG(this.selectedNoteKey, finger)) {
@@ -1522,13 +1523,14 @@ export function midiApp() {
         fingeringEditor.addFingeringToDataModel(this.selectedNoteKey, finger)
         this.rerenderScore()
       }
+      this.closeFingeringModal()
     },
 
     async removeFingering() {
       await storage.removeFingering(this.scoreUrl, this.selectedNoteKey)
-      this.closeFingeringModal()
       fingeringEditor.removeFingeringFromDataModel(this.selectedNoteKey)
       this.rerenderScore()
+      this.closeFingeringModal()
     },
 
     // Every redraw replaces the SVG, taking with it everything painted on it:

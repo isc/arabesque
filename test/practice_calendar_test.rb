@@ -4,7 +4,6 @@ require_relative 'test_helper'
 # how long that day was practised.
 class PracticeCalendarTest < CapybaraTestBase
   def setup
-    page.driver.set_cookie('test-env', 'true')
     # Opening the page once is what creates the IndexedDB stores; seeding
     # before that would create an empty database the app can never upgrade.
     visit '/practice.html'

@@ -4,7 +4,6 @@ require_relative 'test_helper'
 # carries its transport, its tempo and the bar it starts from.
 class PlaybackTest < CapybaraTestBase
   def setup
-    page.driver.set_cookie('test-env', 'true')
     visit '/score.html'
   end
 
@@ -28,8 +27,7 @@ class PlaybackTest < CapybaraTestBase
   # From the catalog rather than an upload: the tempo is remembered per score,
   # and a score without a URL has nowhere to remember it.
   def test_playback_band_carries_the_transport_the_tempo_and_the_starting_bar
-    visit '/score.html?url=/test-fixtures/two-measures.xml'
-    wait_for_score_render(2)
+    open_two_measures
 
     # No band until there is something to listen to.
     assert_no_text 'Cliquez sur une mesure pour écouter'

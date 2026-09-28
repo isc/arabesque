@@ -6,6 +6,7 @@ import {
   isGraceStrike,
   classifyMatch,
   faultAbsorbingEvent,
+  chargesStrayStrike,
 } from '../../public/js/strictMatching.js'
 
 const OFFTEMPO_WINDOW = 450
@@ -323,26 +324,18 @@ describe('what a stray strike is charged to', () => {
   const mordent = () => expectedEvent({ timeMs: 1000, sequence: [60, 59, 60], openUntilMs: 3000 })
   const plain = () => expectedEvent({ timeMs: 1000, sequence: [72], openUntilMs: 1150 })
 
-  // The run charges the first strike the lookup claims and absorbs the rest.
-  const charge = (events, midi, now) => {
-    const event = faultAbsorbingEvent(events, midi, now)
-    if (event?.faulted) return 'absorbed'
-    if (event) event.faulted = true
-    return 'wrong'
-  }
-
   it('charges a late mordent once, not once per note of it', () => {
     const events = [mordent()]
 
-    expect(charge(events, 60, 1500)).toBe('wrong')
-    expect(charge(events, 59, 1520)).toBe('absorbed')
-    expect(charge(events, 60, 1540)).toBe('absorbed')
+    expect(chargesStrayStrike(events, 60, 1500)).toBe(true)
+    expect(chargesStrayStrike(events, 59, 1520)).toBe(false)
+    expect(chargesStrayStrike(events, 60, 1540)).toBe(false)
   })
 
   it('charges a late plain note once, which is the same price', () => {
     const events = [plain()]
 
-    expect(charge(events, 72, 1400)).toBe('wrong')
+    expect(chargesStrayStrike(events, 72, 1400)).toBe(true)
   })
 
   it('claims no pitch the ornament does not spell out', () => {

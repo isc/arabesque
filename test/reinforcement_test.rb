@@ -2,10 +2,6 @@ require_relative 'test_helper'
 
 # 🎯 Renforcer: the measures fumbled in a run, offered back as a training drill.
 class ReinforcementTest < CapybaraTestBase
-  def setup
-    page.driver.set_cookie('test-env', 'true')
-  end
-
   def test_reinforcement_is_offered_before_the_score_has_been_played_through
     # Measure 1 only: three measures still lie ahead — nothing here is a
     # playthrough.
@@ -44,15 +40,9 @@ class ReinforcementTest < CapybaraTestBase
   end
 
   def test_reinforcement_mode_after_playthrough_with_mistakes
-    visit '/score.html?url=/test-fixtures/repeat-endings.xml'
-    wait_for_score_render(4)
-
-    # Play with mistakes on measure 1
-    # Sequence: C4 -> D4 -> E4 -> C4 -> D4 -> F4
-
-    # Measure 1 (first pass) - play wrong note then correct
-    play_note("D4")  # Wrong note (expected C4)
-    play_note("C4")  # Correct
+    # Sequence: C4 -> D4 -> E4 -> C4 -> D4 -> F4, with a wrong note (D4) before
+    # the first C4.
+    open_with_the_first_bar_fumbled
 
     # Measure 2 (first pass) - clean
     play_note("D4")
@@ -115,11 +105,11 @@ class ReinforcementTest < CapybaraTestBase
     assert_text 'Mode Entraînement Actif'
 
     click_on 'Libre'
-    click_on 'Mode Entraînement'
+    enter_training_mode
 
     assert_selector '.pt-context--training', visible: true
     click_measure(2)
-    assert_selector 'svg rect.measure-click-area.selected[data-measure-index="1"]'
+    wait_for_training_cursor(2)
   end
 
   # The run above again, with the one thing it cannot make happen on purpose:

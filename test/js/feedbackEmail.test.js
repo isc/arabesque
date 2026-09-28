@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { installLocalStorage } from './support/browserGlobals.js'
 import { AUTH_STORAGE_KEY } from '../../public/js/supabaseConfig.js'
 import { defaultFeedbackEmail, submitFeedback } from '../../public/js/feedback.js'
 
@@ -9,16 +10,6 @@ import { defaultFeedbackEmail, submitFeedback } from '../../public/js/feedback.j
 // nothing here can break a browser that refuses storage.
 
 const REMEMBERED_KEY = 'arabesque:feedback-email'
-
-// The suite runs in node; these modules only ever touch localStorage.
-function installStorage() {
-  const store = new Map()
-  globalThis.localStorage = {
-    getItem: (k) => store.get(k) ?? null,
-    setItem: (k, v) => store.set(k, String(v)),
-    removeItem: (k) => store.delete(k),
-  }
-}
 
 // Signed in, as far as a page can tell without loading @supabase/supabase-js:
 // the session the client persists, with the user nested in it.
@@ -34,7 +25,7 @@ const send = (email, { ok = true } = {}) => {
 }
 
 describe('feedback e-mail default', () => {
-  beforeEach(() => installStorage())
+  beforeEach(() => installLocalStorage())
 
   it('is empty for a player with no account and nothing sent', () => {
     expect(defaultFeedbackEmail()).toBe('')
@@ -84,7 +75,7 @@ describe('feedback e-mail default', () => {
   it('falls back to the account address when the memory cannot be read', async () => {
     signIn('player@example.com')
     const store = globalThis.localStorage
-    globalThis.localStorage = {
+    vi.stubGlobal('localStorage', {
       ...store,
       getItem: (k) => {
         if (k === REMEMBERED_KEY) throw new Error('storage disabled')
@@ -96,7 +87,7 @@ describe('feedback e-mail default', () => {
       removeItem: () => {
         throw new Error('storage disabled')
       },
-    }
+    })
     await expect(send('other@example.com')).resolves.not.toThrow()
     expect(defaultFeedbackEmail()).toBe('player@example.com')
   })

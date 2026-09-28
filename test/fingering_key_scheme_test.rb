@@ -15,18 +15,17 @@ class FingeringKeySchemeTest < CapybaraTestBase
   # A grand staff written as two one-staff parts, the way the Entertainer is.
   TWO_PART_SCORE = '/test-fixtures/two-parts.xml'.freeze
 
-  def setup
-    page.driver.set_cookie('test-env', 'true')
-  end
-
   # The invariant the feature rests on, held against every score in the library
   # rather than a fixture: for each note OSMD's walk names, the file's walk must
   # name a note of the same pitch. A key both walks produce but for different
   # notes hands the player's fingering to the note next door, and that is what
   # the shipped library was doing on thirteen of its scores.
   #
-  # In batches, because the whole library is one long stretch of parsing and a
-  # single CDP command that ran that long would sit near Ferrum's ceiling.
+  # Started in the page and waited on from here, rather than run as one script
+  # call: the whole library is one long stretch of parsing, which grows with
+  # the catalog and is slowest on a loaded shard, and a script call gives up
+  # after Capybara's wait time — the ceiling every selector shares. This one
+  # has a ceiling of its own, far above what it takes (about 10s).
   def test_the_two_walks_name_the_same_note_in_every_score_of_the_library
     visit "/score.html?url=#{SIMPLE_SCORE}"
     wait_for_score_render
@@ -34,12 +33,14 @@ class FingeringKeySchemeTest < CapybaraTestBase
     files = page.evaluate_async_script(CATALOG_FILES)
     assert_operator files.length, :>, 50, 'the catalog came back nearly empty'
 
-    files.each_slice(20) do |batch|
-      result = page.evaluate_async_script(COMPARE_WALKS, batch)
-      assert_empty result['disagreements'],
-                   "a fingering key names a different note in each walk: #{result['disagreements']}"
-      assert_operator result['compared'], :>, 0, "no note was checked in #{batch.first}"
+    page.execute_script(COMPARE_WALKS, files)
+    result = wait_until('the two walks over the whole library', timeout: 180, interval: 0.2) do
+      page.evaluate_script('window.__walks')
     end
+    flunk result['error'] if result['error']
+    assert_empty result['disagreements'],
+                 "a fingering key names a different note in each walk: #{result['disagreements']}"
+    assert_empty result['unchecked'], 'no note was checked in these scores'
   end
 
   # The headline symptom. All three measures of this score are printed "0", so
@@ -50,11 +51,7 @@ class FingeringKeySchemeTest < CapybaraTestBase
     visit "/score.html?url=#{REPEATED_NUMBER_SCORE}"
     wait_for_score_render
 
-    all('svg g.vf-notehead').first.click
-    assert_selector 'dialog#fingeringModal[open]'
-    click_button '3'
-    click_button '✓ Valider'
-    wait_for_score_render
+    enter_fingering(0, 3)
     assert_selector 'svg g.vf-text', text: '3', count: 1
 
     visit "/score.html?url=#{REPEATED_NUMBER_SCORE}"
@@ -71,11 +68,7 @@ class FingeringKeySchemeTest < CapybaraTestBase
     wait_for_score_render
 
     # Two notes per part, in score order: index 2 is the lower staff's first.
-    all('svg g.vf-notehead')[2].click
-    assert_selector 'dialog#fingeringModal[open]'
-    click_button '4'
-    click_button '✓ Valider'
-    wait_for_score_render
+    enter_fingering(2, 4)
 
     # Reload, so the fingering comes back through the injection rather than
     # from the model it was just added to.
@@ -101,10 +94,7 @@ class FingeringKeySchemeTest < CapybaraTestBase
     assert_equal %w[m0:0:0:0 m1:0:0:0 m2:0:0:0], stored_fingering_keys(REPEATED_NUMBER_SCORE)
 
     # And the copies are now separable: taking one off leaves the others.
-    all('svg g.vf-notehead')[2].click
-    assert_selector 'dialog#fingeringModal[open]'
-    click_button '×'
-    wait_for_score_render
+    clear_fingering(2)
     assert_selector 'svg g.vf-text', text: '3', count: 2
   end
 
@@ -166,7 +156,7 @@ class FingeringKeySchemeTest < CapybaraTestBase
   # osmd.load() without render(): the sheet is all this needs, and laying out a
   # hundred scores would take minutes rather than seconds.
   COMPARE_WALKS = <<~JS.freeze
-    const [files, done] = [arguments[0], arguments[arguments.length - 1]];
+    const files = arguments[0];
     const SEMITONES = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
     const midiOf = (note) => {
       const pitch = note.querySelector('pitch');
@@ -185,8 +175,9 @@ class FingeringKeySchemeTest < CapybaraTestBase
       container.style.display = 'none';
       document.body.appendChild(container);
       const disagreements = [];
-      let compared = 0;
+      const unchecked = [];
       for (const file of files) {
+        let compared = 0;
         const xml = await loadMxlAsXml('scores/' + file);
         const doc = new DOMParser().parseFromString(xml, 'text/xml');
         const midiByKey = new Map();
@@ -210,9 +201,13 @@ class FingeringKeySchemeTest < CapybaraTestBase
             }
           }
         }
+        if (compared === 0) unchecked.push(file);
       }
       container.remove();
-      done({ compared, disagreements: disagreements.slice(0, 10) });
-    })();
+      return { unchecked, disagreements: disagreements.slice(0, 10) };
+    })().then(
+      (result) => (window.__walks = result),
+      (error) => (window.__walks = { error: String(error) }),
+    );
   JS
 end

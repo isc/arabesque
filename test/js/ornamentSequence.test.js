@@ -13,14 +13,25 @@ import { ORNAMENT, noteWithOrnament } from './support/ornamentedNote.js'
 const PRINCIPAL = 72
 const NOTEHEAD = 2
 
-// Where the principal sits in each expansion: the sequence closes on it, except
-// a delayed turn, which opens on it and holds it.
+// Every ornament OSMD reads, the pitches it sounds on C5 — its neighbours a
+// tone above and a semitone below, the accidentals on the sign saying so (see
+// support/ornamentedNote.js) — and where the principal sits among them: the
+// sequence closes on it, except a delayed turn, which opens on it and holds it.
+const UPPER = PRINCIPAL + 2
+const LOWER = PRINCIPAL - 1
 const ORNAMENTS = [
-  ['a mordent', ORNAMENT.MORDENT, 2],
-  ['a trill', ORNAMENT.TRILL, 2],
-  ['an on-beat turn', ORNAMENT.TURN, 3],
-  ['a delayed turn', ORNAMENT.DELAYED_TURN, 0],
+  ['a mordent', ORNAMENT.MORDENT, 2, [PRINCIPAL, LOWER, PRINCIPAL]],
+  ['an inverted mordent', ORNAMENT.INVERTED_MORDENT, 2, [PRINCIPAL, UPPER, PRINCIPAL]],
+  ['a trill', ORNAMENT.TRILL, 2, [PRINCIPAL, UPPER, PRINCIPAL]],
+  ['an on-beat turn', ORNAMENT.TURN, 3, [UPPER, PRINCIPAL, LOWER, PRINCIPAL]],
+  ['an inverted turn', ORNAMENT.INVERTED_TURN, 3, [LOWER, PRINCIPAL, UPPER, PRINCIPAL]],
+  ['a delayed turn', ORNAMENT.DELAYED_TURN, 0, [PRINCIPAL, UPPER, PRINCIPAL, LOWER, PRINCIPAL]],
+  ['a delayed inverted turn', ORNAMENT.DELAYED_INVERTED_TURN, 0, [PRINCIPAL, LOWER, PRINCIPAL, UPPER, PRINCIPAL]],
 ]
+
+it('covers every ornament OSMD reads', () => {
+  expect(ORNAMENTS.map(([, type]) => type).sort()).toEqual(Object.values(ORNAMENT).sort())
+})
 
 const expand = (ornamentType, options) =>
   expandOrnamentNotes([noteWithOrnament(ornamentType, { midiNumber: PRINCIPAL, noteheadIndex: NOTEHEAD, ...options })])
@@ -40,10 +51,11 @@ describe('the principal of an expanded ornament', () => {
     expect(principals[0].timestamp).toBeCloseTo(1.5, 3)
   })
 
-  it.each(ORNAMENTS)('carries the pitches %s sounds, in order, and the engraved notehead', (_label, ornamentType) => {
+  it.each(ORNAMENTS)('carries the pitches %s sounds, in order, and the engraved notehead', (_label, ornamentType, _index, sequence) => {
     const notes = expand(ornamentType)
     const sounded = notes.filter((n) => !n.isTrillEnd).map((n) => n.midiNumber)
 
+    expect(sounded).toEqual(sequence)
     expect(principalOf(notes).ornamentAsk.sequence).toEqual(sounded)
     for (const note of notes) {
       expect(note.noteheadIndex).toBe(note.ornamentAsk ? NOTEHEAD : -1)

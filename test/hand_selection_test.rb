@@ -3,7 +3,6 @@ require_relative 'test_helper'
 # The MD / MG toggles: a hand left out is not waited for.
 class HandSelectionTest < CapybaraTestBase
   def setup
-    page.driver.set_cookie('test-env', 'true')
     visit '/score.html'
   end
 
@@ -69,8 +68,9 @@ class HandSelectionTest < CapybaraTestBase
 
     # Measure 1's right hand, then measure 3's: the middle measure has to be
     # crossed on its own for the last note to be the one that validates.
-    play_notes(%w[E5 G5])
-
-    assert_selector 'svg g.vf-notehead.played-note', count: 2
+    on_the_last_note do
+      play_notes(%w[E5 G5])
+      assert_selector 'svg g.vf-notehead.played-note', count: 2
+    end
   end
 end

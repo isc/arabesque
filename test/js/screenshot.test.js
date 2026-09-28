@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, afterEach } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 // screenshot.js only reaches for `document` inside its functions, so it imports
 // cleanly in node; each test stubs the globals the call it makes needs.
 import {
@@ -17,7 +17,6 @@ vi.mock('../../public/js/errorLog.js', () => ({
   recordError: (...args) => recordError(...args),
 }))
 
-afterEach(() => vi.unstubAllGlobals())
 
 describe('outputSize', () => {
   it('sends a picture the size of the screen when the screen is small enough', () => {

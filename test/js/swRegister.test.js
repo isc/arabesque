@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
+import { describe, it, expect, afterEach, vi } from 'vitest'
 
 // A page with a service worker container the test drives: what it was asked to
 // register, and the two signals a new worker arriving can send.
@@ -48,7 +48,6 @@ async function load(page, { version = 'deadbeef' } = {}) {
 
 describe('registering the service worker', () => {
   afterEach(() => {
-    vi.unstubAllGlobals()
     vi.doUnmock('../../public/js/version.js')
   })
 

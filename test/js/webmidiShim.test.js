@@ -6,7 +6,7 @@ describe('webmidi-shim', () => {
   let window, posted
 
   beforeEach(() => {
-    ;({ window, posted } = loadShim('webmidi-shim.js', 'midiBridge', { setTimeout, performance: { now: () => 42 } }))
+    ;({ window, posted } = loadShim('webmidi-shim.js', 'midiBridge', { performance: { now: () => 42 } }))
   })
 
   it('announces itself to the native side on load', () => {

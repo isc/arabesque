@@ -2,7 +2,6 @@ require_relative 'test_helper'
 
 class StrictPlaythroughTest < CapybaraTestBase
   def setup
-    page.driver.set_cookie('test-env', 'true')
     visit '/score.html'
   end
 
@@ -43,7 +42,7 @@ class StrictPlaythroughTest < CapybaraTestBase
 
     start_strict_mode
 
-    play_perfect_chord_run
+    strict_run { play_chord(%w[C4 E4 G4]) }
 
     assert_text '100%'
     assert_text '3 sur 3'
@@ -59,8 +58,8 @@ class StrictPlaythroughTest < CapybaraTestBase
     load_score('one-hand-rest-measure.xml', 6)
     start_strict_mode
 
-    # Three 4/4 measures at 120 BPM, the last one held to the end.
-    play_silent_run(9000)
+    # Three 4/4 bars at 120 BPM.
+    play_silent_run(6000)
     within('dialog.pt-result-dialog') { click_on 'Fermer' }
     assert_selector 'svg g.vf-notehead.missed-note', count: 5
 
@@ -73,7 +72,7 @@ class StrictPlaythroughTest < CapybaraTestBase
     load_score('chord.xml', 1)
     start_strict_mode
 
-    play_silent_run(3000)
+    play_silent_run
 
     assert_text '0%'
     assert_text '3 manquées'
@@ -92,13 +91,8 @@ class StrictPlaythroughTest < CapybaraTestBase
     load_score('two-measures.xml', 2)
     start_strict_mode
 
-    with_clock_control do
-      trigger_click_on('▶ Démarrer')
-
-      # Count-in 2s, then both measures at 120 BPM, plus the off-tempo tail.
-      advance_clock(7000)
-      assert_text 'Playthrough strict terminé', wait: 4
-    end
+    # Both bars at 120 BPM.
+    play_silent_run(4000)
     within('dialog.pt-result-dialog') { click_on 'Fermer' }
     assert_selector 'svg g.vf-notehead.missed-note', minimum: 1
 
@@ -116,8 +110,8 @@ class StrictPlaythroughTest < CapybaraTestBase
     load_score('two-measures.xml', 2)
     start_strict_mode
 
-    # Count-in 2s, then both measures at 120 BPM, plus the off-tempo tail.
-    play_silent_run(7000)
+    # Both bars at 120 BPM.
+    play_silent_run(4000)
     within('dialog.pt-result-dialog') { click_on 'Fermer' }
     assert_selector 'svg g.vf-notehead.missed-note', count: 2
 
@@ -140,7 +134,7 @@ class StrictPlaythroughTest < CapybaraTestBase
     wait_for_score_render(1)
     start_strict_mode
 
-    play_perfect_chord_run
+    strict_run { play_chord(%w[C4 E4 G4]) }
 
     # Leaving the page before the session lands would lose it from the journal.
     wait_for_records('sessions', where: "record.completedAt && record.measures.length === 1 && record.mode === 'strict'")
@@ -173,14 +167,7 @@ class StrictPlaythroughTest < CapybaraTestBase
     wait_for_score_render(1)
     start_strict_mode
 
-    with_clock_control do
-      trigger_click_on('▶ Démarrer')
-      advance_clock(2000)
-      assert_selector 'svg g.vf-notehead.expected-note', wait: 4
-      play_chord(%w[C4 E4])
-      advance_clock(1000)
-      assert_text 'Playthrough strict terminé', wait: 2
-    end
+    strict_run { play_chord(%w[C4 E4]) }
     assert_text '67%'
     assert_text '1 manquée'
 
@@ -200,13 +187,9 @@ class StrictPlaythroughTest < CapybaraTestBase
     load_score('repeat-endings.xml', 4)
     start_strict_mode
 
-    with_clock_control do
-      trigger_click_on('▶ Démarrer')
-
-      # First pass: play m1 (C4), m2 (D4), m3 (E4) correctly. Each is a whole
-      # note → 2s/measure at BPM=120. Land exactly on T=2,4,6.
-      advance_clock(2000)
-      assert_selector 'svg g.vf-notehead.expected-note', wait: 4
+    # First pass: play m1 (C4), m2 (D4), m3 (E4) correctly. Each is a whole
+    # note → 2s/measure at BPM=120. Land exactly on T=2,4,6.
+    strict_run do
       play_chord(%w[C4])
       advance_clock(2000)
       play_chord(%w[D4])
@@ -219,10 +202,8 @@ class StrictPlaythroughTest < CapybaraTestBase
       assert_selector 'svg g.vf-notehead.played-note', count: 1, wait: 4
 
       # Second pass replays m1 and m2 then takes volta 2 (F4) at T=12s; the run
-      # ends after that event's window and the 300ms tail. Let it finish so
-      # teardown is clean.
-      advance_clock(5000)
-      assert_text 'Playthrough strict terminé', wait: 12
+      # ends after that event, and strict_run lets it finish.
+      advance_clock(4000)
     end
   end
 
@@ -286,24 +267,21 @@ class StrictPlaythroughTest < CapybaraTestBase
   def test_loop_replays_the_passage_and_sums_the_runs_up
     load_score('two-measures.xml', 2)
     start_strict_mode
-    click_on '🔁 Boucle'
-    click_measure(1)
-    assert_text 'cliquez sur la dernière mesure du passage'
-    click_measure(1)
+    pick_passage(1, 1)
     assert_text 'Boucle de la mesure 1.'
 
     with_clock_control do
       trigger_click_on('▶ Démarrer')
 
-      # Count-in 2s, then the whole-note C4 of bar 1 — the only note expected.
-      advance_clock(2000)
+      # The count-in, then the whole-note C4 of bar 1 — the only note expected.
+      advance_clock(COUNT_IN_MS)
       assert_selector 'svg g.vf-notehead.expected-note', count: 1, wait: 4
       play_chord(%w[C4])
 
-      # The passage stops at bar 1: past its tail (450ms window + 300ms) the
-      # run is judged and the band counts it in the streak, while a run to
-      # the end of the score would still be waiting for bar 2.
-      advance_clock(1000)
+      # The passage stops at bar 1: past its end the run is judged and the
+      # band counts it in the streak, while a run to the end of the score
+      # would still be waiting for bar 2.
+      advance_clock(END_OF_RUN_MS)
       assert_text '120 BPM · passage 1 · 1 sur 3 propres', wait: 2
       assert_no_selector 'svg g.vf-notehead.missed-note'
 
@@ -419,20 +397,12 @@ class StrictPlaythroughTest < CapybaraTestBase
     load_score('trill-ornament.xml', 2)
     start_strict_mode
 
-    with_clock_control do
-      trigger_click_on('▶ Démarrer')
-
-      # Ab4 (half, trilled) then Eb5 (half). In Eb major the upper neighbour is
-      # Bb4: the sequence is Ab4, Bb4, Ab4, and two alternations more here.
-      advance_clock(2000)
-      assert_selector 'svg g.vf-notehead.expected-note', count: 1, wait: 4
+    # Ab4 (half, trilled) then Eb5 (half). In Eb major the upper neighbour is
+    # Bb4: the sequence is Ab4, Bb4, Ab4, and two alternations more here.
+    strict_run(expected: { count: 1 }) do
       play_notes(%w[Ab4 Bb4 Ab4 Bb4 Ab4])
-
       advance_clock(1000)
       play_note('Eb5')
-
-      advance_clock(1000)
-      assert_text 'Playthrough strict terminé', wait: 2
     end
 
     assert_text '100%'
@@ -447,13 +417,9 @@ class StrictPlaythroughTest < CapybaraTestBase
     load_score('tied-trill.xml', 11)
     start_strict_mode
 
-    with_clock_control do
-      trigger_click_on('▶ Démarrer')
-
-      # Right hand: C5, a whole note tied into a half (3s at 120 BPM), trilled,
-      # then E5. Left hand: a quarter every 500ms from the first beat.
-      advance_clock(2000)
-      assert_selector 'svg g.vf-notehead.expected-note', minimum: 1, wait: 4
+    # Right hand: C5, a whole note tied into a half (3s at 120 BPM), trilled,
+    # then E5. Left hand: a quarter every 500ms from the first beat.
+    strict_run(expected: { minimum: 1 }) do
       play_notes(%w[C5 C3 D5 C5])
       { 'D3' => %w[D5 C5], 'E3' => %w[D5 C5], 'F3' => %w[D5 C5], 'G3' => %w[D5 C5], 'A3' => %w[D5 C5] }.each do |left, trill|
         advance_clock(500)
@@ -464,9 +430,6 @@ class StrictPlaythroughTest < CapybaraTestBase
       play_notes(%w[E5 B3])
       advance_clock(500)
       play_note('C4')
-
-      advance_clock(1000)
-      assert_text 'Playthrough strict terminé', wait: 2
     end
 
     assert_text '100%'
@@ -477,8 +440,7 @@ class StrictPlaythroughTest < CapybaraTestBase
   # to change with a thumb — its spinner is a few pixels tall where it is drawn
   # at all. The field keeps its digits and gains a −/+ pair.
   def test_the_tempo_is_set_by_the_buttons_beside_the_field
-    visit '/score.html?url=/test-fixtures/two-measures.xml'
-    wait_for_score_render(2)
+    open_two_measures
 
     click_on '⏱ Mode strict'
     fill_in 'strict-bpm', with: '120'
@@ -513,12 +475,35 @@ class StrictPlaythroughTest < CapybaraTestBase
     )
   end
 
-  # BPM=120 → 2s count-in, ±150ms strict window, ±450ms off-tempo. The window
-  # is an absolute constant, so the tempo is what every timing comment below
-  # is expressed against.
-  def start_strict_mode(bpm: 120)
+  # 120 BPM → 2s count-in, ±150ms strict window, ±450ms off-tempo. The window
+  # is an absolute constant, so the tempo is what every timing comment in this
+  # file is expressed against.
+  STRICT_BPM = 120
+  # The count-in: one 4/4 bar.
+  COUNT_IN_MS = 4 * 60_000 / STRICT_BPM
+  # What a run takes past its last event: the event's off-tempo window (450ms)
+  # and the engine's 300ms tail, with room to spare.
+  END_OF_RUN_MS = 1000
+
+  def start_strict_mode
     click_on '⏱ Mode strict'
-    fill_in 'Tempo en BPM', with: bpm.to_s
+    fill_in 'Tempo en BPM', with: STRICT_BPM.to_s
+  end
+
+  # One run, from ▶ Démarrer to the result modal, on a clock the test drives.
+  # The block is played once the count-in is over and the first note expected
+  # (`expected` narrows that assertion), the clock parked on that instant so
+  # what it plays lands dead centre of the window rather than wherever the
+  # runner happened to schedule it; the end of the run is waited out here.
+  def strict_run(expected: {})
+    with_clock_control do
+      trigger_click_on('▶ Démarrer')
+      advance_clock(COUNT_IN_MS)
+      assert_selector 'svg g.vf-notehead.expected-note', wait: 4, **expected
+      yield
+      advance_clock(END_OF_RUN_MS)
+      assert_text 'Playthrough strict terminé', wait: 4
+    end
   end
 
   # One run of mordent-ornament.xml — C5 (mordent), E5 (inverted mordent), G5,
@@ -529,56 +514,20 @@ class StrictPlaythroughTest < CapybaraTestBase
     load_score('mordent-ornament.xml', 3)
     start_strict_mode
 
-    with_clock_control do
-      trigger_click_on('▶ Démarrer')
-
-      advance_clock(2000)
-      # The ornamented note is expected like any other, which is what was missing.
-      assert_selector 'svg g.vf-notehead.expected-note', count: 1, wait: 4
+    # The ornamented note is expected like any other, which is what was missing.
+    strict_run(expected: { count: 1 }) do
       play_notes(first)
-
       advance_clock(500)
       play_notes(second)
-
       advance_clock(500)
       play_note('G5')
-
-      advance_clock(1000)
-      assert_text 'Playthrough strict terminé', wait: 2
     end
   end
 
-  # A run nobody plays a note of, from ▶ Démarrer to the result modal — every
-  # note of it missed. `budget_ms` is the virtual time the whole run costs: the
-  # 2s count-in, the passage at the tempo start_strict_mode set, then the last
-  # event's off-tempo window (450ms) and the engine's 300ms tail.
-  def play_silent_run(budget_ms)
-    with_clock_control do
-      trigger_click_on('▶ Démarrer')
-
-      advance_clock(budget_ms)
-      assert_text 'Playthrough strict terminé', wait: 4
-    end
-  end
-
-  # One flawless run of chord.xml at the tempo start_strict_mode set, from
-  # ▶ Démarrer to the result modal.
-  def play_perfect_chord_run
-    with_clock_control do
-      trigger_click_on('▶ Démarrer')
-
-      # Sync on the engine opening the timing window (cursor arrival at T=2s).
-      advance_clock(2000)
-      assert_selector 'svg g.vf-notehead.expected-note', wait: 4
-
-      # The clock is parked exactly on the note's instant, so the chord lands
-      # dead centre of the tolerance window rather than wherever the runner
-      # happened to schedule it.
-      play_chord(%w[C4 E4 G4])
-
-      # Past the last event's off-tempo window (450ms) and the 300ms tail.
-      advance_clock(1000)
-      assert_text 'Playthrough strict terminé', wait: 2
-    end
+  # A run nobody plays a note of, every note of it missed. `passage_ms` is how
+  # long the passage lasts at the tempo start_strict_mode set, from its first
+  # note to its last bar's end: none for a single chord.
+  def play_silent_run(passage_ms = 0)
+    strict_run { advance_clock(passage_ms) if passage_ms.positive? }
   end
 end

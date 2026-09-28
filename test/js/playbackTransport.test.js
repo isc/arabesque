@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
+import { installLocalStorage } from './support/browserGlobals.js'
 
 // The playback transport: ⏸ / ▶, the tempo the piece is heard at, and the bar
 // it is heard from. All three are what feedback 50e2418d asked for, and all
@@ -51,12 +52,11 @@ describe('playback transport', () => {
     // SVG up to scroll it, and finds nothing here.
     vi.stubGlobal('document', { cookie: '', querySelector: () => null })
     vi.stubGlobal('window', { scrollY: 0 })
-    vi.stubGlobal('localStorage', { getItem: () => null, setItem: () => {} })
+    installLocalStorage()
   })
 
   afterEach(() => {
     vi.useRealTimers()
-    vi.unstubAllGlobals()
   })
 
   it('holds the piece at the bar it has reached, and picks it up there', async () => {

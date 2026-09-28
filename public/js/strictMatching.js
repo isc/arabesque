@@ -122,6 +122,16 @@ export function faultAbsorbingEvent(events, midiNumber, now) {
   return null
 }
 
+// Whether a strike no event took costs a wrong note: always, but for more of
+// an ornament that has already answered for itself. The ornament is marked
+// here, on the first strike it claims.
+export function chargesStrayStrike(events, midiNumber, now) {
+  const ornament = faultAbsorbingEvent(events, midiNumber, now)
+  if (ornament?.faulted) return false
+  if (ornament) ornament.faulted = true
+  return true
+}
+
 // Whether the run lets `midiNumber` through at `now` as a grace note. A grace
 // note is struck ahead of the beat and how far ahead is the player's, so it is
 // neither asked for nor wrong: its pitch is let through around the beat it

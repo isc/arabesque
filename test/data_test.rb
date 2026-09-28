@@ -6,7 +6,6 @@ class DataTest < CapybaraTestBase
   FIXTURE = File.expand_path('fixtures/initial-backup.json', __dir__)
 
   def setup
-    page.driver.set_cookie('test-env', 'true')
     visit '/data.html'
   end
 
@@ -20,7 +19,6 @@ class DataTest < CapybaraTestBase
     end
 
     exported_file = wait_for_download('arabesque-backup-*.json')
-    assert exported_file, 'Export file should be downloaded'
 
     imported_data = JSON.parse(File.read(FIXTURE))
     exported_data = JSON.parse(File.read(exported_file))
@@ -30,8 +28,6 @@ class DataTest < CapybaraTestBase
 
     assert exported_data['fingerings'], 'Export should include fingerings'
     assert_includes exported_data['fingerings'], imported_data['fingerings'].first
-
-    File.delete(exported_file)
   end
 
   # A piece left mid-way is closed by the next page to open, through the
@@ -39,8 +35,7 @@ class DataTest < CapybaraTestBase
   # session just played open: missing from the export, and from "Synchroniser
   # maintenant", which only pushes ended sessions.
   def test_the_piece_just_left_is_closed_before_anything_is_exported
-    visit '/score.html?url=/test-fixtures/two-measures.xml'
-    wait_for_score_render(2)
+    open_two_measures
     play_note('C4')
     wait_for_records('sessions', where: '!record.endedAt')
     # The clean close runs on beforeunload, and here its writes would land

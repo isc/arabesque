@@ -60,6 +60,11 @@ export function shellAssets() {
   return [...ENTRY_URLS, ...files]
 }
 
+// The line of public/sw.js listing the assets to precache, as a deploy writes
+// it. The tests stamp a worker the same way.
+export const SW_SHELL = /^const SHELL = \[[^\]]*\]$/m
+export const shellLine = (shell) => `const SHELL = ${JSON.stringify(shell)}`
+
 function stamp(version) {
   replaceOnce(
     join(PUBLIC_DIR, 'js', 'version.js'),
@@ -86,7 +91,7 @@ function stamp(version) {
   const shell = version === 'dev' ? [] : shellAssets()
   const sw = join(PUBLIC_DIR, 'sw.js')
   replaceOnce(sw, /^const VERSION = '[^']*'$/m, `const VERSION = '${version}'`)
-  replaceOnce(sw, /^const SHELL = \[[^\]]*\]$/m, `const SHELL = ${JSON.stringify(shell)}`)
+  replaceOnce(sw, SW_SHELL, shellLine(shell))
 
   console.log(`Stamped ${version} into js/version.js, ${pages.length} pages and sw.js (${shell.length} assets).`)
 }

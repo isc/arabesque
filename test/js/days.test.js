@@ -5,7 +5,6 @@ import { formatDate, formatRelativeDate } from '../../public/js/utils.js'
 // Node reads TZ afresh whenever it changes, so each test stands in the
 // timezone its case needs.
 afterEach(() => {
-  vi.unstubAllEnvs()
   vi.useRealTimers()
 })
 
