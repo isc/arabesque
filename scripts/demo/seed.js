@@ -10,6 +10,7 @@
 import { initStorage } from './js/storage.js'
 import { initPracticeTracker, STATUS_THRESHOLDS } from './js/practiceTracker.js'
 import { importBackup } from './js/sync.js'
+import { LANG_KEY } from './js/i18n.js'
 
 const FLAG = 'arabesque:demo-seeded'
 
@@ -132,8 +133,8 @@ async function seedPracticeHistory() {
 
 // The listing's primary locale is fr-FR, so the screenshots are too. Set before
 // anything reads it, and reload once if the app already picked another.
-if (localStorage.getItem('arabesque:lang') !== 'fr') {
-  localStorage.setItem('arabesque:lang', 'fr')
+if (localStorage.getItem(LANG_KEY) !== 'fr') {
+  localStorage.setItem(LANG_KEY, 'fr')
   location.reload()
 }
 

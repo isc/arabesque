@@ -1,12 +1,13 @@
 import { describe, it, expect, vi } from 'vitest'
 import { installLocalStorage } from './support/browserGlobals.js'
+import { LANG_KEY } from '../../public/js/i18n.js'
 
 // i18n picks its catalog once, while its module body runs, so a language means
 // a fresh module graph with the stored choice already in place. Loaded twice
 // here and reused: nothing in loopRangeText reads the language again.
 async function loopRangeTextIn(lang) {
   vi.resetModules()
-  installLocalStorage({ 'arabesque:lang': lang })
+  installLocalStorage({ [LANG_KEY]: lang })
   return (await import('../../public/js/utils.js')).loopRangeText
 }
 

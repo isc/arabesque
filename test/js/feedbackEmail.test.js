@@ -1,15 +1,13 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { installLocalStorage } from './support/browserGlobals.js'
 import { AUTH_STORAGE_KEY } from '../../public/js/supabaseConfig.js'
-import { defaultFeedbackEmail, submitFeedback } from '../../public/js/feedback.js'
+import { defaultFeedbackEmail, submitFeedback, REMEMBERED_EMAIL_KEY } from '../../public/js/feedback.js'
 
 // What the feedback form's e-mail field starts from: the address the account
 // signed in with, unless a report was sent from a field the player had changed
 // or emptied. The rules worth pinning are the escape hatches — a cleared field
 // stays cleared, the account address stays the one that can change — and that
 // nothing here can break a browser that refuses storage.
-
-const REMEMBERED_KEY = 'arabesque:feedback-email'
 
 // Signed in, as far as a page can tell without loading @supabase/supabase-js:
 // the session the client persists, with the user nested in it.
@@ -62,7 +60,7 @@ describe('feedback e-mail default', () => {
     signIn('account@example.com')
     await send('account@example.com')
     // Nothing of its own stored: the account is still the one being read.
-    expect(localStorage.getItem(REMEMBERED_KEY)).toBe(null)
+    expect(localStorage.getItem(REMEMBERED_EMAIL_KEY)).toBe(null)
     signIn('moved@example.com')
     expect(defaultFeedbackEmail()).toBe('moved@example.com')
   })
@@ -78,7 +76,7 @@ describe('feedback e-mail default', () => {
     vi.stubGlobal('localStorage', {
       ...store,
       getItem: (k) => {
-        if (k === REMEMBERED_KEY) throw new Error('storage disabled')
+        if (k === REMEMBERED_EMAIL_KEY) throw new Error('storage disabled')
         return store.getItem(k)
       },
       setItem: () => {
