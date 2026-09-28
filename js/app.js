@@ -17,7 +17,6 @@ import { stepBpm, holdToRepeat, BPM_MIN, BPM_MAX, BPM_DEFAULT } from './bpmStepp
 import { headerMenu } from './headerMenu.js'
 import { initAutoSync, triggerSync } from './autoSync.js'
 import { scopedKey } from './profiles.js'
-import { traced, mark } from './perfTrace.js' // TEMP diagnostic
 import { t, tn, locale } from './i18n.js'
 import { recordError } from './errorLog.js'
 
@@ -379,7 +378,7 @@ export function midiApp() {
       const NAVIGATE_BACK_KEY = 108 // C8 - highest piano key (less jarring sound)
 
       midi.setCallbacks({
-        onNotePlayed: (noteName, midiNote) => {
+        onNotePlayed: (midiNote) => {
           if (midiNote === NAVIGATE_BACK_KEY) {
             // Go back rather than to the library so its filters (stored in
             // the URL) that led here are preserved. Fall back to the library
@@ -403,7 +402,7 @@ export function midiApp() {
           musicxml.activateNote(midiNote)
           keyHint.keyDown(midiNote)
         },
-        onNoteReleased: (noteName, midiNote) => {
+        onNoteReleased: (midiNote) => {
           if (this.mode === 'strict') return
           musicxml.deactivateNote(midiNote)
           keyHint.keyUp(midiNote)
@@ -432,9 +431,7 @@ export function midiApp() {
           practiceTracker.startMeasureAttempt(sourceMeasureIndex, startsPlaythrough, this.activeHands)
         },
         onMeasureCompleted: (data) => {
-          // TEMP: fire-and-forget, so its IndexedDB work never showed up in the
-          // traced() around activateNote.
-          traced('endMeasureAttempt', () => practiceTracker.endMeasureAttempt(data.clean))
+          practiceTracker.endMeasureAttempt(data.clean)
           this.refreshReinforcementSuggestions()
         },
         onWrongNote: (midiNote) => {
@@ -1276,7 +1273,6 @@ export function midiApp() {
     },
 
     openResultModal(mode) {
-      mark(`modale résultat (${mode})`) // TEMP: to date the 🔁 resize against
       this.resultMode = mode
       this.showResultModal = true
       // The next run starts as the piece did (feedback b7682019).

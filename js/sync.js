@@ -21,6 +21,7 @@
 // practiceTracker) so it stays page-agnostic.
 import { currentProfileId, listProfiles, mergeProfiles, scopedKey } from './profiles.js'
 import { NEVER_SYNCED } from './storage.js'
+import { knownNames } from './practiceTracker.js'
 
 // Per profile: the throttle in autoSync.js reads it, and a profile just
 // switched to has its own catching up to do.
@@ -94,7 +95,7 @@ export async function importBackup({ storage, practiceTracker }, backup) {
   if (!backup?.sessions) throw new Error('Invalid backup data format')
   const importedSessions = await storage.importSessions(backup.sessions)
   const importedFingerings = await importFingerings(storage, backup.fingerings ?? [])
-  const names = new Map((backup.aggregates ?? []).filter((a) => a.scoreTitle).map((a) => [a.scoreId, { title: a.scoreTitle, composer: a.composer }]))
+  const names = knownNames(backup.aggregates ?? [])
   await rebuildAggregatesFromCatalog(practiceTracker, names)
   return { importedSessions, importedFingerings }
 }

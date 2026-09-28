@@ -1,6 +1,6 @@
 // Pure matching logic for strict-tempo playthrough — no DOM, no audio, no
-// timers. Kept separate from strictPlaythrough.js so it can be unit-tested
-// without dragging in the playback chain (and its esm.sh @tonejs/piano import).
+// timers. Kept separate from strictPlaythrough.js, which drives the cursor, the
+// metronome and the clock, so the rules can be unit-tested on their own.
 
 // Three states, not four: whether a settled event was in tempo is the verdict
 // it already carries as `classification`, and nothing reads it off the status.

@@ -1,7 +1,7 @@
 import { initStorage } from './storage.js'
 import { TWO_HANDS, NO_HANDS, attemptHands, handsKey, playthroughHands } from './hands.js'
 import { scopedKey } from './profiles.js'
-import { localDayKey, shiftDayKey } from './days.js'
+import { localDayKey, shiftDayKey, startOfLocalDay } from './days.js'
 
 // The day a session counts for: the one it started on, where the player is.
 const sessionDay = (session) => localDayKey(session.startedAt)
@@ -333,26 +333,28 @@ function normalizedPlayingTime(intervals, start, end) {
   return Math.round(total)
 }
 
-// When the run a completed session holds started and finished. A session
-// carries at most one: the score page ends it and opens the next one as soon
-// as the piece is finished.
-function playthroughWindow(session) {
+// The run a completed session holds: when the player started it and finished
+// it, and the attempts in between. A session carries at most one: the score
+// page ends it and opens the next one as soon as the piece is finished.
+function playthroughRun(session) {
+  const start = new Date(session.playthroughStartedAt).getTime()
+  const end = new Date(session.completedAt).getTime()
+  return { start, end, attempts: sessionAttempts(session, start, end) }
+}
+
+// That run as a score's history lists it: timed from start to finish, minus
+// interruptions — raw wall-clock when no attempt carries usable timing.
+export function playthroughOf(session) {
+  const { start, end, attempts } = playthroughRun(session)
   return {
-    start: new Date(session.playthroughStartedAt).getTime(),
-    end: new Date(session.completedAt).getTime(),
+    startedAt: session.playthroughStartedAt,
+    durationMs: attempts.length === 0 ? end - start : normalizedPlayingTime(attempts, start, end),
+    hands: playthroughHands(attempts),
+    ...playthroughWrongNotes(attempts),
+    // The strict engine's verdict on the run, for a run played to the
+    // metronome; a free run has none.
+    strict: session.strict ?? null,
   }
-}
-
-// A completed playthrough, timed from when the player started it to when they
-// finished. Falls back to raw wall-clock when per-measure timing is unavailable.
-export function computePlaythroughDuration(session) {
-  const { start, end } = playthroughWindow(session)
-  return playthroughDuration(sessionAttempts(session, start, end), start, end)
-}
-
-function playthroughDuration(attempts, start, end) {
-  if (attempts.length === 0) return end - start
-  return normalizedPlayingTime(attempts, start, end)
 }
 
 // The wrong notes a run took, and the measures they fell in (source indices,
@@ -371,8 +373,7 @@ function playthroughWrongNotes(attempts) {
 // The hands the run held by a completed session was played with.
 function completedSessionHands(session) {
   if (!session.playthroughStartedAt) return TWO_HANDS
-  const { start, end } = playthroughWindow(session)
-  return playthroughHands(sessionAttempts(session, start, end))
+  return playthroughHands(playthroughRun(session).attempts)
 }
 
 // The rule the whole app counts by: the piece played in full is a run that
@@ -439,14 +440,29 @@ export function practiceStreaks(dayKeys, today = new Date()) {
   return { current, longest }
 }
 
+// The name a session or an aggregate row carries for its score, in the shape
+// updateAggregates() takes it.
+function titleOf(record) {
+  return { title: record.scoreTitle, composer: record.composer }
+}
+
+// scoreId → name, from the rows that carry one: an untitled row would hide a
+// name found elsewhere.
+export function knownNames(records) {
+  return new Map(records.filter((record) => record.scoreTitle).map((record) => [record.scoreId, titleOf(record)]))
+}
+
+// Writes onto an aggregate row whichever of the two names is known.
+function applyName(aggregate, { title, composer }) {
+  if (title) aggregate.scoreTitle = title
+  if (composer) aggregate.composer = composer
+}
+
 export function initPracticeTracker(storageInstance = null) {
   const storage = storageInstance || initStorage()
 
   let currentSession = null
   let currentMeasureAttempt = null
-  // Store metadata separately from session (not persisted in session object)
-  let currentScoreTitle = null
-  let currentComposer = null
   // Set once ensureAggregateTitle() has written title/composer for the
   // current session, so later measures skip the IndexedDB round-trip.
   let aggregateTitleEnsured = false
@@ -455,11 +471,15 @@ export function initPracticeTracker(storageInstance = null) {
   let reinforcementSessions = { scoreId: null, sessions: [] }
 
   return {
+    // Outdated rows are rebuilt before anything is folded into them: the fold
+    // counts on the row's current shape (its practice days, its counters).
+    // The rebuild replays ended sessions only, so what the two steps after it
+    // close is folded once, by them.
     init: async () => {
       await storage.init()
+      await rebuildOutdatedAggregates()
       await flushPendingSession()
       await closeStrandedSessions()
-      await rebuildOutdatedAggregates()
     },
     stashPendingSession,
     clearPendingSession,
@@ -480,7 +500,6 @@ export function initPracticeTracker(storageInstance = null) {
     getPracticeCalendar,
     getScoreHistory,
     getAllPlaythroughs,
-    getAllScores,
     computeScoreStatus,
     rebuildAggregates,
     getCurrentSession: () => currentSession,
@@ -502,11 +521,7 @@ export function initPracticeTracker(storageInstance = null) {
     try {
       localStorage.setItem(
         PENDING_SESSION_KEY,
-        JSON.stringify({
-          session: { ...currentSession, endedAt: new Date().toISOString() },
-          scoreTitle: currentScoreTitle,
-          composer: currentComposer,
-        })
+        JSON.stringify({ session: { ...currentSession, endedAt: new Date().toISOString() } })
       )
     } catch {
       // Quota exceeded or no localStorage: nothing better available.
@@ -543,12 +558,12 @@ export function initPracticeTracker(storageInstance = null) {
       return
     }
 
-    const { session, scoreTitle, composer } = pending ?? {}
+    const { session } = pending ?? {}
     if (session?.id && session.measures?.length) {
       const stored = await storage.getSession(session.id)
       if (!stored?.endedAt) {
         await storage.saveSession(session)
-        await updateAggregates(session, { title: scoreTitle, composer })
+        await updateAggregates(session)
       }
     }
     clearPendingSession()
@@ -631,7 +646,7 @@ export function initPracticeTracker(storageInstance = null) {
     // What the aggregates already knew, before they are thrown away — all a
     // session stored before sessions carried their own name can offer. Only
     // a row that has a name: an untitled one would hide the fallback's.
-    const known = new Map(aggregates.filter((a) => a.scoreTitle).map((a) => [a.scoreId, { title: a.scoreTitle, composer: a.composer }]))
+    const known = knownNames(aggregates)
     // Where a replayed session gets its name: the catalog first, so a score
     // renamed there is renamed here; then the session's own record; then the
     // snapshot. The catalog alone is not enough — it does not hold a file the
@@ -640,7 +655,7 @@ export function initPracticeTracker(storageInstance = null) {
     // (feedback 401b88bf).
     const nameFor = (session) =>
       metaFor(session.scoreId) ??
-      (session.scoreTitle ? { title: session.scoreTitle, composer: session.composer } : null) ??
+      (session.scoreTitle ? titleOf(session) : null) ??
       known.get(session.scoreId) ??
       fallbackNames.get(session.scoreId) ??
       {}
@@ -673,8 +688,6 @@ export function initPracticeTracker(storageInstance = null) {
   function startSession(scoreId, scoreTitle, composer, mode, totalMeasures = null) {
     if (!scoreId) return null
 
-    currentScoreTitle = scoreTitle || null
-    currentComposer = composer || null
     aggregateTitleEnsured = false
 
     const now = new Date().toISOString()
@@ -713,10 +726,7 @@ export function initPracticeTracker(storageInstance = null) {
       return false
     }
 
-    const { scoreId, totalMeasures } = currentSession
-    // Preserve metadata from instance variables
-    const scoreTitle = currentScoreTitle
-    const composer = currentComposer
+    const { scoreId, scoreTitle, composer, totalMeasures } = currentSession
     const ended = await endSession()
     startSession(scoreId, scoreTitle, composer, newMode, totalMeasures)
     return isWorthFiling(ended)
@@ -801,7 +811,7 @@ export function initPracticeTracker(storageInstance = null) {
     // practice journal (which reads scoreTitle/composer from aggregates)
     // showing "Untitled". Ensure the title/composer land early and cheaply,
     // without touching the stats that endSession() is responsible for.
-    ensureAggregateTitle(currentSession.scoreId, currentScoreTitle, currentComposer)
+    ensureAggregateTitle(currentSession)
   }
 
   function markScoreCompleted() {
@@ -856,7 +866,7 @@ export function initPracticeTracker(storageInstance = null) {
 
     if (isWorthFiling(sessionToSave)) {
       await storage.saveSession(sessionToSave)
-      await updateAggregates(sessionToSave, { title: currentScoreTitle, composer: currentComposer })
+      await updateAggregates(sessionToSave)
     }
     // Committed: whatever a pagehide stashed for *this* session is redundant.
     clearPendingSession(sessionToSave.id)
@@ -878,6 +888,8 @@ export function initPracticeTracker(storageInstance = null) {
       // moment a title is upserted, before a note has been played, so anything
       // else here would award the bottom rung for opening a score.
       status: null,
+      scoreTitle: null,
+      composer: null,
       rulesVersion: AGGREGATES_VERSION,
       totalSessions: 0,
       totalPracticeTimeMs: 0,
@@ -892,27 +904,24 @@ export function initPracticeTracker(storageInstance = null) {
   // recordMeasureAttempt() for why this can't just be an early call to
   // updateAggregates(), which accumulates stats and must run exactly once.
   // Skips the IndexedDB round-trip once a session has already ensured it.
-  async function ensureAggregateTitle(scoreId, title, composer) {
-    if (aggregateTitleEnsured || (!title && !composer)) return
+  async function ensureAggregateTitle(session) {
+    if (aggregateTitleEnsured || (!session.scoreTitle && !session.composer)) return
     // Claimed before the first await: filing a whole run calls this once per
     // measure in a single tick, and a flag set at the end would let every one
     // of those calls through the guard.
     aggregateTitleEnsured = true
 
-    const aggregate = (await storage.getAggregate(scoreId)) || createDefaultAggregate(scoreId)
+    const aggregate = (await storage.getAggregate(session.scoreId)) || createDefaultAggregate(session.scoreId)
     if (aggregate.scoreTitle && aggregate.composer) return
 
-    if (title) aggregate.scoreTitle = title
-    if (composer) aggregate.composer = composer
+    applyName(aggregate, titleOf(session))
     await storage.saveAggregate(aggregate)
   }
 
-  // `meta` ({ title, composer }) is where the score's name comes from, and it
-  // is always the caller's to give: a rebuild replays sessions that are not
-  // the one being played, so reaching for the live session's title here would
-  // file the open score's name under somebody else's scoreId. `{}` says there
-  // is no name to give, and the aggregate keeps the one it has.
-  async function updateAggregates(session, meta) {
+  // `meta` ({ title, composer }) names the score, the session's own name by
+  // default. `{}` says there is no name to give, and the aggregate keeps the
+  // one it has.
+  async function updateAggregates(session, meta = titleOf(session)) {
     const aggregate = foldSession(await storage.getAggregate(session.scoreId), session, meta)
     await storage.saveAggregate(aggregate)
     return aggregate
@@ -922,32 +931,12 @@ export function initPracticeTracker(storageInstance = null) {
   // out for a score that has none yet — and returns the row. No storage here,
   // so a rebuild can fold a whole history in memory.
   function foldSession(aggregate, session, meta) {
-    const { title = null, composer = null } = meta
+    aggregate ??= createDefaultAggregate(session.scoreId)
+    applyName(aggregate, meta)
 
-    if (!aggregate) {
-      aggregate = {
-        ...createDefaultAggregate(session.scoreId),
-        scoreTitle: title,
-        composer,
-        firstPlayedAt: session.startedAt,
-        lastPlayedAt: session.endedAt,
-      }
-    }
-
-    // Always sync title/composer when known
-    if (title) {
-      aggregate.scoreTitle = title
-    }
-    if (composer) {
-      aggregate.composer = composer
-    }
-
-    const lastMeasureEndTime = getLastMeasureEndTime(session)
-    aggregate.lastPlayedAt = lastMeasureEndTime.toISOString()
+    aggregate.lastPlayedAt = getLastMeasureEndTime(session).toISOString()
     aggregate.totalSessions++
 
-    if (!aggregate.timesCompleted) aggregate.timesCompleted = 0
-    if (!aggregate.timesCompletedOneHand) aggregate.timesCompletedOneHand = 0
     if (session.completedAt) {
       // Playing the piece through with one hand is real work, but it is not
       // the piece played in full — it gets its own counter, and leaves the
@@ -960,7 +949,6 @@ export function initPracticeTracker(storageInstance = null) {
       }
     }
 
-    if (!aggregate.practiceDays) aggregate.practiceDays = []
     const day = sessionDay(session)
     if (!aggregate.practiceDays.includes(day)) {
       aggregate.practiceDays.push(day)
@@ -972,13 +960,7 @@ export function initPracticeTracker(storageInstance = null) {
     for (const measureData of session.measures) {
       const measureIndex = measureData.sourceMeasureIndex
       if (!aggregate.measures[measureIndex]) {
-        aggregate.measures[measureIndex] = {
-          totalAttempts: 0,
-          cleanAttempts: 0,
-          cleanAttemptsOneHand: 0,
-          totalDurationMs: 0,
-          lastPlayedAt: null,
-        }
+        aggregate.measures[measureIndex] = { totalAttempts: 0, cleanAttempts: 0, cleanAttemptsOneHand: 0 }
       }
 
       const measureAgg = aggregate.measures[measureIndex]
@@ -988,11 +970,8 @@ export function initPracticeTracker(storageInstance = null) {
         // read, and means both hands.
         if (attempt.clean && attemptHands(attempt) === TWO_HANDS) measureAgg.cleanAttempts++
         else if (attempt.clean) measureAgg.cleanAttemptsOneHand++
-        measureAgg.totalDurationMs += attempt.durationMs
-        measureAgg.lastPlayedAt = attempt.startedAt
       }
 
-      measureAgg.avgDurationMs = Math.round(measureAgg.totalDurationMs / measureAgg.totalAttempts)
       measureAgg.errorRate =
         measureAgg.totalAttempts > 0
           ? (measureAgg.totalAttempts - measureAgg.cleanAttempts - measureAgg.cleanAttemptsOneHand) /
@@ -1057,26 +1036,10 @@ export function initPracticeTracker(storageInstance = null) {
   function getFullPlaythroughs(sessions, totalMeasures) {
     if (!totalMeasures) return []
 
-    const playthroughs = []
-    for (const session of sessions) {
-      if (!session.completedAt || !session.playthroughStartedAt) continue
-
-      const { start, end } = playthroughWindow(session)
-      const attempts = sessionAttempts(session, start, end)
-      playthroughs.push({
-        startedAt: session.playthroughStartedAt,
-        durationMs: playthroughDuration(attempts, start, end),
-        hands: playthroughHands(attempts),
-        ...playthroughWrongNotes(attempts),
-        // The strict engine's verdict on the run, for a run played to the
-        // metronome; a free run has none.
-        strict: session.strict ?? null,
-      })
-    }
-
-    // Sort by start time descending (most recent first)
-    playthroughs.sort((a, b) => new Date(b.startedAt) - new Date(a.startedAt))
-    return playthroughs
+    return sessions
+      .filter((session) => session.completedAt && session.playthroughStartedAt)
+      .map(playthroughOf)
+      .sort((a, b) => new Date(b.startedAt) - new Date(a.startedAt)) // most recent first
   }
 
   // When the player last played in this session, falling back to its start when
@@ -1117,8 +1080,15 @@ export function initPracticeTracker(storageInstance = null) {
     if (dates.length === 0) return []
 
     const wanted = new Set(dates.map(localDayKey))
+    // Day keys sort as text: the read spans the first day's midnight to the
+    // one after the last day.
+    const days = [...wanted].sort()
+    const sessions = await storage.getSessionsStartedBetween(
+      startOfLocalDay(days[0]),
+      startOfLocalDay(shiftDayKey(days.at(-1), 1)),
+    )
     const byDay = new Map()
-    for (const session of await storage.getSessions()) {
+    for (const session of sessions) {
       const key = sessionDay(session)
       if (!wanted.has(key)) continue
       if (!byDay.has(key)) byDay.set(key, [])
@@ -1214,9 +1184,5 @@ export function initPracticeTracker(storageInstance = null) {
     return Array.from(byDay.values())
       .map(withPlaythroughs)
       .sort((a, b) => b.date.localeCompare(a.date))
-  }
-
-  async function getAllScores() {
-    return storage.getAllAggregates()
   }
 }

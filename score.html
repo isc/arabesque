@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="app-version" content="3be0a3b923bc" />
+    <meta name="app-version" content="870de12828fc" />
     <title data-i18n="score.pageTitle">Arabesque</title>
     <link rel="icon" href="favicon.svg" type="image/svg+xml" />
     <link rel="manifest" href="manifest.webmanifest" />
@@ -104,11 +104,11 @@
       </div>
       <div class="pt-topbar__actions">
         <!-- MIDI status / connect -->
-        <span class="pt-midi-status" x-show="bluetoothConnected" x-cloak :title="$t('score.midiConnected')">
+        <span class="pt-topbar__pill pt-midi-status" x-show="bluetoothConnected" x-cloak :title="$t('score.midiConnected')">
           🎹 <span x-text="midiDeviceName || $t('score.midiKeyboard')"></span>
         </span>
         <button
-          class="pt-midi-status is-disconnected"
+          class="pt-topbar__pill pt-midi-status is-disconnected"
           x-show="!bluetoothConnected"
           x-cloak
           @click="connectMIDI"

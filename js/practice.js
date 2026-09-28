@@ -58,10 +58,9 @@ export function practiceApp() {
   // All-time and therefore independent of the displayed year: computed once
   // per read rather than on every year switch.
   let streaks = { current: 0, longest: 0 }
-  // Day panels already opened, by day key. Each miss costs a full pass over the
-  // sessions store (getDailyLog has no index on startedAt to lean on), and
-  // clicking around the grid is the whole point of the panel. Dropped whenever
-  // the underlying data is re-read.
+  // Day panels already opened, by day key: clicking around the grid is the
+  // whole point of the panel, and each miss reads the day's sessions and the
+  // aggregates of their scores. Dropped whenever the underlying data is re-read.
   let dayEntries = new Map()
 
   return {
