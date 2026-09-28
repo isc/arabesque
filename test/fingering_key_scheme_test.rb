@@ -30,10 +30,10 @@ class FingeringKeySchemeTest < CapybaraTestBase
     visit "/score.html?url=#{SIMPLE_SCORE}"
     wait_for_score_render
 
-    files = page.evaluate_async_script(CATALOG_FILES)
-    assert_operator files.length, :>, 50, 'the catalog came back nearly empty'
+    urls = page.evaluate_async_script(CATALOG_URLS)
+    assert_operator urls.length, :>, 50, 'the catalog came back nearly empty'
 
-    page.execute_script(COMPARE_WALKS, files)
+    page.execute_script(COMPARE_WALKS, urls)
     result = wait_until('the two walks over the whole library', timeout: 180, interval: 0.2) do
       page.evaluate_script('window.__walks')
     end
@@ -133,18 +133,12 @@ class FingeringKeySchemeTest < CapybaraTestBase
     JS
   end
 
-  CATALOG_FILES = <<~JS.freeze
+  # Every file the catalog lists, by the url the app files it under.
+  CATALOG_URLS = <<~JS.freeze
     const done = arguments[arguments.length - 1];
-    fetch('/data/scores.json')
-      .then((response) => response.json())
-      .then((catalog) => {
-        const files = [];
-        for (const score of catalog.scores) {
-          if (score.file) files.push(score.file);
-          for (const part of score.parts ?? []) files.push(part.file);
-        }
-        done(files);
-      });
+    import('/js/catalog.js')
+      .then(({ loadCatalog }) => loadCatalog())
+      .then((catalog) => done([...catalog.byUrl.keys()]));
   JS
 
   # For each score: walk the file, walk OSMD's sheet, and check that every key
@@ -156,7 +150,7 @@ class FingeringKeySchemeTest < CapybaraTestBase
   # osmd.load() without render(): the sheet is all this needs, and laying out a
   # hundred scores would take minutes rather than seconds.
   COMPARE_WALKS = <<~JS.freeze
-    const files = arguments[0];
+    const urls = arguments[0];
     const SEMITONES = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
     const midiOf = (note) => {
       const pitch = note.querySelector('pitch');
@@ -176,13 +170,13 @@ class FingeringKeySchemeTest < CapybaraTestBase
       document.body.appendChild(container);
       const disagreements = [];
       const unchecked = [];
-      for (const file of files) {
+      for (const url of urls) {
         let compared = 0;
-        const xml = await loadMxlAsXml('scores/' + file);
+        const xml = await loadMxlAsXml(url);
         const doc = new DOMParser().parseFromString(xml, 'text/xml');
         const midiByKey = new Map();
         for (const { note, key } of fingeringNotesInDocument(doc)) {
-          if (midiByKey.has(key)) disagreements.push([file, key, 'named twice by the file']);
+          if (midiByKey.has(key)) disagreements.push([url, key, 'named twice by the file']);
           midiByKey.set(key, midiOf(note));
         }
         const osmd = new opensheetmusicdisplay.OpenSheetMusicDisplay(container, { autoResize: false });
@@ -195,13 +189,13 @@ class FingeringKeySchemeTest < CapybaraTestBase
             if (noteData.noteheadIndex < 0) continue;
             compared++;
             if (!midiByKey.has(noteData.fingeringKey)) {
-              disagreements.push([file, noteData.fingeringKey, 'unknown to the file']);
+              disagreements.push([url, noteData.fingeringKey, 'unknown to the file']);
             } else if (midiByKey.get(noteData.fingeringKey) !== noteData.midiNumber) {
-              disagreements.push([file, noteData.fingeringKey, midiByKey.get(noteData.fingeringKey), noteData.midiNumber]);
+              disagreements.push([url, noteData.fingeringKey, midiByKey.get(noteData.fingeringKey), noteData.midiNumber]);
             }
           }
         }
-        if (compared === 0) unchecked.push(file);
+        if (compared === 0) unchecked.push(url);
       }
       container.remove();
       return { unchecked, disagreements: disagreements.slice(0, 10) };

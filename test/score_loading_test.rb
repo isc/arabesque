@@ -35,6 +35,19 @@ class ScoreLoadingTest < CapybaraTestBase
     assert_empty recorded_error_messages.grep(/TypeError/)
   end
 
+  # A score the catalog lists goes by the catalog's name, the one the library
+  # shows and a sync's rebuild files its practice under. It went by its file's
+  # own, which disagrees on a quarter of the catalog, and the journal switched
+  # between the two at every sync. This file credits Pyotr Ilyich Tchaikovsky.
+  def test_a_listed_score_goes_by_the_catalog_name
+    visit '/score.html?url=scores/Swan_Lake.mxl'
+    wait_for_score_render
+
+    assert_selector '.pt-topbar__title span', exact_text: 'Swan Lake'
+    assert_selector '.pt-topbar__title small', exact_text: 'Tchaikovsky'
+    assert_equal 'Swan Lake — Tchaikovsky · Arabesque', page.title
+  end
+
   # A file that is not a score is refused with a word, and the page stays as
   # it was. It used to go on laying out a score that never came, and threw.
   def test_a_file_that_is_not_a_score_is_refused_and_nothing_else

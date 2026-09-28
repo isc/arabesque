@@ -919,6 +919,24 @@ describe('practiceTracker', () => {
       expect(await read.mock.results[0].value).toHaveLength(1)
     })
 
+    // Sessions are stored under the name the file gives itself, which disagrees
+    // with the catalog's on a quarter of it: the journal names a listed score
+    // as the library does, and any other by what was stored.
+    it('names a score the catalog lists as the catalog does', async () => {
+      vi.stubGlobal('fetch', async () => ({
+        json: async () => ({ baseUrl: 'scores/', scores: [{ title: 'Swan Lake', composer: 'Tchaikovsky', file: 'catalogued.xml' }] }),
+      }))
+      await playSession('scores/catalogued.xml', [0])
+      await playSession('/scores/uploaded.xml', [0])
+
+      const [log] = await tracker.getDailyLogs([new Date()])
+
+      expect(log.map((entry) => [entry.scoreId, entry.scoreTitle, entry.composer])).toEqual(expect.arrayContaining([
+        ['scores/catalogued.xml', 'Swan Lake', 'Tchaikovsky'],
+        ['/scores/uploaded.xml', 'Test', 'Composer'],
+      ]))
+    })
+
     it('counts timesPlayedInFull across multiple sessions', async () => {
       // First session: complete playthrough
       tracker.startSession('/scores/test.xml', 'Test', 'Composer', 'free', 2)
@@ -1326,31 +1344,19 @@ describe('practiceTracker', () => {
       await storage.saveSession({ ...session, scoreTitle: undefined, composer: undefined })
       await storage.saveAggregate({ scoreId: '/scores/own.xml', scoreTitle: null })
 
-      await tracker.rebuildAggregates(() => null, new Map([['/scores/own.xml', { title: 'Gymnopédie', composer: 'Satie' }]]))
+      await tracker.rebuildAggregates(new Map([['/scores/own.xml', { title: 'Gymnopédie', composer: 'Satie' }]]))
 
       expect((await storage.getAggregate('/scores/own.xml')).scoreTitle).toBe('Gymnopédie')
-    })
-
-    it('renames a score the catalog knows', async () => {
-      await playSession('scores/test.xml', [0])
-
-      await tracker.rebuildAggregates(() => ({ title: 'Consolation', composer: 'Burgmüller' }))
-
-      const stats = await tracker.getScoreStats('scores/test.xml')
-      expect(stats.scoreTitle).toBe('Consolation')
-      expect(stats.composer).toBe('Burgmüller')
     })
 
     it('keeps the title of a score the catalog has never heard of', async () => {
       await playSession('scores/burgmuller-consolation.mxl', [0])
 
       // The sync runs on a later page load, the library's — no score open, so
-      // nothing for the rebuild to borrow a title from. `null` is what a
-      // device whose cached catalog predates the score answers, and what an
-      // uploaded file answers for good.
+      // nothing for the rebuild to borrow a title from.
       const later = initPracticeTracker(storage)
       await later.init()
-      await later.rebuildAggregates(() => null)
+      await later.rebuildAggregates()
 
       const stats = await later.getScoreStats('scores/burgmuller-consolation.mxl')
       expect(stats.scoreTitle).toBe('Test')
@@ -1371,7 +1377,7 @@ describe('practiceTracker', () => {
         measures: [{ sourceMeasureIndex: 0, attempts: [{ startedAt: '2026-06-09T10:00:00.000Z', durationMs: 1000, clean: true }] }],
       })
 
-      await tracker.rebuildAggregates(() => null)
+      await tracker.rebuildAggregates()
 
       const stats = await tracker.getScoreStats('scores/burgmuller-ballade.mxl')
       expect(stats.scoreTitle).toBe('Ballade Op. 100 No. 15')
@@ -1384,7 +1390,7 @@ describe('practiceTracker', () => {
       // one score while the rebuild walks every other score's sessions.
       tracker.startSession('scores/open-right-now.xml', 'Open Right Now', 'Somebody', 'free')
 
-      await tracker.rebuildAggregates(() => null)
+      await tracker.rebuildAggregates()
 
       const stats = await tracker.getScoreStats('scores/played-yesterday.xml')
       expect(stats.scoreTitle).toBe('Test')
