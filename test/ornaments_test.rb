@@ -235,7 +235,7 @@ class OrnamentsTest < CapybaraTestBase
     # The app already expands the <turn/> symbol into playable notes, so the hidden
     # copy must be ignored. Otherwise the gruppetto is doubled: the player has to play
     # it twice, and the hidden noteheads only appear (green) on the second pass.
-    attach_file('musicxml-upload', File.expand_path('fixtures/turn-with-hidden-realization.xml', __dir__))
+    attach_score('turn-with-hidden-realization.xml')
     assert_selector '#score[data-render-complete]'
 
     # Regular turn on C5 in C major expands to D5, C5, B4, C5. Play it ONCE, then G5.

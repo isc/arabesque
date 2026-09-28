@@ -603,8 +603,22 @@ class CapybaraTestBase < Minitest::Test
 
   # Helper to load a score from test fixtures
   def load_score(filename, expected_notes)
-    attach_file('musicxml-upload', File.expand_path("fixtures/#{filename}", __dir__))
+    attach_score(filename)
     wait_for_score_render(expected_notes)
+  end
+
+  # repeat-endings.xml with measure 1 fumbled, a wrong note before the right
+  # one: what puts it on the list to reinforce.
+  def open_with_the_first_bar_fumbled
+    visit '/score.html?url=/test-fixtures/repeat-endings.xml'
+    wait_for_score_render(4)
+    play_note('D4')
+    play_note('C4')
+  end
+
+  # Drops a test fixture on the page's file picker, whatever it holds.
+  def attach_score(filename)
+    attach_file('musicxml-upload', File.expand_path("fixtures/#{filename}", __dir__))
   end
 
   # Block until the score is on screen. Order matters: the app's own
@@ -627,6 +641,14 @@ class CapybaraTestBase < Minitest::Test
   # data-measure-index instead.
   def click_measure(measure_number)
     page.all('svg rect.measure-click-area')[measure_number - 1].trigger('click')
+  end
+
+  # The messages of the errors the page has recorded for a feedback report
+  # (public/js/errorLog.js), oldest first.
+  def recorded_error_messages
+    page.evaluate_script(<<~JS)
+      JSON.parse(sessionStorage.getItem('arabesque:recent-errors') ?? '[]').map((error) => error.message)
+    JS
   end
 
   # Redraws the score the way turning a phone does: to a narrow width, then

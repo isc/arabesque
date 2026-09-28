@@ -700,22 +700,26 @@ export function initPracticeTracker(storageInstance = null) {
     return currentSession
   }
 
+  // Hands the score on to a session under `newMode`, closing the one under way.
+  // Resolves with whether that one was filed — whether anything was played in
+  // it — which is what makes it worth a sync.
   async function toggleMode(newMode) {
-    if (!currentSession) return null
+    if (!currentSession) return false
     // Nothing recorded yet: the session just changes hands. Ending it would
     // drop it anyway, and would throw away the reinforcement window's cache
     // for nothing (see invalidateReinforcementSessions).
     if (currentSession.measures.length === 0 && !currentMeasureAttempt) {
       currentSession.mode = newMode
-      return currentSession
+      return false
     }
 
     const { scoreId, totalMeasures } = currentSession
     // Preserve metadata from instance variables
     const scoreTitle = currentScoreTitle
     const composer = currentComposer
-    await endSession()
-    return startSession(scoreId, scoreTitle, composer, newMode, totalMeasures)
+    const ended = await endSession()
+    startSession(scoreId, scoreTitle, composer, newMode, totalMeasures)
+    return isWorthFiling(ended)
   }
 
   // `startsPlaythrough` says this measure is where a run through the whole score
@@ -838,6 +842,11 @@ export function initPracticeTracker(storageInstance = null) {
     currentMeasureAttempt.hands = handsKey(activeHands)
   }
 
+  // A session with no completed measure is not saved.
+  function isWorthFiling(session) {
+    return session.measures.length > 0
+  }
+
   async function endSession() {
     if (!currentSession) return null
 
@@ -845,8 +854,7 @@ export function initPracticeTracker(storageInstance = null) {
 
     const sessionToSave = { ...currentSession }
 
-    // Don't save sessions with no completed measures
-    if (sessionToSave.measures.length > 0) {
+    if (isWorthFiling(sessionToSave)) {
       await storage.saveSession(sessionToSave)
       await updateAggregates(sessionToSave, { title: currentScoreTitle, composer: currentComposer })
     }

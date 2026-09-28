@@ -6,6 +6,19 @@ class StrictPlaythroughTest < CapybaraTestBase
     visit '/score.html'
   end
 
+  # Before ▶, the strict tab takes no notes. The free engine used to take
+  # them: a piece played through there lit up, opened the free results, and
+  # was filed as a free run.
+  def test_the_strict_tab_takes_no_notes_before_a_run
+    load_score('two-measures.xml', 2)
+    click_on '⏱ Mode strict'
+
+    play_notes(%w[C4 D4])
+
+    assert_no_selector 'svg g.vf-notehead.played-note'
+    assert_no_text 'Partition terminée'
+  end
+
   def test_strict_mode_button_starts_and_stops_engine
     load_score('chord.xml', 1)
 

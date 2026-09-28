@@ -21,7 +21,7 @@ class FeedbackErrorsTest < CapybaraTestBase
     JS
     # The rejection is reported from a task of its own, after the throw.
     Timeout.timeout(Capybara.default_max_wait_time) do
-      sleep 0.02 until recorded_messages.include?('RangeError: lost promise')
+      sleep 0.02 until recorded_error_messages.include?('RangeError: lost promise')
     end
 
     visit '/library.html'
@@ -36,13 +36,5 @@ class FeedbackErrorsTest < CapybaraTestBase
     assert_equal 1, thrown['count']
     refute_empty thrown['stack']
     assert_equal 'unhandled rejection', errors.fetch('RangeError: lost promise')['where']
-  end
-
-  private
-
-  def recorded_messages
-    page.evaluate_script(<<~JS)
-      JSON.parse(sessionStorage.getItem('arabesque:recent-errors') ?? '[]').map((error) => error.message)
-    JS
   end
 end

@@ -70,8 +70,9 @@ describe('practiceTracker', () => {
       tracker.startMeasureAttempt(0)
       tracker.endMeasureAttempt(true)
 
-      const newSession = await tracker.toggleMode('training')
+      expect(await tracker.toggleMode('training')).toBe(true)
 
+      const newSession = tracker.getCurrentSession()
       expect(newSession.scoreId).toBe('/scores/test.xml')
       expect(newSession.mode).toBe('training')
 
@@ -81,6 +82,18 @@ describe('practiceTracker', () => {
       expect(stats.scoreTitle).toBe('Test Score')
       expect(stats.composer).toBe('Test Composer')
     })
+  })
+
+  // A session nothing was played in changes hands: nothing to file, nothing
+  // to sync.
+  it('toggleMode files nothing for a session with nothing played in it', async () => {
+    tracker.startSession('/scores/test.xml', 'Test Score', 'Test Composer', 'free')
+    const session = tracker.getCurrentSession()
+
+    expect(await tracker.toggleMode('strict')).toBe(false)
+
+    expect(tracker.getCurrentSession()).toBe(session)
+    expect(session.mode).toBe('strict')
   })
 
   describe('measure attempts', () => {
