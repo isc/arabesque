@@ -12,7 +12,6 @@ import {
 import { scrollSystemIntoView, isUnderStickyBars } from './utils.js'
 import { arrayBufferToXml, isMusicXml } from './mxlLoader.js'
 import { stripPlaybackTempoMarks } from './tempoMarks.js'
-import { t } from './i18n.js'
 import { recordError } from './errorLog.js'
 
 let osmdInstance = null
@@ -151,7 +150,6 @@ export function initMusicXML() {
     deactivateNote: PERF_TRACE
       ? (m) => traced(`deactivateNote(${m}) held=${heldMidiNotes.size}`, () => deactivateNote(m))
       : deactivateNote,
-    resetProgress,
     setCallbacks,
     setActiveHands: (hands) => {
       activeHands = { ...activeHands, ...hands }
@@ -248,18 +246,13 @@ export function initMusicXML() {
     setReinforcementMode: (measures) => {
       if (!measures || measures.length === 0) return
 
-      dropPendingBeat()
+      // From a clean sheet, as setTrainingMode starts from one — which also
+      // puts away any passage the player had picked: reinforcement brings its
+      // own list of measures to work, one at a time.
+      resetProgress()
       reinforcementMode = true
       reinforcementMeasures = measures.map((m) => m.sourceMeasureIndex)
-      reinforcementIndex = 0
-      // Reinforcement brings its own list of measures to work, one at a time:
-      // any passage the player had picked is not what is being drilled now.
-      resetTrainingRange()
-
-      // Enable training mode (resets repeatCount and currentRepetitionIsClean)
       trainingMode = true
-      repeatCount = 0
-      currentRepetitionIsClean = true
 
       // Jump to the first measure to reinforce
       const playbackIndex = firstPassIndexOf(allNotes, reinforcementMeasures[0])
@@ -361,23 +354,13 @@ function resetPlaybackState() {
   resetTrainingRange()
 }
 
+// Throws when the file is no score OSMD can read, for the page to say so —
+// flagged `notMusicXml` when it is not MusicXML at all. Handles both plain
+// MusicXML (.xml/.musicxml) and zipped .mxl archives.
 async function loadMusicXML(file) {
-  if (!file) return
-
-  try {
-    // Handle both plain MusicXML (.xml/.musicxml) and zipped .mxl archives.
-    const xmlContent = await arrayBufferToXml(await file.arrayBuffer())
-
-    if (!isMusicXml(xmlContent)) {
-      alert(t('errors.invalidMusicXml'))
-      return
-    }
-
-    await renderMusicXML(xmlContent)
-  } catch (error) {
-    recordError(error, 'MusicXML file could not be loaded')
-    alert(t('errors.musicXmlLoad'))
-  }
+  const xmlContent = await arrayBufferToXml(await file.arrayBuffer())
+  if (!isMusicXml(xmlContent)) throw Object.assign(new Error('Not a MusicXML file'), { notMusicXml: true })
+  await renderMusicXML(xmlContent)
 }
 
 // OSMD engraves the title block into the SVG at a size fixed in its own units
@@ -551,28 +534,27 @@ function stretchBeamedStemsOnFormat() {
   measure.format.stretchesBeamedStems = true
 }
 
+// A sheet OSMD cannot read throws, for the caller to say so: swallowed here,
+// the page carried on without a score, and only reached its error card
+// through the TypeError that the missing sheet caused further down.
 async function renderMusicXML(xmlContent) {
-  try {
-    stretchBeamedStemsOnFormat()
-    const scoreContainer = document.getElementById('score')
-    const osmd = new opensheetmusicdisplay.OpenSheetMusicDisplay(scoreContainer, {
-      drawPartNames: false,
-      // OSMD's autoResize re-renders behind our back, and the fresh SVG carries
-      // none of the played/active notehead classes — so any window resize
-      // silently wiped the player's progress (and left measureClickRectangles
-      // pointing at detached nodes). We drive the re-layout ourselves instead,
-      // see handleViewportResize() in app.js.
-      autoResize: false,
-    })
-    osmd.rules.MetronomeMarkYShift = -2.8;
-    await osmd.load(xmlContent)
-    stripPlaybackTempoMarks(osmd.Sheet.SourceMeasures)
-    osmdInstance = osmd
-    window.osmdInstance = osmd
-    sheetJustLoaded = true
-  } catch (error) {
-    recordError(error, 'OSMD could not render the score')
-  }
+  stretchBeamedStemsOnFormat()
+  const scoreContainer = document.getElementById('score')
+  const osmd = new opensheetmusicdisplay.OpenSheetMusicDisplay(scoreContainer, {
+    drawPartNames: false,
+    // OSMD's autoResize re-renders behind our back, and the fresh SVG carries
+    // none of the played/active notehead classes — so any window resize
+    // silently wiped the player's progress (and left measureClickRectangles
+    // pointing at detached nodes). We drive the re-layout ourselves instead,
+    // see handleViewportResize() in app.js.
+    autoResize: false,
+  })
+  osmd.rules.MetronomeMarkYShift = -2.8;
+  await osmd.load(xmlContent)
+  stripPlaybackTempoMarks(osmd.Sheet.SourceMeasures)
+  osmdInstance = osmd
+  window.osmdInstance = osmd
+  sheetJustLoaded = true
 }
 
 // Rebuilds the note model from the sheet OSMD holds — for a score just loaded,

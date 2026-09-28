@@ -123,17 +123,29 @@ export function midiApp() {
   // end the same session underneath it (see setMode): closing a session twice
   // credits its practice time twice.
   let strictRunRecorded = Promise.resolve()
-  // The end of a session is the moment its data becomes worth pushing: runSync
-  // only takes sessions that have ended, so a playthrough finished here would
-  // otherwise sit on this device until the data page is opened.
-  async function endSessionAndSync() {
-    await practiceTracker.endSession()
-    triggerSync('session ended')
+  // Files the session under way and opens the next one under `mode`: at the
+  // end of a playthrough, whose session carries only that one, and at a change
+  // of mode, whose practice is filed under the mode it was practised in. One
+  // after the other, whoever asks: two closing the same session at once — a
+  // tab tapped while a finished piece is being filed — counted its practice
+  // twice. Caught, since a chain left rejected skips every link after it.
+  //
+  // What was filed is worth pushing at once: runSync only takes sessions that
+  // have ended, so a playthrough finished here would otherwise sit on this
+  // device until the data page is opened. `sync: false` leaves it to a caller
+  // that syncs later (the tempo trainer, at the end of its loop).
+  let sessionRolled = Promise.resolve()
+  function rollSession(mode, { sync = true } = {}) {
+    sessionRolled = sessionRolled
+      .then(async () => {
+        if ((await practiceTracker.toggleMode(mode)) && sync) triggerSync('session ended')
+      })
+      .catch((error) => recordError(error, 'Session could not be filed'))
+    return sessionRolled
   }
 
-  // Opens the next session on the score being played. Every completion path
-  // closes the session its playthrough belonged to and opens a fresh one, so
-  // the score's title and measure count are pulled from the sheet in one place.
+  // Opens the first session on a score just loaded, with its title and
+  // measure count from the sheet; rollSession hands them on from there.
   function startFreshSession(scoreUrl, mode) {
     const metadata = musicxml.getScoreMetadata()
     practiceTracker.startSession(scoreUrl, metadata.title, metadata.composer, mode, metadata.totalMeasures)
@@ -187,9 +199,12 @@ export function midiApp() {
     playbackBpm: null,
     playbackMeasure: 0,
     isStrictPlaying: false,
-    // Strict mode is now decoupled from playback: selecting the tab arms
-    // strict mode, the ▶/⏸ control next to it starts/stops the engine.
-    strictSelected: false,
+    // 'free', 'training', 'reinforcement' (training on a list the app picked)
+    // or 'strict', moved by setMode alone. It was three booleans, written from
+    // four places, which could disagree: the strict tab over a reinforcement,
+    // or a training band gone for good after a reinforcement left by hand.
+    // Strict mode is armed by its tab; the ▶/⏸ in its band runs the engine.
+    mode: 'free',
     // Where a run starts, or null while nobody has picked a measure — the same
     // convention `strictEndMeasure` uses, and what tells the marker on the
     // score apart from a run from the top, which needs none. A run reads it as
@@ -222,7 +237,6 @@ export function midiApp() {
     // says once it is over.
     trainerStatus: null,
     trainerSummary: null,
-    trainingMode: false,
     // Training mode works a passage: one measure by default — the measure
     // clicked, the work moving on down the score once its three dots are
     // filled — or a range picked with 🔁, whose measures are then drilled as
@@ -276,7 +290,6 @@ export function midiApp() {
     historyTotalMs: 0,
     historyHotMeasures: [],
     measuresToReinforce: [],
-    reinforcementMode: false,
     showMidiHelpModal: false,
 
     // Single result modal for end-of-playthrough (free/training), end-of-
@@ -305,7 +318,7 @@ export function midiApp() {
     get keyHintContext() {
       return (
         !!this.osmdInstance &&
-        this.currentMode !== 'strict' &&
+        this.mode !== 'strict' &&
         !this.isListening &&
         !this.showResultModal
       )
@@ -336,23 +349,14 @@ export function midiApp() {
       // about to appear. osmdInstance is updated via afterScoreLoad()
       // directly because $watch would deep-compare via JSON.stringify and
       // OSMD has circular references (note ↔ voiceEntry).
-      this.$watch('currentMode', () => {
-        // A mode is chosen to play in, and a piece playing itself competes with
-        // the player's hands — so the listening ends with the switch. On the
-        // transition rather than in setMode(): currentMode is derived, and
-        // startReinforcementMode() moves it by setting trainingMode itself.
-        this.stopListening()
-        this.$nextTick(applyStickyOffset)
-      })
-      this.$watch('reinforcementMode', () => this.$nextTick(applyStickyOffset))
+      // Each mode has its own band, or none, above the score.
+      this.$watch('mode', () => this.$nextTick(applyStickyOffset))
       keyHint = initKeyboardHint({
         owedGroup: musicxml.getOwedGroup,
         eligible: () => this.keyHintContext && document.visibilityState === 'visible',
         onVisibleChange: (visible) => { this.keyHintVisible = visible },
         onCaptionChange: (caption) => { this.keyHintCaption = caption },
       })
-      // A new mode is a new start: a wait only counts again from the next key.
-      this.$watch('currentMode', () => keyHint.rest())
       // The playback band appears and disappears with the listening, and it is
       // as tall as the strict one — so the sticky offset has to follow it too.
       this.$watch('isListening', () => this.$nextTick(applyStickyOffset))
@@ -389,7 +393,10 @@ export function midiApp() {
             }
             return
           }
-          if (strictPlaythrough.isPlaying) {
+          // The strict engine takes no key before ▶ — and neither does anything
+          // else: the free engine used to, and a piece played through under the
+          // strict tab opened the free results and filed a free session.
+          if (this.mode === 'strict') {
             strictPlaythrough.handleNoteOn(midiNote)
             return
           }
@@ -397,7 +404,7 @@ export function midiApp() {
           keyHint.keyDown(midiNote)
         },
         onNoteReleased: (noteName, midiNote) => {
-          if (strictPlaythrough.isPlaying) return
+          if (this.mode === 'strict') return
           musicxml.deactivateNote(midiNote)
           keyHint.keyUp(midiNote)
         },
@@ -409,22 +416,17 @@ export function midiApp() {
       musicxml.setCallbacks({
         onScoreCompleted: async () => {
           practiceTracker.markScoreCompleted()
-          await endSessionAndSync()
+          await rollSession(this.currentMode)
 
           const allPlaythroughs = this.scoreUrl ? await practiceTracker.getAllPlaythroughs(this.scoreUrl) : []
           window.scrollTo({ top: 0, behavior: 'smooth' })
           this.showScoreComplete(allPlaythroughs)
 
-          // Start new session for next playthrough
-          startFreshSession(this.scoreUrl, 'free')
-
           await this.refreshReinforcementSuggestions()
         },
         onTrainingComplete: async () => {
           this.openResultModal('training')
-          await endSessionAndSync()
-          // Start new session for next playthrough
-          startFreshSession(this.scoreUrl, 'training')
+          await rollSession(this.currentMode)
         },
         onMeasureStarted: (sourceMeasureIndex, startsPlaythrough) => {
           practiceTracker.startMeasureAttempt(sourceMeasureIndex, startsPlaythrough, this.activeHands)
@@ -446,14 +448,8 @@ export function midiApp() {
         // a bar further on has none): the next starts as the piece did.
         onBackToTop: () => keyHint.restart(),
         onReinforcementComplete: async () => {
-          this.reinforcementMode = false
-          this.trainingMode = false
-          musicxml.setTrainingMode(false)
-          await endSessionAndSync()
+          await this.setMode('free')
           this.openResultModal('reinforcement')
-
-          // Start new free session so subsequent play is tracked
-          startFreshSession(this.scoreUrl, 'free')
         },
         onMeasureClicked: (measureIndex) => {
           // A bar clicked while listening seeks playback there instead of
@@ -540,11 +536,17 @@ export function midiApp() {
 
     async loadMusicXMLFromFile(file) {
       if (!file) return
-      this.fingeringEnabled = false
-      this.scoreUrl = null
-      await musicxml.loadMusicXML(file)
-      await this.afterScoreLoad()
-      await this.markScoreReady()
+      try {
+        await musicxml.loadMusicXML(file)
+        this.fingeringEnabled = false
+        this.scoreUrl = null
+        await this.afterScoreLoad()
+        await this.markScoreReady()
+      } catch (error) {
+        // A file that is not a score is the player's mistake, not a fault.
+        if (!error.notMusicXml) recordError(error, 'MusicXML file could not be loaded')
+        alert(t(error.notMusicXml ? 'errors.invalidMusicXml' : 'errors.musicXmlLoad'))
+      }
     },
 
     // `trackerReady` is the practice tracker's own init, which the render does
@@ -782,16 +784,15 @@ export function midiApp() {
       this.playbackMeasure = playback.currentMeasureIndex
     },
 
-    // A click on a bar belongs to one of the two things that can want it.
+    // A click on a bar belongs to one of the three things that can want it.
     // Listening wins: the piece being heard is steered bar by bar, and strict
-    // mode's passage can be picked once it is over. Both bands ask this, so
-    // only the one that would get the click offers it.
+    // mode's or training's passage can be picked once it is over. The bands
+    // ask this, so only the one that would get the click offers it.
     get barClickOwner() {
       if (this.isListening) return 'playback'
-      if (this.strictSelected) return 'strict'
       // Reinforcement drills a list the app chose; a bar clicked there is not
       // the player picking a passage, so it stays the plain jump it has been.
-      if (this.trainingMode && !this.reinforcementMode) return 'training'
+      if (this.mode === 'strict' || this.mode === 'training') return this.mode
       return null
     },
 
@@ -1024,7 +1025,7 @@ export function midiApp() {
     // asked for is still on its way down, so the marker only lands on the
     // repaint that the end of the run triggers.
     paintStrictRange() {
-      const show = this.strictSelected && !this.isStrictPlaying
+      const show = this.mode === 'strict' && !this.isStrictPlaying
       musicxml.markStrictRange(show ? this.strictStartMeasure : null, this.strictEndMeasure)
     },
 
@@ -1159,8 +1160,7 @@ export function midiApp() {
       practiceTracker.recordStrictRun(result)
       // One session per run: a session carries at most one playthrough, and
       // ending it here is what credits the practice time to the journal.
-      await practiceTracker.endSession()
-      startFreshSession(this.scoreUrl, 'strict')
+      await rollSession('strict', { sync: false })
       if (settle) await this.settleStrictRuns()
     },
 
@@ -1173,43 +1173,45 @@ export function midiApp() {
     // Reinforcement is a flavor of training, so currentMode reports
     // 'training' for it — the segmented control stays on the training tab.
     get currentMode() {
-      if (this.strictSelected) return 'strict'
-      if (this.trainingMode) return 'training'
-      return 'free'
+      return this.mode === 'reinforcement' ? 'training' : this.mode
     },
 
-    async setMode(name) {
-      if (this.currentMode === name) return
+    // The one way the page changes mode: its tabs, the reinforcement badge and
+    // the end of a reinforcement all come through here. What the mode being
+    // left had running or lit is put away, and the session follows.
+    async setMode(name, measuresToReinforce = []) {
+      // The tab already pressed changes nothing — the training one included,
+      // which a reinforcement keeps pressed.
+      if (name === this.mode || name === this.currentMode) return
+      // A piece playing itself competes with the player's hands.
+      this.stopListening()
       if (this.isStrictPlaying) {
-        strictPlaythrough.stop()
+        // The tempo trainer's loop with it, which a run stopped between two
+        // runs would not end.
+        this.toggleStrictPlaythrough()
         // The run stopped by the switch closes the session it was played in;
         // the mode being switched to opens the next one. Sequenced, or the two
         // ends race and the session is credited twice.
         await strictRunRecorded
       }
-      if (this.strictSelected) {
-        this.strictSelected = false
-        this.resetStrictRange()
-      }
+      if (this.mode === 'strict') this.resetStrictRange()
       // A mode is entered on the whole piece: a passage picked in a previous
       // stint of training is not what the player asked for by tapping a tab.
       this.resetTrainingRange()
       // A mode switch starts on a clean score: whatever is lit on it — a
       // strict run's verdict, the notes a free or training run played —
       // belongs to the run that lit it, and that run is over. The two halves
-      // are cleared by their own module; both no-op when there is nothing to
-      // clear.
+      // are cleared by their own module, the second as the engine takes up
+      // the new mode.
       strictPlaythrough.clearMarks()
-      musicxml.resetProgress()
-      const training = name === 'training'
-      if (this.trainingMode !== training) {
-        this.trainingMode = training
-        musicxml.setTrainingMode(training)
-      }
-      if (name === 'strict') this.strictSelected = true
-      // The session follows the tab: what it records is filed under the mode
-      // it was practised in.
-      await practiceTracker.toggleMode(this.currentMode)
+      this.mode = name
+      // Before the engine moves: a reinforcement starts its first measure at
+      // once, and a measure started on the session being closed goes with it.
+      await rollSession(this.currentMode)
+      if (name === 'reinforcement') musicxml.setReinforcementMode(measuresToReinforce)
+      else musicxml.setTrainingMode(name === 'training')
+      // A new mode is a new start: a wait only counts again from the next key.
+      keyHint.rest()
     },
 
     strictAccuracyPercent() {
@@ -1341,21 +1343,10 @@ export function midiApp() {
       return withHands(tn('score.reinforce', measures.length), measures[0]?.hands ?? TWO_HANDS, words)
     },
 
-    async startReinforcementMode() {
-      // Pinned before the await below, which leaves room for a measure
-      // boundary to refresh the suggestions under us.
-      const measures = this.measuresToReinforce
-      this.reinforcementMode = true
-      this.trainingMode = true
-      this.resetTrainingRange()
-
-      // Close the session under way first: reinforcement can now be started
-      // mid-piece, and simply starting the training session on top of a free
-      // one would strand it with no endedAt (see endSession).
-      await endSessionAndSync()
-      startFreshSession(this.scoreUrl, 'training')
-
-      musicxml.setReinforcementMode(measures)
+    // From free play or from the strict tab, mid-piece or not: setMode puts
+    // away what was under way, the strict run included.
+    startReinforcementMode() {
+      return this.setMode('reinforcement', this.measuresToReinforce)
     },
 
     updateActiveHands() {
