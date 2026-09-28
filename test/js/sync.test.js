@@ -7,9 +7,11 @@ const USER = 'user-1'
 const MAIN = 'main'
 
 // Minimal fake of the Supabase client covering exactly the calls runSync makes:
-// from(table).select(cols) filtered by .eq() and .in(), and .upsert(rows);
-// plus auth.getUser(). Rows live in one map per table, keyed
-// the way the real primary keys are.
+// from(table).select(cols) filtered by .eq() and .in(), paged by .order() and
+// .range(), and .upsert(rows); plus auth.getUser(). Rows live in one map per
+// table, keyed the way the real primary keys are. No answer holds more than
+// MAX_ROWS rows, and none says there were more: the server's max_rows.
+const MAX_ROWS = 1000
 const KEYS = {
   training_sessions: (r) => `${r.profile_id ?? MAIN}|${r.id}`,
   user_fingerings: (r) => `${r.profile_id ?? MAIN}|${r.score_url}`,
@@ -26,10 +28,12 @@ function makeFakeSupabase({ sessions = [], fingerings = [], profiles = [] } = {}
   const result = (rows, cols) => {
     const pick = (r) => (cols === '*' ? r : Object.fromEntries(cols.split(',').map((c) => c.trim()).map((c) => [c, r[c]])))
     return {
-      get data() { return rows.map(pick) },
+      get data() { return rows.slice(0, MAX_ROWS).map(pick) },
       error: null,
       eq: (col, val) => result(rows.filter((r) => r[col] === val), cols),
       in: (col, vals) => result(rows.filter((r) => vals.includes(r[col])), cols),
+      order: (col) => result([...rows].sort((a, b) => (a[col] < b[col] ? -1 : a[col] > b[col] ? 1 : 0)), cols),
+      range: (from, to) => result(rows.slice(from, to + 1), cols),
     }
   }
   return {
@@ -118,6 +122,37 @@ describe('runSync', () => {
 
     expect(r.pushed).toBe(0)
     expect(r.pulled).toBe(0)
+  })
+
+  // The whole history reads as megabytes, and a sync runs after every run:
+  // it compares ids, and reads in full only what it has to send.
+  it('reads in full only the sessions the server lacks', async () => {
+    await storage.saveSession(endedSession('a', '/s/1.xml'))
+    await storage.saveSession(endedSession('b', '/s/2.xml'))
+    const supabase = makeFakeSupabase({
+      sessions: [{ user_id: USER, id: 'a', data: endedSession('a', '/s/1.xml'), ended_at: 'x' }],
+    })
+    const everySession = vi.spyOn(storage, 'getSessions')
+    const byId = vi.spyOn(storage, 'getSessionsById')
+
+    const r = await runSync({ supabase, storage, practiceTracker })
+
+    expect(r.pushed).toBe(1)
+    expect(byId).toHaveBeenCalledExactlyOnceWith(['b'])
+    expect(everySession).not.toHaveBeenCalled()
+  })
+
+  // The server answers with MAX_ROWS rows at most and says nothing of the
+  // rest: read in one answer, every session past them looked missing there —
+  // sent again at every sync, and never brought down to this device.
+  it('reads every session id the server holds, however many', async () => {
+    const sessions = Array.from({ length: MAX_ROWS + 2 }, (_, i) => endedSession(`s${String(i).padStart(4, '0')}`, '/s/1.xml'))
+    await storage.importSessions(sessions.slice(0, -1))
+    const supabase = makeFakeSupabase({ sessions: sessions.map((s) => ({ user_id: USER, id: s.id, data: s, ended_at: s.endedAt })) })
+
+    const r = await runSync({ supabase, storage, practiceTracker })
+
+    expect(r).toMatchObject({ pushed: 0, pulled: 1 })
   })
 
   it('skips in-progress sessions (no endedAt)', async () => {

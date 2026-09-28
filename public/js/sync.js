@@ -27,6 +27,13 @@ import { knownNames } from './practiceTracker.js'
 // switched to has its own catching up to do.
 const lastSyncKey = (profileId) => scopedKey('arabesque:last-sync', profileId)
 const CHUNK = 200
+// PostgREST answers a request with at most max_rows rows (1000 on this
+// project, Supabase's default) and says nothing of the rest. A profile's
+// session ids outgrow that, one a run, and every id past the cut read as
+// missing on the server: pushed again at each sync, and never pulled by a new
+// device. So they are read a page at a time, in a fixed order, until a page
+// comes back short. Not more than max_rows, or the first one always would.
+const PAGE = 1000
 
 export function lastSyncAt(profileId = currentProfileId()) {
   try {
@@ -48,6 +55,17 @@ function chunk(arr, size) {
   const out = []
   for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size))
   return out
+}
+
+// Every row `query()` matches, a PAGE at a time; answers as a query does.
+async function selectAll(query) {
+  const rows = []
+  for (;;) {
+    const { data, error } = await query().range(rows.length, rows.length + PAGE - 1)
+    if (error) return { data: null, error }
+    rows.push(...data)
+    if (data.length < PAGE) return { data: rows, error: null }
+  }
 }
 
 // Map scoreId → { title, composer } from the score catalog, so aggregates
@@ -144,7 +162,7 @@ export async function runSync({ supabase, storage, practiceTracker, userId = nul
   // The three reads are independent; the pushes below wait on all of them.
   const [profilesRead, idsRead, stampsRead] = await Promise.all([
     supabase.from('profiles').select('id, name, avatar, updated_at, deleted'),
-    supabase.from('training_sessions').select('id').eq('profile_id', profileId),
+    selectAll(() => supabase.from('training_sessions').select('id').eq('profile_id', profileId).order('id')),
     // Stamps only. The blobs are fetched below for the scores that have to come
     // down or be merged, which is usually none: selecting '*' here meant
     // re-downloading the entire fingering corpus on every sync, and syncs are
@@ -175,10 +193,12 @@ export async function runSync({ supabase, storage, practiceTracker, userId = nul
   const remoteIdList = remoteIdRows.map((r) => r.id)
   const remoteIds = new Set(remoteIdList)
 
-  const localSessions = (await storage.getSessions()).filter((s) => s.endedAt && s.measures?.length)
-  const localIds = new Set(localSessions.map((s) => s.id))
-
-  const toPush = localSessions.filter((s) => !remoteIds.has(s.id))
+  // By id: what the server lacks is read in full, and nothing else. Reading
+  // every session to compare ids cost the whole history, megabytes of it, at
+  // every sync — which runs after every run.
+  const localIds = new Set(await storage.getSessionIds())
+  const toPush = (await storage.getSessionsById([...localIds].filter((id) => !remoteIds.has(id))))
+    .filter((s) => s.endedAt && s.measures?.length)
   for (const part of chunk(toPush, CHUNK)) {
     const rows = part.map((s) => ({ user_id: uid, profile_id: profileId, id: s.id, data: s, ended_at: s.endedAt }))
     const { error } = await supabase.from('training_sessions').upsert(rows)
@@ -190,10 +210,9 @@ export async function runSync({ supabase, storage, practiceTracker, userId = nul
   for (const part of chunk(missingIds, CHUNK)) {
     const { data: rows, error } = await supabase.from('training_sessions').select('data').eq('profile_id', profileId).in('id', part)
     if (error) throw error
-    for (const row of rows) {
-      await storage.saveSession(row.data)
-      pulled++
-    }
+    // One transaction per chunk: one per session made a new device's first
+    // sync hundreds of transactions in a row.
+    pulled += await storage.importSessions(rows.map((row) => row.data))
   }
 
   // --- Fingerings ---

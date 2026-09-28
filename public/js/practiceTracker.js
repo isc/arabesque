@@ -116,17 +116,17 @@ export function hasHotSpots(sessions, hands = TWO_HANDS) {
   return false
 }
 
+// Oldest first, for anything with a `startedAt` — a session, a run. It is
+// always an ISO string in UTC, so it sorts as text: a comparator building two
+// Dates per comparison was most of the cost of a call that runs at every
+// measure boundary.
+export const byStartedAt = (a, b) => (a.startedAt < b.startedAt ? -1 : a.startedAt > b.startedAt ? 1 : 0)
+
 // The window that makes both rules forget: only the last
 // REINFORCEMENT_WINDOW_SESSIONS sessions of a score count, so a bar massacred
 // six months ago and left alone says nothing today.
-//
-// `startedAt` is always an ISO string in UTC, so it sorts as text — and a
-// comparator building two Dates per comparison was most of the cost of a call
-// that runs at every measure boundary.
 function recentSessions(sessions) {
-  return [...sessions]
-    .sort((a, b) => (a.startedAt < b.startedAt ? -1 : a.startedAt > b.startedAt ? 1 : 0))
-    .slice(-REINFORCEMENT_WINDOW_SESSIONS)
+  return [...sessions].sort(byStartedAt).slice(-REINFORCEMENT_WINDOW_SESSIONS)
 }
 
 // The measures worth offering, unranked, over that window.
@@ -466,9 +466,8 @@ export function initPracticeTracker(storageInstance = null) {
   // Set once ensureAggregateTitle() has written title/composer for the
   // current session, so later measures skip the IndexedDB round-trip.
   let aggregateTitleEnsured = false
-  // Sessions read for the reinforcement suggestions, kept between measures
-  // (see scoreSessions).
-  let reinforcementSessions = { scoreId: null, sessions: [] }
+  // One score's stored sessions, kept between reads (see scoreSessions).
+  let sessionCache = { scoreId: null, sessions: [] }
 
   return {
     // Outdated rows are rebuilt before anything is folded into them: the fold
@@ -641,8 +640,10 @@ export function initPracticeTracker(storageInstance = null) {
   // session ever played, and a read and a write per session made it seconds
   // long on WebKit, during which a page closed left the aggregates half built.
   async function rebuildAggregates(metaFor = () => null, fallbackNames = new Map()) {
+    // The sessions that arrived are missing from the cached ones too.
+    dropSessionCache()
     const [sessions, aggregates] = await Promise.all([storage.getSessions(), storage.getAllAggregates()])
-    sessions.sort((a, b) => (a.startedAt || '').localeCompare(b.startedAt || ''))
+    sessions.sort(byStartedAt)
     // What the aggregates already knew, before they are thrown away — all a
     // session stored before sessions carried their own name can offer. Only
     // a row that has a name: an untitled one would hide the fallback's.
@@ -676,9 +677,11 @@ export function initPracticeTracker(storageInstance = null) {
     await storage.replaceAggregates([...rebuilt.values()])
   }
 
+  // Every run through the score, most recent first: the ranking at the end of
+  // a piece. Off the sessions the reinforcement suggestions read, which the
+  // end of a piece asks for next — one read of the score's history, not two.
   async function getAllPlaythroughs(scoreId) {
-    const history = await getScoreHistory(scoreId)
-    return history.flatMap((day) => day.fullPlaythroughs)
+    return getFullPlaythroughs(await scoreSessions(scoreId))
   }
 
   function generateId() {
@@ -719,8 +722,8 @@ export function initPracticeTracker(storageInstance = null) {
   async function toggleMode(newMode) {
     if (!currentSession) return false
     // Nothing recorded yet: the session just changes hands. Ending it would
-    // drop it anyway, and would throw away the reinforcement window's cache
-    // for nothing (see invalidateReinforcementSessions).
+    // drop it anyway, and would throw away the cached sessions for nothing
+    // (see scoreSessions).
     if (currentSession.measures.length === 0 && !currentMeasureAttempt) {
       currentSession.mode = newMode
       return false
@@ -870,9 +873,9 @@ export function initPracticeTracker(storageInstance = null) {
     }
     // Committed: whatever a pagehide stashed for *this* session is redundant.
     clearPendingSession(sessionToSave.id)
-    // The session just left the "live" slot for the stored history the
-    // reinforcement window reads, so that window has to be read again.
-    invalidateReinforcementSessions()
+    // The session just left the "live" slot for the stored history, so the
+    // cached copy of that history has to be read again.
+    dropSessionCache()
 
     currentSession = null
     currentMeasureAttempt = null
@@ -1013,33 +1016,33 @@ export function initPracticeTracker(storageInstance = null) {
 
   // The score's sessions, with the in-memory one substituted for the copy
   // endMeasureAttempt saved: that one is a measure behind by construction.
-  // Windowing and order are measuresToReinforce()'s business, not this one's.
+  // Windowing and order are the callers' business, not this one's.
   //
-  // Sessions are re-read from storage only when the score changes or a session
-  // is closed, because this runs at every measure boundary and getSessions()
-  // deserializes the score's whole history.
+  // Sessions are re-read from storage only when the score changes, a session
+  // is closed or sessions arrive from elsewhere (rebuildAggregates), because
+  // the reinforcement suggestions ask at every measure boundary and
+  // getSessions() deserializes the score's whole history.
   async function scoreSessions(scoreId) {
-    if (reinforcementSessions.scoreId !== scoreId) {
-      reinforcementSessions = { scoreId, sessions: await storage.getSessions(scoreId) }
+    if (sessionCache.scoreId !== scoreId) {
+      sessionCache = { scoreId, sessions: await storage.getSessions(scoreId) }
     }
 
     const live = currentSession?.scoreId === scoreId ? currentSession : null
-    const sessions = reinforcementSessions.sessions.filter((s) => s.id !== live?.id)
+    const sessions = sessionCache.sessions.filter((s) => s.id !== live?.id)
     if (live) sessions.push(live)
     return sessions
   }
 
-  function invalidateReinforcementSessions() {
-    reinforcementSessions = { scoreId: null, sessions: [] }
+  function dropSessionCache() {
+    sessionCache = { scoreId: null, sessions: [] }
   }
 
-  function getFullPlaythroughs(sessions, totalMeasures) {
-    if (!totalMeasures) return []
-
+  // The runs through the whole score among `sessions`, most recent first.
+  function getFullPlaythroughs(sessions) {
     return sessions
       .filter((session) => session.completedAt && session.playthroughStartedAt)
       .map(playthroughOf)
-      .sort((a, b) => new Date(b.startedAt) - new Date(a.startedAt)) // most recent first
+      .sort((a, b) => byStartedAt(b, a))
   }
 
   // When the player last played in this session, falling back to its start when
@@ -1074,8 +1077,8 @@ export function initPracticeTracker(storageInstance = null) {
   }
 
   // The journal asks for a run of consecutive days at once: one read of the
-  // sessions for all of them, sorted into their days here, and the aggregate
-  // lookups shared across days.
+  // sessions for all of them, sorted into their days here, and one of the
+  // aggregates that name their scores.
   async function getDailyLogs(dates) {
     if (dates.length === 0) return []
 
@@ -1088,33 +1091,26 @@ export function initPracticeTracker(storageInstance = null) {
       startOfLocalDay(shiftDayKey(days.at(-1), 1)),
     )
     const byDay = new Map()
+    const scoreIds = new Set()
     for (const session of sessions) {
       const key = sessionDay(session)
       if (!wanted.has(key)) continue
       if (!byDay.has(key)) byDay.set(key, [])
       byDay.get(key).push(session)
+      scoreIds.add(session.scoreId)
     }
 
-    const aggregates = new Map()
-    const logs = []
-    for (const date of dates) {
-      logs.push(await buildDailyLog(byDay.get(localDayKey(date)) ?? [], aggregates))
-    }
-    return logs
+    const aggregates = new Map((await storage.getAggregates([...scoreIds])).map((row) => [row.scoreId, row]))
+    return dates.map((date) => buildDailyLog(byDay.get(localDayKey(date)) ?? [], aggregates))
   }
 
-  // `aggregateCache` is shared across the days of one journal read: the same
-  // score shows up on many days and its aggregate never changes mid-read.
-  async function buildDailyLog(sessions, aggregateCache) {
+  // One day of the journal, its scores named by `aggregates` (scoreId → row),
+  // the single source of truth for a score's name.
+  function buildDailyLog(sessions, aggregates) {
     const scoreMap = new Map()
-
     for (const session of sessions) {
       if (!scoreMap.has(session.scoreId)) {
-        // Look up metadata from aggregate (single source of truth)
-        if (!aggregateCache.has(session.scoreId)) {
-          aggregateCache.set(session.scoreId, await storage.getAggregate(session.scoreId))
-        }
-        const aggregate = aggregateCache.get(session.scoreId)
+        const aggregate = aggregates.get(session.scoreId)
         scoreMap.set(session.scoreId, newEntry({
           scoreId: session.scoreId,
           scoreTitle: aggregate?.scoreTitle || null,
@@ -1134,7 +1130,6 @@ export function initPracticeTracker(storageInstance = null) {
   function newEntry(fields) {
     return {
       ...fields,
-      totalMeasures: null,
       sessions: [],
       measuresWorked: new Set(),
       measuresReinforced: new Set(),
@@ -1147,7 +1142,6 @@ export function initPracticeTracker(storageInstance = null) {
   // groupings.
   function addSession(entry, session) {
     entry.sessions.push(session)
-    if (session.totalMeasures) entry.totalMeasures = session.totalMeasures
     entry.totalPracticeTimeMs += computeSessionDuration(session)
     const lastPlayedAt = getLastMeasureEndTime(session)
     if (!entry.lastPlayedAt || lastPlayedAt > entry.lastPlayedAt) entry.lastPlayedAt = lastPlayedAt
@@ -1161,8 +1155,10 @@ export function initPracticeTracker(storageInstance = null) {
   // The tail both groupings share: the sets they filled become sorted arrays,
   // and their sessions become the runs through the whole score they hold.
   // `timesPlayedInFull` stays what it says — the two-handed ones.
-  function withPlaythroughs(entry) {
-    const fullPlaythroughs = getFullPlaythroughs(entry.sessions, entry.totalMeasures)
+  // The sessions themselves stay behind: nothing on screen reads them, and the
+  // entries are held in the pages' reactive state.
+  function withPlaythroughs({ sessions, ...entry }) {
+    const fullPlaythroughs = getFullPlaythroughs(sessions)
     return {
       ...entry,
       measuresWorked: Array.from(entry.measuresWorked).sort((a, b) => a - b),

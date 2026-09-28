@@ -1,7 +1,7 @@
 import { initMidi, nativePairingAvailable, openNativePairing } from './midi.js'
 import { initMusicXML } from './musicxml.js'
 import { initFingeringEditor } from './fingeringEditor.js'
-import { initPracticeTracker } from './practiceTracker.js'
+import { initPracticeTracker, byStartedAt } from './practiceTracker.js'
 import { playthroughGroups, TWO_HANDS, handsKey } from './hands.js'
 import { formatDuration, formatDate, applyStickyOffset, scorePageUrl, onForeground, withHands, withRunKind, pickPassageMeasure, loopRangeText } from './utils.js'
 import { noteLabel } from './noteExtraction.js'
@@ -1228,8 +1228,9 @@ export function midiApp() {
       return (r.offTempoEarly ?? 0) + (r.offTempoLate ?? 0)
     },
 
+    // `allPlaythroughs` comes most recent first (getAllPlaythroughs).
     showScoreComplete(allPlaythroughs) {
-      const mostRecent = [...allPlaythroughs].sort((a, b) => new Date(b.startedAt) - new Date(a.startedAt))[0]
+      const mostRecent = allPlaythroughs[0]
       // Ranked fastest-first, current playthrough flagged so the modal can
       // highlight it. Only the runs comparable with it are in the running —
       // playthroughGroups says which: a right-hand run beats every two-hand
@@ -1409,7 +1410,7 @@ export function midiApp() {
       if (playthroughs.length < 2) return ''
       const metric = runKind(playthroughs[0].strict)
 
-      const sorted = [...playthroughs].sort((a, b) => new Date(a.startedAt) - new Date(b.startedAt))
+      const sorted = [...playthroughs].sort(byStartedAt)
       const values = sorted.map(metric.value)
       const dMin = Math.min(...values)
       const dMax = Math.max(...values)
