@@ -14,6 +14,13 @@ Capybara.app = App
 # Configure download directory for tests
 DOWNLOAD_DIR = Dir.mktmpdir
 
+# The main profile's database, under the name the app gives it (storage.js).
+# Opened below without a version: the app's own open sets it, and a version
+# written here would break at the app's next upgrade — or, opened before the
+# app, create the database at that version with none of its stores.
+DB_NAME = File.read(File.expand_path('../public/js/storage.js', __dir__))[/const DB_BASE_NAME = '([^']+)'/, 1] or
+          raise 'DB_BASE_NAME not found in public/js/storage.js'
+
 Capybara.register_driver(:cuprite) do |app|
   Capybara::Cuprite::Driver.new(
     app,
@@ -189,18 +196,17 @@ class CapybaraTestBase < Minitest::Test
   end
 
   # Block until the app has created its IndexedDB store, so seeding scripts
-  # don't race the page. Opening the database from a test before the app has
-  # built it creates an empty one at the same version, which then never
-  # upgrades — the stores are missing for good and the page renders nothing.
+  # don't race the page: a transaction on a store the app has not created yet
+  # fails.
   def wait_for_store(store, timeout: Capybara.default_max_wait_time)
     Timeout.timeout(timeout) do
       # `databases()` is used rather than open(): probing with open() would
-      # itself create the database this is waiting for.
+      # itself create the database, empty, ahead of the app's own open.
       until page.evaluate_async_script(<<~JS, store)
         const [store, done] = [arguments[0], arguments[arguments.length - 1]];
         indexedDB.databases().then((dbs) => {
-          if (!dbs.some((d) => d.name === 'arabesque')) return done(false);
-          const request = indexedDB.open('arabesque');
+          if (!dbs.some((d) => d.name === '#{DB_NAME}')) return done(false);
+          const request = indexedDB.open('#{DB_NAME}');
           request.onerror = () => done(false);
           request.onsuccess = () => {
             const present = request.result.objectStoreNames.contains(store);
@@ -421,7 +427,7 @@ class CapybaraTestBase < Minitest::Test
     wait_for_store(store)
     committed = page.evaluate_async_script(<<~JS, store, records)
       const [store, records, done] = [arguments[0], arguments[1], arguments[arguments.length - 1]];
-      const request = indexedDB.open('arabesque', 3);
+      const request = indexedDB.open('#{DB_NAME}');
       request.onerror = () => done(false);
       request.onsuccess = () => {
         const db = request.result;
@@ -486,10 +492,12 @@ class CapybaraTestBase < Minitest::Test
   def stored_fingering_record(score_url)
     page.evaluate_async_script(<<~JS, score_url)
       const [scoreUrl, done] = [arguments[0], arguments[arguments.length - 1]];
-      const request = indexedDB.open('arabesque', 3);
+      const request = indexedDB.open('#{DB_NAME}');
       request.onerror = () => done(null);
       request.onsuccess = () => {
         const db = request.result;
+        // Opened ahead of the app: answer rather than throw, and let its upgrade through.
+        if (!db.objectStoreNames.contains('fingerings')) { db.close(); return done(null); }
         const record = db.transaction('fingerings', 'readonly').objectStore('fingerings').get(scoreUrl);
         record.onerror = () => { db.close(); done(null); };
         record.onsuccess = () => { db.close(); done(record.result ?? null); };
@@ -698,10 +706,12 @@ class CapybaraTestBase < Minitest::Test
       const store = arguments[0];
       window.__recordCount = null;
       const answer = (n) => { window.__recordCount = n };
-      const request = indexedDB.open('arabesque', 3);
+      const request = indexedDB.open('#{DB_NAME}');
       request.onerror = () => answer(0);
       request.onsuccess = () => {
         const db = request.result;
+        // Opened ahead of the app: answer rather than throw, and let its upgrade through.
+        if (!db.objectStoreNames.contains(store)) { db.close(); return answer(0); }
         const all = db.transaction(store, 'readonly').objectStore(store).getAll();
         all.onerror = () => { db.close(); answer(0); };
         all.onsuccess = () => {

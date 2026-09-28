@@ -1,22 +1,29 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import 'fake-indexeddb/auto'
-import { initStorage, NEVER_SYNCED } from '../../public/js/storage.js'
+import { initStorage, NEVER_SYNCED, STORES, DB_VERSION } from '../../public/js/storage.js'
 import { initPracticeTracker } from '../../public/js/practiceTracker.js'
 import { importBackup } from '../../public/js/sync.js'
+
+const measures = [{ sourceMeasureIndex: 0, attempts: [{ startedAt: '2026-06-10T10:00:00.000Z', durationMs: 60_000, wrongNotes: 0, clean: true }] }]
+const session = (id) => ({ id, scoreId: 'scores/a.mxl', startedAt: '2026-06-10T10:00:00.000Z', endedAt: '2026-06-10T10:01:00.000Z', measures })
+
+// A device of its own: an empty database, and the tracker that reads it.
+async function aDevice() {
+  indexedDB = new IDBFactory()
+  const storage = initStorage()
+  const practiceTracker = initPracticeTracker(storage)
+  await storage.init()
+  return { storage, practiceTracker }
+}
 
 // A backup brought to a device that has practice of its own joins it, the way
 // a sync's pull does: it used to be written over it.
 describe('importing a backup', () => {
   let storage
   let practiceTracker
-  const measures = [{ sourceMeasureIndex: 0, attempts: [{ startedAt: '2026-06-10T10:00:00.000Z', durationMs: 60_000, wrongNotes: 0, clean: true }] }]
-  const session = (id) => ({ id, scoreId: 'scores/a.mxl', startedAt: '2026-06-10T10:00:00.000Z', endedAt: '2026-06-10T10:01:00.000Z', measures })
 
   beforeEach(async () => {
-    indexedDB = new IDBFactory()
-    storage = initStorage()
-    practiceTracker = initPracticeTracker(storage)
-    await storage.init()
+    ;({ storage, practiceTracker } = await aDevice())
   })
 
   it('keeps a score’s fingerings entered here since the backup was made', async () => {
@@ -85,6 +92,44 @@ describe('a backup', () => {
     await storage.putFingeringRecord({ scoreUrl: 's', fingerings: { n1: 1 }, updatedAt: 5, synced: { fingerings: { n1: 1 }, updatedAt: 5 } })
 
     expect((await storage.exportBackup()).fingerings).toEqual([{ scoreUrl: 's', fingerings: { n1: 1 }, updatedAt: 5 }])
+  })
+})
+
+// Moving to another device through a backup brings every store over, the
+// aggregates rebuilt from the sessions with the names the backup lends them. A
+// store the backup carries but importBackup does not read fails here, and
+// every store needs a record below, so a new one cannot slip past.
+describe('a backup restored on another device', () => {
+  // A record of each store, and the storage method that writes it.
+  const records = {
+    fingerings: [{ scoreUrl: 'scores/a.mxl', fingerings: { n1: 3 }, updatedAt: 5 }, 'putFingeringRecord'],
+    sessions: [session('s1'), 'saveSession'],
+    aggregates: [{ scoreId: 'scores/a.mxl', scoreTitle: 'Gymnopédie' }, 'saveAggregate'],
+  }
+
+  // A store is only created by the upgrade to a new version: one added without
+  // DB_VERSION raised never reaches a device that already has the database,
+  // and a backup there fails on it. The stores each version shipped with:
+  const STORES_BY_VERSION = { 3: ['aggregates', 'fingerings', 'sessions'] }
+
+  it('raises the database version with every store added', () => {
+    expect([...STORES].sort()).toEqual(STORES_BY_VERSION[DB_VERSION])
+  })
+
+  it('has a record of every store to carry', () => {
+    expect(Object.keys(records).sort()).toEqual([...STORES].sort())
+  })
+
+  it('brings every store back', async () => {
+    const { storage } = await aDevice()
+    for (const [record, write] of Object.values(records)) await storage[write](record)
+    const backup = JSON.parse(JSON.stringify(await storage.exportBackup()))
+
+    const elsewhere = await aDevice()
+    await importBackup(elsewhere, backup)
+    const restored = await elsewhere.storage.exportBackup()
+
+    for (const store of STORES) expect(restored[store], store).toMatchObject(backup[store])
   })
 })
 
