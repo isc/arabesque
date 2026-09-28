@@ -104,11 +104,11 @@
       </div>
       <div class="pt-topbar__actions">
         <!-- MIDI status / connect -->
-        <span class="pt-midi-status" x-show="bluetoothConnected" x-cloak :title="$t('score.midiConnected')">
+        <span class="pt-topbar__pill pt-midi-status" x-show="bluetoothConnected" x-cloak :title="$t('score.midiConnected')">
           🎹 <span x-text="midiDeviceName || $t('score.midiKeyboard')"></span>
         </span>
         <button
-          class="pt-midi-status is-disconnected"
+          class="pt-topbar__pill pt-midi-status is-disconnected"
           x-show="!bluetoothConnected"
           x-cloak
           @click="connectMIDI"

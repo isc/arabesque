@@ -58,16 +58,8 @@ class LibraryFiltersTest < CapybaraTestBase
     assert_includes titles, 'Prelude Op. 28 No. 4 in E Minor'
     refute_includes titles, 'Waltz in A Minor'
     # Half a minute of playing is under the practice floor, so the Ballade has
-    # no status at all — not even the rung its stored aggregate still claims.
+    # no status at all.
     refute_includes titles, 'Ballade No. 1 in G minor Op. 23'
-  end
-
-  # A piece opened, tried for half a minute and left behind is not being
-  # sight-read, and wears no badge — including one graded before the floor
-  # existed, which the library re-grades on its way to the screen.
-  def test_barely_practised_score_wears_no_status_badge
-    assert_selector 'tbody .pt-pill--dechiffrage', count: 3
-    find('tbody tr', text: 'Ballade No. 1 in G minor Op. 23').assert_no_selector '.pt-pill'
   end
 
   def test_filters_persist_via_url_params
@@ -273,7 +265,7 @@ class LibraryFiltersTest < CapybaraTestBase
   # on, one either side of it, and both left silent.
   def test_the_stale_chip_passes_over_pieces_that_never_cleared_the_practice_floor
     floors = {
-      # Half a minute short of a minute: no badge, and now no reminder either.
+      # A millisecond short of a minute: no badge, and now no reminder either.
       BALLADE => MIN_PRACTICE_MS - 1,
       # Exactly the floor is enough — hasMinimumPractice is `>=`, and the chip
       # has to agree with the badge on the very millisecond it appears.
@@ -451,13 +443,13 @@ class LibraryFiltersTest < CapybaraTestBase
         totalPracticeTimeMs: 3_600_000,
         practiceDays: ['2026-03-08', '2026-03-09', '2026-03-10'],
       },
-      # Half a minute of playing, and a status stored before the practice floor
-      # existed: the library grades it again on the way to the screen.
+      # Half a minute of playing: under the practice floor, so no status —
+      # what the tracker stores for it (practiceTracker.test.js).
       {
         scoreId: 'scores/Chopin_-_Ballade_no._1_in_G_minor_Op._23.mxl',
         scoreTitle: 'Ballade No. 1 in G minor Op. 23',
         composer: 'Chopin',
-        status: 'dechiffrage',
+        status: nil,
         lastPlayedAt: '2026-03-16T10:00:00.000Z',
         totalPracticeTimeMs: 30_000,
         practiceDays: ['2026-03-16'],

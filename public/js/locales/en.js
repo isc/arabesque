@@ -377,6 +377,7 @@ export default {
   errors: {
     webMidiUnsupported: 'Web MIDI API not supported by this browser',
     invalidChoice: 'Invalid choice',
+    chooseMidiDevice: 'Several MIDI devices found:\n{devices}\n\nEnter the number (1-{count}):',
     midiConnection: 'MIDI connection error: {message}',
     invalidMusicXml: 'This file does not appear to be a valid MusicXML file',
     musicXmlLoad: 'Error loading the MusicXML file',

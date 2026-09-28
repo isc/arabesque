@@ -130,6 +130,7 @@ import {
   migrateLegacyFingerings,
   nextNoteIndex,
 } from '../public/js/fingeringKeys.js'
+import { AFTER_NOTATIONS } from '../public/js/fingeringInjector.js'
 import { query, quote } from './lib/supabase.mjs'
 import { openScore } from './mxl.mjs'
 import { PART, TOKEN, MEASURE_NUMBER, IMPLICIT, STAFF, VOICE, REST, STAVES, CUE_OR_HIDDEN, numberOf } from './lib/musicxml.mjs'
@@ -170,22 +171,22 @@ function appendChild(inner, element, layout = inner) {
   return inner.slice(0, inner.length - tail.length) + `\n${indent}${element}` + tail
 }
 
+// A note's first child that MusicXML puts after <notations> (AFTER_NOTATIONS).
+const AFTER_NOTATIONS_TAG = new RegExp(`<(?:${AFTER_NOTATIONS.join('|')})[\\s/>]`)
+
 // Mirrors injectFingeringIntoNote() in public/js/fingeringInjector.js: the
 // player's finger replaces every fingering already on the note (an ornament can
 // carry several), inside the first <notations><technical> — creating either if
-// the note has none, and putting a new <notations> after <type> where the
-// MusicXML element order wants it.
+// the note has none, and putting a new <notations> where the MusicXML element
+// order wants it: after everything but AFTER_NOTATIONS.
 function noteWithFingering(noteXml, finger) {
   const element = `<fingering>${finger}</fingering>`
 
   const notations = firstElement(noteXml, 'notations')
   if (!notations) {
     const block = `<notations><technical>${element}</technical></notations>`
-    const afterType = noteXml.indexOf('</type>')
-    const at = afterType >= 0 ? afterType + '</type>'.length : /\s*<\/note>$/.exec(noteXml).index
-    const indent = indentOf(noteXml)
-    const laidOut = indent === undefined ? block : `\n${indent}${block}`
-    return noteXml.slice(0, at) + laidOut + noteXml.slice(at)
+    const at = AFTER_NOTATIONS_TAG.exec(noteXml)?.index ?? noteXml.lastIndexOf('</note>')
+    return appendChild(noteXml.slice(0, at), block, noteXml) + noteXml.slice(at)
   }
 
   const notationsInner = noteXml.slice(notations.start, notations.end)

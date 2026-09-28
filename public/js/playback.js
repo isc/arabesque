@@ -1,4 +1,4 @@
-import { isTestEnv } from './utils.js'
+import { isTestEnv, scrollSystemIntoView } from './utils.js'
 import {
   tsToSeconds,
   buildMeasureStartTimes,
@@ -7,7 +7,7 @@ import {
   measureIndexAt,
   GRACE_NOTE_OFFSET_WN,
 } from './playbackTiming.js'
-import { scrollSystemIntoView } from './utils.js'
+import { BPM_DEFAULT } from './bpmStepper.js'
 
 // The three states the transport can be in. Paused is not stopped: the piece is
 // still on the stand at the bar it was held at.
@@ -163,7 +163,7 @@ function ensurePianoLoaded() {
 export function getBPM(osmdInstance) {
   const sm = osmdInstance.Sheet?.SourceMeasures?.[0]
   const tempo = sm?.TempoExpressions?.[0]?.InstantaneousTempo
-  if (!tempo) return sm?.TempoInBPM || 120
+  if (!tempo) return sm?.TempoInBPM || BPM_DEFAULT
   const beatUnitToQuarter = { whole: 4, half: 2, quarter: 1, eighth: 0.5, '16th': 0.25 }
   const ratio = beatUnitToQuarter[tempo.beatUnit] ?? 1
   if (tempo.dotted) return tempo.tempoInBpm * ratio * 1.5
@@ -325,9 +325,6 @@ export function rollOffsetMs({ index, steps, shortestWn }, bpm) {
   return index * Math.min(ARPEGGIO_STEP_MS, room / steps)
 }
 
-// Fix two OSMD cursor issues that can't be solved with CSS alone:
-// - PicoCSS `img { height: auto }` collapses the 1px-tall cursor image
-// - OSMD's adjustToBackgroundColor() resets z-index to -1 via inline style
 // Schedule cursor.next() advances on the given timeline. Returns the timeout
 // IDs so the caller can register them with its own teardown list. The cursor
 // starts visible at the first position; subsequent ticks advance it.
@@ -367,6 +364,10 @@ export function scheduleCursorAdvances(cursor, cursorTimes, { centerOnCursor = f
   }, t))
 }
 
+// Pins what would otherwise undo OSMD's cursor image, inline because CSS alone
+// cannot: its height, which OSMD writes only as an attribute that any
+// `img { height: auto }` rule collapses (the stylesheet once had one), and its
+// z-index, which OSMD's adjustToBackgroundColor() resets to -1 inline.
 function syncCursorStyle(cursor) {
   const el = cursor.cursorElement
   if (!el) return

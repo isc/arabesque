@@ -13,7 +13,7 @@ import { BPM_STEP } from './tempoTrainer.js'
 export const BPM_MIN = 20
 export const BPM_MAX = 300
 // Where a press starts from when the field holds no tempo at all — emptied,
-// or half-typed. Same tempo strict mode opens on.
+// or half-typed. Also the tempo a score that marks none is read at (getBPM).
 export const BPM_DEFAULT = 120
 
 // One press, one notch — the same notch the tempo trainer climbs by, so "a

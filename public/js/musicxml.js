@@ -1,4 +1,3 @@
-import { traced, ENABLED as PERF_TRACE } from './perfTrace.js' // TEMP diagnostic
 import {
   extractNotesFromScore as extractNotes,
   isNoteActiveForHands as isNoteActiveForHandsShared,
@@ -141,15 +140,8 @@ export function initMusicXML() {
     renderScore,
     relayoutScore: () => renderScore({ reextract: false }),
     renderMusicXML,
-    extractNotesFromScore,
-    // TEMP: the wrapper is chosen once, so with the probe off this hottest path
-    // (every note on/off) builds no label string and no closure.
-    activateNote: PERF_TRACE
-      ? (m) => traced(`activateNote(${m}) m${currentMeasureIndex} held=${heldMidiNotes.size}`, () => activateNote(m))
-      : activateNote,
-    deactivateNote: PERF_TRACE
-      ? (m) => traced(`deactivateNote(${m}) held=${heldMidiNotes.size}`, () => deactivateNote(m))
-      : deactivateNote,
+    activateNote,
+    deactivateNote,
     setCallbacks,
     setActiveHands: (hands) => {
       activeHands = { ...activeHands, ...hands }
@@ -178,10 +170,9 @@ export function initMusicXML() {
       repeatCount,
       targetRepeatCount,
     }),
-    updateRepeatIndicators: () => updateRepeatIndicators(),
     // The training cursor and repeat dots live in the SVG, so a redraw takes
     // them with it. No-op outside training mode.
-    updateMeasureCursor: () => updateMeasureCursor(),
+    updateMeasureCursor,
     setTrainingMode: (enabled) => {
       trainingMode = enabled
       repeatCount = 0
@@ -219,7 +210,6 @@ export function initMusicXML() {
       // actually working rather than the raw indices it clicked.
       return { start: trainingStart, end: trainingEnd }
     },
-    jumpToMeasure: (measureIndex) => jumpToMeasure(measureIndex),
     // Marks where a strict run starts — or, for a looped passage with an end,
     // shades the measures it covers up to `endIndex` (inclusive), which says
     // where it starts as well. Null clears both.
@@ -231,13 +221,6 @@ export function initMusicXML() {
         return
       }
       paintMeasureRange('strict-range', startIndex, endIndex)
-    },
-    resetMeasureProgress: () => {
-      for (const measureData of allNotes) {
-        for (const noteData of measureData.notes) {
-          noteData.played = false
-        }
-      }
     },
     getNoteDataByKey: () => noteDataByKey,
     getLegacyFingeringKeyMap: () => legacyKeyMap,
@@ -617,8 +600,8 @@ function resetMeasureProgress({ keepRepeats = false, keepRepetition = false, not
   callbacks.onMeasureStarted?.(measureData.sourceMeasureIndex, atScoreStart())
 }
 
-// Reset the visual state (played-note class) for notes of a specific source measure
-// This is used when repeating a measure due to repeat endings (voltas)
+// Takes the marks off the noteheads of one source measure, for a measure played
+// again on a repeat (voltas).
 function resetSourceMeasureVisualState(sourceMeasureIndex) {
   for (const measureData of allNotes) {
     if (measureData.sourceMeasureIndex !== sourceMeasureIndex) continue
@@ -1146,7 +1129,7 @@ function activateNote(midiNote) {
     // A held tie can fully cover a *later* timestamp (the tied pitch plus its
     // same-pitch unisons in other voices). No fresh keypress can trigger that
     // group, so cascade those validations here instead of stalling.
-    traced('cascadeHeldTieValidations', cascadeHeldTieValidations) // TEMP
+    cascadeHeldTieValidations()
   }
 
   return true

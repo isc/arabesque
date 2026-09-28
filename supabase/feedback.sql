@@ -12,8 +12,8 @@
 -- backend to deploy.
 --
 -- One-time setup (outside this repo):
---   1. Create a NEW Supabase project (dedicated to Piano Trainer), then paste
---      its URL + publishable key into public/js/feedback.js.
+--   1. Create the app's Supabase project, then put its URL + publishable key
+--      in public/js/supabaseConfig.js.
 --   2. Resend account (free) + API key.
 --   3. Store the key in Vault (never in clear text here):
 --        select vault.create_secret('re_xxxxx', 'resend_api_key');

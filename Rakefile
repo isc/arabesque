@@ -91,23 +91,24 @@ module TestSharding
 end
 
 namespace :test do
-  desc 'Run the suite across several processes (TEST_WORKERS=n, default: cores)'
+  desc 'Run the suite across several processes (TEST_WORKERS=n, default: min(cores, 8))'
   task :parallel do
     ids = TestSharding.ids
     abort 'No tests found' if ids.empty?
 
-    # Eight, or fewer on a small machine. The wall clock stops improving at
-    # eight workers on both machines measured, whatever their core count:
+    # Eight, or fewer on a small machine. At 66 tests the wall clock stopped
+    # improving at eight on both machines measured, whatever their core count:
     #
     #   16-core Linux — 4: 21.7s, 8: 14.9s, 12: 15.2s, 16: 14.9s / 19.1s + an
     #                   error, 24: 15.7s
     #   8-core Mac    — 4: 42.8s, 8: 29.3s (7 runs), 12: 30.4s
     #
-    # Past that the limit isn't the CPU: with ~66 tests, eight workers already
-    # leave a handful of tests each, so the slowest single test sets the floor
-    # and more processes can only add contention. Sixteen still loses a test to
-    # timing now and then, as it did before the playback libraries were
-    # vendored (#250) — oversubscribing was never only about the network.
+    # Re-measured at 184 tests on the Linux box, in the Docker container of
+    # scripts/test-in-docker.sh: 8: 43.8–48.3s, 12: 41.2–42.8s, 16: 46.8–47.6s.
+    # Twelve buys a few seconds now, sixteen still nothing: past that the limit
+    # isn't the CPU but the browsers contending for it, and every extra process
+    # is one more chance to lose a test to timing — sixteen did now and then,
+    # before the playback libraries were vendored (#250) and after.
     #
     # Halving the cores, which this used to do, happens to land on eight on the
     # 16-core box and left a third of the time on the table on an 8-core Mac,

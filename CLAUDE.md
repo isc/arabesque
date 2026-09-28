@@ -19,13 +19,13 @@ bundle exec rake test:parallel > tmp/test-output.txt 2>&1; cat tmp/test-output.t
 summary; `rake test` still runs everything serially in one process, which is
 what you want when debugging a single test.
 
-It defaults to `min(cores, 8)` (`TEST_WORKERS=n` to override). Eight is where
-the wall clock stops improving on both machines measured — 16-core Linux and
-8-core Mac — because with ~66 tests, eight workers already leave a handful
-each and the slowest single test sets the floor. Going wider buys nothing and
-still loses a test to timing now and then. For the same reason CI does not run
-workers inside a runner; it uses `rake test:shard` (`SHARD_INDEX`/`SHARD_COUNT`)
-to give each slice a runner of its own.
+It defaults to `min(cores, 8)` (`TEST_WORKERS=n` to override). Measured on the
+16-core Linux machine with 184 tests, eight workers take 44–48s, twelve 41–43s,
+sixteen 47–48s (the Rakefile has the runs): past eight the browsers contend for
+the machine, so going wider buys little or nothing and still loses a test to
+timing now and then. Eight is also all the 8-core Mac has. For the same reason
+CI does not run workers inside a runner; it uses `rake test:shard`
+(`SHARD_INDEX`/`SHARD_COUNT`) to give each slice a runner of its own.
 
 A single-file run skips the browser warm-up that CI and `test:parallel` still
 do at the end of `test/test_helper.rb` — about 1s of a 6s run. If the *first*
@@ -259,7 +259,8 @@ node scripts/apply-auth-config.mjs --apply  # push supabase/auth.md
 `test/js/authConfig.test.js` guards the file's invariants offline (no token, so
 it runs in CI): the template carries a code and never a link, the settings table
 names exactly what the applier sends, and the sender matches `feedback.sql`.
-`auth.md` also lists the four ways sign-in email has broken silently.
+`auth.md` also lists the ways sign-in email has broken silently, cheapest to
+check first.
 
 ## Playwright Browser Testing
 
