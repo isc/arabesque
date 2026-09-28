@@ -212,7 +212,9 @@ export function libraryApp() {
       const fpData = await fingerprintsResponse.json()
       fingerprints = fpData.fingerprints
 
-      await this.refreshPracticeData()
+      // A read that fails costs its own column, not the list: the scores are
+      // set below either way.
+      await this.refreshPracticeViews()
 
       this.scores = data.scores
 
@@ -234,8 +236,6 @@ export function libraryApp() {
       // Synchronously, rather than leaving it to the $watch above: that flushes
       // on a microtask, which is a frame of the wrong pane on first paint.
       this.showScoresIfNarrowed()
-
-      await this.reloadDailyLogs()
 
       // The library is where synced data shows up (journal, status pills), so
       // it syncs on open and on tab focus, and redraws whatever came down.

@@ -9,7 +9,7 @@ import {
   measuresToReinforce,
   hasHotSpots,
 } from '../../public/js/practiceTracker.js'
-import { playthroughHands, playthroughGroups } from '../../public/js/hands.js'
+import { playthroughHands, playthroughGroups, TWO_HANDS } from '../../public/js/hands.js'
 import { initStorage } from '../../public/js/storage.js'
 import { installLocalStorage } from './support/browserGlobals.js'
 
@@ -309,7 +309,7 @@ describe('practiceTracker', () => {
       // The first 3 a day apart, for the 3 practice days the tracker counts.
       for (let session = 0; session < 10; session++) {
         if (session === 1 || session === 2) advanceClock(DAY_MS)
-        await playSession('/scores/test.xml', [0, 1], 'free', null, true)
+        await playSession('/scores/test.xml', [0, 1], 'free', true)
       }
 
       const stats = await tracker.getScoreStats('/scores/test.xml')
@@ -641,6 +641,20 @@ describe('practiceTracker', () => {
       tracker.startSession('/scores/test.xml', 'Test', 'Composer', 'free')
       const result = await tracker.getMeasuresToReinforce('/scores/test.xml')
       expect(result.map((m) => m.sourceMeasureIndex)).toEqual([2])
+    })
+
+    // The end of a piece asks for the ranking of its runs, then for the bars to
+    // reinforce: one read of the score's history serves both.
+    it('shares its read of the history with the ranking of the runs', async () => {
+      await playSession('/scores/test.xml', [0, 1], 'free', true)
+      tracker.startSession('/scores/test.xml', 'Test', 'Composer', 'free')
+      const read = vi.spyOn(storage, 'getSessions')
+
+      const [run] = await tracker.getAllPlaythroughs('/scores/test.xml')
+      await tracker.getMeasuresToReinforce('/scores/test.xml')
+
+      expect(run).toMatchObject({ hands: TWO_HANDS, wrongNotes: 0 })
+      expect(read).toHaveBeenCalledOnce()
     })
 
     it('ignores other scores', async () => {
@@ -1067,7 +1081,7 @@ describe('practiceTracker', () => {
 
   describe('getScoreHistory', () => {
     it('returns history for specific score only, with correct data', async () => {
-      await playSession('/scores/test1.xml', [0, 1], 'training', 2, true)
+      await playSession('/scores/test1.xml', [0, 1], 'training', true)
       await playSession('/scores/test2.xml', [0])
 
       const history = await tracker.getScoreHistory('/scores/test1.xml')
@@ -1278,8 +1292,8 @@ describe('practiceTracker', () => {
     await tracker.endMeasureAttempt(true)
   }
 
-  async function playSession(scoreId, measures, mode = 'training', totalMeasures = null, markComplete = false) {
-    tracker.startSession(scoreId, 'Test', 'Composer', mode, totalMeasures)
+  async function playSession(scoreId, measures, mode = 'training', markComplete = false) {
+    tracker.startSession(scoreId, 'Test', 'Composer', mode)
     for (const m of measures) {
       await playMeasure(m)
     }
@@ -1291,6 +1305,18 @@ describe('practiceTracker', () => {
   // sessions stored before #371 carry no title — so what the rebuild is given
   // is what the practice journal shows afterwards.
   describe('rebuildAggregates', () => {
+    // What a sync's pull does: store the sessions it brought, then rebuild.
+    it('lets the runs that arrived into the ranking', async () => {
+      await playSession('/scores/test.xml', [0, 1], 'free', true)
+      const [played] = await storage.getSessions('/scores/test.xml')
+      expect(await tracker.getAllPlaythroughs('/scores/test.xml')).toHaveLength(1)
+
+      await storage.saveSession({ ...played, id: 'from-another-device' })
+      await tracker.rebuildAggregates()
+
+      expect(await tracker.getAllPlaythroughs('/scores/test.xml')).toHaveLength(2)
+    })
+
     // A score the catalog does not know, played before sessions carried their
     // own name: an untitled row already here must not hide a name the caller
     // brings (an imported backup's).

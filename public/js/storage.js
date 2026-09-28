@@ -208,6 +208,12 @@ export function initStorage() {
     return withStore(storeName, 'readonly', (store) => promisifyRequest((index ? store.index(index) : store).getAll(query)))
   }
 
+  // The records under `keys`, in one transaction; a key with none is left out.
+  function dbGetMany(storeName, keys) {
+    return withStore(storeName, 'readonly', async (store) =>
+      (await Promise.all(keys.map((key) => promisifyRequest(store.get(key))))).filter(Boolean))
+  }
+
   function dbPut(storeName, data) {
     return withStore(storeName, 'readwrite', (store) => promisifyRequest(store.put(data)))
   }
@@ -284,6 +290,17 @@ export function initStorage() {
       return dbGetAll(SESSIONS_STORE, scoreId ? { index: 'scoreId', query: scoreId } : {})
     },
 
+    // Every session's id, and nothing else of it: the whole history reads as
+    // megabytes, its keys as a few kilobytes.
+    getSessionIds() {
+      return withStore(SESSIONS_STORE, 'readonly', (store) => promisifyRequest(store.getAllKeys()))
+    },
+
+    // The sessions of `ids`; an id with none is left out.
+    getSessionsById(ids) {
+      return dbGetMany(SESSIONS_STORE, ids)
+    },
+
     // The sessions started from `from` up to, not including, `to` (Dates).
     // `startedAt` is always an ISO string in UTC, so its index sorts by time.
     getSessionsStartedBetween(from, to) {
@@ -300,6 +317,11 @@ export function initStorage() {
       return (await dbGet(AGGREGATES_STORE, scoreId)) || null
     },
 
+    // The rows of `scoreIds`; a score with none is left out.
+    getAggregates(scoreIds) {
+      return dbGetMany(AGGREGATES_STORE, scoreIds)
+    },
+
     async getAllAggregates() {
       return (await dbGetAll(AGGREGATES_STORE)) || []
     },
@@ -313,8 +335,9 @@ export function initStorage() {
       return backup
     },
 
-    // Sessions from elsewhere — a backup's — that this device does not have
-    // yet, as a sync's pull takes them: by id. Resolves to how many were new.
+    // Sessions from elsewhere — a backup's, a sync's pull — that this device
+    // does not have yet, by id, in one transaction. Resolves to how many were
+    // new.
     importSessions(sessions) {
       return withDb(async (db) => {
         const transaction = db.transaction([SESSIONS_STORE], 'readwrite')
