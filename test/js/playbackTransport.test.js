@@ -11,7 +11,7 @@ function score(measureCount = 4) {
   const allNotes = Array.from({ length: measureCount }, (_, i) => ({
     measureIndex: i,
     sourceMeasureIndex: i,
-    notes: [{ midiNumber: 60 + i, timestamp: i, note: { Length: { RealValue: 1 } } }],
+    notes: [{ midiNumber: 60 + i, timestamp: i, soundTs: 1, note: { Length: { RealValue: 1 } } }],
     cursorStops: [0],
     duration: 1,
   }))

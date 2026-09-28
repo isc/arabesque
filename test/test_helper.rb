@@ -629,6 +629,21 @@ class CapybaraTestBase < Minitest::Test
     page.all('svg rect.measure-click-area')[measure_number - 1].trigger('click')
   end
 
+  # Redraws the score the way turning a phone does: to a narrow width, then
+  # back. Stamped before each, so a check that follows cannot be satisfied by a
+  # drawing that was already up — a relayout engraves every notehead afresh,
+  # stamp and all. Our own resize handler drives it, 250ms after the last event.
+  def relayout_score
+    original_size = page.current_window.size
+    [[500, 900], original_size].each do |size|
+      page.execute_script("document.querySelectorAll('svg g.vf-notehead').forEach((n) => (n.dataset.beforeRelayout = '1'))")
+      page.current_window.resize_to(*size)
+      assert_no_selector 'svg g.vf-notehead[data-before-relayout]', wait: 5
+    end
+  ensure
+    page.current_window.resize_to(*original_size)
+  end
+
   # Helper method to display the browser console logs.
   # Should remain unused in committed files but can be used by the AI agent when debugging.
   def console_logs

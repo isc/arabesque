@@ -58,6 +58,19 @@ class KeyboardHintTest < CapybaraTestBase
     assert_equal '61', on_top
   end
 
+  # A trill goes on for as long as it is kept up, and the note after it is what
+  # moves on: the keyboard used to light the trill's own note, which a press
+  # only prolongs. trill-ornament.xml is A♭4 trilled with B♭4, then E♭5.
+  def test_after_a_trill_it_lights_the_note_that_moves_on
+    visit '/score.html?url=/test-fixtures/trill-ornament.xml'
+    wait_for_score_render(2)
+    play_notes(%w[Ab4 Bb4 Ab4])
+
+    3.times { play_note('C4') }
+
+    assert_selector '.pt-keyhint__key.is-owed[data-midi="75"]'
+  end
+
   # Training replays the measure a beat after its last note: the keyboard
   # follows the cursor back to the note owed again, with no key pressed.
   def test_it_follows_the_cursor_through_a_training_repetition
