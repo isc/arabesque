@@ -18,16 +18,6 @@ class ContinuationMeasureTest < CapybaraTestBase
   BAR_2_SECOND_HALF = %w[G4 E4].freeze
   WHOLE_SCORE = %w[C4 D4 E4 F4] + BAR_2_FIRST_HALF + BAR_2_SECOND_HALF + %w[C4]
 
-  def setup
-    @original_size = page.current_window.size
-    page.driver.set_cookie('test-env', 'true')
-  end
-
-  def teardown
-    page.current_window.resize_to(*@original_size)
-    super
-  end
-
   # Split or not, the journal files the bar once, under the index it had
   # before the split, and the bar after it keeps its own — a history written
   # against the unsplit score still points at the right bars.
@@ -53,8 +43,7 @@ class ContinuationMeasureTest < CapybaraTestBase
     wait_for_score_render(15)
     assert_selector 'svg rect.measure-click-area[data-measure-index="1"]', count: 2
 
-    click_on 'Mode Entraînement'
-    assert_text 'Mode Entraînement Actif'
+    enter_training_mode
     all('svg rect.measure-click-area[data-measure-index="1"]').last.trigger('click')
     assert_selector 'svg rect.measure-click-area.selected[data-measure-index="1"]', count: 2
     assert_selector 'svg rect.measure-click-area.selected', count: 2
@@ -131,11 +120,7 @@ class ContinuationMeasureTest < CapybaraTestBase
   end
 
   def write_fingering(notehead_index, finger)
-    all('svg g.vf-notehead')[notehead_index].click
-    assert_selector 'dialog#fingeringModal[open]'
-    click_button finger
-    click_button '✓ Valider'
-    wait_for_score_render
+    enter_fingering(notehead_index, finger)
     assert_selector 'svg g.vf-text', text: finger, count: 1
   end
 end

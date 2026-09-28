@@ -1,33 +1,5 @@
 import { describe, it, expect, beforeAll, beforeEach, vi } from 'vitest'
-
-const ORIGIN = 'https://arabesque.app'
-
-// Just enough of the Cache API for the worker's routing decisions: what it
-// looks up, in which cache, and what it decides to keep.
-const key = (target, options) => {
-  const url = new URL(target.url ?? target)
-  return options?.ignoreSearch ? url.origin + url.pathname : url.href
-}
-
-function fakeCaches() {
-  const stores = new Map()
-  return {
-    stores,
-    open: async (name) => {
-      if (!stores.has(name)) stores.set(name, new Map())
-      const entries = stores.get(name)
-      return {
-        entries,
-        add: async (request) => entries.set(key(request), { body: `precached ${key(request)}` }),
-        put: async (request, response) => entries.set(key(request), response),
-        match: async (request, options) =>
-          [...entries].find(([stored]) => key(stored, options) === key(request, options))?.[1],
-      }
-    },
-    keys: async () => [...stores.keys()],
-    delete: async (name) => stores.delete(name),
-  }
-}
+import { ORIGIN, loadWorker, stubSelf, dispatch, fakeCaches } from './support/serviceWorker.js'
 
 const request = (path, { mode = 'same-origin', method = 'GET' } = {}) => ({
   url: path.startsWith('http') ? path : `${ORIGIN}${path}`,
@@ -40,17 +12,11 @@ describe('the service worker', () => {
   let network
 
   beforeAll(async () => {
-    handlers = new Map()
-    vi.stubGlobal('self', {
-      location: { href: `${ORIGIN}/sw.js`, origin: ORIGIN },
-      addEventListener: (type, fn) => handlers.set(type, fn),
-      skipWaiting: () => {},
-      clients: { claim: async () => {} },
-    })
-    await import('../../public/sw.js')
+    handlers = await loadWorker()
   })
 
   beforeEach(() => {
+    stubSelf()
     vi.stubGlobal('caches', fakeCaches())
     network = vi.fn(async () => ({ ok: true, body: 'from network', clone: () => ({ body: 'from network' }) }))
     vi.stubGlobal('fetch', network)
@@ -176,9 +142,7 @@ describe('the service worker', () => {
     await seed('arabesque-lasting', `${ORIGIN}/scores/bwv847.mxl`, 'a score')
     await seed('somebody-elses-cache', `${ORIGIN}/x`, 'not ours')
 
-    const waits = []
-    handlers.get('activate')({ waitUntil: (promise) => waits.push(promise) })
-    await Promise.all(waits)
+    await dispatch(handlers, 'activate')
 
     expect((await caches.keys()).sort()).toEqual(['arabesque-lasting', 'arabesque-shell-dev', 'somebody-elses-cache'])
   })

@@ -1,4 +1,5 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { installSessionStorage } from './support/browserGlobals.js'
 import { readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { APP_VERSION, checkAppVersion } from '../../public/js/version.js'
@@ -12,27 +13,13 @@ const stampedPage = (content) => ({
   querySelector: () => (content === null ? null : { getAttribute: () => content }),
 })
 
-// The node test environment has no Web Storage; the check only ever reads and
-// writes one key.
-const fakeSessionStorage = () => {
-  const store = new Map()
-  return {
-    getItem: (key) => store.get(key) ?? null,
-    setItem: (key, value) => store.set(key, value),
-  }
-}
-
 describe('checkAppVersion', () => {
   let reload
 
   beforeEach(() => {
     reload = vi.fn()
     vi.stubGlobal('location', { reload, pathname: '/library.html' })
-    vi.stubGlobal('sessionStorage', fakeSessionStorage())
-  })
-
-  afterEach(() => {
-    vi.unstubAllGlobals()
+    installSessionStorage()
   })
 
   const check = (pageVersion) => {

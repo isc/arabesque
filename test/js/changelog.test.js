@@ -147,9 +147,9 @@ describe('the changelog the app imports', () => {
   })
 })
 
-// CHANGELOG's bullets, one string per item, `**` dropped. Normally `fold`
-// writes them from fragments that already passed the cap, but the file is
-// hand-edited often enough — this change included — to be worth its own gate.
+// CHANGELOG's bullets, one string per item, `**` dropped. `fold` writes them
+// from fragments that already passed the cap; this holds what is already in
+// the file to it too, entries from before the cap existed included.
 const changelogBullets = (md) => {
   const items = []
   for (const line of md.split('\n')) {

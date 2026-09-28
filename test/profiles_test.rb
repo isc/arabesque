@@ -7,10 +7,6 @@ require 'json'
 class ProfilesTest < CapybaraTestBase
   FIXTURE = File.expand_path('fixtures/initial-backup.json', __dir__)
 
-  def setup
-    page.driver.set_cookie('test-env', 'true')
-  end
-
   def test_each_profile_keeps_a_practice_history_of_its_own
     visit '/data.html'
     accept_alert { attach_file 'backup-import', FIXTURE, make_visible: true }
@@ -36,7 +32,6 @@ class ProfilesTest < CapybaraTestBase
     accept_alert { click_button '📤 Exporter sauvegarde' }
     exported = wait_for_download('arabesque-backup-charlie-*.json')
     assert_empty JSON.parse(File.read(exported))['sessions']
-    File.delete(exported)
 
     # Back on the first profile, the history is where it was.
     click_button 'Activer'
@@ -44,7 +39,6 @@ class ProfilesTest < CapybaraTestBase
     exported = wait_for_download('arabesque-backup-2*.json')
     assert_equal JSON.parse(File.read(FIXTURE))['sessions'].length,
                  JSON.parse(File.read(exported))['sessions'].length
-    File.delete(exported)
 
     # Deleting Charlie, with a warning first.
     click_button 'Supprimer'

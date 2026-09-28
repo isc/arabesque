@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { installLocalStorage, installDocument } from './support/browserGlobals.js'
 import 'fake-indexeddb/auto'
 import { initStorage } from '../../public/js/storage.js'
 import { initPracticeTracker } from '../../public/js/practiceTracker.js'
@@ -34,22 +35,9 @@ vi.mock('../../public/js/errorLog.js', () => ({
 
 // The page globals sync.js and autoSync.js touch (the suite runs in node).
 function installBrowserGlobals() {
-  const store = new Map()
-  globalThis.localStorage = {
-    getItem: (k) => store.get(k) ?? null,
-    setItem: (k, v) => store.set(k, String(v)),
-    removeItem: (k) => store.delete(k),
-  }
-  const listeners = new Map()
-  globalThis.window = {}
-  globalThis.document = {
-    visibilityState: 'visible',
-    addEventListener: (type, fn) => listeners.set(type, [...(listeners.get(type) ?? []), fn]),
-  }
-  return (state) => {
-    globalThis.document.visibilityState = state
-    ;(listeners.get('visibilitychange') ?? []).forEach((fn) => fn())
-  }
+  installLocalStorage()
+  vi.stubGlobal('window', {})
+  return installDocument().setVisibility
 }
 
 describe('autoSync', () => {
@@ -71,6 +59,7 @@ describe('autoSync', () => {
     autoSync = await import('../../public/js/autoSync.js')
     signIn()
   })
+
 
   it('does nothing when no session is stored on this device', () => {
     signOut()

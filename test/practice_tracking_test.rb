@@ -1,13 +1,8 @@
 require_relative 'test_helper'
 
 class PracticeTrackingTest < CapybaraTestBase
-  def setup
-    page.driver.set_cookie('test-env', 'true')
-  end
-
   def test_score_complete_modal_shows_time_and_ranking
-    visit "/score.html?url=/test-fixtures/two-measures.xml"
-    wait_for_score_render(2)
+    open_two_measures
 
     # First playthrough
     play_notes(%w[C4 D4])
@@ -35,8 +30,7 @@ class PracticeTrackingTest < CapybaraTestBase
   # A free run's wrong notes sit beside its time in the ranking, and the
   # measures they fell in are named above it (feedback a01bf6cb).
   def test_score_complete_modal_shows_wrong_notes
-    visit "/score.html?url=/test-fixtures/two-measures.xml"
-    wait_for_score_render(2)
+    open_two_measures
 
     # E4 is wrong in measure 2, which owes a D4.
     play_notes(%w[C4 E4 D4])
@@ -48,8 +42,7 @@ class PracticeTrackingTest < CapybaraTestBase
   def test_history_modal_shows_playthrough_evolution_chart
     # Inject 3 completed playthroughs with decreasing durations into IndexedDB,
     # then open the history modal and verify the chart renders.
-    visit "/score.html?url=/test-fixtures/two-measures.xml"
-    assert_selector 'svg g.vf-stavenote', count: 2
+    open_two_measures
 
     seed_store('sessions', completed_playthroughs)
 
@@ -66,8 +59,7 @@ class PracticeTrackingTest < CapybaraTestBase
   end
 
   def test_history_modal_plots_strict_runs_by_hit_rate
-    visit "/score.html?url=/test-fixtures/two-measures.xml"
-    assert_selector 'svg g.vf-stavenote', count: 2
+    open_two_measures
 
     seed_store('sessions', completed_playthroughs + strict_playthroughs)
 
@@ -89,8 +81,7 @@ class PracticeTrackingTest < CapybaraTestBase
   # The day-by-day journal says how clean each free run was, not only how long
   # it took — the result modal already did, beside the time.
   def test_history_modal_lists_each_run_with_its_wrong_notes
-    visit "/score.html?url=/test-fixtures/two-measures.xml"
-    assert_selector 'svg g.vf-stavenote', count: 2
+    open_two_measures
 
     # Noon UTC two days ago, and ten minutes later: the same day in any
     # time zone the browser may run in.

@@ -1,10 +1,6 @@
 require_relative 'test_helper'
 
 class ScoreLoadingTest < CapybaraTestBase
-  def setup
-    page.driver.set_cookie('test-env', 'true')
-  end
-
   def test_score_that_cannot_be_fetched_says_so_instead_of_spinning
     # A score that never arrives used to leave the page loading for good.
     visit '/score.html?url=scores/does-not-exist.mxl'

@@ -2,7 +2,6 @@ require_relative 'test_helper'
 
 class LibraryFiltersTest < CapybaraTestBase
   def setup
-    page.driver.set_cookie('test-env', 'true')
     visit '/library.html'
     inject_aggregates
     visit '/library.html'
@@ -344,9 +343,7 @@ class LibraryFiltersTest < CapybaraTestBase
     wake_the_library
     # The reopen is the last thing the redraw waits on: what it does with the
     # failure is promise callbacks, all run before this test's next script.
-    Timeout.timeout(Capybara.default_max_wait_time) do
-      sleep 0.02 until page.evaluate_script('window.__reopened')
-    end
+    wait_until('the library to reopen its database', interval: 0.02) { page.evaluate_script('window.__reopened') }
 
     assert_selector 'tbody .pt-pill--dechiffrage', count: 3
     assert_selector 'tbody .pt-pill--repertoire', count: 1

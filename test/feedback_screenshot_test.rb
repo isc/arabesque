@@ -10,10 +10,6 @@ class FeedbackScreenshotTest < CapybaraTestBase
   SHOT_LABEL = 'Joindre l’image de l’écran'.freeze
   DATA_URL = %r{\Adata:image/(webp|jpeg);base64,}
 
-  def setup
-    page.driver.set_cookie('test-env', 'true')
-  end
-
   def test_the_score_page_attaches_a_visible_picture_of_the_screen
     visit "/score.html?url=#{SCORE_URL}"
     wait_for_score_render

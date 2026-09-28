@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { installLocalStorage } from './support/browserGlobals.js'
 import 'fake-indexeddb/auto'
 
 const USER = 'user-1'
@@ -69,19 +70,6 @@ function endedSession(id, scoreId) {
   }
 }
 
-// The page globals the modules touch (the suite runs in node): a localStorage
-// for the profile list, fresh for every test along with the modules.
-function installLocalStorage() {
-  const store = new Map()
-  globalThis.localStorage = {
-    getItem: (k) => store.get(k) ?? null,
-    setItem: (k, v) => store.set(k, String(v)),
-    removeItem: (k) => store.delete(k),
-    key: (i) => [...store.keys()][i] ?? null,
-    get length() { return store.size },
-  }
-}
-
 describe('runSync', () => {
   let storage
   let practiceTracker
@@ -107,6 +95,7 @@ describe('runSync', () => {
     indexedDB = new IDBFactory()
     await openPage()
   })
+
 
   it('pushes local-only ended sessions to the server', async () => {
     await storage.saveSession(endedSession('a', '/s/1.xml'))

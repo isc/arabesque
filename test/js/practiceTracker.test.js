@@ -11,6 +11,7 @@ import {
 } from '../../public/js/practiceTracker.js'
 import { playthroughHands, playthroughGroups } from '../../public/js/hands.js'
 import { initStorage } from '../../public/js/storage.js'
+import { installLocalStorage } from './support/browserGlobals.js'
 
 describe('practiceTracker', () => {
   let tracker
@@ -31,10 +32,14 @@ describe('practiceTracker', () => {
     vi.setSystemTime(clock)
   }
 
+  // A localStorage of its own for every test, in place before init() reads the
+  // snapshot a page left there: one installed later would hand each test the
+  // last one's, stranded-repair marker and all.
   beforeEach(async () => {
     vi.useFakeTimers({ toFake: ['Date'] })
     clock = BASE
     vi.setSystemTime(clock)
+    installLocalStorage()
     indexedDB = new IDBFactory()
     storage = initStorage()
     tracker = initPracticeTracker(storage)
@@ -43,7 +48,6 @@ describe('practiceTracker', () => {
 
   afterEach(() => {
     vi.useRealTimers()
-    vi.unstubAllEnvs()
   })
 
   describe('session management', () => {
@@ -706,17 +710,6 @@ describe('practiceTracker', () => {
   })
 
   describe('sessions interrupted by a page teardown', () => {
-    // The tracker reaches for localStorage only through the stash; the suite
-    // runs in node, so it needs one.
-    beforeEach(() => {
-      const store = new Map()
-      globalThis.localStorage = {
-        getItem: (k) => store.get(k) ?? null,
-        setItem: (k, v) => store.set(k, String(v)),
-        removeItem: (k) => store.delete(k),
-      }
-    })
-
     // What a page teardown looks like: measures played and saved incrementally,
     // then the snapshot, then endSession() never getting to commit.
     async function interruptedSession() {
@@ -805,9 +798,14 @@ describe('practiceTracker', () => {
       expect((await storage.getAggregate('/scores/test.xml')).totalSessions).toBe(1)
     })
 
+    const STRANDED_REPAIR_KEY = 'arabesque:stranded-sessions-closed'
+
     // A session stranded long ago, as left behind by a version with no
-    // snapshots: measures played and saved, endedAt never stamped.
+    // snapshots: measures played and saved, endedAt never stamped — on a
+    // device the one-off repair has not run on yet. (The suite's own init()
+    // ran it, on a store with nothing to repair.)
     async function strandedSession(id, hoursAgo = 24) {
+      localStorage.removeItem(STRANDED_REPAIR_KEY)
       const started = new Date(Date.now() - hoursAgo * 3600e3)
       await storage.saveSession({
         id, scoreId: '/scores/old.xml', mode: 'free', totalMeasures: 4,
@@ -839,7 +837,7 @@ describe('practiceTracker', () => {
       // A second load with the marker in place, and a third with it removed:
       // the endedAt filter is what makes the repair safe to re-run.
       await initPracticeTracker(storage).init()
-      localStorage.removeItem('arabesque:stranded-sessions-closed')
+      localStorage.removeItem(STRANDED_REPAIR_KEY)
       await initPracticeTracker(storage).init()
 
       const again = await storage.getAggregate('/scores/old.xml')

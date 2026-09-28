@@ -1,4 +1,4 @@
-import { describe, it, expect, afterEach, vi } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 
 import { nativePairingAvailable, openNativePairing } from '../../public/js/midi.js'
 
@@ -7,7 +7,6 @@ import { nativePairingAvailable, openNativePairing } from '../../public/js/midi.
 // Macintosh, which is how "connect a keyboard" used to answer with the macOS
 // instructions on an iPad (feedback 65f15aa6).
 describe('native Bluetooth MIDI pairing', () => {
-  afterEach(() => vi.unstubAllGlobals())
 
   it('is unavailable outside the wrapper, and asking for it there does nothing', () => {
     expect(nativePairingAvailable()).toBe(false)

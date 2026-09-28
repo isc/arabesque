@@ -59,7 +59,9 @@ Two that got through on one green run, both worth recognising again:
   wall clock. It passed whenever the CDP pause command landed late enough for
   the 0ms timer to slip through, which on an idle machine is most of the time.
   `advance_clock` after the click is the fix; `advance_clock(1)` is not enough,
-  the helper's own tolerance satisfies it before the budget lands.
+  the helper's own tolerance satisfies it before the budget lands. Alpine's
+  `$nextTick` resolves from a `setTimeout` too, so the same goes for anything
+  the app does after one.
 - A test planted a `localStorage` session and read it back three interactions
   later. `visit` returns at the load event, but the page keeps initialising —
   and half a second in, supabase-js claimed its key and deleted a session it

@@ -8,10 +8,6 @@ class FingeringAnnotationTest < CapybaraTestBase
   CHOPIN_WALTZ_URL = 'scores/Waltz_in_A_MinorChopin.mxl'
   BEAMED_MORDENT_URL = '/test-fixtures/fingering-over-beamed-mordent.xml'
 
-  def setup
-    page.driver.set_cookie('test-env', 'true')
-  end
-
   # Every head of a chord opens the pad on its own note. The pad used to say
   # nothing about which one, so on a dense score the player could not tell
   # whether the note they meant was the note they hit; its title names it now, in
@@ -19,15 +15,7 @@ class FingeringAnnotationTest < CapybaraTestBase
   def test_clicking_chord_notes_opens_the_fingering_modal_on_the_note_clicked
     visit "/score.html?url=#{CHORD_SCORE_URL}"
     wait_for_score_render
-
-    names = all('svg g.vf-notehead', minimum: 3).map do |notehead|
-      notehead.click
-      assert_selector 'dialog#fingeringModal[open]'
-      name = find('[data-testid="fingering-note"]').text
-      click_on 'Close'
-      assert_no_selector 'dialog#fingeringModal[open]'
-      name
-    end
+    names = pad_note_names(minimum: 3)
 
     # The chord is C4-E4-G4, named in French and with the octave the rest of the
     # world numbers by (middle C is 4, where OSMD's own Pitch says 1). It is
@@ -41,15 +29,7 @@ class FingeringAnnotationTest < CapybaraTestBase
   def test_the_fingering_modal_names_the_hand_the_note_is_written_for
     visit "/score.html?url=#{TWO_VOICE_SCORE_URL}"
     wait_for_score_render
-
-    names = all('svg g.vf-notehead', minimum: 2).map do |notehead|
-      notehead.click
-      assert_selector 'dialog#fingeringModal[open]'
-      name = find('[data-testid="fingering-note"]').text
-      click_on 'Close'
-      assert_no_selector 'dialog#fingeringModal[open]'
-      name
-    end
+    names = pad_note_names(minimum: 2)
 
     bass, treble = names.partition { |name| name.start_with?(*%w[do3 ré3 mi3 fa3 sol3 la3 si3]) }
     refute_empty bass
@@ -61,11 +41,7 @@ class FingeringAnnotationTest < CapybaraTestBase
   def test_add_fingering_and_persist_after_reload
     visit "/score.html?url=#{SCORE_URL}"
     wait_for_score_render
-    find('svg g.vf-notehead', match: :first).click
-    click_button '3'
-    assert_selector 'dialog#fingeringModal[open]'
-    click_button '✓ Valider'
-    wait_for_score_render
+    enter_fingering(0, 3)
     assert_fingering '3'
 
     # Reload and verify persistence
@@ -77,12 +53,12 @@ class FingeringAnnotationTest < CapybaraTestBase
   def test_multi_fingering
     visit "/score.html?url=#{SCORE_URL}"
     wait_for_score_render
-    find('svg g.vf-notehead', match: :first).click
+    open_fingering_pad(0)
     click_button '3'
     click_button '1'
     assert_selector '[data-testid="fingering-display"]', text: '31'
     click_button '✓ Valider'
-    wait_for_score_render
+    assert_no_selector 'dialog#fingeringModal[open]'
     assert_fingering '31'
   end
 
@@ -90,51 +66,39 @@ class FingeringAnnotationTest < CapybaraTestBase
     visit "/score.html?url=#{CHOPIN_WALTZ_URL}"
     wait_for_score_render
 
-    # Click the grace note notehead in measure 13 (SVG group #12)
-
-    first('[id="12"] .vf-modifiers .vf-notehead').click
-    assert_selector 'dialog#fingeringModal[open]'
-    click_button '3'
-    click_button '✓ Valider'
-    assert_no_selector 'dialog#fingeringModal[open]'
+    # The grace note in measure 13 (SVG group #12)
+    enter_fingering(first('[id="12"] .vf-modifiers .vf-notehead'), 3)
 
     assert_equal '3', first('[id="12"] .vf-modifiers text').text
   end
 
   def test_adding_fingering_does_not_break_note_validation
-    visit "/score.html?url=/test-fixtures/two-measures.xml"
-    wait_for_score_render
+    open_two_measures
 
     # Play C4 to complete measure 1, advancing to measure 2
     play_note('C4')
 
-    # Now at measure 2 (D4). Add a fingering to the D4 note (no existing fingering).
-    # This triggers rerenderScore() which resets currentMeasureIndex to 0.
-    first('.vf-notehead').click
-    assert_selector 'dialog#fingeringModal[open]'
-    click_button '3'
-    click_button '✓ Valider'
-    wait_for_score_render
+    # Now at measure 2 (D4). A fingering entered where there was none — on
+    # bar 1's C4 — redraws the score, and the redraw used to put the engine
+    # back on measure 1.
+    enter_fingering(0, 3)
 
     # Play D4 — should validate since we're still at measure 2
-    play_note('D4')
-    assert_selector '.vf-notehead.played-note', count: 2
+    on_the_last_note do
+      play_note('D4')
+      assert_selector '.vf-notehead.played-note', count: 2
+    end
   end
 
   def test_score_completion_after_adding_fingering_mid_play
-    visit "/score.html?url=/test-fixtures/two-measures.xml"
-    wait_for_score_render
+    open_two_measures
 
     # Play C4 to complete measure 1
     play_note('C4')
 
     # Add a fingering to the D4 note in measure 2 — triggers rerenderScore()
     # which previously cleared playedSourceMeasures, breaking the completion check.
-    all('.vf-notehead')[1].click
-    assert_selector 'dialog#fingeringModal[open]'
-    click_button '3'
-    click_button '✓ Valider'
-    wait_for_score_render
+    enter_fingering(1, 3)
 
     # Play D4 to finish — completion modal should appear
     play_note('D4')
@@ -146,22 +110,16 @@ class FingeringAnnotationTest < CapybaraTestBase
   # on a note that has none redraws the score, and the redraw used to take the
   # mode down with it, overlay and banked repetitions and all.
   def test_adding_fingering_keeps_the_training_overlay
-    visit "/score.html?url=/test-fixtures/two-measures.xml"
-    wait_for_score_render
+    open_two_measures
 
-    click_on 'Mode Entraînement'
-    assert_text 'Mode Entraînement Actif'
+    enter_training_mode
 
     # Bank one clean repetition of measure 1, so the dots have something to lose
     play_note('C4')
     assert_selector 'svg circle.repeat-indicator.filled', count: 1
 
     # The D4 of measure 2 has no fingering yet, so validating one re-renders
-    all('.vf-notehead')[1].click
-    assert_selector 'dialog#fingeringModal[open]'
-    click_button '3'
-    click_button '✓ Valider'
-    wait_for_score_render
+    enter_fingering(1, 3)
     assert_fingering '3'
 
     assert_selector 'svg rect.measure-click-area.selected'
@@ -173,11 +131,8 @@ class FingeringAnnotationTest < CapybaraTestBase
     visit "/score.html?url=#{PICKUP_SCORE_URL}"
     wait_for_score_render
 
-    # Click on the first note (in the pickup measure)
-    find('svg g.vf-notehead', match: :first).click
-    click_button '2'
-    click_button '✓ Valider'
-    wait_for_score_render
+    # On the first note (in the pickup measure)
+    enter_fingering(0, 2)
     assert_fingering '2'
 
     # Reload and verify the fingering is still on the pickup measure note
@@ -205,11 +160,7 @@ class FingeringAnnotationTest < CapybaraTestBase
     assert_equal %w[5 3 1], first_beat_fingerings
 
     tag_middle_notehead_of_first_beat
-    find('[data-testid="middle-notehead"]').click
-    assert_selector 'dialog#fingeringModal[open]'
-    click_button '2'
-    click_button '✓ Valider'
-    assert_no_selector 'dialog#fingeringModal[open]'
+    enter_fingering(find('[data-testid="middle-notehead"]'), 2)
 
     # The 3 belongs to G4, the middle note, so only the middle label may change.
     assert_equal %w[5 2 1], first_beat_fingerings
@@ -237,6 +188,17 @@ class FingeringAnnotationTest < CapybaraTestBase
 
   def assert_fingering(text)
     assert_selector 'svg g.vf-text', text: text
+  end
+
+  # What the pad names each notehead of the score, one click at a time.
+  def pad_note_names(minimum:)
+    all('svg g.vf-notehead', minimum: minimum).map do |notehead|
+      open_fingering_pad(notehead)
+      name = find('[data-testid="fingering-note"]').text
+      click_on 'Close'
+      assert_no_selector 'dialog#fingeringModal[open]'
+      name
+    end
   end
 
   # The fingering labels over the first beat of the upper staff, top to bottom

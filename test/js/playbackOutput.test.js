@@ -65,7 +65,6 @@ describe('playback output', () => {
 
   afterEach(() => {
     vi.useRealTimers()
-    vi.unstubAllGlobals()
   })
 
   it('sends notes to the MIDI instrument below a practising touch', async () => {

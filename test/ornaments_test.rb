@@ -2,7 +2,6 @@ require_relative 'test_helper'
 
 class OrnamentsTest < CapybaraTestBase
   def setup
-    page.driver.set_cookie('test-env', 'true')
     visit '/score.html'
   end
 
@@ -21,8 +20,10 @@ class OrnamentsTest < CapybaraTestBase
     assert_selector 'svg g.vf-notehead.played-note', count: 2
 
     # Play main note G4 last
-    play_note('G4')
-    assert_selector 'svg g.vf-notehead.played-note', count: 3
+    on_the_last_note do
+      play_note('G4')
+      assert_selector 'svg g.vf-notehead.played-note', count: 3
+    end
 
     # Score should be completed
     assert_text 'Partition terminée'
@@ -37,8 +38,7 @@ class OrnamentsTest < CapybaraTestBase
     #    → D5 is 1 semitone below Eb, NOT Db which would be 2 semitones
     load_score('turn-ornament.xml', 3)
 
-    click_on 'Mode Entraînement'
-    assert_text 'Mode Entraînement Actif'
+    enter_training_mode
 
     # Delayed turn on C5 with accidentals: main, upper (Db), main, lower (B), main
     play_note("C5")
@@ -106,8 +106,7 @@ class OrnamentsTest < CapybaraTestBase
     # clean repetition (filled circle).
     load_score('mordent-ornament.xml', 3)
 
-    click_on 'Mode Entraînement'
-    assert_text 'Mode Entraînement Actif'
+    enter_training_mode
 
     # Regular mordent on C5: main, lower (diatonic = B4), main
     play_note("C5")
@@ -133,8 +132,7 @@ class OrnamentsTest < CapybaraTestBase
     # -- not to the E flat of the key (Bach's C minor prelude, bar 34).
     load_score('mordent-after-accidental.xml', 3)
 
-    click_on 'Mode Entraînement'
-    assert_text 'Mode Entraînement Actif'
+    enter_training_mode
 
     play_note("E4")
     play_note("F4")
@@ -152,8 +150,7 @@ class OrnamentsTest < CapybaraTestBase
     # Score has: Ab4 (trill) -> Eb5, so 2 visual notes
     load_score('trill-ornament.xml', 2)
 
-    click_on 'Mode Entraînement'
-    assert_text 'Mode Entraînement Actif'
+    enter_training_mode
 
     # First repetition: trill with a wrong note
     play_note("Ab4")
@@ -182,8 +179,7 @@ class OrnamentsTest < CapybaraTestBase
     # Same trill (Ab4 in Eb major), but the player trills longer before moving on.
     load_score('trill-ornament.xml', 2)
 
-    click_on 'Mode Entraînement'
-    assert_text 'Mode Entraînement Actif'
+    enter_training_mode
 
     # Extended trill: Ab4, Bb4, Ab4, Bb4, Ab4, Bb4, Ab4
     play_note("Ab4")
@@ -235,8 +231,7 @@ class OrnamentsTest < CapybaraTestBase
     # The app already expands the <turn/> symbol into playable notes, so the hidden
     # copy must be ignored. Otherwise the gruppetto is doubled: the player has to play
     # it twice, and the hidden noteheads only appear (green) on the second pass.
-    attach_score('turn-with-hidden-realization.xml')
-    assert_selector '#score[data-render-complete]'
+    load_score('turn-with-hidden-realization.xml', 7)
 
     # Regular turn on C5 in C major expands to D5, C5, B4, C5. Play it ONCE, then G5.
     play_note('D5')

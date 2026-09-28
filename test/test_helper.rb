@@ -86,26 +86,54 @@ class CapybaraTestBase < Minitest::Test
   # nothing per request, where Ferrum's url_blacklist would put a CDP round-trip
   # in front of every one of score.html's vendored files.
   #
-  # before_setup, not setup: every test file writes its own setup and none of
-  # them calls super, so a setup here would simply be overridden.
-  #
   # The block is per browser page, not per browser: a window opened later
   # (visit_with_real_clock) has a CDP session of its own and starts unblocked,
   # so it has to ask for the block again.
+  def self.block_cdn(session)
+    session.driver.browser.page.command('Network.setBlockedURLs', urls: ['https://esm.sh/*'])
+  end
+
+  # What every page a test opens needs: that block, and the test-env cookie,
+  # which switches midi.js to the mock MIDI input play_note speaks to (and
+  # keeps the sampled piano from loading). The warm-up below goes through it
+  # too, so it takes the path every test takes.
+  def self.prepare(session)
+    session.driver.set_cookie('test-env', 'true')
+    block_cdn(session)
+  end
+
+  # before_setup and after_teardown, not setup and teardown: a test file writes
+  # its own setup and teardown, and one that forgot super would drop these.
   def before_setup
     super
-    block_cdn
+    CapybaraTestBase.prepare(page)
   end
 
-  def block_cdn
-    page.driver.browser.page.command('Network.setBlockedURLs', urls: ['https://esm.sh/*'])
-  end
-
-  def teardown
+  # The session is reset whatever the test did to it — its window size, its
+  # emulated media, the clock it drove, the scripts it planted — so nothing
+  # rides along into the next test of the worker. So are the downloads, whose
+  # names can overlap from one test to the next.
+  def after_teardown
     Capybara.reset_sessions!
+    FileUtils.rm_f(Dir.glob(File.join(DOWNLOAD_DIR, '*')))
+    super
   end
 
-  # Wait for a file matching pattern to appear in download dir
+  # Poll until the block returns something truthy, and return it — or fail
+  # saying what was waited for, which is what tells a flake from a regression.
+  # For what no Capybara assertion can see: a file, the page's storage, its
+  # clock. (wait_for_records keeps a loop of its own, for its count.)
+  def wait_until(what, timeout: Capybara.default_max_wait_time, interval: 0.05)
+    deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + timeout
+    loop do
+      result = yield
+      return result if result
+      flunk "Still waiting for #{what} after #{timeout}s" if Process.clock_gettime(Process::CLOCK_MONOTONIC) > deadline
+
+      sleep interval
+    end
+  end
+
   # The ⚙️ popover, shared by every page that mounts the header menu.
   def open_menu
     find('.pt-changelog-btn').click
@@ -183,26 +211,19 @@ class CapybaraTestBase < Minitest::Test
     JSON.parse(page.evaluate_script('JSON.stringify(window.__sent)'))
   end
 
-  def wait_for_download(pattern, timeout: Capybara.default_max_wait_time)
-    Timeout.timeout(timeout) do
-      loop do
-        file = Dir.glob(File.join(DOWNLOAD_DIR, pattern)).first
-        return file if file
-        sleep 0.05
-      end
-    end
-  rescue Timeout::Error
-    nil
+  # The file the page has downloaded under a name matching `pattern`.
+  def wait_for_download(pattern)
+    wait_until("a download matching #{pattern}") { Dir.glob(File.join(DOWNLOAD_DIR, pattern)).first }
   end
 
   # Block until the app has created its IndexedDB store, so seeding scripts
   # don't race the page: a transaction on a store the app has not created yet
   # fails.
-  def wait_for_store(store, timeout: Capybara.default_max_wait_time)
-    Timeout.timeout(timeout) do
-      # `databases()` is used rather than open(): probing with open() would
-      # itself create the database, empty, ahead of the app's own open.
-      until page.evaluate_async_script(<<~JS, store)
+  def wait_for_store(store)
+    # `databases()` is used rather than open(): probing with open() would
+    # itself create the database, empty, ahead of the app's own open.
+    wait_until("the app to create its '#{store}' store") do
+      page.evaluate_async_script(<<~JS, store)
         const [store, done] = [arguments[0], arguments[arguments.length - 1]];
         indexedDB.databases().then((dbs) => {
           if (!dbs.some((d) => d.name === '#{DB_NAME}')) return done(false);
@@ -215,8 +236,6 @@ class CapybaraTestBase < Minitest::Test
           };
         });
       JS
-        sleep 0.05
-      end
     end
   end
 
@@ -274,7 +293,7 @@ class CapybaraTestBase < Minitest::Test
     driven = page.current_window
     page.switch_to_window(page.open_new_window)
     driven.close
-    block_cdn
+    CapybaraTestBase.block_cdn(page)
     visit path
   end
 
@@ -339,7 +358,8 @@ class CapybaraTestBase < Minitest::Test
   #
   # The clock is parked for the one stretch where the piece could run out from
   # under the test. Alpine puts an x-show element back on screen from a
-  # setTimeout of its own — hiding is immediate, showing is deferred a tick.
+  # setTimeout of its own — hiding is immediate, showing is deferred a tick —
+  # and resolves $nextTick from one too.
   # That tick is virtual time like any other, so a parked clock would leave the
   # playback band, and the ⏸ in it, at display:none however long Capybara waits
   # on the wall clock. 50ms lets it through, and is far short of the first bar.
@@ -356,14 +376,23 @@ class CapybaraTestBase < Minitest::Test
   # Advance the parked clock by `ms` of virtual time and block until the page
   # has actually consumed it. Chrome burns the budget as fast as the CPU
   # allows, so this returns in a few real milliseconds.
-  def advance_clock(ms, timeout: 10)
+  def advance_clock(ms)
     cdp = page.driver.browser.page
     target = page.evaluate_script('performance.now()') + ms
     # Chrome pauses virtual time again once the budget is spent.
     cdp.command('Emulation.setVirtualTimePolicy', policy: 'advance', budget: ms)
-    Timeout.timeout(timeout) do
-      sleep 0.01 until page.evaluate_script('performance.now()') >= target - 1
+    wait_until("the page's clock to move #{ms}ms", timeout: 10, interval: 0.01) do
+      page.evaluate_script('performance.now()') >= target - 1
     end
+  end
+
+  # The score's last note, and what it lit. A beat (200ms) after it the sheet
+  # is cleared for the next run, whether or not the run was finished — a window
+  # a loaded runner's polling can miss altogether. Played and asserted on
+  # inside the block, with that clearing held off until the block is done.
+  # (Free play only, where the clearing is the one timer the engine arms.)
+  def on_the_last_note(&block)
+    with_timers_held(&block)
   end
 
   # Hold every timer the page arms inside the block, and fire them all on the
@@ -461,7 +490,8 @@ class CapybaraTestBase < Minitest::Test
   # completion modal appears can outrun the write. Waiting on the record itself
   # states what the test is actually waiting for, and takes exactly as long as
   # it needs to instead of a guessed half-second.
-  def wait_for_records(store, where: 'true', count: 1, timeout: Capybara.default_max_wait_time)
+  def wait_for_records(store, where: 'true', count: 1)
+    timeout = Capybara.default_max_wait_time
     deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + timeout
     loop do
       matching = count_records(store, where, deadline)
@@ -475,16 +505,16 @@ class CapybaraTestBase < Minitest::Test
     end
   end
 
-  # The fingering record a score is stored under, and the keys it holds.
   # Polls rather than asserting once: the BPM field is debounced, so the value
   # lands in the app a moment after the last keystroke.
-  def wait_for_stored_tempo(score_url, bpm, name: 'playbackBpm', timeout: 5)
+  def wait_for_stored_tempo(score_url, bpm, name: 'playbackBpm')
     key = "arabesque:#{name}:#{score_url}"
-    Timeout.timeout(timeout) do
-      sleep 0.05 until page.evaluate_script("localStorage.getItem(#{key.inspect})") == bpm
+    wait_until("#{bpm} BPM stored under #{key}", timeout: 5) do
+      page.evaluate_script("localStorage.getItem(#{key.inspect})") == bpm
     end
   end
 
+  # The fingering record a score is stored under, and the keys it holds.
   def stored_fingering_keys(score_url)
     (stored_fingering_record(score_url)&.fetch('fingerings') || {}).keys.sort
   end
@@ -528,7 +558,9 @@ class CapybaraTestBase < Minitest::Test
   # The gap between notes is deliberate rather than a wait for something to
   # settle: it is what makes these separate notes instead of a chord. Dispatch
   # them back to back and the engine sees one simultaneous group — which is
-  # exactly what play_chord below does on purpose.
+  # exactly what play_chord below does on purpose. The gap is wall-clock time,
+  # so under with_clock_control there is none: the notes land on one virtual
+  # instant unless the clock is advanced between them.
   def play_notes(notes)
     notes.each do |note|
       play_note(note)
@@ -571,9 +603,7 @@ class CapybaraTestBase < Minitest::Test
     JS
     return unless wait_for_end
 
-    Timeout.timeout(Capybara.default_max_wait_time) do
-      sleep 0.02 until page.evaluate_script('window.__cassetteDone')
-    end
+    wait_until("the #{name} cassette to play out", interval: 0.02) { page.evaluate_script('window.__cassetteDone') }
   end
 
   # Records every change in the number of lit noteheads, from now until the page
@@ -615,6 +645,70 @@ class CapybaraTestBase < Minitest::Test
     wait_for_score_render(expected_notes)
   end
 
+  # two-measures.xml opened by URL, as a library score is: a score id to file
+  # the journal, the stored tempo and the reinforcement suggestions under.
+  def open_two_measures
+    visit '/score.html?url=/test-fixtures/two-measures.xml'
+    wait_for_score_render(2)
+  end
+
+  # The same score uploaded: no score id, so nothing is filed under one.
+  def upload_two_measures
+    visit '/score.html'
+    load_score('two-measures.xml', 2)
+  end
+
+  def enter_training_mode
+    click_on 'Mode Entraînement'
+    assert_text 'Mode Entraînement Actif'
+    assert_selector 'svg rect.measure-click-area.selected'
+  end
+
+  # The gesture: 🔁, then the first bar of the passage and its last.
+  def pick_passage(first, last)
+    arm_passage(first)
+    click_measure(last)
+  end
+
+  # Its first half: 🔁 and the first bar, the band waiting for the last.
+  def arm_passage(first)
+    click_on '🔁 Boucle'
+    assert_text 'Cliquez sur la première puis la dernière mesure du passage à travailler.'
+    click_measure(first)
+    assert_text "Départ à la mesure #{first} — cliquez sur la dernière mesure du passage."
+  end
+
+  # The cursor moves a beat after the measure is finished (the engine pauses so
+  # the dot can be seen filling), so the next note has to wait for it — playing
+  # into a measure the cursor has not reached yet would count as a wrong note.
+  def wait_for_training_cursor(measure_number)
+    assert_selector %(svg rect.measure-click-area.selected[data-measure-index="#{measure_number - 1}"])
+  end
+
+  # The fingering pad, open on `notehead`: an element, or its place among the
+  # score's noteheads.
+  def open_fingering_pad(notehead)
+    notehead = all('svg g.vf-notehead')[notehead] if notehead.is_a?(Integer)
+    notehead.click
+    assert_selector 'dialog#fingeringModal[open]'
+  end
+
+  # Enters `digit` on `notehead` and returns once the pad has closed: by then
+  # the fingering is stored and the score redrawn, on the same code path.
+  def enter_fingering(notehead, digit)
+    open_fingering_pad(notehead)
+    click_button digit.to_s
+    click_button '✓ Valider'
+    assert_no_selector 'dialog#fingeringModal[open]'
+  end
+
+  # The same for ×, which clears the note's fingering and closes the pad.
+  def clear_fingering(notehead)
+    open_fingering_pad(notehead)
+    click_button '×'
+    assert_no_selector 'dialog#fingeringModal[open]'
+  end
+
   # repeat-endings.xml with measure 1 fumbled, a wrong note before the right
   # one: what puts it on the list to reinforce.
   def open_with_the_first_bar_fumbled
@@ -631,6 +725,12 @@ class CapybaraTestBase < Minitest::Test
 
   # Block until the score is on screen. Order matters: the app's own
   # "I am done" flag is waited on FIRST, and the note count only after.
+  #
+  # The flag is set once per page load, when the score has been drawn and read
+  # into notes — nothing clears it, so after a redraw (a fingering entered, a
+  # relayout) it says nothing: wait on what the redraw changes instead. And
+  # after a load, wait on it rather than on painted noteheads: they are drawn
+  # a frame before the notes are read, and a mode picked in between is undone.
   #
   # Each assertion gets its own fresh default_max_wait_time, so gating on the
   # flag gives a cold render two budgets instead of one — and it fails naming
@@ -664,14 +764,11 @@ class CapybaraTestBase < Minitest::Test
   # drawing that was already up — a relayout engraves every notehead afresh,
   # stamp and all. Our own resize handler drives it, 250ms after the last event.
   def relayout_score
-    original_size = page.current_window.size
-    [[500, 900], original_size].each do |size|
+    [[500, 900], page.current_window.size].each do |size|
       page.execute_script("document.querySelectorAll('svg g.vf-notehead').forEach((n) => (n.dataset.beforeRelayout = '1'))")
       page.current_window.resize_to(*size)
       assert_no_selector 'svg g.vf-notehead[data-before-relayout]', wait: 5
     end
-  ensure
-    page.current_window.resize_to(*original_size)
   end
 
   # Helper method to display the browser console logs.
@@ -699,8 +796,9 @@ class CapybaraTestBase < Minitest::Test
   # timer of its own inside the page to enforce its timeout. After a test has
   # driven the virtual clock (see with_clock_control), that timer is due the
   # instant it is set, so the script reports a timeout before IndexedDB has had
-  # any chance to answer, whatever the store holds. wait_for_store and
-  # seed_store have the same hazard but run before the clock is driven.
+  # any chance to answer, whatever the store holds. wait_for_store, seed_store,
+  # seed_aggregates and stored_fingering_record have the same hazard, and are
+  # only ever called before the clock is driven.
   def count_records(store, where, deadline)
     page.execute_script(<<~JS, store)
       const store = arguments[0];
@@ -788,6 +886,7 @@ end
 # `CI=1 ruby -Itest test/whatever_test.rb` puts the warm-up back.
 def warm_up_browser
   session = Capybara.current_session
+  CapybaraTestBase.prepare(session)
   session.visit('/score.html?url=/test-fixtures/two-measures.xml')
   session.assert_selector('#score[data-render-complete]', wait: 120)
 rescue StandardError

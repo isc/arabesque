@@ -6,7 +6,6 @@ require_relative 'test_helper'
 # sheet — see public/js/tempoMarks.js.
 class TempoMarksTest < CapybaraTestBase
   def test_bare_tempo_numbers_leave_the_page_but_their_tempo_stays
-    page.driver.set_cookie('test-env', 'true')
     visit '/score.html'
     load_score('playback-tempo-marks.xml', 3)
 

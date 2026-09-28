@@ -7,7 +7,6 @@ require_relative 'test_helper'
 # F4 under volta 2 — so it is played C4 D4 E4 C4 D4 F4.
 class ScoreNavigationTest < CapybaraTestBase
   def setup
-    page.driver.set_cookie('test-env', 'true')
     visit '/score.html'
   end
 
@@ -60,8 +59,10 @@ class ScoreNavigationTest < CapybaraTestBase
     assert_selector 'svg g.vf-notehead.played-note', count: 3  # E4 + C4 + D4
 
     # Second pass: F4 (measure 4, volta 2) - skips volta 1
-    play_note('F4')
-    assert_selector 'svg g.vf-notehead.played-note', count: 4  # All notes green
+    on_the_last_note do
+      play_note('F4')
+      assert_selector 'svg g.vf-notehead.played-note', count: 4  # All notes green
+    end
 
     # Score should be completed after playing the correct sequence
     assert_text 'Partition terminée'
@@ -138,8 +139,10 @@ class ScoreNavigationTest < CapybaraTestBase
     # Straight to the second ending. Only that measure has been played since
     # the restart, so the score is not finished.
     click_measure(4)
-    play_note("F4")
-    assert_selector 'svg g.vf-notehead.played-note', count: 1
+    on_the_last_note do
+      play_note("F4")
+      assert_selector 'svg g.vf-notehead.played-note', count: 1
+    end
     assert_no_text 'Partition terminée'
   end
 
