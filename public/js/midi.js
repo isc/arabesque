@@ -41,6 +41,9 @@ let callbacks = {
 export function initMidi() {
   return {
     connectMIDI,
+    // Mic mode's way in: the notes it hears arrive as the messages a keyboard
+    // would have sent (micInput.js).
+    parseMidiMessage,
     noteName,
     setCallbacks,
     state,
