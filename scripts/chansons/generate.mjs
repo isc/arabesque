@@ -6,7 +6,7 @@
 //
 // The "Chansons" collection in public/data/scores.json is rewritten from the
 // same list, so a song added here is in the library at once. Then re-run
-// scripts/generate_fingerprints.rb: the songs are found by playing their
+// scripts/generate-fingerprints.mjs: the songs are found by playing their
 // first notes like any other score.
 import { writeFileSync, mkdirSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'

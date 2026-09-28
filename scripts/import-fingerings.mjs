@@ -132,39 +132,13 @@ import {
 } from '../public/js/fingeringKeys.js'
 import { query, quote } from './lib/supabase.mjs'
 import { openScore } from './mxl.mjs'
+import { PART, TOKEN, MEASURE_NUMBER, IMPLICIT, STAFF, VOICE, REST, STAVES, CUE_OR_HIDDEN, numberOf } from './lib/musicxml.mjs'
 
 const PUBLIC_DIR = join(import.meta.dirname, '..', 'public')
 
-// A whole `<part>…</part>`; within it, a `<measure …>` opening tag or a whole
-// `<note>…</note>`. One pass over each part in order, which is all the
-// injector's walk needs: bars restart the note counters, notes consume them.
-// `(?=[\s>])` so `<part-list>` is not a part nor `<measure-style>` a measure;
-// `<note` cannot collide with `<notations>` for the same reason.
-const PART = /<part(?=[\s>])[\s\S]*?<\/part>/g
-const TOKEN = /<measure(?=[\s>])[^>]*>|<note(?:\s[^>]*)?>[\s\S]*?<\/note>/g
-
-// An attribute value in either quote style. MuseScore writes double quotes;
-// the Hanon files come from scripts/split_hanon.rb through REXML, which writes
-// single ones — and a walk that only reads one of the two numbers every measure
-// of those twenty files NaN and silently matches nothing.
-const MEASURE_NUMBER = /\bnumber=["']([^"']*)["']/
-const IMPLICIT = /\bimplicit=["']yes["']/
-// The two the walk needs off a note. Built once: the alternative is a fresh
-// RegExp per note, over every note of every score in an export.
-const STAFF = /<staff>\s*([^<]*)<\/staff>/
-const VOICE = /<voice>\s*([^<]*)<\/voice>/
-const REST = /<rest(?:[\s/>])/
-const STAVES = /<staves>\s*(\d+)\s*<\/staves>/g
 // What noteExtraction.js left out of its count before #350, so what the old
-// keys skipped: a note with no pitch, a cue note (OSMD takes both <cue/> and a
-// cue-sized <type>), a note the score hides.
-const UNCOUNTED_THEN = /<cue\s*\/>|<type\s[^>]*size=["']cue["']|^<note\s[^>]*print-object=["']no["']/
-
-// As the file writes it, one-based; absent means the first.
-const numberOf = (xml, pattern) => {
-  const match = pattern.exec(xml)
-  return match ? parseInt(match[1], 10) : 1
-}
+// keys skipped: a note with no pitch, and a cue or hidden one (CUE_OR_HIDDEN).
+const UNCOUNTED_THEN = CUE_OR_HIDDEN
 
 // The first <tag>…</tag> in `xml`: where its content starts and ends. None of
 // the elements asked for here nest, so the first closing tag is the right one.

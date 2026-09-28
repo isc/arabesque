@@ -92,10 +92,13 @@ played on a preview land in the real practice journal.
 and the file in `public/scores/`), regenerate the fingerprints so the score is
 findable by playing its opening notes on the MIDI keyboard:
 ```bash
-ruby scripts/generate_fingerprints.rb
+node scripts/generate-fingerprints.mjs
 ```
 `public/data/fingerprints.json` must stay in sync with the catalog: one
 fingerprint per score file, including each part of a collection.
+`test/js/fingerprints.test.js` fails when it is not what the generator makes
+of the scores as they are, and the generator writes nothing when a score cannot
+be read or opens with fewer notes than the library needs to find it.
 
 Correcting a score in place — a wrong trill, a measure re-engraved — does reach
 devices that already opened the piece: the service worker serves `/scores/` from

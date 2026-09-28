@@ -30,25 +30,21 @@ jobs:
         with:
           node-version: '22'
 
-      # Slug = branch name with any non-alphanumeric char collapsed to `-`.
+      # Through env, never pasted into the script: the branch name is the
+      # pull request author's to choose.
       - name: Compute preview slug
         id: slug
         run: |
-          raw='${{ github.head_ref }}'
-          slug=$(echo "$raw" | tr -c 'a-zA-Z0-9-' '-' | tr -s '-' | sed 's/^-\|-$//g')
+          slug=$(scripts/preview-slug.sh "$BRANCH")
           echo "slug=$slug" >> "$GITHUB_OUTPUT"
+        env:
+          BRANCH: ${{ github.head_ref }}
 
-      # Like the deploy of main: the entries in changelog.d/ become the
-      # changelog the app imports, so a pull request adding one can be checked
-      # in the modal on its own preview.
-      - name: Assemble the changelog
-        run: node scripts/changelog.mjs build
-
-      # Stamped with the PR's head SHA, like a deploy of main is with its
-      # own: the preview is a build of its own, and the version check in
+      # As a deploy of main is built, stamped with the PR's head SHA: the
+      # preview is a build of its own, and the version check in
       # public/js/version.js tells it apart from the production one.
-      - name: Stamp the build version
-        run: node scripts/stamp-version.mjs "${SHA::12}"
+      - name: Build the site
+        run: scripts/build-site.sh "$SHA"
         env:
           SHA: ${{ github.event.pull_request.head.sha }}
 

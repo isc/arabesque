@@ -5,17 +5,23 @@ on:
     paths:
       - 'ios/**'
       - '.github/workflows/ios.yml'
+      - '.github/actions/select-newest-xcode/**'
   push:
     branches: [main]
     paths:
       - 'ios/**'
       - '.github/workflows/ios.yml'
+      - '.github/actions/select-newest-xcode/**'
 
 jobs:
   build:
-    runs-on: macos-15
+    # The image and the Xcode the TestFlight upload builds with
+    # (testflight.yml): it ran on macos-15 here, and a pull request's build
+    # proved a toolchain no release was ever made with.
+    runs-on: macos-26
     steps:
       - uses: actions/checkout@v4
+      - uses: ./.github/actions/select-newest-xcode
       - run: brew install xcodegen
       - run: xcodegen generate
         working-directory: ios

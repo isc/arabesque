@@ -1,5 +1,5 @@
 import { isTestEnv } from './utils.js'
-import mockMIDI from './midi_mock.js'
+import mockMIDI, { MOCK_DEVICE_NAME } from './midi_mock.js'
 import { t } from './i18n.js'
 import { recordError } from './errorLog.js'
 
@@ -178,7 +178,7 @@ async function connectMIDIMock() {
   mockMIDI.connect((data) => {
     parseMidiMessage(data)
   })
-  setConnectedInput({ name: 'Mock MIDI Keyboard' })
+  setConnectedInput({ name: MOCK_DEVICE_NAME })
 }
 
 // Parse standard MIDI messages (from Web MIDI API)
