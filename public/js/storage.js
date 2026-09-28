@@ -8,11 +8,30 @@ const DB_BASE_NAME = 'arabesque'
 // moved over on first open (see readLegacyDatabase) so nobody has to re-import
 // a backup.
 const LEGACY_DB_NAME = 'piano-trainer'
-const DB_VERSION = 3
+export const DB_VERSION = 3
 const FINGERINGS_STORE = 'fingerings'
 const SESSIONS_STORE = 'sessions'
 const AGGREGATES_STORE = 'aggregates'
-const STORES = [FINGERINGS_STORE, SESSIONS_STORE, AGGREGATES_STORE]
+
+// The kinds of data a profile keeps, a store each: how its records are keyed,
+// what they are looked up by, and how a backup carries them, under the store's
+// own name. Whatever goes over every store — creating them, moving the
+// pre-rename database, exporting a backup — reads this list, so a store added
+// here is in all of them, once DB_VERSION is raised: the upgrade is what
+// creates it where the database already exists. storage.test.js holds a
+// backup to restoring every store it carries, which is what makes sync.js's
+// importBackup learn a new one. Backups made outside the app write the same
+// keys: landing-video/capture/fetch-backup.mjs and scripts/demo/seed.js.
+const STORE_DEFS = [
+  // Without `synced` in a backup: it is this device's own exchange with the
+  // server, as meaningless to another device as its last-sync time.
+  { name: FINGERINGS_STORE, keyPath: 'scoreUrl', toBackup: ({ synced, ...record }) => record },
+  { name: SESSIONS_STORE, keyPath: 'id', indexes: ['scoreId', 'startedAt'] },
+  // Derived from the sessions, and rebuilt from them on import: a backup's
+  // copy only lends its names (sync.js).
+  { name: AGGREGATES_STORE, keyPath: 'scoreId' },
+]
+export const STORES = STORE_DEFS.map((def) => def.name)
 // What an operation fails with when the connection under it is gone rather
 // than the operation being wrong: InvalidStateError from transaction() on a
 // connection the browser has closed ("The database connection is closing"),
@@ -21,11 +40,7 @@ const STORES = [FINGERINGS_STORE, SESSIONS_STORE, AGGREGATES_STORE]
 const CONNECTION_LOST = new Set(['InvalidStateError', 'UnknownError'])
 
 // TEMP: built once so the probe costs no per-put string when it's disabled.
-const PUT_LABELS = {
-  [FINGERINGS_STORE]: 'IDB put fingerings',
-  [SESSIONS_STORE]: 'IDB put sessions',
-  [AGGREGATES_STORE]: 'IDB put aggregates',
-}
+const PUT_LABELS = Object.fromEntries(STORES.map((name) => [name, `IDB put ${name}`]))
 
 // The version a fingering record new to this device last exchanged with the
 // server: none, and nothing in it. sync.js merges the server's copy against
@@ -100,22 +115,10 @@ async function openDatabase(name) {
     request.onupgradeneeded = (event) => {
       created ||= event.oldVersion === 0
       const database = event.target.result
-
-      // Create fingerings store if needed
-      if (!database.objectStoreNames.contains(FINGERINGS_STORE)) {
-        database.createObjectStore(FINGERINGS_STORE, { keyPath: 'scoreUrl' })
-      }
-
-      // Create sessions store if needed
-      if (!database.objectStoreNames.contains(SESSIONS_STORE)) {
-        const sessionsStore = database.createObjectStore(SESSIONS_STORE, { keyPath: 'id' })
-        sessionsStore.createIndex('scoreId', 'scoreId', { unique: false })
-        sessionsStore.createIndex('startedAt', 'startedAt', { unique: false })
-      }
-
-      // Create aggregates store if needed
-      if (!database.objectStoreNames.contains(AGGREGATES_STORE)) {
-        database.createObjectStore(AGGREGATES_STORE, { keyPath: 'scoreId' })
+      for (const { name, keyPath, indexes = [] } of STORE_DEFS) {
+        if (database.objectStoreNames.contains(name)) continue
+        const store = database.createObjectStore(name, { keyPath })
+        for (const index of indexes) store.createIndex(index, index, { unique: false })
       }
     }
   })
@@ -302,20 +305,13 @@ export function initStorage() {
       return (await dbGetAll(AGGREGATES_STORE)) || []
     },
 
-    // Backup methods
+    // Every store, each under its own name (see STORE_DEFS).
     async exportBackup() {
-      const sessions = await this.getSessions()
-      const aggregates = await this.getAllAggregates()
-      // Without `synced`: it is this device's own exchange with the server, as
-      // meaningless to another device as its last-sync time.
-      const fingerings = (await this.getAllFingerings()).map(({ synced, ...record }) => record)
-
-      return {
-        exportDate: new Date().toISOString(),
-        sessions,
-        aggregates,
-        fingerings,
+      const backup = { exportDate: new Date().toISOString() }
+      for (const { name, toBackup = (record) => record } of STORE_DEFS) {
+        backup[name] = (await dbGetAll(name)).map(toBackup)
       }
+      return backup
     },
 
     // Sessions from elsewhere — a backup's — that this device does not have
