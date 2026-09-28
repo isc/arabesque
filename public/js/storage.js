@@ -1,4 +1,3 @@
-import { traced } from './perfTrace.js' // TEMP diagnostic
 import { scopedKey, listProfiles, pruneRemovedProfileKeys, SCOPE_SEPARATOR } from './profiles.js'
 
 // Each profile has a database of its own, named from this (profiles.js). The
@@ -38,9 +37,6 @@ export const STORES = STORE_DEFS.map((def) => def.name)
 // UnknownError from a request the loss cut off ("Connection to Indexed
 // Database server lost"). See withDb.
 const CONNECTION_LOST = new Set(['InvalidStateError', 'UnknownError'])
-
-// TEMP: built once so the probe costs no per-put string when it's disabled.
-const PUT_LABELS = Object.fromEntries(STORES.map((name) => [name, `IDB put ${name}`]))
 
 // The version a fingering record new to this device last exchanged with the
 // server: none, and nothing in it. sync.js merges the server's copy against
@@ -206,16 +202,14 @@ export function initStorage() {
     return withStore(storeName, 'readonly', (store) => promisifyRequest(store.get(key)))
   }
 
-  function dbGetAll(storeName) {
-    return withStore(storeName, 'readonly', (store) => promisifyRequest(store.getAll()))
+  // Every record, or with `index` those whose key there matches `query` (a
+  // value or an IDBKeyRange).
+  function dbGetAll(storeName, { index, query } = {}) {
+    return withStore(storeName, 'readonly', (store) => promisifyRequest((index ? store.index(index) : store).getAll(query)))
   }
 
   function dbPut(storeName, data) {
-    // TEMP: put() structure-clones the value synchronously on the main thread,
-    // and the session object grows with every measure played. Wrapping put()
-    // itself is what isolates that clone from the transaction's own latency.
-    return withStore(storeName, 'readwrite', (store) =>
-      promisifyRequest(traced(PUT_LABELS[storeName], () => store.put(data))))
+    return withStore(storeName, 'readwrite', (store) => promisifyRequest(store.put(data)))
   }
 
   return {
@@ -287,8 +281,13 @@ export function initStorage() {
     },
 
     getSessions(scoreId = null) {
-      return withStore(SESSIONS_STORE, 'readonly', (store) =>
-        promisifyRequest(scoreId ? store.index('scoreId').getAll(scoreId) : store.getAll()))
+      return dbGetAll(SESSIONS_STORE, scoreId ? { index: 'scoreId', query: scoreId } : {})
+    },
+
+    // The sessions started from `from` up to, not including, `to` (Dates).
+    // `startedAt` is always an ISO string in UTC, so its index sorts by time.
+    getSessionsStartedBetween(from, to) {
+      return dbGetAll(SESSIONS_STORE, { index: 'startedAt', query: IDBKeyRange.bound(from.toISOString(), to.toISOString(), false, true) })
     },
 
     // Aggregates methods

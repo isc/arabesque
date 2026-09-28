@@ -121,6 +121,9 @@ le domaine. Les étapes sont conservées ci-dessous pour la trace.
    (il n'en crée aucun et n'en lit aucun — ce n'est vrai que des déploiements
    depuis une branche). À faire une fois le DNS propagé ; à partir de là,
    `isc.github.io/piano-trainer/` redirige vers le domaine.
+   *Depuis #312, Pages sert la branche `gh-pages` : ce fichier compte
+   désormais, et c'est le `cname:` de `.github/workflows/deploy-pages.yml` qui
+   l'écrit à chaque déploiement. Le retirer ferait perdre le domaine.*
 4. ✅ **Attendre le certificat.** `.app` est un TLD à HSTS préchargé : le HTTPS y
    est obligatoire, donc le site reste injoignable tant que GitHub n'a pas émis
    le certificat (jusqu'à 24 h). Activer ensuite *Enforce HTTPS*.

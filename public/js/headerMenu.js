@@ -1,4 +1,5 @@
-// Shared header chrome — the ⚙️ menu and its modals, identical on every page.
+// Shared header chrome — the ⚙️ menu and its modals, identical on the two pages
+// that carry them.
 //
 // Both the library (libraryApp) and the score page (midiApp) get the exact same
 // menu (load a score, what's new, feedback, a link to the data page, language)
@@ -116,8 +117,8 @@ export function headerMenu() {
       this.feedbackShotWanted = true
       this.menuOpen = false
       this.showFeedbackModal = true
-      // Loaded and run only here: every page carries this menu, and next to
-      // none of them ever opens the form. Nothing waits on the result — null,
+      // Loaded and run only here: both pages carry this menu, and next to no
+      // visit ever opens the form. Nothing waits on the result — null,
       // from a capture that failed or a browser that could not make one, simply
       // means the form offers no picture and the report goes as words alone.
       const { captureViewport } = await import('./screenshot.js')

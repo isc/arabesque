@@ -52,7 +52,7 @@ final class ViewController: UIViewController {
 
   override func viewDidLoad() {
     super.viewDidLoad()
-    // The web app has no dark theme (it forces Pico to light), so keep the
+    // The web app has no dark theme (its pages are pinned to light), so keep the
     // whole native shell — background, status bar, system sheets — in light
     // mode too, rather than letting it follow the device's Dark Mode setting.
     overrideUserInterfaceStyle = .light

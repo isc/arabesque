@@ -42,11 +42,19 @@ function applyTwice(xml, fingerings) {
 }
 
 describe('writing a fingering onto a note', () => {
-  it('creates the notations block a bare note has none of, after <type>', () => {
-    const result = applyTwice(score(note()), { 'm0:0:0:0': 3 })
-    expect(result.xml).toContain('<type>quarter</type>')
-    expect(result.xml).toContain('<notations><technical><fingering>3</fingering></technical></notations>')
+  // MusicXML's element order puts <notations> after <type>, <staff> and <beam>,
+  // and before <lyric>: a file written in any other order is invalid.
+  it('creates the notations block a bare note has none of, after the rest of the note', () => {
+    const result = applyTwice(score(note('<beam number="1">begin</beam>')), { 'm0:0:0:0': 3 })
+    expect(result.xml).toMatch(
+      /<type>quarter<\/type><staff>1<\/staff><beam number="1">begin<\/beam>\s*<notations><technical><fingering>3<\/fingering><\/technical><\/notations>\s*<\/note>/,
+    )
     expect(result).toMatchObject({ added: 1, changed: 0, unchanged: 0, missing: [] })
+  })
+
+  it('creates the notations block ahead of the lyrics', () => {
+    const result = applyTwice(score(note('\n        <lyric><text>la</text></lyric>')), { 'm0:0:0:0': 3 })
+    expect(result.xml).toMatch(/<\/staff>\s*<notations>[\s\S]*<\/notations>\s*<lyric>/)
   })
 
   it('replaces a fingering already on the note, keeping its layout', () => {

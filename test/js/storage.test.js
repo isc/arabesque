@@ -133,6 +133,20 @@ describe('a backup restored on another device', () => {
   })
 })
 
+describe('sessions by start', () => {
+  it('reads those started from the first instant up to, not including, the last', async () => {
+    const { storage } = await aDevice()
+    const startedAt = (iso) => ({ ...session(iso), startedAt: iso })
+    for (const iso of ['2026-06-09T23:59:59.999Z', '2026-06-10T00:00:00.000Z', '2026-06-10T23:59:59.999Z', '2026-06-11T00:00:00.000Z']) {
+      await storage.saveSession(startedAt(iso))
+    }
+
+    const read = await storage.getSessionsStartedBetween(new Date('2026-06-10T00:00:00.000Z'), new Date('2026-06-11T00:00:00.000Z'))
+
+    expect(read.map((s) => s.startedAt)).toEqual(['2026-06-10T00:00:00.000Z', '2026-06-10T23:59:59.999Z'])
+  })
+})
+
 // close() stands in for WebKit dropping the connection under the page: both
 // leave transaction() throwing "The database connection is closing". See withDb.
 describe('storage on a lost connection', () => {

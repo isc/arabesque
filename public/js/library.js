@@ -184,7 +184,7 @@ export function libraryApp() {
       })
 
       midi.setCallbacks({
-        onNotePlayed: (_, midiNote) => this.handleSearchNote(midiNote),
+        onNotePlayed: (midiNote) => this.handleSearchNote(midiNote),
       })
       midi.connectMIDI({ silent: true, autoSelectFirst: true })
 
@@ -249,11 +249,11 @@ export function libraryApp() {
     },
 
     // Everything on this page derived from practice data, redrawn together.
-    // The two reads are independent, and each walks the whole session store —
-    // no reason to pay for them one after the other. Three triggers can ask for
-    // this (a bfcache restore, a sync that pulled, the day turning over) and a
-    // resume the next morning fires more than one of them, so callers arriving
-    // while a refresh is in flight share it rather than walking the store again.
+    // The two reads are independent — no reason to pay for them one after the
+    // other. Three triggers can ask for this (a bfcache restore, a sync that
+    // pulled, the day turning over) and a resume the next morning fires more
+    // than one of them, so callers arriving while a refresh is in flight share
+    // it rather than reading the store again.
     //
     // Nobody awaits it, so a failure stops here: the page keeps what it was
     // showing, and a report sent from it says why (errorLog.js).
@@ -303,7 +303,7 @@ export function libraryApp() {
         if (hasHotSpots(forFile)) reinforceFiles.add(file)
       }
 
-      // Aggregates power the status filter, status pills, and practice-focus banner.
+      // Aggregates power the status filter, status pills, and practice-focus chips.
       const aggregatesByScore = {}
       for (const agg of aggregates) {
         if (!agg || (agg.practiceDays || []).length === 0) continue
@@ -367,9 +367,6 @@ export function libraryApp() {
       return this.scores.filter((score) => matchesSearch(scoreWords(score), query))
     },
 
-    // The scores a given set of filter values leaves, the search box always
-    // having its say — `this` is itself a valid selection, since the component
-    // carries statusFilter & co. as own properties.
     // Does this score answer every filter the selection sets?
     matchesSelection(score, selection) {
       return FILTER_KEYS.every((key) => !selection[key] || FILTER_MATCHERS[key](this, score, selection[key]))
@@ -591,8 +588,8 @@ export function libraryApp() {
         // something to return to said the opposite with the other hand — a
         // score opened for thirty seconds last spring is not a piece that has
         // been let slide. Asked of hasMinimumPractice rather than of the badge
-        // via getStatusFor, which for a recueil returns undefined however much
-        // it has been played: synthesizeCollectionAggregate carries no status
+        // via getStatusFor, which for a recueil returns null however much it
+        // has been played: synthesizeCollectionAggregate carries no status
         // by design, so testing the badge for truthiness would silently drop
         // every Hanon exercise — and going quiet is what they are for.
         if (!hasMinimumPractice(agg)) return false
@@ -719,14 +716,8 @@ export function libraryApp() {
       }
       return agg
     },
-    // The stored status is the tracker's verdict from the last time the piece
-    // was played — for a row graded before the practice floor existed, that
-    // verdict predates the rule. Applying the floor here as well retires those
-    // badges on sight, instead of waiting for a piece nobody plays to be played
-    // again, and saves a migration over everyone's aggregates.
     getStatusFor(score) {
-      const aggregate = this.aggregateFor(score)
-      return hasMinimumPractice(aggregate) ? aggregate.status : null
+      return this.aggregateFor(score)?.status ?? null
     },
     getPracticeTimeFor(score)  { return this.aggregateFor(score)?.totalPracticeTimeMs || 0 },
 

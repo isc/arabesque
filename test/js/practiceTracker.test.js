@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import 'fake-indexeddb/auto'
 import {
   initPracticeTracker,
-  computePlaythroughDuration,
+  playthroughOf,
   computeSessionDuration,
   MIN_PRACTICE_MS_FOR_STATUS,
   AGGREGATES_VERSION,
@@ -76,7 +76,7 @@ describe('practiceTracker', () => {
       expect(newSession.scoreId).toBe('/scores/test.xml')
       expect(newSession.mode).toBe('training')
 
-      // Metadata is stored in aggregates, not in session
+      // The session filed on the way named its score's row.
       const stats = await tracker.getScoreStats('/scores/test.xml')
       expect(stats.totalSessions).toBe(1)
       expect(stats.scoreTitle).toBe('Test Score')
@@ -729,6 +729,21 @@ describe('practiceTracker', () => {
       return id
     }
 
+    // A row counted by older rules can lack what the fold counts on — the
+    // practice days, before there were any. Folding the snapshot into it
+    // ahead of the rebuild threw, and took init() down with it.
+    it('rebuilds an outdated row before crediting the session to it', async () => {
+      await interruptedSession()
+      const { practiceDays, ...row } = await storage.getAggregate('/scores/test.xml')
+      await storage.saveAggregate({ ...row, rulesVersion: AGGREGATES_VERSION - 1 })
+
+      await initPracticeTracker(storage).init()
+
+      const agg = await storage.getAggregate('/scores/test.xml')
+      expect(agg).toMatchObject({ rulesVersion: AGGREGATES_VERSION, totalSessions: 1, scoreTitle: 'Test' })
+      expect(agg.practiceDays).toHaveLength(1)
+    })
+
     it('closes and credits the session on the next load', async () => {
       const id = await interruptedSession()
       expect((await storage.getSession(id)).endedAt).toBeNull()
@@ -867,11 +882,11 @@ describe('practiceTracker', () => {
       expect(log[0].measuresWorked).toContain(0)
     })
 
-    it('getDailyLogs matches per-day reads, in a single pass over the store', async () => {
-      tracker.startSession('/scores/test.xml', 'Test', 'Composer', 'training')
-      tracker.startMeasureAttempt(0)
-      tracker.endMeasureAttempt(true)
-      await tracker.endSession()
+    it('getDailyLogs matches per-day reads, in one read of just the days asked for', async () => {
+      advanceClock(-3 * DAY_MS)
+      await playSession('/scores/test.xml', [0]) // three days back: not a day asked for below
+      advanceClock(3 * DAY_MS)
+      await playSession('/scores/test.xml', [0])
 
       const today = new Date()
       const yesterday = new Date()
@@ -880,20 +895,16 @@ describe('practiceTracker', () => {
 
       const perDay = [await tracker.getDailyLog(today), await tracker.getDailyLog(yesterday)]
 
-      let reads = 0
-      const getSessions = storage.getSessions.bind(storage)
-      storage.getSessions = (...args) => {
-        reads++
-        return getSessions(...args)
-      }
+      const read = vi.spyOn(storage, 'getSessionsStartedBetween')
       const batched = await tracker.getDailyLogs(dates)
-      storage.getSessions = getSessions
 
       expect(batched).toEqual(perDay)
       expect(batched[0]).toHaveLength(1)
       expect(batched[1]).toHaveLength(0)
-      // The journal asks for a fortnight; that must stay one read, not fourteen.
-      expect(reads).toBe(1)
+      // The journal asks for a fortnight: one read, not fourteen — and of
+      // those days' sessions, not the whole history.
+      expect(read).toHaveBeenCalledTimes(1)
+      expect(await read.mock.results[0].value).toHaveLength(1)
     })
 
     it('counts timesPlayedInFull across multiple sessions', async () => {
@@ -1133,7 +1144,7 @@ describe('practiceTracker', () => {
     return { measures, endedAt: cursor }
   }
 
-  describe('computePlaythroughDuration (interruption normalization)', () => {
+  describe('playthroughOf (interruption normalization)', () => {
     // completedAt sits right after the last measure.
     function buildPlaythrough(segments) {
       const { measures, endedAt } = buildMeasures(segments)
@@ -1153,7 +1164,7 @@ describe('practiceTracker', () => {
         { dur: 5000, gapBefore: 1000 },
       ])
       // 5×5000 measures + 4×1000 gaps = 29000
-      expect(computePlaythroughDuration(session)).toBe(29000)
+      expect(playthroughOf(session).durationMs).toBe(29000)
     })
 
     it('does not penalize slow-but-continuous playing', () => {
@@ -1167,7 +1178,7 @@ describe('practiceTracker', () => {
       const raw =
         new Date(session.completedAt).getTime() -
         new Date(session.playthroughStartedAt).getTime()
-      expect(computePlaythroughDuration(session)).toBe(raw)
+      expect(playthroughOf(session).durationMs).toBe(raw)
     })
 
     it('clamps an interruption that lands inside a measure', () => {
@@ -1180,7 +1191,7 @@ describe('practiceTracker', () => {
         { dur: 5000, gapBefore: 1000 },
       ])
       // Aberrant measure → longest normal measure (5000). Same as uninterrupted.
-      expect(computePlaythroughDuration(session)).toBe(29000)
+      expect(playthroughOf(session).durationMs).toBe(29000)
     })
 
     it('clamps an interruption that lands between two measures', () => {
@@ -1193,7 +1204,7 @@ describe('practiceTracker', () => {
         { dur: 5000, gapBefore: 1000 },
       ])
       // Aberrant gap → median normal gap (1000). Same as uninterrupted.
-      expect(computePlaythroughDuration(session)).toBe(29000)
+      expect(playthroughOf(session).durationMs).toBe(29000)
     })
 
     it('falls back to raw duration when attempts lack timing', () => {
@@ -1202,7 +1213,7 @@ describe('practiceTracker', () => {
         completedAt: new Date(BASE + 42000).toISOString(),
         measures: [{ sourceMeasureIndex: 0, attempts: [{ clean: true }] }],
       }
-      expect(computePlaythroughDuration(session)).toBe(42000)
+      expect(playthroughOf(session).durationMs).toBe(42000)
     })
   })
 
@@ -1279,8 +1290,8 @@ describe('practiceTracker', () => {
   }
 
   // Cloud sync replays every stored session to rebuild the aggregates, and
-  // sessions do not carry a title — so what the rebuild is given is what the
-  // practice journal shows afterwards.
+  // sessions stored before #371 carry no title — so what the rebuild is given
+  // is what the practice journal shows afterwards.
   describe('rebuildAggregates', () => {
     // A score the catalog does not know, played before sessions carried their
     // own name: an untitled row already here must not hide a name the caller
@@ -1353,23 +1364,6 @@ describe('practiceTracker', () => {
 
       const stats = await tracker.getScoreStats('scores/played-yesterday.xml')
       expect(stats.scoreTitle).toBe('Test')
-    })
-  })
-
-  describe('getAllScores', () => {
-    it('returns all practiced scores', async () => {
-      tracker.startSession('/scores/test1.xml', 'Test 1', 'Composer', 'training')
-      tracker.startMeasureAttempt(0)
-      tracker.endMeasureAttempt(true)
-      await tracker.endSession()
-
-      tracker.startSession('/scores/test2.xml', 'Test 2', 'Composer', 'training')
-      tracker.startMeasureAttempt(0)
-      tracker.endMeasureAttempt(true)
-      await tracker.endSession()
-
-      const allScores = await tracker.getAllScores()
-      expect(allScores).toHaveLength(2)
     })
   })
 })

@@ -1,4 +1,3 @@
-import { NOTE_NAMES } from './midi.js'
 import { barCounter, fingeringKey, legacyFingeringKey, nextNoteIndex } from './fingeringKeys.js'
 import { t } from './i18n.js'
 import { withHands } from './utils.js'
@@ -99,13 +98,11 @@ const ACCIDENTAL_SIGNS = {
   [AccidentalEnum.DOUBLEFLAT]: '𝄫',
 }
 
-// Names a note for the player, in their language: "sol♯4", "C4". Unlike the
-// noteName each note already carries — a MIDI name, always sharps and always
-// ASCII, which the matcher and the logs go by — this is the note as the score
-// spells it, so the B flat of an invention stays "si♭" instead of turning into
-// the "la♯" the staff never says. The octave is what separates the candidates
-// when the doubt is real: a broken chord passing the same letter through two
-// registers.
+// Names a note for the player, in their language: "sol♯4", "C4". This is the
+// note as the score spells it, not as its MIDI number would name it: the B flat
+// of an invention stays "si♭" instead of turning into the "la♯" the staff never
+// says. The octave is what separates the candidates when the doubt is real: a
+// broken chord passing the same letter through two registers.
 //
 // The hand follows, in the vocabulary and with the separator runs are already
 // captioned with (utils' withHands). It is the hand the notation gives the
@@ -326,8 +323,6 @@ export function expandOrnamentNotes(measureNotes, fifths = 0) {
 
     for (let i = 0; i < sequence.length; i++) {
       const midiNumber = sequence[i]
-      const noteNameStd = NOTE_NAMES[midiNumber % 12]
-      const octaveStd = octaveOfMidi(midiNumber)
 
       // Delayed turn: the principal (i === 0) stays on the beat (offset 0) and the
       // turn proper is pushed out by turnDelay. Otherwise notes follow immediately.
@@ -338,7 +333,6 @@ export function expandOrnamentNotes(measureNotes, fifths = 0) {
       expandedNotes.push({
         ...noteData,
         midiNumber,
-        noteName: `${noteNameStd}${octaveStd}`,
         timestamp: noteData.timestamp + ornamentOffset,
         // An ornament re-articulates, so its notes must NOT inherit the parent's
         // tie-continuation flag -- that would suppress their note-on in audio
@@ -424,13 +418,6 @@ function playbackSequence(osmdInstance, bars) {
   return sequence
 }
 
-function pitchToMidiFromSourceNote(pitch) {
-  const midiNote = pitch.halfTone + 12
-  const noteNameStd = NOTE_NAMES[midiNote % 12]
-  const octaveStd = octaveOfMidi(midiNote)
-  return { noteName: `${noteNameStd}${octaveStd}`, midiNote: midiNote }
-}
-
 // Grace notes are played one after the other, off their main note: just before
 // it, or just after it for those OSMD files as GraceAfterMainNote -- the ones a
 // measure ends on, such as the cadenza after the fermata chord of bar 32 of
@@ -481,10 +468,11 @@ function extractNotesFromBars(bars) {
   // for the one load per score that rewrites a record still holding the old
   // names -- see migrateLegacyFingerings. Several notes to one old key is the
   // whole point: that ambiguity is what the current scheme fixes. Built here
-  // because this is the only walk that knows the old rule, and the old rule was
-  // "count the notes this walk keeps" rather than "count the notes the measure
-  // has". Delete it, and legacyNoteCounters below, when no stored record can
-  // hold one any more.
+  // because the old rule was this walk's own — "count the notes this walk
+  // keeps" rather than "count the notes the measure has" — and only
+  // scripts/import-fingerings.mjs copies it, for records exported before #350.
+  // Delete it, legacyNoteCounters below and that copy when no stored record
+  // can hold an old key any more.
   const legacyKeyMap = new Map()
   let currentFifths = 0
 
@@ -549,7 +537,6 @@ function extractNotesFromBars(bars) {
               // hidden copy would double the ornament -- the player would have to play it twice, and the hidden
               // noteheads would only appear once validated. The player plays what they see, never hidden notes.
               if (!note.pitch || note.IsCueNote || note.PrintObject === false) continue
-              const noteInfo = pitchToMidiFromSourceNote(note.pitch)
               // Check if this note is a tie continuation (not the start of the tie)
               const isTieContinuation = note.NoteTie && note.NoteTie.StartNote !== note
               const key = fingeringKey(barIndex, staffIndex, voiceIndex, noteIndex)
@@ -564,8 +551,8 @@ function extractNotesFromBars(bars) {
               measureNotes.push({
                 note,
                 voiceEntry,
-                midiNumber: noteInfo.midiNote,
-                noteName: noteInfo.noteName,
+                // OSMD counts half tones from the C an octave below MIDI's.
+                midiNumber: note.pitch.halfTone + 12,
                 timestamp: start + voiceEntry.timestamp.realValue,
                 active: false,
                 played: false,
@@ -577,14 +564,12 @@ function extractNotesFromBars(bars) {
                 isAfterGrace: voiceEntry.GraceAfterMainNote === true,
                 // Index of the notehead within the chord (for targeting individual noteheads in SVG)
                 noteheadIndex,
-                noteheadCount: voiceEntry.notes.filter((n) => n.pitch).length,
                 // The staff, and on a middle staff the stem: what handOfNote reads
                 staffIndex,
                 innerStaff,
                 stemUp: (note.StemDirectionXml ?? voiceEntry.StemDirectionXml) === StemDirectionEnum.Up,
                 // Key for fingering storage
                 fingeringKey: key,
-                voiceIndex,
               })
             }
           }
