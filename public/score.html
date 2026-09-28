@@ -174,7 +174,7 @@
       <a
         href="#"
         class="pt-reinforce-badge"
-        x-show="measuresToReinforce.length > 0 && !trainingMode && !isStrictPlaying"
+        x-show="measuresToReinforce.length > 0 && currentMode !== 'training' && !isStrictPlaying"
         @click.prevent="startReinforcementMode()"
         x-text="reinforceLabel()"
         :aria-label="reinforceLabel('handsFull')"
@@ -192,7 +192,7 @@
     <!-- Strict band: the mode's controls and what it says about the run.
          Sticky with the bars above, so ⏸ stays within reach while the run
          scrolls the score. -->
-    <div class="pt-context pt-context--strict" x-show="currentMode === 'strict' && !!osmdInstance" x-cloak>
+    <div class="pt-context pt-context--strict" x-show="mode === 'strict' && !!osmdInstance" x-cloak>
       <!-- Everything strict mode is driven with lives here, next to what it
            says about the run, so the modebar above stays the same in every
            mode. -->
@@ -330,7 +330,7 @@
 
     <!-- Training band: the same shape as the strict one — its controls, then
          what the mode has to say — so 🔁 picks a passage in both the same way. -->
-    <div class="pt-context pt-context--training" x-show="currentMode === 'training' && !reinforcementMode && !!osmdInstance" x-cloak>
+    <div class="pt-context pt-context--training" x-show="mode === 'training' && !!osmdInstance" x-cloak>
       <strong x-text="$t('score.trainingBand')">🎯 Entraînement</strong>
       <div class="pt-band-controls">
         <button

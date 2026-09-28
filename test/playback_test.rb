@@ -65,12 +65,8 @@ class PlaybackTest < CapybaraTestBase
   # into training mode without going through the tabs at all, and left the piece
   # playing on under the new mode — the very state the rule exists to prevent.
   def test_starting_reinforcement_ends_the_listening
-    visit '/score.html?url=/test-fixtures/repeat-endings.xml'
-    wait_for_score_render(4)
-
     # A fumbled bar, so there is something to reinforce.
-    play_note('D4')
-    play_note('C4')
+    open_with_the_first_bar_fumbled
     assert_text 'Renforcer 1 mesure'
 
     # Held at its first bar before reinforcement is asked for: nothing is left
