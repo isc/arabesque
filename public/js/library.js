@@ -22,8 +22,8 @@ import { onDayChange } from './dayRollover.js'
 import { daysBetween } from './days.js'
 import { t, tn, locale } from './i18n.js'
 import { recordError } from './errorLog.js'
+import { MIN_MATCH } from './fingerprints.js'
 
-const MIN_MATCH = 5
 const STATUS_ORDER = ['dechiffrage', 'perfectionnement', 'repertoire']
 const STATUS_RANK = Object.fromEntries(STATUS_ORDER.map((s, i) => [s, i]))
 // Two weeks of journal: eight days dropped a Tuesday/Wednesday pair out of

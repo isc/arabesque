@@ -18,7 +18,7 @@
 # Usage:
 #   ruby scripts/split_hanon.rb path/to/le-pianiste-virtuose-1-20.mxl
 #
-# Re-run scripts/generate_fingerprints.rb afterwards.
+# Re-run `node scripts/generate-fingerprints.mjs` afterwards.
 
 require 'rexml/document'
 require 'tmpdir'

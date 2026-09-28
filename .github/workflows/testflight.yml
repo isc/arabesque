@@ -20,14 +20,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # The image carries several Xcode versions; pin the newest rather than
-      # trust the default symlink, which has lagged behind before.
-      - name: Select the newest Xcode
-        run: |
-          latest=$(ls -d /Applications/Xcode_*.app | sort -V | tail -1)
-          echo "Using $latest"
-          sudo xcode-select -s "$latest"
-          xcodebuild -version
+      - uses: ./.github/actions/select-newest-xcode
 
       # Fail here rather than 20 minutes in, with a message that says which
       # secret is missing. See ios/README.md for how to create them.

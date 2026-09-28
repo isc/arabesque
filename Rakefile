@@ -26,13 +26,25 @@ end
 module TestSharding
   module_function
 
-  # "Class#method" for every test, in file order.
+  # "Class#method" for every test, in file order, each under the class it is
+  # defined in: read off the file's first class, a second class in a file would
+  # lend its tests a name no filter matches, and they would never run.
   def ids
     TEST_FILES.flat_map do |file|
-      source = File.read(file)
-      klass = source[/^class\s+([\w:]+)/, 1]
-      source.scan(/^\s*def\s+(test_\w+)/).flatten.map { |name| "#{klass}##{name}" }
+      klass = nil
+      File.foreach(file).filter_map do |line|
+        klass = Regexp.last_match(1) if line =~ /^class\s+([\w:]+)/
+        "#{klass}##{Regexp.last_match(1)}" if line =~ /^\s*def\s+(test_\w+)/
+      end
     end
+  end
+
+  # A split run has to run exactly the tests it listed: fewer, and one was
+  # silently dropped — a test the listing above misread.
+  def check_count(runs, listed)
+    return if runs == listed
+
+    abort "#{listed} tests listed, #{runs} run: the listing and Minitest disagree (see TestSharding.ids)"
   end
 
   # Dealt round-robin over the flat list: files are grouped by class, so
@@ -145,6 +157,7 @@ namespace :test do
     puts TestSharding.summarise(totals, elapsed, workers)
 
     abort 'Suite failed' if failed || (totals[:failures] + totals[:errors]).positive?
+    TestSharding.check_count(totals[:runs], ids.size)
   end
 
   desc 'Run one slice of the suite (SHARD_INDEX=i SHARD_COUNT=n) — one machine per slice'
@@ -157,7 +170,21 @@ namespace :test do
     abort "Shard #{index} is empty" if shard.empty?
 
     puts "Shard #{index + 1}/#{count}: #{shard.size} tests"
-    exit(system(*TestSharding.command(shard)) ? 0 : 1)
+    # Echoed as it comes — Minitest's progress dots included, which no newline
+    # follows until the run ends — and kept for the tally.
+    $stdout.sync = true
+    output = +''
+    IO.popen(TestSharding.command(shard), err: %i[child out]) do |io|
+      loop do
+        chunk = io.readpartial(4096)
+        $stdout.print chunk
+        output << chunk
+      end
+    rescue EOFError
+      nil
+    end
+    abort 'Shard failed' unless $?.success?
+    TestSharding.check_count(TestSharding.tally(output)&.fetch(:runs), shard.size)
   end
 end
 

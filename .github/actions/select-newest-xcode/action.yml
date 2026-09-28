@@ -1,0 +1,15 @@
+name: Select the newest Xcode
+description: >
+  Points xcode-select at the newest Xcode the macOS image carries, rather than
+  the default symlink, which has lagged behind before. Shared by the pull
+  request build (ios.yml) and the TestFlight upload (testflight.yml), so the
+  first proves the toolchain the second ships with.
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      run: |
+        latest=$(ls -d /Applications/Xcode_*.app | sort -V | tail -1)
+        echo "Using $latest"
+        sudo xcode-select -s "$latest"
+        xcodebuild -version

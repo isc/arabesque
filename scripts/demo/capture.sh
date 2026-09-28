@@ -57,16 +57,17 @@ inject score.html seed.js
 inject score.html play.js
 
 # The mock backend names itself for what it is, which is the truth in a test and
-# noise in a store screenshot. Swap it for a real device name in the copy only.
-python3 - "$SITE/js/midi.js" <<'PY'
+# noise in a store screenshot. Swap it for a real device name in the copy only,
+# on the line midi_mock.js keeps for it (test/js/demoCapture.test.js).
+python3 - "$SITE/js/midi_mock.js" <<'PY'
 import pathlib, sys
 path = pathlib.Path(sys.argv[1])
 source = path.read_text()
-old = "state.midiInput = { name: 'Mock MIDI Keyboard' }"
+old = "export const MOCK_DEVICE_NAME = 'Mock MIDI Keyboard'"
 if source.count(old) != 1:
-    sys.exit("error: midi.js no longer sets the mock device name where capture.sh expects it.\n"
+    sys.exit("error: midi_mock.js no longer names the mock device where capture.sh expects it.\n"
              "       Without this the screenshots would read 'Mock MIDI Keyboard'.")
-path.write_text(source.replace(old, "state.midiInput = { name: 'Roland FP-30' }"))
+path.write_text(source.replace(old, "export const MOCK_DEVICE_NAME = 'Roland FP-30'"))
 PY
 
 # exec, so $! is the server's own pid: without it the subshell is what
