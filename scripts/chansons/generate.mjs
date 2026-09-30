@@ -17,7 +17,7 @@ import { replaceOnce } from '../replace-once.mjs'
 const DIVISIONS = 4 // per quarter
 const VALUES = { w: 16, h: 8, q: 4, e: 2 }
 const TYPES = { w: 'whole', h: 'half', q: 'quarter', e: 'eighth' }
-const STEP_ALTER = { '#': 1, b: -1 }
+const STEP_ALTER = { '#': 1, b: -1, n: 0 }
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..')
 const OUT_DIR = join(ROOT, 'public', 'scores')
@@ -28,7 +28,7 @@ const esc = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, 
 // One event of a staff string: a note, a chord, or a rest.
 function parseEvent(token) {
   let fingering = null
-  const fingered = token.match(/^(.*)-(\d)$/)
+  const fingered = token.match(/^(.*)-(\d+)$/)
   if (fingered) [, token, fingering] = fingered
   if (token === 'R') return { kind: 'measure-rest' }
   const value = token.match(/^(.*?)([whqe])(\.?)$/)
@@ -38,10 +38,13 @@ function parseEvent(token) {
   const base = { duration, type: TYPES[letter], dot: !!dot }
   if (heads === 'r') return { ...base, kind: 'rest' }
   const pitches = heads.split('+').map((p) => {
-    const m = p.match(/^([A-G])([#b]?)(\d)$/)
+    const m = p.match(/^([A-G])([#bn]?)(\d)$/)
     if (!m) throw new Error(`Cannot read the pitch "${p}"`)
-    return { step: m[1], alter: STEP_ALTER[m[2]] ?? 0, octave: Number(m[3]) }
+    return { step: m[1], alter: STEP_ALTER[m[2]] ?? 0, natural: m[2] === 'n', octave: Number(m[3]) }
   })
+  if (fingering?.length > 1 && fingering.length !== pitches.length) {
+    throw new Error(`"${token}-${fingering}": ${fingering.length} fingerings for ${pitches.length} notes`)
+  }
   return { ...base, kind: 'notes', pitches, fingering }
 }
 
@@ -133,20 +136,21 @@ function noteXml(event, staff, voice, total) {
     .map((p, i) => {
       const alter = p.alter ? `<alter>${p.alter}</alter>` : ''
       // Every altered note prints its accidental, under a key signature too:
-      // the book writes the sharp of the F it has just taught each time.
-      const accidental = p.alter === 1 ? '<accidental>sharp</accidental>' : p.alter === -1 ? '<accidental>flat</accidental>' : ''
+      // the book writes the sharp of the F it has just taught each time. A
+      // natural prints only where the string asks for it (Fn4).
+      const accidental =
+        p.alter === 1 ? '<accidental>sharp</accidental>' : p.alter === -1 ? '<accidental>flat</accidental>' : p.natural ? '<accidental>natural</accidental>' : ''
       // A beam and a syllable belong to the chord, so to its first head only.
       const beam = event.beam && i === 0 ? `<beam number="1">${event.beam}</beam>` : ''
       const lyric =
         event.lyric && i === 0
           ? `<lyric number="1"><syllabic>${event.lyric.syllabic}</syllabic><text>${esc(event.lyric.text)}</text></lyric>`
           : ''
-      // The fingering goes on the last head listed: the book writes it above
-      // the chord, which is the top note's.
-      const fingering =
-        event.fingering && i === event.pitches.length - 1
-          ? `<notations><technical><fingering>${event.fingering}</fingering></technical></notations>`
-          : ''
+      // A single fingering goes on the last head listed: the book writes it
+      // above the chord, which is the top note's. One digit per head fingers
+      // each of them, in the order they are listed.
+      const finger = event.fingering?.length > 1 ? event.fingering[i] : i === event.pitches.length - 1 ? event.fingering : null
+      const fingering = finger ? `<notations><technical><fingering>${finger}</fingering></technical></notations>` : ''
       return `<note>${i ? '<chord/>' : ''}<pitch><step>${p.step}</step>${alter}<octave>${p.octave}</octave></pitch><duration>${event.duration}</duration><voice>${voice}</voice><type>${event.type}</type>${dot}${accidental}${staff ? `<staff>${staff}</staff>` : ''}${beam}${fingering}${lyric}</note>`
     })
     .join('')
