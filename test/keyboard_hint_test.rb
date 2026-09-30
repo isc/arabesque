@@ -94,7 +94,9 @@ class KeyboardHintTest < CapybaraTestBase
     end
   end
 
-  def test_the_cross_puts_it_away_for_the_visit
+  # For the rest of the day, however many scores are opened (feedback
+  # 4d8a81b9): a child closes it once, not at every piece.
+  def test_the_cross_puts_it_away_for_the_day
     open_two_measures
     3.times { play_note('G4') }
     assert_selector '.pt-keyhint'
@@ -106,6 +108,14 @@ class KeyboardHintTest < CapybaraTestBase
     play_note('C4')
     3.times { play_note('G4') }
     assert_no_selector '.pt-keyhint'
+
+    open_two_measures
+    with_clock_control do
+      3.times { play_note('G4') }
+      # Alpine reveals from a timer of its own.
+      advance_clock(100)
+      assert_keyboard_down
+    end
   end
 
   # Feedback b7682019: the last note played, the cursor goes back to the top

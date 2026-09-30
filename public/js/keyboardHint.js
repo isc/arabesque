@@ -6,13 +6,37 @@
 // — several wrong keys tried for it, or a long wait over it — and goes away
 // again once the notes are coming promptly and clean for a good stretch, the
 // way a teacher's hand leaves the keyboard. The ✕ puts it away for the rest of
-// the visit.
+// the day, for the profile that closed it: a child playing with the strip
+// instead of listening to the teacher closes it once, not at every score
+// (feedback 4d8a81b9).
 //
 // hintStep is the whole of that decision, kept pure so it can be tested
 // without a clock or a page; initKeyboardHint wires it to a timer, the engine
 // and the DOM.
 import { noteName, spelledNote, handOfNote, cLabel } from './noteExtraction.js'
 import { t } from './i18n.js'
+import { localDayKey } from './days.js'
+import { scopedKey } from './profiles.js'
+
+// The day the ✕ was last clicked, per profile.
+const DISMISSED_KEY = scopedKey('arabesque:keyhint-dismissed')
+const today = () => localDayKey(new Date())
+
+function dismissedToday() {
+  try {
+    return localStorage.getItem(DISMISSED_KEY) === today()
+  } catch {
+    return false
+  }
+}
+
+function rememberDismissed() {
+  try {
+    localStorage.setItem(DISMISSED_KEY, today())
+  } catch {
+    /* storage refused: the ✕ holds for this page only */
+  }
+}
 
 // Wrong keys tried for the same note before it is shown.
 export const HINT_WRONG_NOTES = 3
@@ -146,7 +170,7 @@ function caption(notes) {
 }
 
 export function initKeyboardHint({ owedGroup, eligible, onVisibleChange, onCaptionChange, now = () => performance.now() }) {
-  let state = initialHint()
+  let state = { ...initialHint(), dismissed: dismissedToday() }
   // While the keyboard is up, the page follows the player at TICK_MS, so the
   // lit keys move with the cursor however it moved (the beat that ends a
   // measure, a click on another bar). While it is down, a single timer waits
@@ -300,6 +324,7 @@ export function initKeyboardHint({ owedGroup, eligible, onVisibleChange, onCapti
       if (state.visible) tick()
     },
     dismiss() {
+      rememberDismissed()
       clearTimeout(waiting)
       dispatch({ type: 'dismiss' })
     },
