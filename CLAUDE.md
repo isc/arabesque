@@ -74,6 +74,13 @@ Both passed alone and failed under load, which is the signature: if a test only
 ever fails on CI, suspect a race with something the page does after `visit`,
 not the runner being slow.
 
+A browser test also fails on any JavaScript error its pages threw and nothing
+caught — the `uncaught` and `unhandled rejection` entries of the app's own
+error log (`public/js/errorLog.js`), read in `after_teardown`. A thrown error
+reaches no assertion by itself: an empty list reads the same as one never
+drawn. A test that throws on purpose names what it allows with
+`allow_page_errors(/…/)`.
+
 PR titles and descriptions must be in English.
 
 ## Branch previews

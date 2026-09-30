@@ -7,6 +7,7 @@ require_relative 'test_helper'
 # the report sent from another page picks it up.
 class FeedbackErrorsTest < CapybaraTestBase
   def test_errors_from_the_page_before_travel_with_a_report_sent_from_the_library
+    allow_page_errors(/TypeError: boom/, /RangeError: lost promise/)
     visit '/practice.html'
     # Through a script element, so they are the page's own: an error thrown
     # from the driver's evaluation would be reported on no script at all.
