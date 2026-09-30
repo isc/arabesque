@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="app-version" content="4852619ff5c0" />
+    <meta name="app-version" content="e9cf335aaf1a" />
     <title data-i18n="score.pageTitle">Arabesque</title>
     <link rel="icon" href="favicon.svg" type="image/svg+xml" />
     <link rel="manifest" href="manifest.webmanifest" />
@@ -197,13 +197,13 @@
         <div data-bpm-field="strictBpm"></div>
         <button
           class="pt-band-button"
-          :aria-pressed="loopEnabled"
+          :aria-pressed="strictPassage.loop"
           :title="$t('score.loopTitle')"
           @click="toggleLoop"
           x-text="$t('score.loopBtn')"
         >🔁 Boucle</button>
         <select
-          x-show="loopEnabled"
+          x-show="strictPassage.loop"
           class="pt-band-select"
           x-model="trainerMode"
           :disabled="isStrictPlaying"
@@ -254,7 +254,7 @@
       <div class="pt-band-controls">
         <button
           class="pt-band-button"
-          :aria-pressed="trainingLoop"
+          :aria-pressed="trainingPassage.loop"
           :title="$t('score.trainingLoopTitle')"
           @click="toggleTrainingLoop"
           x-text="$t('score.loopBtn')"
@@ -354,7 +354,7 @@
           <!-- Training: what came out clean. No ranking: a drill is not a
                playthrough, and previousPlaythroughs holds the last free run's. -->
           <template x-if="resultMode === 'training'">
-            <p class="pt-modal-note" x-text="trainingDoneText()">Vous avez complété toutes les mesures du morceau.</p>
+            <p class="pt-modal-note" x-text="resultTrainingText">Vous avez complété toutes les mesures du morceau.</p>
           </template>
 
           <!-- Strict: accuracy + breakdown -->
