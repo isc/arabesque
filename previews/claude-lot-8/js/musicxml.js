@@ -32,6 +32,10 @@ const noteMarks = new Map() // Map<fingeringKey, Set<class>>
 let legacyKeyMap = new Map()
 let currentMeasureIndex = 0
 let trainingMode = false
+// Clean repetitions that fill a drill's dots: a passage's in training, a
+// measure's in reinforcement. As many as the streak that retires a measure
+// from the suggestions (REINFORCEMENT_CLEAN_STREAK), but not the same rule:
+// a spoiled repetition here leaves the dots already filled.
 let targetRepeatCount = 3
 let repeatCount = 0
 // Whether the traversal of the passage under way is still flawless — one
@@ -159,6 +163,21 @@ export function initMusicXML() {
     getAllNotes: () => allNotes,
     repaintNoteMarks,
     getOwedGroup: owedGroup,
+    // The name the catalog gives the score (app.js), put over what the file
+    // says of itself for the sheet's next draw. A label the catalog leaves
+    // empty goes, with whatever the file's credits had put in it.
+    nameSheet: ({ title, subtitle, composer, arranger }) => {
+      const sheet = osmdInstance?.Sheet
+      if (!sheet) return
+      sheet.TitleString = title
+      sheet.ComposerString = composer
+      if (subtitle) sheet.SubtitleString = subtitle
+      else sheet.Subtitle = undefined
+      // Drawn at the top left, where OSMD puts a lyricist: it has no place
+      // for an arranger.
+      if (arranger) sheet.LyricistString = `Arr. ${arranger}`
+      else sheet.Lyricist = undefined
+    },
     getScoreMetadata: () => ({
       title: osmdInstance?.Sheet?.Title?.text || null,
       composer: osmdInstance?.Sheet?.Composer?.text || null,

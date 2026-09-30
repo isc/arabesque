@@ -6,9 +6,10 @@
 // Read once per page, and again after a read that failed. `byUrl` holds the
 // rule's answer for every listed file: the entry listing it (the
 // collection's, for a part), its place among the parts, and its name — a part
-// goes by its own title, under its collection's composer. That name is the
-// one the library and the journal show, whatever the file itself says: the
-// two disagree on a quarter of the catalog.
+// goes by its own title, under its collection's composer — with the subtitle
+// and arranger the head of the sheet carries. That name is the one the page
+// shows everywhere, whatever the file itself says: the two disagreed on most
+// of the catalog.
 let catalog = null
 
 export function loadCatalog() {
@@ -39,8 +40,8 @@ export function fileUrl({ baseUrl }, file) {
 function indexByUrl(data) {
   const byUrl = new Map()
   for (const score of data.scores) {
-    partsOf(score).forEach(({ title, file }, index) => {
-      byUrl.set(fileUrl(data, file), { score, index, name: { title, composer: score.composer } })
+    partsOf(score).forEach(({ title, file, subtitle = null, arranger = score.arranger ?? null }, index) => {
+      byUrl.set(fileUrl(data, file), { score, index, name: { title, composer: score.composer, subtitle, arranger } })
     })
   }
   return byUrl

@@ -48,6 +48,17 @@ export function headerMenu() {
       this.menuOpen = false
     },
 
+    // Escape, on either page: the menu first, then a modal it opened, one a
+    // press. Says whether it closed anything, so that a page hands the key on
+    // to its own modals only when it did not.
+    closeMenuLayer() {
+      if (this.menuOpen) this.closeMenu()
+      else if (this.showChangelogModal) this.showChangelogModal = false
+      else if (this.showFeedbackModal) this.closeFeedback()
+      else return false
+      return true
+    },
+
     // --- Install (Android / desktop Chrome) ---
     // Read once here for the value the menu is built with; the binding on the
     // anchor below keeps it current. See installPrompt.js for the timing.
@@ -274,8 +285,8 @@ const MODALS_HTML = `
   </article>
 </dialog>`
 
-// Inject the shared chrome. Must run BEFORE Alpine boots (so it processes the
-// x-* bindings) and before initAlpineI18n() (so the FR/EN buttons get wired).
+// Inject the shared chrome, as one of the mounts startAlpine() runs first
+// (alpineBoot.js): Alpine has to find its bindings, and i18n its FR/EN buttons.
 export function mountHeaderMenu() {
   const slot = document.querySelector('[data-menu-slot]')
   if (slot) slot.outerHTML = TRIGGER_HTML
