@@ -122,10 +122,46 @@ class CapybaraTestBase < Minitest::Test
   # emulated media, the clock it drove, the scripts it planted — so nothing
   # rides along into the next test of the worker. So are the downloads, whose
   # names can overlap from one test to the next.
+  #
+  # And the test fails on a JavaScript error no page caught, whatever it was
+  # asserting: nothing else would notice one. A thrown error reaches no
+  # assertion — a list the page drew empty reads the same as a list it never
+  # drew — and it is how a refactor left the tempo trainer's run lines blank
+  # while every test passed. The app's own log (errorLog.js) has them, from
+  # every page of the test, kept from before any other script runs.
   def after_teardown
+    uncaught = uncaught_page_errors
     Capybara.reset_sessions!
     FileUtils.rm_f(Dir.glob(File.join(DOWNLOAD_DIR, '*')))
     super
+    flunk "The page threw, and nothing caught it:\n#{uncaught.join("\n")}" if uncaught.any?
+  end
+
+  # Errors a test causes on purpose, by message: the check above passes them.
+  def allow_page_errors(*patterns)
+    (@allowed_page_errors ||= []).concat(patterns)
+  end
+
+  # What the pages of this test threw and nobody caught — errorLog.js's
+  # 'uncaught' and 'unhandled rejection' entries — but those the test allows.
+  # Nothing to read on a page that never loaded the app, or a session already
+  # gone with a failure of its own: the failure says more than this would.
+  def uncaught_page_errors
+    entries = page.evaluate_script(<<~JS)
+      (() => {
+        try {
+          return JSON.parse(sessionStorage.getItem(#{js_constant('errorLog.js', 'RECENT_ERRORS_KEY')}) ?? '[]')
+        } catch {
+          return []
+        }
+      })()
+    JS
+    entries
+      .select { |entry| ['uncaught', 'unhandled rejection'].include?(entry['where']) }
+      .map { |entry| [entry['message'], *entry['stack']].compact.first(3).join("\n    ") }
+      .reject { |message| (@allowed_page_errors || []).any? { |pattern| pattern.match?(message) } }
+  rescue StandardError
+    []
   end
 
   # Poll until the block returns something truthy, and return it — or fail
