@@ -4,11 +4,12 @@
 // Only sessions are written; the app then recomputes its own aggregates from
 // them, so the statuses on screen are whatever the real rules make of this
 // history rather than values written by hand. Those rules are STATUS_THRESHOLDS
-// in practiceTracker.js, applied by computeScoreStatus(); this file logs them at
+// in aggregates.js, applied by computeScoreStatus(); this file logs them at
 // seed time rather than restating them, so a capture run always shows the bar
 // the profiles below are being matched against.
 import { initStorage } from './js/storage.js'
-import { initPracticeTracker, STATUS_THRESHOLDS } from './js/practiceTracker.js'
+import { initPracticeTracker } from './js/practiceTracker.js'
+import { STATUS_THRESHOLDS } from './js/aggregates.js'
 import { importBackup } from './js/sync.js'
 import { LANG_KEY } from './js/i18n.js'
 

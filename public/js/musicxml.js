@@ -12,7 +12,7 @@ import { scrollSystemIntoView, isUnderStickyBars } from './utils.js'
 import { arrayBufferToXml, isMusicXml } from './mxlLoader.js'
 import { stripPlaybackTempoMarks } from './tempoMarks.js'
 import { recordError } from './errorLog.js'
-import { REINFORCEMENT_CLEAN_PASSES } from './practiceTracker.js'
+import { REINFORCEMENT_CLEAN_PASSES } from './reinforcement.js'
 
 // The score on the stand: the sheet OSMD holds, and the note model built from
 // it. Replaced as a sheet comes in (renderMusicXML) and as it is drawn
@@ -67,7 +67,7 @@ const heldMidiNotes = new Set()
 
 // Clean repetitions that fill a drill's dots: a passage's in training, a
 // measure's in reinforcement. A spoiled repetition leaves the dots already
-// filled, and the suggestions count a drill the same way (practiceTracker.js).
+// filled, and the suggestions count a drill the same way (reinforcement.js).
 const targetRepeatCount = REINFORCEMENT_CLEAN_PASSES
 
 // Training mode, the passage it works and the dots it fills. Reinforcement is

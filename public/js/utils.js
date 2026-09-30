@@ -143,12 +143,14 @@ export function withRunKind(text, { hands, strict }) {
   return withHands(strict ? `${text} · ${t('score.strictRuns')}` : text, hands)
 }
 
-// The strict band's passage line, from the first and last bar of the loop. A
-// one-bar passage is a range only on paper: "boucle des mesures 6 à 6" is how
-// a computer counts, not how a pianist says it (feedback 506f2060). The number
-// of bars picks the wording, so each language says the single one its own way.
-export function loopRangeText(from, to) {
-  return tn('score.loopRange', to - from + 1, { from, to })
+// A passage's line under `key`, from its first and last bar (indices in, bar
+// numbers out): the strict loop's, the training band's, the training result's.
+// A one-bar passage is a range only on paper: "boucle des mesures 6 à 6" is
+// how a computer counts, not how a pianist says it (feedback 506f2060). The
+// number of bars picks the wording, so each language says the single one its
+// own way.
+export function passageText(key, { start, end }, vars = {}) {
+  return tn(key, end - start + 1, { ...vars, from: start + 1, to: end + 1 })
 }
 
 export function statusLabel(status) {
@@ -184,6 +186,14 @@ export function formatDate(date) {
   return formatVerboseDate(date)
 }
 
+// A passage picked on the score, the same in the strict and training bands:
+// where it starts, where it ends (null: none picked yet), whether the next
+// click at or after the start closes it (`armed`), and whether 🔁 is on, which
+// is what arms it. What a new passage does to the engine is each mode's own.
+export function passage(start) {
+  return { start, end: null, armed: false, loop: false }
+}
+
 // Where a bar clicked lands when a passage is being picked by its two ends. The
 // first click says where the passage starts and arms the second; a click at or
 // after it then says where it ends. Anything else — a click before the start,
@@ -192,7 +202,7 @@ export function formatDate(date) {
 // Strict mode's loop and training mode's passage are picked with exactly this
 // gesture, so it is written once: `armed` is only ever raised while the mode
 // offers an end to pick, which is what `loop` carries into the next click.
-export function pickPassageMeasure({ measureIndex, start, armed, loop }) {
+export function pickPassageMeasure(measureIndex, { start, armed, loop }) {
   if (armed && measureIndex >= start) return { start, end: measureIndex, armed: false }
   return { start: measureIndex, end: null, armed: loop }
 }
