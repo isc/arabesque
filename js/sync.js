@@ -21,7 +21,7 @@
 // practiceTracker) so it stays page-agnostic.
 import { currentProfileId, listProfiles, mergeProfiles, scopedKey } from './profiles.js'
 import { NEVER_SYNCED } from './storage.js'
-import { knownNames } from './practiceTracker.js'
+import { knownNames } from './aggregates.js'
 
 // Per profile: the throttle in autoSync.js reads it, and a profile just
 // switched to has its own catching up to do.
@@ -178,7 +178,6 @@ export async function runSync({ supabase, storage, practiceTracker, userId = nul
     // sync hundreds of transactions in a row.
     pulled += await storage.importSessions(rows.map((row) => row.data))
   }
-  if (await correctAugust27Run(storage)) pulled++
 
   // --- Fingerings ---
   const { fingeringsPushed, fingeringsPulled } = await syncFingerings({ supabase, storage, uid, profileId, remoteStamps: stampsRead.data })
@@ -188,20 +187,6 @@ export async function runSync({ supabase, storage, practiceTracker, userId = nul
 
   setLastSync(new Date().toISOString(), profileId)
   return { pushed: toPush.length, pulled, fingeringsPushed, fingeringsPulled, profilesChanged }
-}
-
-// One-off, to be removed once every device has synced: a right-hand run of the
-// Prelude No. 2 on 27 August 2026 was recorded as two hands. The server copy is
-// fixed by hand, but a union by id never reads again a session a device holds,
-// so each device fixes its own copy the same way. True when it changed it.
-const AUGUST_27_RUN = '1787823211947-4nl20rx'
-async function correctAugust27Run(storage) {
-  const session = await storage.getSession(AUGUST_27_RUN)
-  const attempts = session?.measures?.flatMap((m) => m.attempts) ?? []
-  if (!attempts.some((a) => !a.hands)) return false
-  for (const a of attempts) a.hands = 'right'
-  await storage.saveSession(session)
-  return true
 }
 
 // A score's fingerings travel as one record, and each side used to replace the

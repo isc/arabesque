@@ -56,9 +56,9 @@ export default {
   },
   // Ce que sélectionne le filtre en cours, sous la liste filtrée de la
   // bibliothèque. Les nombres viennent des constantes que les règles elles-mêmes
-  // appliquent : STATUS_THRESHOLDS, la fenêtre de renforcement, les seuils des
-  // mesures qui accrochent (HOT_SPOT_*) et le plancher de
-  // pratique (practiceTracker.js), et STALE_DAYS (library.js).
+  // appliquent : STATUS_THRESHOLDS et le plancher de pratique
+  // (aggregates.js), la fenêtre de renforcement et les seuils des mesures
+  // qui accrochent (HOT_SPOT_*, reinforcement.js), et STALE_DAYS (library.js).
   criteria: {
     filterHeading: 'Ce que sélectionne {filter}',
     reinforceHotSpot: 'Une mesure ratée au moins {factor} fois plus souvent que la moyenne du morceau, sur ses {n} dernières séances',

@@ -48,3 +48,6 @@ export function daysBetween(from, to) {
 // Dates per comparison was most of the cost of a call that runs at every
 // measure boundary.
 export const byStartedAt = (a, b) => (a.startedAt < b.startedAt ? -1 : a.startedAt > b.startedAt ? 1 : 0)
+
+// The day a session counts for: the one it started on, where the player is.
+export const sessionDay = (session) => localDayKey(session.startedAt)

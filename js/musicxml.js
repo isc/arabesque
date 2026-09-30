@@ -12,7 +12,7 @@ import { scrollSystemIntoView, isUnderStickyBars } from './utils.js'
 import { arrayBufferToXml, isMusicXml } from './mxlLoader.js'
 import { stripPlaybackTempoMarks } from './tempoMarks.js'
 import { recordError } from './errorLog.js'
-import { REINFORCEMENT_CLEAN_PASSES } from './practiceTracker.js'
+import { REINFORCEMENT_CLEAN_PASSES } from './reinforcement.js'
 
 let osmdInstance = null
 let allNotes = []
@@ -35,7 +35,7 @@ let currentMeasureIndex = 0
 let trainingMode = false
 // Clean repetitions that fill a drill's dots: a passage's in training, a
 // measure's in reinforcement. A spoiled repetition leaves the dots already
-// filled, and the suggestions count a drill the same way (practiceTracker.js).
+// filled, and the suggestions count a drill the same way (reinforcement.js).
 const targetRepeatCount = REINFORCEMENT_CLEAN_PASSES
 let repeatCount = 0
 // Whether the traversal of the passage under way is still flawless — one
