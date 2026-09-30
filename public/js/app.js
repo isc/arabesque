@@ -4,7 +4,7 @@ import { initFingeringEditor } from './fingeringEditor.js'
 import { fingeringPad } from './fingeringPad.js'
 import { initPracticeTracker } from './practiceTracker.js'
 import { TWO_HANDS, handsKey } from './hands.js'
-import { formatDuration, formatDate, applyStickyOffset, scorePageUrl, onForeground, withHands, pickPassageMeasure, loopRangeText } from './utils.js'
+import { formatDuration, formatDate, applyStickyOffset, scorePageUrl, onForeground, withHands, passage, pickPassageMeasure, passageText } from './utils.js'
 import { initStorage } from './storage.js'
 import { loadMxlAsXml } from './mxlLoader.js'
 import { injectFingerings } from './fingeringInjector.js'
@@ -23,15 +23,6 @@ import { t, tn } from './i18n.js'
 import { recordError } from './errorLog.js'
 import { loadCatalog, fileUrl, isCollection } from './catalog.js'
 import { playthroughCharts, withRunLines, hotMeasures } from './playthroughHistory.js'
-
-// A passage picked on the score, the same in the strict and training bands:
-// where it starts, where it ends (null: none picked yet), whether the next
-// click at or after the start closes it (`armed`), and whether 🔁 is on, which
-// is what arms it. The click itself is pickPassageMeasure's (utils.js); what a
-// new passage does to the engine is each mode's own.
-function passage(start) {
-  return { start, end: null, armed: false, loop: false }
-}
 
 // What the strict and training bands say once a passage's first bar is picked
 // and its last is awaited: to click that bar, while a click would reach the
@@ -146,11 +137,8 @@ export function midiApp() {
     ...headerMenu(),
     ...fingeringPad({ storage, fingeringEditor }),
     ...bpmField(),
-    ...resultModal({
-      // The next run starts as the piece did (feedback b7682019).
-      onOpen: () => keyHint.restart(),
-      repetitions: () => musicxml.getTrainingState().targetRepeatCount,
-    }),
+    // The next run starts as the piece did (feedback b7682019).
+    ...resultModal({ onOpen: () => keyHint.restart() }),
     bluetoothConnected: false,
     midiDeviceName: null,
     osmdInstance: null,
@@ -180,15 +168,14 @@ export function midiApp() {
     // The passage strict runs play: where a run starts — null while nobody
     // has picked a measure, which tells the marker on the score apart from a
     // run from the top, which needs none; a run reads it as `?? 0` — and where
-    // it ends, null for the end of the score. See `passage` above.
+    // it ends, null for the end of the score. See `passage` (utils.js).
     strictPassage: passage(null),
     strictBpm: BPM_DEFAULT,
     // The tempo trainer: strict runs of the passage in a loop, the tempo moving
     // between runs (see tempoTrainer.js). Armed by the loop button
     // (strictPassage.loop) in place of a single run.
     trainerMode: GRADUATED,
-    // What the band says about the loop under way, and what the result modal
-    // says once it is over.
+    // What the band says about the loop under way.
     trainerStatus: null,
     // Training mode works a passage: one measure by default — the measure
     // clicked, the work moving on down the score once its three dots are
@@ -386,7 +373,7 @@ export function midiApp() {
           await this.refreshReinforcementSuggestions()
         },
         onTrainingComplete: async () => {
-          this.openResultModal('training')
+          this.showTrainingDone(this.trainingPassage, musicxml.getTrainingState().targetRepeatCount)
           await rollSession(this.currentMode)
         },
         onMeasureStarted: (sourceMeasureIndex, startsPlaythrough) => {
@@ -861,12 +848,11 @@ export function midiApp() {
     finishSingleRun(result) {
       this.isStrictPlaying = false
       this.paintStrictRange()
-      this.strictResult = result.verdict
       if (result.aborted) return
       // A clean finish resets the start point so the next ▶ replays from
       // the top; aborted runs keep it for retry from the same spot.
       this.resetStrictRange()
-      this.openResultModal('strict')
+      this.showStrictResult(result.verdict)
     },
 
     // Runs the passage in a loop until ⏸, the plan moving the tempo between
@@ -887,8 +873,7 @@ export function midiApp() {
       this.isStrictPlaying = false
       this.paintStrictRange()
       this.trainerStatus = null
-      this.trainerSummary = { ...summary, runs: plan.runs }
-      this.openResultModal('trainer')
+      this.showTrainerSummary({ ...summary, runs: plan.runs })
       await strictRunRecorded
       await this.settleStrictRuns()
     },
@@ -978,8 +963,12 @@ export function midiApp() {
     // The page's side of the passage only. The engine clears its own whenever
     // it is handed a mode — entering training, or being given a reinforcement
     // list — so pushing this one back at it would only jump the cursor around.
+    //
+    // 🔁 goes off with it, where leaving strict mode keeps strict's armed: there
+    // it switches single runs for the tempo trainer, a way of playing kept
+    // across modes, while here it only says the next click closes a passage.
     resetTrainingRange() {
-      this.trainingPassage = passage(0)
+      Object.assign(this.trainingPassage, passage(0))
     },
 
     // What the training band says: what has to come out clean, and — while a
@@ -992,11 +981,8 @@ export function midiApp() {
       // listening takes it over (see barClickOwner).
       const clickIsTraining = this.barClickOwner === 'training'
       if (this.trainingPassage.armed) return armedRangeText(from, clickIsTraining)
-      if (this.trainingPassage.end != null) {
-        const to = this.trainingPassage.end + 1
-        // A passage of one bar is allowed, and "bars 5 to 5" is not a sentence.
-        return tn('score.trainingPassage', to - from + 1, { from, to, times })
-      }
+      // A passage of one bar is allowed, and "bars 5 to 5" is not a sentence.
+      if (this.trainingPassage.end != null) return passageText('score.trainingPassage', this.trainingPassage, { times })
       if (this.trainingPassage.loop && clickIsTraining) return t('score.loopHint')
       return t('score.trainingHint', { times })
     },
@@ -1025,7 +1011,9 @@ export function midiApp() {
         return clickIsStrict ? t('score.strictHint') : ''
       }
       if (this.strictPassage.armed) return armedRangeText(from, clickIsStrict)
-      if (this.strictPassage.end != null) return loopRangeText(from, this.strictPassage.end + 1)
+      if (this.strictPassage.end != null) {
+        return passageText('score.loopRange', { start: this.strictPassage.start ?? 0, end: this.strictPassage.end })
+      }
       if (from > 1) return t('score.loopRangeOpen', { from })
       return clickIsStrict ? t('score.loopHint') : ''
     },
@@ -1180,7 +1168,6 @@ export function midiApp() {
 
     formatDate,
     formatDuration,
-
 
     // Every redraw replaces the SVG, taking with it everything painted on it:
     // note colours, fingering handlers, the training cursor, the strict marker,

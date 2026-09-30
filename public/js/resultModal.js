@@ -1,12 +1,13 @@
 // The result modal: one dialog for every end — a piece played through, a
 // training passage or a reinforcement done, a strict run, a tempo trainer's
 // loop — its body switching on `resultMode`. A mixin the score page's
-// component spreads (app.js), as it does headerMenu(). The component sets
-// what a strict run or a loop reports (strictResult, trainerSummary) before
-// opening the modal, and provides trainingPassage.
-import { t, tn } from './i18n.js'
+// component spreads (app.js), as it does headerMenu(). It reads nothing of the
+// component's: each end hands over what the modal reports, through the show…
+// method made for it (openResultModal('reinforcement') for the one with
+// nothing to report).
+import { t } from './i18n.js'
 import { TWO_HANDS } from './hands.js'
-import { withHands } from './utils.js'
+import { withHands, passageText } from './utils.js'
 import { CLEAN_RATE } from './tempoTrainer.js'
 import {
   strictAccuracy,
@@ -17,9 +18,8 @@ import {
   playthroughChartSvg,
 } from './playthroughHistory.js'
 
-// `onOpen` runs as the modal opens; `repetitions()` is how many clean runs a
-// training passage takes, which its line quotes.
-export function resultModal({ onOpen, repetitions }) {
+// `onOpen` runs as the modal opens.
+export function resultModal({ onOpen }) {
   return {
     showResultModal: false,
     resultMode: null,
@@ -32,9 +32,11 @@ export function resultModal({ onOpen, repetitions }) {
     resultChart: '',
     resultWrongMeasures: '',
     resultHands: TWO_HANDS,
-    // A strict run's verdict, and a tempo trainer's summary.
+    // A strict run's verdict, a tempo trainer's summary, a training passage's
+    // line.
     strictResult: null,
     trainerSummary: null,
+    resultTrainingText: '',
 
     // `allPlaythroughs` comes most recent first (getAllPlaythroughs).
     showScoreComplete(allPlaythroughs) {
@@ -43,6 +45,25 @@ export function resultModal({ onOpen, repetitions }) {
       this.resultWrongMeasures = wrongMeasuresText(allPlaythroughs[0]?.wrongMeasures ?? [])
       this.resultHands = this.previousPlaythroughs[0]?.hands ?? TWO_HANDS
       this.openResultModal('free')
+    },
+
+    showStrictResult(verdict) {
+      this.strictResult = verdict
+      this.openResultModal('strict')
+    },
+
+    showTrainerSummary(summary) {
+      this.trainerSummary = summary
+      this.openResultModal('trainer')
+    },
+
+    // Which passage came out clean, `times` clean runs through, or that the
+    // score itself is done (a single measure walking down it: no `end`).
+    showTrainingDone({ start, end }, times) {
+      this.resultTrainingText = end == null
+        ? t('score.trainingDone')
+        : passageText('score.trainingPassageDone', { start, end }, { times })
+      this.openResultModal('training')
     },
 
     openResultModal(mode) {
@@ -73,14 +94,6 @@ export function resultModal({ onOpen, repetitions }) {
 
     // Beside a run's time in the ranking.
     wrongNotesText,
-
-    // When training ends: which passage came out clean, or that the score
-    // itself is done.
-    trainingDoneText() {
-      const { start, end } = this.trainingPassage
-      if (end == null) return t('score.trainingDone')
-      return tn('score.trainingPassageDone', end - start + 1, { from: start + 1, to: end + 1, times: repetitions() })
-    },
 
     strictAccuracyPercent() {
       return this.strictResult ? strictAccuracy(this.strictResult) : 0
