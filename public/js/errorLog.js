@@ -24,7 +24,7 @@
 // older than MAX_AGE_MS.
 
 // legacyKeys.js owns this prefix; inlined rather than imported, see above.
-const STORAGE_KEY = 'arabesque:recent-errors'
+export const RECENT_ERRORS_KEY = 'arabesque:recent-errors'
 
 export const MAX_ENTRIES = 10
 export const MAX_AGE_MS = 60 * 60 * 1000
@@ -48,7 +48,7 @@ let unstored = []
 
 function load() {
   try {
-    const list = JSON.parse(sessionStorage.getItem(STORAGE_KEY))
+    const list = JSON.parse(sessionStorage.getItem(RECENT_ERRORS_KEY))
     if (Array.isArray(list)) return list
   } catch {
     /* unavailable or garbled: what this page kept is all there is */
@@ -59,11 +59,11 @@ function load() {
 function save(list) {
   unstored = list
   try {
-    sessionStorage.setItem(STORAGE_KEY, JSON.stringify(list))
+    sessionStorage.setItem(RECENT_ERRORS_KEY, JSON.stringify(list))
   } catch {
     // Full, say: drop the stored copy, or load() would keep answering with it.
     try {
-      sessionStorage.removeItem(STORAGE_KEY)
+      sessionStorage.removeItem(RECENT_ERRORS_KEY)
     } catch {
       /* no storage at all */
     }

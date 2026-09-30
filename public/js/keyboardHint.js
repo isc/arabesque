@@ -99,7 +99,7 @@ export function hintStep(state, event) {
 }
 
 const A0 = 21
-const C8 = 108
+export const C8 = 108
 const MIDDLE_C = 60
 const BLACK_PITCH_CLASSES = new Set([1, 3, 6, 8, 10])
 const isBlackKey = (midi) => BLACK_PITCH_CLASSES.has(midi % 12)

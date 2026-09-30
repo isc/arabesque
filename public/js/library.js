@@ -12,7 +12,7 @@ import {
   REINFORCEMENT_CLEAN_STREAK,
 } from './practiceTracker.js'
 import { initStorage } from './storage.js'
-import { formatDuration, formatDate, formatRelativeDate, statusLabel, scorePageUrl, searchWords, matchesSearch } from './utils.js'
+import { formatDate, formatRelativeDate, statusLabel, scorePageUrl, searchWords, matchesSearch } from './utils.js'
 import { journalEntryHelpers } from './journalEntries.js'
 import { PERIODS, periodLabel, getPeriodForComposer } from './musicalPeriods.js'
 import { headerMenu } from './headerMenu.js'
@@ -728,10 +728,10 @@ export function libraryApp() {
       return parts.join(' · ')
     },
 
-    formatDuration,
     formatDate,
     statusLabel,
-    scorePageUrl,
+    // scorePageUrl and formatDuration among them, which the page's own
+    // markup calls too.
     ...journalEntryHelpers,
 
     // Enriches the shared feedback submission (see headerMenu) with aggregate,

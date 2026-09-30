@@ -1,10 +1,13 @@
 import { describe, it, expect, vi } from 'vitest'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 // screenshot.js only reaches for `document` inside its functions, so it imports
 // cleanly in node; each test stubs the globals the call it makes needs.
 import {
   captureViewport,
   encode,
   isXmlName,
+  MAX_CHARS,
   outputSize,
   stickyOffsets,
   touchesViewport,
@@ -52,6 +55,14 @@ describe('encode', () => {
 
   it('sends nothing rather than something outsized', () => {
     expect(encode(canvas(() => 10_000), { maxChars: 100, type: 'image/webp' })).toBeNull()
+  })
+
+  // The feedback table refuses a longer picture, and the whole report with it:
+  // what the capture encodes against has to fit under what the table checks.
+  it('encodes under the ceiling the feedback table checks', () => {
+    const sql = readFileSync(join(import.meta.dirname, '..', '..', 'supabase', 'feedback.sql'), 'utf8')
+    const ceiling = Number(sql.match(/length\(screenshot\) <= (\d+)/)[1])
+    expect(MAX_CHARS).toBeLessThanOrEqual(ceiling)
   })
 })
 

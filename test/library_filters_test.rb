@@ -79,11 +79,7 @@ class LibraryFiltersTest < CapybaraTestBase
     select 'Romantique', from: 'Filtrer par période musicale', match: :first
     assert_current_path %r{\?.*period=romantique}
 
-    composers = all('tbody tr td:nth-child(2)').map(&:text).uniq
-    refute_empty composers
-    composers.each do |c|
-      refute_match(/Bach|Mozart|Debussy|Traditionnel/, c, "Expected only Romantic composers, got #{c}")
-    end
+    assert_equal ['romantique'], shown_periods.uniq
   end
 
   def test_period_filter_persists_via_url_param
@@ -95,8 +91,7 @@ class LibraryFiltersTest < CapybaraTestBase
     assert_selector 'tbody tr', minimum: 1
     assert_no_selector 'tbody tr td:nth-child(2)', text: /Mozart|Debussy|Chopin/
 
-    composers = all('tbody tr td:nth-child(2)').map(&:text).uniq
-    composers.each { |c| assert_match(/Bach|Pachelbel|Petzold|Handel/, c) }
+    assert_equal ['baroque'], shown_periods.uniq
   end
 
   # The numbers asserted here are STATUS_THRESHOLDS (practiceTracker.js), which
@@ -359,6 +354,17 @@ class LibraryFiltersTest < CapybaraTestBase
 
   private
 
+  # The period of each composer the table shows, as the library files them
+  # (musicalPeriods.js): a list of names written here would have to follow
+  # every score the catalog gains.
+  def shown_periods
+    composers = all('tbody tr td:nth-child(2)').map(&:text).uniq
+    page.evaluate_async_script(<<~JS, composers)
+      const [composers, done] = arguments;
+      import('/js/musicalPeriods.js').then(({ getPeriodForComposer }) => done(composers.map(getPeriodForComposer)));
+    JS
+  end
+
   # The redraw the app runs on waking up the next day (dayRollover.js), pulled
   # through the one trigger a test can fire without a day going by: a restore
   # from the back/forward cache calls the same refreshPracticeViews().
@@ -366,8 +372,8 @@ class LibraryFiltersTest < CapybaraTestBase
     page.execute_script("window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true }))")
   end
 
-  # practiceTracker.js's MIN_PRACTICE_MS_FOR_STATUS, the floor under every status.
-  MIN_PRACTICE_MS = 60_000
+  # The floor under every status.
+  MIN_PRACTICE_MS = Integer(js_constant('practiceTracker.js', 'MIN_PRACTICE_MS_FOR_STATUS'))
   BALLADE = 'scores/Chopin_-_Ballade_no._1_in_G_minor_Op._23.mxl'
   PRELUDE = 'scores/Prlude_No._4_in_E_Minor_Op._28_-_Frdric_Chopin.mxl'
   NOCTURNE_20 = 'scores/Nocturne_No._20_in_C_sharp_Minor.mxl'

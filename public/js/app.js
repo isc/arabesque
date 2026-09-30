@@ -11,8 +11,8 @@ import { injectFingerings } from './fingeringInjector.js'
 import { migrateFingeringRecord } from './fingeringKeys.js'
 import { initPlayback, getBPM } from './playback.js'
 import { initStrictPlaythrough } from './strictPlaythrough.js'
-import { initKeyboardHint } from './keyboardHint.js'
-import { createTempoPlan, createTempoTrainer, GRADUATED, BPM_STEP, STREAK } from './tempoTrainer.js'
+import { initKeyboardHint, C8 } from './keyboardHint.js'
+import { createTempoPlan, createTempoTrainer, GRADUATED, BPM_STEP, STREAK, CLEAN_RATE } from './tempoTrainer.js'
 import { stepBpm, holdToRepeat, BPM_MIN, BPM_MAX, BPM_DEFAULT } from './bpmStepper.js'
 import { headerMenu } from './headerMenu.js'
 import { initAutoSync, triggerSync } from './autoSync.js'
@@ -379,7 +379,7 @@ export function midiApp() {
       midiReady = midi.connectMIDI({ silent: true, autoSelectFirst: true })
         .then(() => this.syncMidiState())
 
-      const NAVIGATE_BACK_KEY = 108 // C8 - highest piano key (less jarring sound)
+      const NAVIGATE_BACK_KEY = C8 // the highest piano key: the least jarring sound
 
       midi.setCallbacks({
         onNotePlayed: (midiNote) => {
@@ -1225,11 +1225,14 @@ export function midiApp() {
       return this.strictResult ? strictAccuracy(this.strictResult) : 0
     },
 
-    // How the accuracy is coloured: a good run reads as one. It used to be
-    // the mode's red whatever the figure, which made 94 % look like a fail.
+    // How the accuracy is coloured: a good run reads as one — from the share
+    // of notes in tempo that makes a run clean for the tempo trainer, on the
+    // rate itself rather than the rounded figure. It used to be the mode's red
+    // whatever the figure, which made 94 % look like a fail.
     strictAccuracyClass() {
-      const pct = this.strictAccuracyPercent()
-      return pct >= 90 ? 'is-good' : pct >= 70 ? 'is-fair' : ''
+      const { hit = 0, total = 0 } = this.strictResult ?? {}
+      const rate = total ? hit / total : 0
+      return rate >= CLEAN_RATE ? 'is-good' : rate >= 0.7 ? 'is-fair' : ''
     },
 
     strictOffTempoTotal() {
@@ -1304,13 +1307,12 @@ export function midiApp() {
       keyHint.dismiss()
     },
 
-    // Close whichever modal is currently open when Escape is pressed.
-    // The fingering modal manages its own keyboard handling (digits /
-    // backspace / enter / escape), so it is intentionally not handled here.
+    // Close whichever modal is currently open when Escape is pressed, the
+    // menu's layers first (closeMenuLayer). The fingering modal manages its own
+    // keyboard handling (digits / backspace / enter / escape), so it is
+    // intentionally not handled here.
     handleEscape() {
-      if (this.menuOpen) return this.closeMenu()
-      if (this.showChangelogModal) return (this.showChangelogModal = false)
-      if (this.showFeedbackModal) return this.closeFeedback()
+      if (this.closeMenuLayer()) return
       if (this.showResultModal) return this.closeResultModal()
       if (this.showHistoryModal) return (this.showHistoryModal = false)
       if (this.showMidiHelpModal) return (this.showMidiHelpModal = false)

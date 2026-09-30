@@ -1,8 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { installLocalStorage } from './support/browserGlobals.js'
-
-const PROFILES_KEY = 'arabesque:profiles'
-const MAIN = 'main'
+import { PROFILES_KEY, MAIN_PROFILE_ID as MAIN } from '../../public/js/profiles.js'
 
 // A page: the module reads the profile it is on when it loads.
 async function openPage() {

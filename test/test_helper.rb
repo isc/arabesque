@@ -14,12 +14,21 @@ Capybara.app = App
 # Configure download directory for tests
 DOWNLOAD_DIR = Dir.mktmpdir
 
+# A constant a module of public/js defines, as its source writes it: a test
+# that has to agree with the app on a value reads it from there, where a copy
+# would go on passing after the app's had changed. The literal comes as
+# written — a string with its quotes, to go into a page's script as it is; a
+# number for Integer().
+def js_constant(file, name)
+  File.read(File.expand_path("../public/js/#{file}", __dir__))[/^(?:export )?const #{name} = (.+)$/, 1] or
+    raise "#{name} not found in public/js/#{file}"
+end
+
 # The main profile's database, under the name the app gives it (storage.js).
 # Opened below without a version: the app's own open sets it, and a version
 # written here would break at the app's next upgrade — or, opened before the
 # app, create the database at that version with none of its stores.
-DB_NAME = File.read(File.expand_path('../public/js/storage.js', __dir__))[/const DB_BASE_NAME = '([^']+)'/, 1] or
-          raise 'DB_BASE_NAME not found in public/js/storage.js'
+DB_NAME = js_constant('storage.js', 'DB_BASE_NAME')
 
 Capybara.register_driver(:cuprite) do |app|
   Capybara::Cuprite::Driver.new(
@@ -226,8 +235,8 @@ class CapybaraTestBase < Minitest::Test
       page.evaluate_async_script(<<~JS, store)
         const [store, done] = [arguments[0], arguments[arguments.length - 1]];
         indexedDB.databases().then((dbs) => {
-          if (!dbs.some((d) => d.name === '#{DB_NAME}')) return done(false);
-          const request = indexedDB.open('#{DB_NAME}');
+          if (!dbs.some((d) => d.name === #{DB_NAME})) return done(false);
+          const request = indexedDB.open(#{DB_NAME});
           request.onerror = () => done(false);
           request.onsuccess = () => {
             const present = request.result.objectStoreNames.contains(store);
@@ -456,7 +465,7 @@ class CapybaraTestBase < Minitest::Test
     wait_for_store(store)
     committed = page.evaluate_async_script(<<~JS, store, records)
       const [store, records, done] = [arguments[0], arguments[1], arguments[arguments.length - 1]];
-      const request = indexedDB.open('#{DB_NAME}');
+      const request = indexedDB.open(#{DB_NAME});
       request.onerror = () => done(false);
       request.onsuccess = () => {
         const db = request.result;
@@ -475,10 +484,7 @@ class CapybaraTestBase < Minitest::Test
   # (AGGREGATES_VERSION in practiceTracker.js) — and a row planted with no
   # sessions behind it is replayed into nothing.
   def seed_aggregates(rows)
-    version = page.evaluate_async_script(<<~JS)
-      const done = arguments[arguments.length - 1];
-      import('/js/practiceTracker.js').then((tracker) => done(tracker.AGGREGATES_VERSION));
-    JS
+    version = Integer(js_constant('practiceTracker.js', 'AGGREGATES_VERSION'))
     seed_store('aggregates', rows.map { |row| { rulesVersion: version }.merge(row) })
   end
 
@@ -522,7 +528,7 @@ class CapybaraTestBase < Minitest::Test
   def stored_fingering_record(score_url)
     page.evaluate_async_script(<<~JS, score_url)
       const [scoreUrl, done] = [arguments[0], arguments[arguments.length - 1]];
-      const request = indexedDB.open('#{DB_NAME}');
+      const request = indexedDB.open(#{DB_NAME});
       request.onerror = () => done(null);
       request.onsuccess = () => {
         const db = request.result;
@@ -755,7 +761,7 @@ class CapybaraTestBase < Minitest::Test
   # (public/js/errorLog.js), oldest first.
   def recorded_error_messages
     page.evaluate_script(<<~JS)
-      JSON.parse(sessionStorage.getItem('arabesque:recent-errors') ?? '[]').map((error) => error.message)
+      JSON.parse(sessionStorage.getItem(#{js_constant('errorLog.js', 'RECENT_ERRORS_KEY')}) ?? '[]').map((error) => error.message)
     JS
   end
 
@@ -804,7 +810,7 @@ class CapybaraTestBase < Minitest::Test
       const store = arguments[0];
       window.__recordCount = null;
       const answer = (n) => { window.__recordCount = n };
-      const request = indexedDB.open('#{DB_NAME}');
+      const request = indexedDB.open(#{DB_NAME});
       request.onerror = () => answer(0);
       request.onsuccess = () => {
         const db = request.result;
