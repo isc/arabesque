@@ -1,10 +1,10 @@
 import { initMidi, nativePairingAvailable, openNativePairing } from './midi.js'
 import { initMusicXML } from './musicxml.js'
 import { initFingeringEditor } from './fingeringEditor.js'
+import { fingeringPad } from './fingeringPad.js'
 import { initPracticeTracker } from './practiceTracker.js'
 import { playthroughGroups, TWO_HANDS, handsKey } from './hands.js'
 import { formatDuration, formatDate, applyStickyOffset, scorePageUrl, onForeground, withHands, pickPassageMeasure, loopRangeText } from './utils.js'
-import { noteLabel } from './noteExtraction.js'
 import { initStorage } from './storage.js'
 import { loadMxlAsXml } from './mxlLoader.js'
 import { injectFingerings } from './fingeringInjector.js'
@@ -144,6 +144,7 @@ export function midiApp() {
 
   return {
     ...headerMenu(),
+    ...fingeringPad({ storage, fingeringEditor }),
     bluetoothConnected: false,
     midiDeviceName: null,
     osmdInstance: null,
@@ -270,10 +271,6 @@ export function midiApp() {
     lastRelayoutWidth: null,
 
     fingeringEnabled: false,
-    showFingeringModal: false,
-    selectedNoteKey: null,
-    selectedNoteLabel: '',
-    fingeringSequence: '',
     // The on-screen keyboard (keyboardHint.js): whether it has come up, and the
     // notes it is showing, by name.
     keyHintVisible: false,
@@ -293,7 +290,6 @@ export function midiApp() {
     get keyHintShown() {
       return this.keyHintVisible && this.keyHintContext
     },
-    fingeringKeydownHandler: null,
 
     async init() {
       // The engine says when the transport moves — ⏸, ▶, a seek, a tempo
@@ -1344,75 +1340,6 @@ export function midiApp() {
     wrongNotesText,
     playthroughsSummary,
     chartTitle,
-
-    // Fingering annotation methods
-    setupFingeringHandlers() {
-      if (!this.fingeringEnabled) return
-      fingeringEditor.setupFingeringClickHandlers({
-        onNoteClick: (noteData) => this.openFingeringModal(noteData),
-      })
-    },
-
-    openFingeringModal(noteData) {
-      this.selectedNoteKey = noteData.fingeringKey
-      // A click resolves to one notehead, chord or not, so the pad's title names
-      // a single note.
-      this.selectedNoteLabel = noteLabel(noteData)
-      this.fingeringSequence = ''
-      this.showFingeringModal = true
-
-      this.fingeringKeydownHandler = (e) => {
-        if (e.key >= '1' && e.key <= '5') {
-          e.preventDefault()
-          this.appendFinger(parseInt(e.key, 10))
-        } else if (e.key === 'Backspace') {
-          e.preventDefault()
-          this.fingeringSequence = this.fingeringSequence.slice(0, -1)
-        } else if (e.key === 'Enter') {
-          e.preventDefault()
-          this.validateFingering()
-        } else if (e.key === 'Escape') {
-          this.closeFingeringModal()
-        }
-      }
-      document.addEventListener('keydown', this.fingeringKeydownHandler)
-    },
-
-    appendFinger(digit) {
-      this.fingeringSequence += digit
-    },
-
-    closeFingeringModal() {
-      this.showFingeringModal = false
-      document.removeEventListener('keydown', this.fingeringKeydownHandler)
-    },
-
-    async validateFingering() {
-      if (!this.fingeringSequence) return
-      await this.selectFingering(parseInt(this.fingeringSequence, 10))
-    },
-
-    // The pad closes last, once the fingering is stored and drawn: its closing
-    // is what says the entry is done (the browser tests wait on it).
-    async selectFingering(finger) {
-      await storage.setFingering(this.scoreUrl, this.selectedNoteKey, finger)
-
-      // Try to update SVG directly if fingering already exists (instant update)
-      if (!fingeringEditor.updateFingeringSVG(this.selectedNoteKey, finger)) {
-        // No existing SVG: inject into OSMD's data model and do a light re-render
-        // (skips XML fetch/parse/load — just layout recalc + SVG redraw)
-        fingeringEditor.addFingeringToDataModel(this.selectedNoteKey, finger)
-        this.rerenderScore()
-      }
-      this.closeFingeringModal()
-    },
-
-    async removeFingering() {
-      await storage.removeFingering(this.scoreUrl, this.selectedNoteKey)
-      fingeringEditor.removeFingeringFromDataModel(this.selectedNoteKey)
-      this.rerenderScore()
-      this.closeFingeringModal()
-    },
 
     // Every redraw replaces the SVG, taking with it everything painted on it:
     // note colours, fingering handlers, the training cursor, the strict marker,
