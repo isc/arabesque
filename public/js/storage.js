@@ -116,6 +116,19 @@ async function openDatabase(name) {
         const store = database.createObjectStore(name, { keyPath })
         for (const index of indexes) store.createIndex(index, index, { unique: false })
       }
+      // A page left while its upgrade is still running can be frozen into the
+      // back/forward cache with the upgrade half done, and Chrome keeps every
+      // later open of the database waiting behind it — no blocked event, no
+      // error, forever: the next page's score never drew. Leaving abandons the
+      // upgrade instead; the next open starts it again, and a page restored
+      // from the cache opens afresh, its rejected open having been dropped.
+      // (Optional: there is no page to leave where the unit tests run.)
+      const upgrade = request.transaction
+      const abandon = () => upgrade.abort()
+      globalThis.addEventListener?.('pagehide', abandon)
+      const settled = () => globalThis.removeEventListener?.('pagehide', abandon)
+      upgrade.addEventListener('complete', settled)
+      upgrade.addEventListener('abort', settled)
     }
   })
 
