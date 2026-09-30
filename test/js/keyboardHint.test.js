@@ -105,7 +105,7 @@ describe('hintStep', () => {
     expect(state.streak).toBe(0)
   })
 
-  it('stays away for the visit once dismissed', () => {
+  it('stays away once dismissed', () => {
     let state = hintStep(revealed(), { type: 'dismiss' })
     expect(state.visible).toBe(false)
     state = run([tick('2:0', 0), wrong(1), wrong(2), wrong(3), tick('2:0', HINT_HESITATION_MS * 3)], state)

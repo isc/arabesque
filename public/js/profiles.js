@@ -4,7 +4,7 @@
 // an IndexedDB database of its own (storage.js opens the one named by
 // scopedKey), and the few localStorage keys that carry practice state — the
 // session snapshot a page teardown leaves behind, the strict tempo chosen per
-// score — are suffixed with the profile's id the same way. Everything else the
+// score, the on-screen keyboard put away for the day — are suffixed with the profile's id the same way. Everything else the
 // device holds (language, account, where the sound comes out, the changelog
 // dot) belongs to the device rather than to whoever is holding it, and stays
 // shared.
