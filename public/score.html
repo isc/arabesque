@@ -56,7 +56,7 @@
       import { midiApp } from './js/app.js'
       import { startAlpine } from './js/alpineBoot.js'
       import { mountHeaderMenu } from './js/headerMenu.js'
-      import { mountBpmFields } from './js/bpmStepper.js'
+      import { mountBpmFields } from './js/bpmField.js'
       startAlpine({ midiApp }, [mountHeaderMenu, mountBpmFields])
     </script>
   </head>
@@ -193,7 +193,7 @@
         ></button>
         <!-- The tempo is typed with a keyboard and pressed with a thumb: the
              −/+ buttons step it by a notch, and hold to keep stepping. The
-             field is built by bpmStepper.js, the same in both bands. -->
+             field is built by bpmField.js, the same in both bands. -->
         <div data-bpm-field="strictBpm"></div>
         <button
           class="pt-band-button"
@@ -323,7 +323,7 @@
           <!-- Free: where the run went wrong, its ranking + evolution chart -->
           <template x-if="resultMode === 'free'">
             <div>
-              <p x-show="wrongMeasuresText" class="pt-modal-note pt-modal-note--lead" x-text="wrongMeasuresText"></p>
+              <p x-show="resultWrongMeasures" class="pt-modal-note pt-modal-note--lead" x-text="resultWrongMeasures"></p>
               <div class="pt-result-cols">
                 <div class="pt-playthrough-scroll" x-show="previousPlaythroughs.length > 0">
                   <table class="pt-playthrough-table">
@@ -439,7 +439,7 @@
 
         <template x-for="chart in historyCharts" :key="chart.key">
           <div class="pt-modal-section">
-            <h4 x-text="chartTitle(chart)">Évolution du temps de jeu</h4>
+            <h4 x-text="chart.title">Évolution du temps de jeu</h4>
             <div x-html="chart.svg"></div>
           </div>
         </template>
@@ -472,8 +472,8 @@
                 <div class="pt-history-day__body">
                   <small x-show="day.fullPlaythroughs.length === 0 && day.measuresWorked.length > 0" x-text="$tn('score.measuresPlayed', day.measuresWorked.length)"></small>
                   <small x-show="day.measuresReinforced.length > 0" x-text="$tn('score.measuresReinforced', day.measuresReinforced.length)"></small>
-                  <template x-for="group in playthroughGroups(day.fullPlaythroughs)" :key="group.key">
-                    <small x-text="playthroughsSummary(group)"></small>
+                  <template x-for="line in day.runLines" :key="line.key">
+                    <small x-text="line.text"></small>
                   </template>
                 </div>
               </div>

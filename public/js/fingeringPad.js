@@ -1,7 +1,8 @@
 // The fingering pad: a click on a note opens it, digits pressed or typed build
 // the fingering, ✓ files it and × clears the note's. A mixin the score page's
 // component spreads (app.js), as it does headerMenu(): the component provides
-// `scoreUrl`, `fingeringEnabled` and `rerenderScore()`.
+// `scoreUrl` — a score opened from disk has none, and takes no fingerings — and
+// `rerenderScore()`, and calls setupFingeringHandlers() after every redraw.
 import { noteLabel } from './noteExtraction.js'
 
 export function fingeringPad({ storage, fingeringEditor }) {
@@ -16,7 +17,7 @@ export function fingeringPad({ storage, fingeringEditor }) {
     fingeringSequence: '',
 
     setupFingeringHandlers() {
-      if (!this.fingeringEnabled) return
+      if (!this.scoreUrl) return
       fingeringEditor.setupFingeringClickHandlers({
         onNoteClick: (noteData) => this.openFingeringModal(noteData),
       })

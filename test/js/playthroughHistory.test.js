@@ -4,8 +4,10 @@ import {
   wrongMeasuresText,
   playthroughChartSvg,
   playthroughCharts,
+  withRunLines,
   hotMeasures,
   strictAccuracy,
+  strictRunLabel,
 } from '../../public/js/playthroughHistory.js'
 
 // Runs as getAllPlaythroughs hands them over: most recent first.
@@ -48,8 +50,22 @@ describe('the evolution charts', () => {
     const strict = (day, hit) => run(day, 60_000, { strict: { hit, total: 10, bpm: 80 } })
     const charts = playthroughCharts([run(2, 50_000), run(1, 60_000), strict(2, 9), strict(1, 7), run(1, 40_000, { hands: 'left' })])
 
-    expect(charts.map((c) => [c.strict, c.hands])).toEqual([[false, 'both'], [true, 'both']])
+    expect(charts).toHaveLength(2)
+    expect(charts[0].title).not.toBe(charts[1].title)
+    expect(charts.every((c) => c.svg.startsWith('<svg'))).toBe(true)
+  })
+})
+
+describe('the words for a run', () => {
+  it('gives a strict run its hit rate at its tempo', () => {
     expect(strictAccuracy({ hit: 9, total: 10 })).toBe(90)
+    expect(strictRunLabel({ hit: 9, total: 10, bpm: 80 })).toMatch(/90\s*%.*80/)
+  })
+
+  it('puts a line under a day for each kind of run it holds', () => {
+    const day = withRunLines({ date: '2026-09-01', fullPlaythroughs: [run(1, 60_000), run(1, 50_000, { hands: 'right' })] })
+    expect(day.runLines).toHaveLength(2)
+    expect(day.date).toBe('2026-09-01')
   })
 })
 

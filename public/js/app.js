@@ -3,7 +3,7 @@ import { initMusicXML } from './musicxml.js'
 import { initFingeringEditor } from './fingeringEditor.js'
 import { fingeringPad } from './fingeringPad.js'
 import { initPracticeTracker } from './practiceTracker.js'
-import { playthroughGroups, TWO_HANDS, handsKey } from './hands.js'
+import { TWO_HANDS, handsKey } from './hands.js'
 import { formatDuration, formatDate, applyStickyOffset, scorePageUrl, onForeground, withHands, pickPassageMeasure, loopRangeText } from './utils.js'
 import { initStorage } from './storage.js'
 import { loadMxlAsXml } from './mxlLoader.js'
@@ -13,7 +13,8 @@ import { initPlayback, getBPM } from './playback.js'
 import { initStrictPlaythrough } from './strictPlaythrough.js'
 import { initKeyboardHint, C8 } from './keyboardHint.js'
 import { createTempoPlan, createTempoTrainer, GRADUATED, BPM_STEP, STREAK, CLEAN_RATE } from './tempoTrainer.js'
-import { stepBpm, holdToRepeat, BPM_MIN, BPM_MAX, BPM_DEFAULT } from './bpmStepper.js'
+import { BPM_DEFAULT } from './bpmStepper.js'
+import { bpmField } from './bpmField.js'
 import { headerMenu } from './headerMenu.js'
 import { initAutoSync, triggerSync } from './autoSync.js'
 import { scopedKey } from './profiles.js'
@@ -23,12 +24,12 @@ import { loadCatalog, fileUrl, isCollection } from './catalog.js'
 import {
   strictAccuracy,
   wrongNotesText,
+  strictRunLabel,
   rankingOf,
   wrongMeasuresText,
-  playthroughsSummary,
-  chartTitle,
   playthroughChartSvg,
   playthroughCharts,
+  withRunLines,
   hotMeasures,
 } from './playthroughHistory.js'
 
@@ -39,7 +40,6 @@ import {
 function armedRangeText(from, clickIsTheBands) {
   return t(clickIsTheBands ? 'score.loopHintEnd' : 'score.startAt', { n: from })
 }
-
 
 // Redrawing a full score costs ~200ms, and dragging a window edge fires resize
 // continuously — wait for the drag to settle before paying for it once.
@@ -145,6 +145,7 @@ export function midiApp() {
   return {
     ...headerMenu(),
     ...fingeringPad({ storage, fingeringEditor }),
+    ...bpmField(),
     bluetoothConnected: false,
     midiDeviceName: null,
     osmdInstance: null,
@@ -177,18 +178,6 @@ export function midiApp() {
     // `?? 0`: no pick means the top.
     strictStartMeasure: null,
     strictBpm: BPM_DEFAULT,
-    // Bound to both number inputs, so the field accepts exactly what the
-    // buttons can reach and its arrow keys move the same notch they do.
-    bpmMin: BPM_MIN,
-    bpmMax: BPM_MAX,
-    bpmStep: BPM_STEP,
-    // The −/+ buttons beside both tempo fields: the hold in progress, if any
-    // (the function that ends it), and whether the press that just ended ever
-    // repeated — the click it ends with fires after the release, and is the one
-    // that needs the answer. A hold ticks some eleven times a second, so the
-    // watches below sit one out and the release commits once (see commitBpm).
-    bpmHold: null,
-    bpmRepeated: false,
     strictResult: null,
     // The tempo trainer: strict runs of a passage in a loop, the tempo moving
     // between runs (see tempoTrainer.js). Armed by the loop button in place of
@@ -265,12 +254,13 @@ export function midiApp() {
     resultMode: null,
     previousPlaythroughs: [],
     resultChart: '',
+    // Where the run just finished went wrong, by measure number.
+    resultWrongMeasures: '',
 
     // Container width the score is currently laid out for, so a height-only
     // resize doesn't pay for a redraw (see handleViewportResize).
     lastRelayoutWidth: null,
 
-    fingeringEnabled: false,
     // The on-screen keyboard (keyboardHint.js): whether it has come up, and the
     // notes it is showing, by name.
     keyHintVisible: false,
@@ -394,7 +384,6 @@ export function midiApp() {
         // to connect, and only pressing that button again refreshed it.
         onConnectionChange: () => this.syncMidiState(),
       })
-
     },
 
     // What the score engine reports as the player goes: runs, measures, wrong
@@ -455,7 +444,6 @@ export function midiApp() {
           return false
         },
       })
-
     },
 
     // Once the score is up: the session's close as the page goes, the wake
@@ -519,7 +507,6 @@ export function midiApp() {
       if (!file) return
       try {
         await musicxml.loadMusicXML(file)
-        this.fingeringEnabled = false
         this.scoreUrl = null
         await this.afterScoreLoad()
         await this.markScoreReady()
@@ -534,7 +521,6 @@ export function midiApp() {
     // not wait on (see init) — only the session started below does.
     async loadScoreFromURL(url, trackerReady = Promise.resolve()) {
       this.scoreUrl = url
-      this.fingeringEnabled = true
       this.lookUpListing(url) // fire-and-forget: the sheet never waits on it
 
       try {
@@ -826,44 +812,6 @@ export function midiApp() {
       if (field === 'playbackBpm') playback.setTempo(this[field])
     },
 
-    // The −/+ buttons beside a tempo field, in both bands: `field` is the
-    // tempo they move ('strictBpm' or 'playbackBpm'), `direction` -1 or +1.
-    // Typing a tempo still works — this is the way to change one with a thumb.
-    startBpmHold(field, direction) {
-      // Whatever was held before — a second finger on the other button, or a
-      // press let go somewhere else — is ended rather than left ticking: the
-      // chain re-arms itself, so an orphan would step the tempo for the life of
-      // the page. Two buttons, one hold.
-      this.endBpmHold(field)
-      this.bpmRepeated = false
-      this.bpmHold = holdToRepeat(() => { this[field] = stepBpm(this[field], direction) })
-    },
-
-    // The end of a press: stops the repeat and commits the tempo it held back.
-    // Taken from pointerup, and from the pointer leaving the button or the
-    // gesture being taken over — a press let go off the button never becomes a
-    // click, and its chain would tick on.
-    //
-    // Whether it repeated outlives the hold, because the click that ends the
-    // press has not fired yet. A touch fires pointerleave on the way out of a
-    // press it has already released, which is why an ended hold is not ended a
-    // second time — that would forget the answer with the click still to come.
-    endBpmHold(field) {
-      if (!this.bpmHold) return
-      this.bpmRepeated = this.bpmHold()
-      this.bpmHold = null
-      if (this.bpmRepeated) this.commitBpm(field)
-    },
-
-    stepBpmField(field, direction) {
-      // A press is a click, whatever pressed it — mouse, thumb, Entrée on the
-      // focused button — so the notch is stepped here. The click that ends a
-      // repeating hold is its release, not one notch more.
-      const repeated = this.bpmRepeated
-      this.bpmRepeated = false
-      if (!repeated) this[field] = stepBpm(this[field], direction)
-    },
-
     // What the playback band says: where the piece is held, or how to move it.
     playbackBandText() {
       if (this.playbackTransport === 'paused') return t('score.playbackPausedAt', { n: this.playbackMeasure + 1 })
@@ -1133,7 +1081,7 @@ export function midiApp() {
     },
 
     trainerRunLine(run) {
-      return RUN_KINDS.strict.label({ strict: run.verdict })
+      return strictRunLabel(run.verdict)
     },
 
     // A strict run is practice like any other, and until it was filed here it
@@ -1231,6 +1179,7 @@ export function midiApp() {
     showScoreComplete(allPlaythroughs) {
       this.previousPlaythroughs = rankingOf(allPlaythroughs)
       this.resultChart = playthroughChartSvg(this.previousPlaythroughs)
+      this.resultWrongMeasures = wrongMeasuresText(allPlaythroughs[0]?.wrongMeasures ?? [])
       this.openResultModal('free')
     },
 
@@ -1240,10 +1189,6 @@ export function midiApp() {
       return this.previousPlaythroughs[0]?.hands ?? TWO_HANDS
     },
 
-    // Where the run just finished went wrong, by measure number.
-    get wrongMeasuresText() {
-      return wrongMeasuresText(this.previousPlaythroughs.find((p) => p.isCurrent)?.wrongMeasures ?? [])
-    },
 
     openResultModal(mode) {
       this.resultMode = mode
@@ -1338,7 +1283,7 @@ export function midiApp() {
         practiceTracker.getScoreHistory(this.scoreUrl),
         storage.getAggregate(this.scoreUrl),
       ])
-      this.scoreHistory = history
+      this.scoreHistory = history.map(withRunLines)
       this.historyTotalMs = history.reduce((sum, d) => sum + (d.totalPracticeTimeMs || 0), 0)
       this.historyCharts = playthroughCharts(history.flatMap((d) => d.fullPlaythroughs))
       this.historyHotMeasures = hotMeasures(aggregate)
@@ -1354,12 +1299,9 @@ export function midiApp() {
     formatDate,
     formatDuration,
 
-    playthroughGroups,
 
     // Called from the markup.
     wrongNotesText,
-    playthroughsSummary,
-    chartTitle,
 
     // Every redraw replaces the SVG, taking with it everything painted on it:
     // note colours, fingering handlers, the training cursor, the strict marker,

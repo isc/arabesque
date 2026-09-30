@@ -3,7 +3,7 @@
 // runs in, words and SVG out; the page holds what is on screen (app.js).
 import { formatDuration, withRunKind } from './utils.js'
 import { playthroughGroups } from './hands.js'
-import { byStartedAt } from './practiceTracker.js'
+import { byStartedAt } from './days.js'
 import { t, tn, locale } from './i18n.js'
 
 // Built once: the active locale is fixed for the page lifetime (switching
@@ -55,6 +55,11 @@ function runKind(strict) {
   return strict ? RUN_KINDS.strict : RUN_KINDS.free
 }
 
+// A strict run's line, from its verdict: the tempo trainer's result lists them.
+export function strictRunLabel(verdict) {
+  return RUN_KINDS.strict.label({ strict: verdict })
+}
+
 // The result modal's ranking: fastest first, the run just played flagged so
 // the modal can highlight it. `allPlaythroughs` comes most recent first
 // (getAllPlaythroughs), and only the runs comparable with that one are in the
@@ -78,8 +83,13 @@ export function wrongMeasuresText(measures) {
   return tn('score.wrongMeasures', measures.length, { list })
 }
 
-// A day's runs of one kind and hand selection, in the history modal.
-export function playthroughsSummary(group) {
+// A day of the history, with a line under it for each kind of run and hand
+// selection it holds.
+export function withRunLines(day) {
+  return { ...day, runLines: playthroughGroups(day.fullPlaythroughs).map((group) => ({ key: group.key, text: playthroughsSummary(group) })) }
+}
+
+function playthroughsSummary(group) {
   // Reverse to show chronological order (oldest first)
   const runs = [...group.playthroughs].reverse()
   const list = runs.map(runKind(group.strict).label)
@@ -87,17 +97,17 @@ export function playthroughsSummary(group) {
   return withRunKind(summary, group)
 }
 
-export function chartTitle(group) {
+function chartTitle(group) {
   return withRunKind(t(runKind(group.strict).title), group)
 }
 
 // One evolution chart per kind of run and hand selection — play time for free
-// runs, hit rate for strict ones — each with its `svg`. A group with too few
-// runs to plot simply drops out.
+// runs, hit rate for strict ones — each with its `title` and `svg`. A group
+// with too few runs to plot simply drops out.
 export function playthroughCharts(playthroughs) {
   return playthroughGroups(playthroughs)
-    .map((group) => ({ ...group, svg: playthroughChartSvg(group.playthroughs) }))
-    .filter((group) => group.svg)
+    .map((group) => ({ key: group.key, title: chartTitle(group), svg: playthroughChartSvg(group.playthroughs) }))
+    .filter((chart) => chart.svg)
 }
 
 // Built as a string (not <template x-for>) because Alpine's templates
@@ -124,8 +134,7 @@ export function playthroughChartSvg(playthroughs) {
   const innerH = H - PAD.top - PAD.bottom
   // Evenly spaced by playthrough index: gaps between dates aren't shown.
   const n = sorted.length
-  const xScale = (i) =>
-    PAD.left + (n === 1 ? innerW / 2 : (i / (n - 1)) * innerW)
+  const xScale = (i) => PAD.left + (i / (n - 1)) * innerW
   const yScale = (d) =>
     PAD.top + innerH - ((d - yMin) / (yMax - yMin || 1)) * innerH
 
@@ -167,11 +176,13 @@ export function playthroughChartSvg(playthroughs) {
 // Top measures with the highest error rate, surfaced inside the history modal
 // so practiced measures with persistent trouble are visible without diving
 // into the data. From the score's aggregate row, or nothing without one.
-export function hotMeasures(aggregate, limit = 5) {
+const HOT_MEASURES_SHOWN = 5
+
+export function hotMeasures(aggregate) {
   if (!aggregate?.measures) return []
   return Object.entries(aggregate.measures)
     .map(([idx, m]) => ({ index: Number(idx), attempts: m.totalAttempts || 0, errorRate: m.errorRate || 0 }))
     .filter((m) => m.attempts >= 2 && m.errorRate > 0)
     .sort((a, b) => b.errorRate - a.errorRate)
-    .slice(0, limit)
+    .slice(0, HOT_MEASURES_SHOWN)
 }

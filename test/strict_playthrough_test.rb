@@ -295,6 +295,8 @@ class StrictPlaythroughTest < CapybaraTestBase
     assert_text 'Boucle terminée'
     assert_text '1 passage'
     assert_text 'à 120 BPM'
+    # The run's own line, which the tempo line above would not stand in for.
+    assert_selector 'li', text: '✅ 100 % à 120 BPM'
     assert_text 'meilleure série : 1 propres'
   end
 

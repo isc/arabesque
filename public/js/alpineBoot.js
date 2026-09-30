@@ -1,7 +1,7 @@
 // How every app page boots Alpine. In order:
-// - the markup the page builds from modules (headerMenu.js, journalEntries.js)
-//   goes in, for Alpine to find its bindings and for the static chrome to be
-//   translated with the rest;
+// - the markup the page builds from modules (headerMenu.js, journalEntries.js,
+//   bpmField.js) goes in, for Alpine to find its bindings and for the static
+//   chrome to be translated with the rest;
 // - the static chrome is translated and the FR/EN switch wired (initI18n), and
 //   `$t`/`$tn` are registered for the templates, on alpine:init so they exist
 //   before Alpine evaluates any expression;
