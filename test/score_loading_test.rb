@@ -22,6 +22,33 @@ class ScoreLoadingTest < CapybaraTestBase
     assert_no_selector '[aria-busy="true"]'
   end
 
+  # A page left while it was still creating the database went into the
+  # back/forward cache with the creation half done, and the score opened next
+  # waited behind it for good (DataTest leaves data.html that way, and failed
+  # one CI run in thirty). The creation is held open here, so the page is
+  # always left mid-way.
+  def test_a_page_left_while_creating_the_database_does_not_hold_up_the_next
+    page.driver.browser.page.command('Page.addScriptToEvaluateOnNewDocument', source: <<~JS)
+      if (location.pathname === '/data.html') {
+        const open = IDBFactory.prototype.open
+        IDBFactory.prototype.open = function (...args) {
+          const request = open.apply(this, args)
+          request.addEventListener('upgradeneeded', () => {
+            const store = request.result.createObjectStore('held-open')
+            const hold = () => { store.get(0).onsuccess = hold }
+            hold()
+            window.__upgrading = true
+          })
+          return request
+        }
+      }
+    JS
+    visit '/data.html'
+    wait_until('data.html to start creating the database') { page.evaluate_script('window.__upgrading') }
+
+    open_two_measures
+  end
+
   # A sheet OSMD cannot read is reported with OSMD's own error. It used to be
   # swallowed, and the page carried on without a score until reading its tempo
   # threw: that TypeError was what raised the error card, and all a feedback
