@@ -636,30 +636,37 @@ a:hover { text-decoration: underline; }
 .pt-icon-button:hover { background: var(--pt-surface-2); border-color: var(--pt-border-strong); color: var(--pt-text); }
 .pt-icon-button[aria-pressed="true"] { background: var(--pt-accent-soft); color: var(--pt-accent); border-color: color-mix(in srgb, var(--pt-accent) 25%, transparent); }
 
-/* Small pill in a bar: the score topbar's (Historique, the MIDI keyboard, the
-   part navigator's arrows) and the library header's profile chip. Less
-   prominent than .pt-action-button so it doesn't compete with the modebar
-   actions. */
-.pt-topbar__pill {
+/* A chip: the small bordered control that sits in a row of others — the
+   pills of the score's topbar and of the library header, the library's
+   filters and focus toggles, the modebar's badge and buttons, the score's
+   dialogs' actions. One box and one type size, whatever element it is, so a
+   row of them lines up; what a kind of chip changes is its colours, and for
+   a few its corners. Hover takes a button or a link only: a status drawn as
+   a chip is not something to press. */
+.pt-chip {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  background: var(--pt-bg-elevated);
+  padding: 4px 12px;
   border: 1px solid var(--pt-border);
   border-radius: var(--pt-radius-pill);
-  padding: 4px 12px;
+  background-color: var(--pt-bg-elevated);
   color: var(--pt-text);
   font-size: var(--pt-font-size-sm);
   font-weight: 500;
+  line-height: 1.5;
+  white-space: nowrap;
+  text-decoration: none;
 }
-button.pt-topbar__pill:hover { background: var(--pt-surface-2); border-color: var(--pt-border-strong); }
-button.pt-topbar__pill:disabled { opacity: 0.4; cursor: default; }
+:where(button, a).pt-chip:hover { background-color: var(--pt-surface-2); border-color: var(--pt-border-strong); }
+.pt-chip:disabled { opacity: 0.4; cursor: default; }
 
-/* Compact dropdown, sized to sit in a row of pills rather than to fill a form
-   column — the composer and period filters, and the narrow-screen sort. */
+/* Compact dropdown, sized to sit in a row of chips — their height, where a
+   form column's field would be twice it — the composer and period filters,
+   and the narrow-screen sort. */
 .pt-select {
   margin: 0;
-  padding: 5px 28px 5px 12px;
+  padding: 4px 28px 4px 12px;
   border-radius: var(--pt-radius-md);
   background-color: var(--pt-surface-2);
   border: 1px solid var(--pt-border-strong);
@@ -784,8 +791,8 @@ button.pt-topbar__pill:disabled { opacity: 0.4; cursor: default; }
 
 /* The MIDI keyboard's pill: a status once one is connected, and until then
    the button that connects one, muted. */
-.pt-midi-status { background: var(--pt-success-bg); color: var(--pt-success); border-color: transparent; }
-.pt-midi-status.is-disconnected { background: var(--pt-surface-2); color: var(--pt-text-muted); border-color: var(--pt-border); }
+.pt-midi-status:not(.is-disconnected) { background-color: var(--pt-success-bg); color: var(--pt-success); border-color: transparent; }
+.pt-midi-status.is-disconnected { background-color: var(--pt-surface-2); color: var(--pt-text-muted); }
 
 /* Part navigator in the topbar (collections, e.g. exercices de Hanon) */
 .pt-part-nav { display: flex; align-items: center; gap: var(--pt-space-1); flex-shrink: 0; }
@@ -797,7 +804,7 @@ button.pt-topbar__pill:disabled { opacity: 0.4; cursor: default; }
   border-radius: var(--pt-radius-pill);
 }
 
-/* On the score topbar the gear sits among pill buttons — match their height and
+/* On the score topbar the gear sits among chips — match their height and
    round shape instead of the taller, square library style (which matches the
    search box there). */
 .pt-topbar__actions .pt-icon-button { width: 30px; height: 30px; border-radius: var(--pt-radius-pill); }
@@ -818,20 +825,15 @@ button.pt-topbar__pill:disabled { opacity: 0.4; cursor: default; }
 .pt-modebar > * { flex: 0 0 auto; }
 .pt-modebar__spacer { flex: 1 1 auto; min-width: var(--pt-space-3); }
 
-/* Normalize control heights so segmented / hands / action button share a
+/* Normalize control heights so the segmented controls and the chips share a
    baseline. Keeps the toolbar visually a single horizontal band. Inner items
    are explicitly sized so the base button paddings don't make them overflow
    the outer container. */
 .pt-modebar > .pt-segmented,
 .pt-modebar > .pt-hands,
-.pt-modebar > .pt-action-button { align-items: center; height: 34px; padding-block: 0; }
+.pt-modebar > .pt-chip { align-items: center; height: 34px; padding-block: 0; }
 .pt-modebar .pt-segmented button,
 .pt-modebar .pt-hands__option { height: 28px; padding-block: 0; line-height: 28px; }
-/* The reinforce badge stays inline-block (no flex) so the screen-reader
-   text stays a single line — Capybara matches "Renforcer N mesure" without
-   newlines splitting it across flex items. Sized via line-height to match
-   the 34px shared by the other modebar controls. */
-.pt-modebar > .pt-reinforce-badge { height: 34px; padding-block: 0; line-height: 32px; }
 
 /* Two segmented controls on one track: the modes (buttons, one pressed) and
    the hands (checkboxes, one ticked or both). */
@@ -890,32 +892,21 @@ button.pt-topbar__pill:disabled { opacity: 0.4; cursor: default; }
 .pt-bpm-field input[type="number"]:focus { outline: none; }
 .pt-bpm-field__suffix { font-size: var(--pt-font-size-xs); padding-right: var(--pt-space-1); }
 
+/* The chip that starts the drill on the bars to reinforce, in the mode's
+   colour — which its hover keeps, border included. */
 .pt-reinforce-badge {
-  display: inline-block;
-  padding: 6px 12px;
-  background: var(--pt-mode-reinforcement-bg);
+  background-color: var(--pt-mode-reinforcement-bg);
   color: var(--pt-mode-reinforcement);
-  border: 1px solid color-mix(in srgb, var(--pt-mode-reinforcement) 25%, transparent);
-  border-radius: var(--pt-radius-pill);
-  font-size: var(--pt-font-size-sm);
-  font-weight: 500;
-  text-decoration: none;
-  line-height: 1.2;
-  white-space: nowrap;
+  border-color: color-mix(in srgb, var(--pt-mode-reinforcement) 25%, transparent);
 }
-.pt-reinforce-badge:hover { background: color-mix(in srgb, var(--pt-mode-reinforcement-bg) 80%, var(--pt-mode-reinforcement) 10%); }
+.pt-reinforce-badge:hover {
+  background-color: color-mix(in srgb, var(--pt-mode-reinforcement-bg) 80%, var(--pt-mode-reinforcement) 10%);
+  border-color: color-mix(in srgb, var(--pt-mode-reinforcement) 25%, transparent);
+}
 
-.pt-action-button {
-  display: inline-flex; align-items: center; gap: 6px;
-  background: var(--pt-bg-elevated);
-  border: 1px solid var(--pt-border);
-  border-radius: var(--pt-radius-md);
-  padding: 6px 14px;
-  color: var(--pt-text);
-  font-size: var(--pt-font-size-sm);
-  font-weight: 500;
-}
-.pt-action-button:hover { background: var(--pt-surface-2); }
+/* A chip that is a command: ▶ Écouter, a dialog's actions. Its corners are the
+   segmented controls' beside it rather than a pill's. */
+.pt-action-button { border-radius: var(--pt-radius-md); }
 .pt-action-button.is-active { background: var(--pt-accent-soft); color: var(--pt-accent); border-color: color-mix(in srgb, var(--pt-accent) 20%, transparent); }
 .pt-action-button.is-primary {
   background: var(--pt-accent);
@@ -1174,7 +1165,7 @@ button.pt-topbar__pill:disabled { opacity: 0.4; cursor: default; }
 
 /* =============================================================================
    Profiles (profiles.js): the tiles that switch, in the chooser the library's
-   profile chip opens (a plain .pt-topbar__pill); the rows that edit, on the
+   profile chip opens (a plain .pt-chip); the rows that edit, on the
    data page.
    ========================================================================== */
 .pt-profile-tiles {
@@ -1295,19 +1286,8 @@ button.pt-topbar__pill:disabled { opacity: 0.4; cursor: default; }
 
 /* Filters row (status pills + composer dropdown) */
 .pt-filters { display: flex; gap: var(--pt-space-2); align-items: center; flex-wrap: wrap; }
-.pt-filter-pill {
-  background: var(--pt-bg-elevated);
-  color: var(--pt-text-muted);
-  border: 1px solid var(--pt-border);
-  border-radius: var(--pt-radius-pill);
-  padding: 4px 12px;
-  font-size: var(--pt-font-size-sm);
-  font-weight: 500;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-.pt-filter-pill:hover { background: var(--pt-surface-2); color: var(--pt-text); }
+.pt-filter-pill { color: var(--pt-text-muted); }
+.pt-filter-pill:hover { color: var(--pt-text); }
 .pt-filter-pill[aria-pressed="true"],
 .pt-filter-pill[aria-expanded="true"] { background: var(--pt-accent); color: var(--pt-text-inverse); border-color: var(--pt-accent); }
 .pt-filter-pill[aria-pressed="true"][data-status="dechiffrage"] { background: var(--pt-status-dechiffrage); border-color: var(--pt-status-dechiffrage); }
@@ -1350,17 +1330,10 @@ button.pt-topbar__pill:disabled { opacity: 0.4; cursor: default; }
 .pt-focus { display: flex; gap: var(--pt-space-2); align-items: center; flex-wrap: wrap; }
 .pt-focus__label { font-size: var(--pt-font-size-xs); color: var(--pt-text-muted); margin-right: 2px; }
 .pt-focus__chip {
-  display: inline-flex; align-items: center; gap: 6px;
-  padding: 5px 12px;
-  background: var(--pt-bg-elevated);
   border: 1px dashed var(--pt-border-strong);
   border-radius: var(--pt-radius-md);
-  color: var(--pt-text);
-  font-size: var(--pt-font-size-sm);
-  font-weight: 500;
-  line-height: 1.2;
 }
-.pt-focus__chip:hover { background: var(--pt-surface-2); border-color: var(--pt-mode-reinforcement); }
+.pt-focus__chip:hover { border-color: var(--pt-mode-reinforcement); }
 .pt-focus__chip[aria-pressed="true"] {
   background: var(--pt-mode-reinforcement-bg);
   border: 1px solid var(--pt-mode-reinforcement);
@@ -1371,6 +1344,7 @@ button.pt-topbar__pill:disabled { opacity: 0.4; cursor: default; }
   padding: 1px 7px;
   border-radius: var(--pt-radius-pill);
   font-size: var(--pt-font-size-xs);
+  line-height: 1.2;
 }
 .pt-focus__chip[aria-pressed="true"] .pt-focus__count {
   background: color-mix(in srgb, var(--pt-mode-reinforcement) 18%, var(--pt-bg-elevated));

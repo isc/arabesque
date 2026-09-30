@@ -30,7 +30,7 @@
           <div class="pt-page-header__actions">
             <!-- Who is playing. Only once there is a choice: alone on the
                  device, nobody needs telling it is them. -->
-            <button type="button" class="pt-topbar__pill pt-profile-chip" x-show="profiles.length > 1" x-cloak :aria-label="$t('profiles.switchAria')" @click="showProfilesModal = true">
+            <button type="button" class="pt-chip pt-profile-chip" x-show="profiles.length > 1" x-cloak :aria-label="$t('profiles.switchAria')" @click="showProfilesModal = true">
               <span x-text="currentProfile.avatar" aria-hidden="true"></span>
               <span x-text="profileName(currentProfile)"></span>
             </button>
@@ -68,7 +68,7 @@
         <div class="pt-librarybar" x-show="scores.length > 0">
           <button
             type="button"
-            class="pt-filter-pill"
+            class="pt-chip pt-filter-pill"
             :aria-expanded="filtersOpen"
             @click="filtersOpen = !filtersOpen"
           >
@@ -91,13 +91,13 @@
                filters leave, not the size of the library. Every count here is
                what clicking would put on screen — see facetOptions. -->
           <button
-            class="pt-filter-pill"
+            class="pt-chip pt-filter-pill"
             :aria-pressed="!statusFilter"
             @click="setStatusFilter('')"
           ><span x-text="$t('library.filterAll')">Tous</span> <span class="pt-filter-pill__count" x-text="countFor('statusFilter', '')"></span></button>
           <template x-for="opt in statusOptions" :key="opt.value">
             <button
-              class="pt-filter-pill"
+              class="pt-chip pt-filter-pill"
               :data-status="opt.value"
               :aria-pressed="statusFilter === opt.value"
               @click="setStatusFilter(opt.value)"
@@ -130,7 +130,7 @@
           <span class="pt-focus__label" x-text="$t('library.focusLabel')">À travailler :</span>
           <template x-for="opt in focusOptions" :key="opt.value">
             <button
-              class="pt-focus__chip"
+              class="pt-chip pt-focus__chip"
               :data-focus="opt.value"
               :aria-pressed="focusFilter === opt.value"
               @click="setFocusFilter(opt.value)"
