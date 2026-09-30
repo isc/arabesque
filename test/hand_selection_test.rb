@@ -73,4 +73,31 @@ class HandSelectionTest < CapybaraTestBase
       assert_selector 'svg g.vf-notehead.played-note', count: 2
     end
   end
+
+  # No hand at all has nothing to play: unticking the only hand ticked swaps
+  # to the other, and the run starts on measure 1 as any does. Going through
+  # "none" used to leave the cursor on the last measure (feedback 65538ec6).
+  def test_unticking_the_only_hand_swaps_to_the_other
+    load_score('one-hand-rest-measure.xml', 6)
+
+    uncheck 'Main gauche'
+    uncheck 'Main droite'
+
+    assert_checked_field 'Main gauche'
+    assert_unchecked_field 'Main droite'
+    play_note('C3')
+    assert_selector 'svg g.vf-notehead.played-note', count: 1
+  end
+
+  # A single staff is all right hand: the left hand alone has nothing to play,
+  # which used to send the cursor to the last measure for good.
+  def test_a_hand_with_nothing_to_play_leaves_the_cursor_in_place
+    load_score('two-measures.xml', 2)
+
+    uncheck 'Main droite'
+    check 'Main droite'
+    play_note('C4')
+
+    assert_selector 'svg g.vf-notehead.played-note', count: 1
+  end
 end
