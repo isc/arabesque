@@ -149,7 +149,7 @@
             <h2 class="pt-eyebrow" x-text="$t('library.journalHeading')">Journal de pratique</h2>
             <a href="practice.html" x-text="$t('library.seeYear')">Voir l'année →</a>
           </div>
-          <div id="daily-log" style="display: flex; flex-direction: column; gap: var(--pt-space-2);">
+          <div id="daily-log" class="pt-stack pt-stack--tight">
             <template x-for="dateEntry in dailyLogsByDate" :key="dateEntry.date.toISOString()">
               <div class="pt-journal__day">
                 <div class="pt-journal__day-header">

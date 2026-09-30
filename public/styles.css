@@ -1111,6 +1111,9 @@ button.pt-topbar__pill:disabled { opacity: 0.4; cursor: default; }
    Defined after .pt-card so its roomier gap wins over the card's own. */
 .pt-stack { display: flex; flex-direction: column; gap: var(--pt-space-3); }
 .pt-stack > * { margin: 0; }
+/* For a list of like items rather than a card's mixed contents: the journal's
+   days, and the entries of a day. */
+.pt-stack--tight { gap: var(--pt-space-2); }
 
 
 /* Table layout. `overflow: hidden` on the
@@ -1362,7 +1365,6 @@ table tbody td:nth-child(2) a:hover { color: var(--pt-accent); }
 }
 .pt-journal__day-header h3 { margin: 0; font-size: 0.88rem; color: var(--pt-text); }
 .pt-journal__day-header small { color: var(--pt-text-muted); font-variant-numeric: tabular-nums; font-size: 0.78rem; }
-.pt-journal__entries { display: flex; flex-direction: column; gap: var(--pt-space-2); }
 .pt-journal__entry { font-size: 0.82rem; line-height: 1.4; color: var(--pt-text); }
 .pt-journal__entry a { color: var(--pt-text); font-weight: 500; }
 .pt-journal__entry a:hover { color: var(--pt-accent); text-decoration: none; }
