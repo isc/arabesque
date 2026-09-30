@@ -16,6 +16,13 @@
    closer is a trap rather than a place to append; test/css_layers_test.rb
    fails if anything lands there.
 
+   Where a rule goes. The components layer opens on the pieces more than one
+   page is built from — page shells and header, text, layout, controls (a
+   small bordered control in a row of others is a .pt-chip), the journal
+   line, the footer — and each page's own rules follow under its banner; a
+   class a second page starts using moves up there. A font size is a step of
+   the type scale in the tokens, never a new rem.
+
    The blocks are deliberately not indented: re-indenting 1800 lines to add
    four wrappers would bury the change in whitespace and cost the blame.
    ========================================================================== */
