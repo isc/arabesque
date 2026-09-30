@@ -23,6 +23,7 @@ import { daysBetween } from './days.js'
 import { t, tn, locale } from './i18n.js'
 import { recordError } from './errorLog.js'
 import { MIN_MATCH } from './fingerprints.js'
+import { loadCatalog, partsOf, fileUrl, isCollection } from './catalog.js'
 
 const STATUS_ORDER = ['dechiffrage', 'perfectionnement', 'repertoire']
 const STATUS_RANK = Object.fromEntries(STATUS_ORDER.map((s, i) => [s, i]))
@@ -87,10 +88,12 @@ export function libraryApp() {
   const storage = initStorage()
   const practiceTracker = initPracticeTracker(storage)
 
+  // data/scores.json, once init() has read it (catalog.js).
+  let catalog = null
   let fingerprints = []
   let matchPointers = {}
   let searchResetTimer = null
-  let sessionCountByFile = {}
+  let sessionCountByScore = {}
 
   return {
     ...headerMenu(),
@@ -130,7 +133,6 @@ export function libraryApp() {
     // regardless, so neither of these has a rule to match there.
     filtersOpen: false,
     tab: 'journal',   // 'journal' | 'scores' — the visible pane on a phone
-    baseUrl: '',
     dailyLogsByDate: [],
     // In-flight refreshPracticeViews(), shared by concurrent callers.
     refreshingPractice: null,
@@ -143,7 +145,7 @@ export function libraryApp() {
     // table draws from has to be observed, or a refresh that touched only
     // sessions would leave the chip showing a stale count with nothing to
     // explain it.
-    reinforceFiles: new Set(),
+    reinforceScores: new Set(),
 
     async init() {
       // Mark this visitor as a returning user so the landing page (/) can
@@ -201,22 +203,20 @@ export function libraryApp() {
       // column is relative to it.
       onDayChange(() => this.refreshPracticeViews())
 
-      const [scoresResponse, fingerprintsResponse] = await Promise.all([
-        fetch('data/scores.json'),
+      // The practice data is read as soon as the database is open, alongside
+      // the two files: it needs neither. A read that fails costs its own
+      // column, not the list — the scores are set below either way.
+      const [loaded, fingerprintsResponse] = await Promise.all([
+        loadCatalog(),
         fetch('data/fingerprints.json'),
-        practiceTracker.init(),
+        practiceTracker.init().then(() => this.refreshPracticeViews()),
       ])
-      const data = await scoresResponse.json()
-      this.baseUrl = data.baseUrl
+      catalog = loaded
 
       const fpData = await fingerprintsResponse.json()
       fingerprints = fpData.fingerprints
 
-      // A read that fails costs its own column, not the list: the scores are
-      // set below either way.
-      await this.refreshPracticeViews()
-
-      this.scores = data.scores
+      this.scores = catalog.scores
 
       // Restore filters from URL once the scores are in: the <select>
       // dropdowns show their value through :selected on each <option>, and
@@ -267,8 +267,9 @@ export function libraryApp() {
       return this.refreshingPractice
     },
 
-    // Recomputes lastPlayedByScore/aggregatesByScore/reinforceFiles/sessionCountByFile from
-    // storage. Safe to call more than once (each map is rebuilt from
+    // Recomputes lastPlayedByScore/aggregatesByScore/reinforceScores/sessionCountByScore
+    // from storage, each keyed by score id — the url a catalog file is filed
+    // under (fileUrl). Safe to call more than once (each map is rebuilt from
     // scratch), unlike the rest of init() which registers listeners.
     //
     // Built aside and swapped in only once both reads are in, so that a read
@@ -278,29 +279,26 @@ export function libraryApp() {
       const [sessions, aggregates] = await Promise.all([storage.getSessions(), storage.getAllAggregates()])
 
       const lastPlayedByScore = {}
-      const countByFile = {}
-      const sessionsByFile = new Map()
+      const countByScore = {}
+      const sessionsByScore = new Map()
       for (const session of sessions) {
         const existing = lastPlayedByScore[session.scoreId]
         if (!existing || session.startedAt > existing) {
           lastPlayedByScore[session.scoreId] = session.startedAt
         }
-        if (session.scoreId.startsWith(this.baseUrl)) {
-          const file = session.scoreId.slice(this.baseUrl.length)
-          countByFile[file] = (countByFile[file] ?? 0) + 1
-          const forFile = sessionsByFile.get(file)
-          if (forFile) forFile.push(session)
-          else sessionsByFile.set(file, [session])
-        }
+        countByScore[session.scoreId] = (countByScore[session.scoreId] ?? 0) + 1
+        const forScore = sessionsByScore.get(session.scoreId)
+        if (forScore) forScore.push(session)
+        else sessionsByScore.set(session.scoreId, [session])
       }
 
       // The 🎯 chip reads the score's own recent sessions, not the aggregates,
       // whose counters have never forgotten anything. Every piece it lists
       // also has a "Renforcer N mesures" badge on its page, but not the other
       // way round: see hasHotSpots for why the badge alone selected everything.
-      const reinforceFiles = new Set()
-      for (const [file, forFile] of sessionsByFile) {
-        if (hasHotSpots(forFile)) reinforceFiles.add(file)
+      const reinforceScores = new Set()
+      for (const [scoreId, forScore] of sessionsByScore) {
+        if (hasHotSpots(forScore)) reinforceScores.add(scoreId)
       }
 
       // Aggregates power the status filter, status pills, and practice-focus chips.
@@ -312,8 +310,8 @@ export function libraryApp() {
 
       this.lastPlayedByScore = lastPlayedByScore
       this.aggregatesByScore = aggregatesByScore
-      this.reinforceFiles = reinforceFiles
-      sessionCountByFile = countByFile
+      this.reinforceScores = reinforceScores
+      sessionCountByScore = countByScore
       collectionAggregates.clear()
     },
 
@@ -336,9 +334,9 @@ export function libraryApp() {
         if (currentPos > maxPos) {
           maxPos = currentPos
           leader = fp
-          leaderSessions = sessionCountByFile[fp.file] ?? 0
+          leaderSessions = sessionCountByScore[fileUrl(catalog, fp.file)] ?? 0
         } else if (currentPos === maxPos && currentPos > 0) {
-          const count = sessionCountByFile[fp.file] ?? 0
+          const count = sessionCountByScore[fileUrl(catalog, fp.file)] ?? 0
           if (count > leaderSessions) {
             leader = fp
             leaderSessions = count
@@ -349,7 +347,7 @@ export function libraryApp() {
       }
 
       if (maxPos >= MIN_MATCH && leader !== null) {
-        window.location.href = scorePageUrl(this.baseUrl + leader.file)
+        window.location.href = scorePageUrl(fileUrl(catalog, leader.file))
         return
       }
 
@@ -572,7 +570,7 @@ export function libraryApp() {
       // Not an aggregate question, and not one the aggregates could answer: a
       // recueil is worth reinforcing when one of its exercises is, each judged
       // on its own sessions (bar numbers only mean something within a part).
-      if (focus === 'reinforce') return this.partFiles(score).some((file) => this.reinforceFiles.has(file))
+      if (focus === 'reinforce') return partsOf(score).some((part) => this.reinforceScores.has(fileUrl(catalog, part.file)))
 
       const agg = this.aggregateFor(score)
       if (!agg) return false
@@ -660,26 +658,19 @@ export function libraryApp() {
     // library row whose entry has `parts` instead of `file`. Practice data
     // stays keyed per part file; the row aggregates it and opening the row
     // resumes the last-played part.
-    isCollection(score) { return Array.isArray(score.parts) },
-
-    // The score files a library row stands for: its own, or every part of a
-    // recueil. Practice data is keyed per file, never per row.
-    partFiles(score) { return this.isCollection(score) ? score.parts.map((p) => p.file) : [score.file] },
+    isCollection,
 
     lastPlayedPartOf(score) {
       let best = null
-      for (const part of score.parts) {
-        const at = this.lastPlayedByScore[this.baseUrl + part.file]
+      for (const part of partsOf(score)) {
+        const at = this.lastPlayedByScore[fileUrl(catalog, part.file)]
         if (at && (!best || at > best.at)) best = { part, at }
       }
       return best?.part
     },
 
     getScoreUrl(score) {
-      const file = this.isCollection(score)
-        ? (this.lastPlayedPartOf(score) ?? score.parts[0]).file
-        : score.file
-      return this.baseUrl + file
+      return fileUrl(catalog, (this.lastPlayedPartOf(score) ?? partsOf(score)[0]).file)
     },
 
     aggregateFor(score) {
@@ -701,7 +692,7 @@ export function libraryApp() {
     synthesizeCollectionAggregate(score) {
       let agg = null
       for (const part of score.parts) {
-        const partAgg = this.aggregatesByScore[this.baseUrl + part.file]
+        const partAgg = this.aggregatesByScore[fileUrl(catalog, part.file)]
         if (!partAgg) continue
         agg ??= { totalPracticeTimeMs: 0, timesCompleted: 0, timesCompletedOneHand: 0, lastPlayedAt: null, lastCompletedAt: null, measures: {} }
         agg.totalPracticeTimeMs += partAgg.totalPracticeTimeMs || 0

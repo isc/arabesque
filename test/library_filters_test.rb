@@ -53,7 +53,7 @@ class LibraryFiltersTest < CapybaraTestBase
     assert_current_path %r{\?.*status=dechiffrage}
 
     titles = all('tbody tr td:first-child').map(&:text)
-    assert_includes titles, 'Nocturne No. 20 in C# Minor'
+    assert_includes titles, 'Nocturne No. 20 in C♯ Minor'
     assert_includes titles, 'Prelude Op. 28 No. 4 in E Minor'
     refute_includes titles, 'Waltz in A Minor'
     # Half a minute of playing is under the practice floor, so the Ballade has
@@ -215,7 +215,7 @@ class LibraryFiltersTest < CapybaraTestBase
     chip.click
 
     titles = all('tbody tr td:first-child').map(&:text)
-    assert_includes titles, 'Nocturne No. 20 in C# Minor'
+    assert_includes titles, 'Nocturne No. 20 in C♯ Minor'
     refute_includes titles, 'Prelude Op. 28 No. 4 in E Minor'
 
     # And the page says what the chip selects, which is what nobody could tell
@@ -249,7 +249,7 @@ class LibraryFiltersTest < CapybaraTestBase
     chip.click
 
     titles = all('tbody tr td:first-child').map(&:text)
-    assert_includes titles, 'Nocturne No. 20 in C# Minor'
+    assert_includes titles, 'Nocturne No. 20 in C♯ Minor'
     refute_includes titles, 'Prelude Op. 28 No. 4 in E Minor'
   end
 
@@ -292,7 +292,7 @@ class LibraryFiltersTest < CapybaraTestBase
     titles = all('tbody tr td:first-child').map(&:text)
     assert_includes titles, 'Prelude Op. 28 No. 4 in E Minor'
     refute_includes titles, 'Ballade No. 1 in G minor Op. 23'
-    refute_includes titles, 'Nocturne No. 20 in C# Minor'
+    refute_includes titles, 'Nocturne No. 20 in C♯ Minor'
 
     # And the card says the half the label never could: the floor. The numbers
     # are MIN_PRACTICE_MS_FOR_STATUS and STALE_DAYS (library.js/practiceTracker.js).
@@ -471,7 +471,7 @@ class LibraryFiltersTest < CapybaraTestBase
       },
       {
         scoreId: 'scores/Nocturne_No._20_in_C_sharp_Minor.mxl',
-        scoreTitle: 'Nocturne No. 20 in C# Minor',
+        scoreTitle: 'Nocturne No. 20 in C♯ Minor',
         composer: 'Chopin',
         status: 'dechiffrage',
         lastPlayedAt: '2026-03-15T10:00:00.000Z',

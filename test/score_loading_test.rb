@@ -62,6 +62,32 @@ class ScoreLoadingTest < CapybaraTestBase
     assert_empty recorded_error_messages.grep(/TypeError/)
   end
 
+  # A score the catalog lists goes by the catalog's name, in the page's bar and
+  # at the head of the sheet: the one the library and the journal show. It went
+  # by its file's own, which disagrees with the catalog on most of it. This file
+  # credits Pyotr Ilyich Tchaikovsky.
+  def test_a_listed_score_goes_by_the_catalog_name
+    visit '/score.html?url=scores/Swan_Lake.mxl'
+    wait_for_score_render
+
+    assert_selector '.pt-topbar__title span', exact_text: 'Swan Lake'
+    assert_selector '.pt-topbar__title small', exact_text: 'Tchaikovsky'
+    assert_equal 'Swan Lake — Tchaikovsky · Arabesque', page.title
+    assert_selector '#score svg text', exact_text: 'Tchaikovsky'
+    assert_no_selector '#score svg text', text: 'Pyotr Ilyich'
+  end
+
+  # The head of the sheet carries the catalog's subtitle, and none of what only
+  # the file said: this one put Satie's full name where OSMD draws a lyricist.
+  def test_the_head_of_the_sheet_says_only_what_the_catalog_does
+    visit '/score.html?url=scores/Gymnopdie_No._1__Satie.mxl'
+    wait_for_score_render
+
+    assert_selector '#score svg text', exact_text: 'from Trois Gymnopédies'
+    assert_selector '#score svg text', exact_text: 'Erik Satie'
+    assert_no_selector '#score svg text', text: 'Éric Alfred Leslie Satie'
+  end
+
   # A file that is not a score is refused with a word, and the page stays as
   # it was. It used to go on laying out a score that never came, and threw.
   def test_a_file_that_is_not_a_score_is_refused_and_nothing_else
