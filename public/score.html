@@ -63,7 +63,7 @@
   <body @keydown.escape.window="handleEscape()">
     <div class="pt-stickybars">
     <header class="pt-topbar">
-      <a href="library.html" class="pt-topbar__back" data-i18n="score.back">← Bibliothèque</a>
+      <a href="library.html" class="pt-back" data-i18n="score.back">← Bibliothèque</a>
       <div class="pt-topbar__title" x-show="osmdInstance" x-cloak>
         <span x-text="collection ? collection.title : (scoreTitle || $t('score.titleFallback'))"></span>
         <small x-show="scoreComposer" x-text="scoreComposer"></small>

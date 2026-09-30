@@ -478,6 +478,262 @@ a:hover { text-decoration: underline; }
 
 @layer components {
 /* =============================================================================
+   Shared components — the pieces more than one page is built from. Each page's
+   own rules follow, under its banner.
+   ========================================================================== */
+
+/* --- Page shells ----------------------------------------------------------
+   The <main> of the pages that are a column of cards (data, practice) or of
+   prose (privacy, support). The container gives the gutters and centres the
+   column; each page names its width. */
+.pt-data-page,
+.pt-practice-page,
+.pt-prose {
+  padding-block: var(--pt-space-5) var(--pt-space-8);
+}
+/* Card pages stack their cards; .pt-prose is left out — its rhythm comes from
+   the headings, not from a flex gap. */
+.pt-data-page,
+.pt-practice-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pt-space-4);
+}
+.pt-data-page { --pt-page-max: 720px; }
+/* Wide enough that a full 53-column year fits without scrolling on a laptop. */
+.pt-practice-page { --pt-page-max: 1080px; }
+/* Long-form text pages (privacy, support): the data page's reading measure. */
+.pt-prose { --pt-page-max: 720px; }
+.pt-prose h2 { margin-block: var(--pt-space-8) var(--pt-space-3); font-size: 1.25rem; }
+.pt-prose p { margin-block: 0 var(--pt-space-3); max-width: 68ch; }
+
+/* --- Page header: back link, title, actions -------------------------------- */
+.pt-page-header {
+  display: flex;
+  align-items: center;
+  gap: var(--pt-space-4);
+  flex-wrap: wrap;
+}
+.pt-page-header h1 { margin: 0; flex-shrink: 0; }
+.pt-page-header__actions { margin-left: auto; display: flex; gap: var(--pt-space-2); align-items: center; }
+.pt-page-header__search {
+  position: relative;
+  flex: 1 1 320px;
+  max-width: 420px;
+  min-width: 240px;
+}
+.pt-page-header__search input[type="search"] {
+  margin: 0;
+  padding: 8px 12px 8px 32px;
+  border-radius: var(--pt-radius-md);
+  background: var(--pt-bg-elevated);
+  font-size: 0.9rem;
+}
+.pt-page-header__search::before {
+  content: "🔍";
+  position: absolute;
+  left: 8px; top: 50%;
+  transform: translateY(-50%);
+  font-size: 0.78rem;
+  pointer-events: none;
+  color: var(--pt-text-muted);
+  opacity: 0.6;
+}
+@media (max-width: 600px) {
+  .pt-page-header { gap: var(--pt-space-2); }
+  .pt-page-header__actions { width: 100%; }
+  .pt-page-header__search { max-width: none; }
+}
+/* The way back to the library: in a page header, and in the score's topbar. */
+.pt-back {
+  color: var(--pt-text-muted);
+  font-size: 0.9rem;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--pt-space-1);
+}
+.pt-back:hover { color: var(--pt-text); text-decoration: none; }
+
+/* --- Text ------------------------------------------------------------------ */
+.pt-hint { color: var(--pt-text-muted); font-size: 0.9rem; }
+
+/* The small uppercase label above a section or a figure. */
+.pt-eyebrow {
+  margin: 0;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--pt-text-subtle);
+}
+
+/* --- Layout ---------------------------------------------------------------- */
+/* A title on the left, its controls pushed to the right. */
+.pt-row-between {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--pt-space-3);
+  flex-wrap: wrap;
+}
+
+/* A bordered section: what the data and practice pages are a column of, and
+   the landing's feature grid is made of. */
+.pt-card {
+  background: var(--pt-surface);
+  border: 1px solid var(--pt-border);
+  border-radius: var(--pt-radius-lg);
+  padding: var(--pt-space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--pt-space-2);
+  box-shadow: var(--pt-shadow-sm);
+  transition: border-color var(--pt-transition-fast), box-shadow var(--pt-transition-fast);
+}
+/* Vertical rhythm for a card's contents: one gap owns the spacing, so nested
+   Alpine wrappers (template > div) don't each need margins of their own.
+   Defined after .pt-card so its roomier gap wins over the card's own. */
+.pt-stack { display: flex; flex-direction: column; gap: var(--pt-space-3); }
+.pt-stack > * { margin: 0; }
+/* For a list of like items rather than a card's mixed contents: the journal's
+   days, and the entries of a day. */
+.pt-stack--tight { gap: var(--pt-space-2); }
+
+/* --- Controls -------------------------------------------------------------- */
+/* A square button holding one glyph: the ⚙️ menu, the calendar's year arrows
+   and close, the on-screen keyboard's ✕. */
+/* No `cursor: pointer` here: the base gives it to every button and takes it
+   back on :disabled, which is what a disabled year-nav arrow wants. The
+   declaration this component used to carry only ever won by out-specifying
+   that, which is exactly the accident the layers removed. */
+.pt-icon-button {
+  width: 38px; height: 38px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--pt-bg-elevated);
+  border: 1px solid var(--pt-border);
+  border-radius: var(--pt-radius-md);
+  color: var(--pt-text-muted);
+  font-size: 1.05rem;
+  line-height: 1;
+  padding: 0;
+}
+.pt-icon-button:hover { background: var(--pt-surface-2); border-color: var(--pt-border-strong); color: var(--pt-text); }
+.pt-icon-button[aria-pressed="true"] { background: var(--pt-accent-soft); color: var(--pt-accent); border-color: color-mix(in srgb, var(--pt-accent) 25%, transparent); }
+
+/* Small pill in a bar: the score topbar's (Historique, the MIDI keyboard, the
+   part navigator's arrows) and the library header's profile chip. Less
+   prominent than .pt-action-button so it doesn't compete with the modebar
+   actions. */
+.pt-topbar__pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--pt-bg-elevated);
+  border: 1px solid var(--pt-border);
+  border-radius: var(--pt-radius-pill);
+  padding: 4px 12px;
+  color: var(--pt-text);
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+button.pt-topbar__pill:hover { background: var(--pt-surface-2); border-color: var(--pt-border-strong); }
+button.pt-topbar__pill:disabled { opacity: 0.4; cursor: default; }
+
+/* Compact dropdown, sized to sit in a row of pills rather than to fill a form
+   column — the composer and period filters, and the narrow-screen sort. */
+.pt-select {
+  margin: 0;
+  padding: 5px 28px 5px 12px;
+  border-radius: var(--pt-radius-md);
+  background-color: var(--pt-surface-2);
+  border: 1px solid var(--pt-border-strong);
+  font-size: 0.85rem;
+  color: var(--pt-text);
+  width: auto;
+  min-width: 180px;
+  /* The chevron the base draws on a bare <select>, the same size, so every
+     dropdown in the app shows the same mark — only the inset is tighter, this
+     control being a pill in a row of pills rather than a full-width field. */
+  background-position: right 8px center;
+}
+.pt-select:hover { background-color: var(--pt-bg-elevated); }
+.pt-select:focus { outline: 2px solid color-mix(in srgb, var(--pt-accent) 30%, transparent); outline-offset: 1px; }
+
+/* FR/EN language switch: the landing's nav, and the ⚙️ menu. */
+.pt-langswitch {
+  display: inline-flex;
+  flex: 0 0 auto;
+  border: 1px solid var(--pt-border);
+  border-radius: var(--pt-radius-pill);
+  overflow: hidden;
+  background: var(--pt-surface);
+}
+.pt-langswitch button {
+  flex: 0 0 auto;
+  padding: 8px 14px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--pt-text-muted);
+  background: transparent;
+  border: none;
+  border-radius: 0;
+}
+.pt-langswitch button[aria-pressed="true"] {
+  background: var(--pt-accent);
+  color: var(--pt-text-inverse);
+}
+
+/* Status pills (déchiffrage / perfectionnement / répertoire). */
+.pt-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 10px;
+  border-radius: var(--pt-radius-pill);
+  font-size: 0.78rem;
+  font-weight: 500;
+  background: var(--pt-surface-2);
+  color: var(--pt-text-muted);
+  border: 1px solid var(--pt-border);
+  white-space: nowrap;
+  text-decoration: none;
+}
+.pt-pill::before {
+  content: "";
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.85;
+}
+.pt-pill--dechiffrage { background: var(--pt-status-dechiffrage-bg); color: var(--pt-status-dechiffrage); border-color: color-mix(in srgb, var(--pt-status-dechiffrage) 25%, transparent); }
+.pt-pill--perfectionnement { background: var(--pt-status-perfectionnement-bg); color: var(--pt-status-perfectionnement); border-color: color-mix(in srgb, var(--pt-status-perfectionnement) 25%, transparent); }
+.pt-pill--repertoire { background: var(--pt-status-repertoire-bg); color: var(--pt-status-repertoire); border-color: color-mix(in srgb, var(--pt-status-repertoire) 25%, transparent); }
+.pt-pill.is-link:hover { filter: brightness(0.97); }
+
+/* --- Journal entries (journalEntries.js) -----------------------------------
+   One score practised on one day: the library's journal and the calendar's
+   day panel. */
+.pt-journal__entry { font-size: 0.82rem; line-height: 1.4; color: var(--pt-text); }
+.pt-journal__entry a { color: var(--pt-text); font-weight: 500; }
+.pt-journal__entry a:hover { color: var(--pt-accent); text-decoration: none; }
+.pt-journal__entry small { color: var(--pt-text-muted); display: block; font-size: 0.75rem; margin-top: 2px; }
+.pt-journal__entry--empty { color: var(--pt-text-subtle); font-style: italic; font-size: 0.82rem; }
+
+/* --- Footer ---------------------------------------------------------------- */
+.pt-footer {
+  text-align: center;
+  color: var(--pt-text-subtle);
+  font-size: 0.85rem;
+  padding-block: var(--pt-space-10) var(--pt-space-6);
+  border-top: 1px solid var(--pt-border);
+  margin-top: var(--pt-space-8);
+}
+/* Footer links sit on their own line under the tagline, wrapping to one line
+   each on a narrow screen rather than crowding it. */
+.pt-footer-links { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--pt-space-4); margin-top: var(--pt-space-2); }
+
+/* =============================================================================
    Topbar (sticky page header on score.html)
    ========================================================================== */
 
@@ -497,15 +753,6 @@ a:hover { text-decoration: underline; }
   padding: var(--pt-space-2) var(--pt-space-4);
   min-height: 48px;
 }
-.pt-topbar__back {
-  color: var(--pt-text-muted);
-  font-size: 0.9rem;
-  flex-shrink: 0;
-  display: inline-flex;
-  align-items: center;
-  gap: var(--pt-space-1);
-}
-.pt-topbar__back:hover { color: var(--pt-text); text-decoration: none; }
 .pt-topbar__title {
   flex: 1;
   min-width: 0;
@@ -519,23 +766,6 @@ a:hover { text-decoration: underline; }
 .pt-topbar__title small { color: var(--pt-text-muted); font-weight: 400; margin-left: var(--pt-space-2); }
 .pt-topbar__actions { display: flex; align-items: center; gap: var(--pt-space-2); flex-shrink: 0; }
 
-/* Small pill in the topbar (e.g. Historique, the MIDI keyboard). Less
-   prominent than .pt-action-button so it doesn't compete with the modebar
-   actions. */
-.pt-topbar__pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  background: var(--pt-bg-elevated);
-  border: 1px solid var(--pt-border);
-  border-radius: var(--pt-radius-pill);
-  padding: 4px 12px;
-  color: var(--pt-text);
-  font-size: 0.85rem;
-  font-weight: 500;
-}
-button.pt-topbar__pill:hover { background: var(--pt-surface-2); border-color: var(--pt-border-strong); }
-button.pt-topbar__pill:disabled { opacity: 0.4; cursor: default; }
 /* The MIDI keyboard's pill: a status once one is connected, and until then
    the button that connects one, muted. */
 .pt-midi-status { background: var(--pt-success-bg); color: var(--pt-success); border-color: transparent; }
@@ -551,24 +781,6 @@ button.pt-topbar__pill:disabled { opacity: 0.4; cursor: default; }
   border-radius: var(--pt-radius-pill);
 }
 
-/* Icon buttons (settings, history) */
-/* No `cursor: pointer` here: the base gives it to every button and takes it
-   back on :disabled, which is what a disabled year-nav arrow wants. The
-   declaration this component used to carry only ever won by out-specifying
-   that, which is exactly the accident the layers removed. */
-.pt-icon-button {
-  width: 38px; height: 38px;
-  display: inline-flex; align-items: center; justify-content: center;
-  background: var(--pt-bg-elevated);
-  border: 1px solid var(--pt-border);
-  border-radius: var(--pt-radius-md);
-  color: var(--pt-text-muted);
-  font-size: 1.05rem;
-  line-height: 1;
-  padding: 0;
-}
-.pt-icon-button:hover { background: var(--pt-surface-2); border-color: var(--pt-border-strong); color: var(--pt-text); }
-.pt-icon-button[aria-pressed="true"] { background: var(--pt-accent-soft); color: var(--pt-accent); border-color: color-mix(in srgb, var(--pt-accent) 25%, transparent); }
 /* On the score topbar the gear sits among pill buttons — match their height and
    round shape instead of the taller, square library style (which matches the
    search box there). */
@@ -932,33 +1144,9 @@ button.pt-topbar__pill:disabled { opacity: 0.4; cursor: default; }
    width (the section is a column flex, which would otherwise stretch it). */
 .pt-popover .pt-langswitch { align-self: flex-start; }
 
-/* Hide x-cloak elements until Alpine boots, so nothing it is about to hide —
-   the popover, the modals, the controls a score brings — flashes on load. */
-[x-cloak] { display: none !important; }
-
 /* =============================================================================
    Data page (backup + account)
    ========================================================================== */
-.pt-data-page,
-.pt-practice-page,
-.pt-prose {
-  padding-block: var(--pt-space-5) var(--pt-space-8);
-}
-/* Card pages stack their cards; .pt-prose is left out — its rhythm comes from
-   the headings, not from a flex gap. */
-.pt-data-page,
-.pt-practice-page {
-  display: flex;
-  flex-direction: column;
-  gap: var(--pt-space-4);
-}
-.pt-data-page { --pt-page-max: 720px; }
-/* Wide enough that a full 53-column year fits without scrolling on a laptop. */
-.pt-practice-page { --pt-page-max: 1080px; }
-/* Long-form text pages (privacy, support): the data page's reading measure. */
-.pt-prose { --pt-page-max: 720px; }
-.pt-prose h2 { margin-block: var(--pt-space-8) var(--pt-space-3); font-size: 1.25rem; }
-.pt-prose p { margin-block: 0 var(--pt-space-3); max-width: 68ch; }
 .pt-data-actions { display: flex; flex-wrap: wrap; gap: var(--pt-space-2); align-items: center; }
 .pt-data-actions button, .pt-data-actions [role="button"] { margin: 0; }
 .pt-account-form { display: flex; flex-wrap: wrap; gap: var(--pt-space-2); align-items: center; }
@@ -982,9 +1170,11 @@ button.pt-topbar__pill:disabled { opacity: 0.4; cursor: default; }
 }
 .pt-data-identity strong { overflow-wrap: anywhere; }
 
-/* Profiles (profiles.js): the tiles that switch, in the chooser the library's
+/* =============================================================================
+   Profiles (profiles.js): the tiles that switch, in the chooser the library's
    profile chip opens (a plain .pt-topbar__pill); the rows that edit, on the
-   data page. */
+   data page.
+   ========================================================================== */
 .pt-profile-tiles {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
@@ -1007,11 +1197,6 @@ button.pt-topbar__pill:disabled { opacity: 0.4; cursor: default; }
 .pt-profile-tile[aria-pressed="true"] { border-color: var(--pt-accent); background: var(--pt-accent-soft); }
 .pt-profile-tile__avatar { font-size: 2.5rem; line-height: 1; }
 .pt-profile-tile__name { font-weight: 600; overflow-wrap: anywhere; }
-/* A footer inside the scrolling body is out of reach of the
-   dialog > article > footer rule (Modals, below), so its actions are laid out
-   here. At any depth, not just a direct child: such a footer often sits inside
-   the <form> it submits or the <div> an x-if branch wraps it in. */
-.pt-modal-body footer { display: flex; justify-content: flex-end; margin-top: var(--pt-space-4); }
 
 /* A row of the profile list is a .pt-account-form with a box around it. */
 .pt-profile-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--pt-space-2); }
@@ -1026,90 +1211,6 @@ button.pt-topbar__pill:disabled { opacity: 0.4; cursor: default; }
 .pt-account-form select { margin: 0; width: auto; flex: 0 0 auto; padding-right: 2rem; font-size: 1.25rem; }
 
 .pt-sync-ok { color: var(--pt-status-repertoire); font-weight: 500; }
-.pt-hint { color: var(--pt-text-muted); font-size: 0.9rem; }
-
-/* A title on the left, its controls pushed to the right. */
-.pt-row-between {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--pt-space-3);
-  flex-wrap: wrap;
-}
-
-/* The small uppercase label above a section or a figure. */
-.pt-eyebrow {
-  margin: 0;
-  font-size: 0.78rem;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--pt-text-subtle);
-}
-
-/* =============================================================================
-   Pills (status, generic)
-   ========================================================================== */
-
-.pt-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 2px 10px;
-  border-radius: var(--pt-radius-pill);
-  font-size: 0.78rem;
-  font-weight: 500;
-  background: var(--pt-surface-2);
-  color: var(--pt-text-muted);
-  border: 1px solid var(--pt-border);
-  white-space: nowrap;
-  text-decoration: none;
-}
-.pt-pill::before {
-  content: "";
-  width: 6px; height: 6px;
-  border-radius: 50%;
-  background: currentColor;
-  opacity: 0.85;
-}
-.pt-pill--dechiffrage { background: var(--pt-status-dechiffrage-bg); color: var(--pt-status-dechiffrage); border-color: color-mix(in srgb, var(--pt-status-dechiffrage) 25%, transparent); }
-.pt-pill--perfectionnement { background: var(--pt-status-perfectionnement-bg); color: var(--pt-status-perfectionnement); border-color: color-mix(in srgb, var(--pt-status-perfectionnement) 25%, transparent); }
-.pt-pill--repertoire { background: var(--pt-status-repertoire-bg); color: var(--pt-status-repertoire); border-color: color-mix(in srgb, var(--pt-status-repertoire) 25%, transparent); }
-.pt-pill.is-link:hover { filter: brightness(0.97); }
-
-/* =============================================================================
-   Cards (landing feature grid)
-   ========================================================================== */
-
-.pt-card-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: var(--pt-space-4);
-}
-
-.pt-card {
-  background: var(--pt-surface);
-  border: 1px solid var(--pt-border);
-  border-radius: var(--pt-radius-lg);
-  padding: var(--pt-space-4);
-  display: flex;
-  flex-direction: column;
-  gap: var(--pt-space-2);
-  box-shadow: var(--pt-shadow-sm);
-  transition: border-color var(--pt-transition-fast), box-shadow var(--pt-transition-fast);
-}
-/* Lift only in the browsable grid: elsewhere a card is a static section, and
-   highlighting it on hover reads as "clickable". */
-.pt-card-grid .pt-card:hover { border-color: var(--pt-border-strong); box-shadow: var(--pt-shadow-md); }
-
-/* Vertical rhythm for a card's contents: one gap owns the spacing, so nested
-   Alpine wrappers (template > div) don't each need margins of their own.
-   Defined after .pt-card so its roomier gap wins over the card's own. */
-.pt-stack { display: flex; flex-direction: column; gap: var(--pt-space-3); }
-.pt-stack > * { margin: 0; }
-/* For a list of like items rather than a card's mixed contents: the journal's
-   days, and the entries of a day. */
-.pt-stack--tight { gap: var(--pt-space-2); }
-
 
 /* =============================================================================
    Library page layout
@@ -1190,38 +1291,6 @@ button.pt-topbar__pill:disabled { opacity: 0.4; cursor: default; }
 
 .pt-library__table thead { position: sticky; top: 0; z-index: 1; }
 
-.pt-page-header {
-  display: flex;
-  align-items: center;
-  gap: var(--pt-space-4);
-  flex-wrap: wrap;
-}
-.pt-page-header h1 { margin: 0; flex-shrink: 0; }
-.pt-page-header__actions { margin-left: auto; display: flex; gap: var(--pt-space-2); align-items: center; }
-.pt-page-header__search {
-  position: relative;
-  flex: 1 1 320px;
-  max-width: 420px;
-  min-width: 240px;
-}
-.pt-page-header__search input[type="search"] {
-  margin: 0;
-  padding: 8px 12px 8px 32px;
-  border-radius: var(--pt-radius-md);
-  background: var(--pt-bg-elevated);
-  font-size: 0.9rem;
-}
-.pt-page-header__search::before {
-  content: "🔍";
-  position: absolute;
-  left: 8px; top: 50%;
-  transform: translateY(-50%);
-  font-size: 0.78rem;
-  pointer-events: none;
-  color: var(--pt-text-muted);
-  opacity: 0.6;
-}
-
 /* Filters row (status pills + composer dropdown) */
 .pt-filters { display: flex; gap: var(--pt-space-2); align-items: center; flex-wrap: wrap; }
 .pt-filter-pill {
@@ -1243,26 +1312,6 @@ button.pt-topbar__pill:disabled { opacity: 0.4; cursor: default; }
 .pt-filter-pill[aria-pressed="true"][data-status="perfectionnement"] { background: var(--pt-status-perfectionnement); border-color: var(--pt-status-perfectionnement); }
 .pt-filter-pill[aria-pressed="true"][data-status="repertoire"] { background: var(--pt-status-repertoire); border-color: var(--pt-status-repertoire); }
 .pt-filter-pill__count { opacity: 0.7; font-size: 0.78rem; }
-
-/* Compact dropdown, sized to sit in a row of pills rather than to fill a form
-   column — the composer and period filters, and the narrow-screen sort. */
-.pt-select {
-  margin: 0;
-  padding: 5px 28px 5px 12px;
-  border-radius: var(--pt-radius-md);
-  background-color: var(--pt-surface-2);
-  border: 1px solid var(--pt-border-strong);
-  font-size: 0.85rem;
-  color: var(--pt-text);
-  width: auto;
-  min-width: 180px;
-  /* The chevron the base draws on a bare <select>, the same size, so every
-     dropdown in the app shows the same mark — only the inset is tighter, this
-     control being a pill in a row of pills rather than a full-width field. */
-  background-position: right 8px center;
-}
-.pt-select:hover { background-color: var(--pt-bg-elevated); }
-.pt-select:focus { outline: 2px solid color-mix(in srgb, var(--pt-accent) 30%, transparent); outline-offset: 1px; }
 
 /* Narrow-screen tab bar. A phone has room for one of the two panes at a time;
    a wide screen shows both, so this stays hidden and the pane rules below never
@@ -1354,11 +1403,6 @@ button.pt-topbar__pill:disabled { opacity: 0.4; cursor: default; }
 }
 .pt-journal__day-header h3 { margin: 0; font-size: 0.88rem; color: var(--pt-text); }
 .pt-journal__day-header small { color: var(--pt-text-muted); font-variant-numeric: tabular-nums; font-size: 0.78rem; }
-.pt-journal__entry { font-size: 0.82rem; line-height: 1.4; color: var(--pt-text); }
-.pt-journal__entry a { color: var(--pt-text); font-weight: 500; }
-.pt-journal__entry a:hover { color: var(--pt-accent); text-decoration: none; }
-.pt-journal__entry small { color: var(--pt-text-muted); display: block; font-size: 0.75rem; margin-top: 2px; }
-.pt-journal__entry--empty { color: var(--pt-text-subtle); font-style: italic; font-size: 0.82rem; }
 
 
 /* =============================================================================
@@ -1673,6 +1717,12 @@ dialog > article > footer {
   flex-wrap: wrap;
   justify-content: flex-end;
 }
+
+/* A footer inside the scrolling body is out of reach of the
+   dialog > article > footer rule (Modals, below), so its actions are laid out
+   here. At any depth, not just a direct child: such a footer often sits inside
+   the <form> it submits or the <div> an x-if branch wraps it in. */
+.pt-modal-body footer { display: flex; justify-content: flex-end; margin-top: var(--pt-space-4); }
 
 /* Feedback modal helper text + error banner (the form itself is unstyled). */
 .pt-feedback-intro { color: var(--pt-text-muted); }
@@ -2056,9 +2106,6 @@ img[id^="cursorImg"] { scroll-margin-top: var(--pt-sticky-offset, 100px); }
   .pt-topbar__title { font-size: 0.88rem; }
   .pt-topbar__title small { display: none; }
   .pt-context { font-size: 0.8rem; padding: 6px var(--pt-space-3); }
-  .pt-page-header { gap: var(--pt-space-2); }
-  .pt-page-header__actions { width: 100%; }
-  .pt-page-header__search { max-width: none; }
 }
 
 /* =============================================================================
@@ -2081,31 +2128,6 @@ img[id^="cursorImg"] { scroll-margin-top: var(--pt-sticky-offset, 100px); }
   color: var(--pt-text);
 }
 .pt-landing__brand img { width: 28px; height: 28px; }
-
-/* FR/EN language switch (shared across pages). */
-.pt-langswitch {
-  display: inline-flex;
-  flex: 0 0 auto;
-  border: 1px solid var(--pt-border);
-  border-radius: var(--pt-radius-pill);
-  overflow: hidden;
-  background: var(--pt-surface);
-}
-.pt-langswitch button {
-  flex: 0 0 auto;
-  padding: 8px 14px;
-  font-size: 0.9rem;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  color: var(--pt-text-muted);
-  background: transparent;
-  border: none;
-  border-radius: 0;
-}
-.pt-langswitch button[aria-pressed="true"] {
-  background: var(--pt-accent);
-  color: var(--pt-text-inverse);
-}
 
 .pt-hero {
   display: flex;
@@ -2157,6 +2179,16 @@ a.pt-hero__visual:hover {
 .pt-section__head h2 { margin-bottom: var(--pt-space-2); }
 .pt-section__head p { color: var(--pt-text-muted); margin: 0; }
 
+.pt-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: var(--pt-space-4);
+}
+
+/* Lift only in the browsable grid: elsewhere a card is a static section, and
+   highlighting it on hover reads as "clickable". */
+.pt-card-grid .pt-card:hover { border-color: var(--pt-border-strong); box-shadow: var(--pt-shadow-md); }
+
 .pt-feature { gap: var(--pt-space-3); }
 .pt-feature__icon { font-size: 1.6rem; line-height: 1; }
 .pt-feature h3 { font-size: 1rem; margin: 0; }
@@ -2182,18 +2214,6 @@ a.pt-hero__visual:hover {
 .pt-step h3 { font-size: 1rem; margin: 0; }
 .pt-step p { font-size: 0.9rem; color: var(--pt-text-muted); margin: 0; }
 
-.pt-landing__footer {
-  text-align: center;
-  color: var(--pt-text-subtle);
-  font-size: 0.85rem;
-  padding-block: var(--pt-space-10) var(--pt-space-6);
-  border-top: 1px solid var(--pt-border);
-  margin-top: var(--pt-space-8);
-}
-/* Footer links sit on their own line under the tagline, wrapping to one line
-   each on a narrow screen rather than crowding it. */
-.pt-footer-links { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--pt-space-4); margin-top: var(--pt-space-2); }
-
 @media (max-width: 720px) {
   .pt-hero { padding-block: var(--pt-space-6) var(--pt-space-8); }
   .pt-hero__intro { grid-template-columns: 1fr; gap: var(--pt-space-4); }
@@ -2210,6 +2230,10 @@ a.pt-hero__visual:hover {
    same failure one layer up. A utility does one thing and has to win it.
    ========================================================================== */
 @layer utilities {
+
+/* Hide x-cloak elements until Alpine boots, so nothing it is about to hide —
+   the popover, the modals, the controls a score brings — flashes on load. */
+[x-cloak] { display: none !important; }
 
 .pt-sr-only {
   position: absolute;
