@@ -32,6 +32,10 @@ const noteMarks = new Map() // Map<fingeringKey, Set<class>>
 let legacyKeyMap = new Map()
 let currentMeasureIndex = 0
 let trainingMode = false
+// Clean repetitions that fill a drill's dots: a passage's in training, a
+// measure's in reinforcement. As many as the streak that retires a measure
+// from the suggestions (REINFORCEMENT_CLEAN_STREAK), but not the same rule:
+// a spoiled repetition here leaves the dots already filled.
 let targetRepeatCount = 3
 let repeatCount = 0
 // Whether the traversal of the passage under way is still flawless — one

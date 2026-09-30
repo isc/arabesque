@@ -9,11 +9,11 @@ const sessionDay = (session) => localDayKey(session.startedAt)
 // Where a session interrupted by a page teardown waits to be closed properly
 // (see stashPendingSession). The profile's own: the snapshot must be replayed
 // into the database the session came from, whoever opens the app next.
-const PENDING_SESSION_KEY = scopedKey('arabesque:pending-session')
+export const PENDING_SESSION_KEY = scopedKey('arabesque:pending-session')
 
 // Marks the one-off repair of sessions stranded before those snapshots existed
 // (see closeStrandedSessions). Per profile like the database it speaks of.
-const STRANDED_REPAIR_KEY = scopedKey('arabesque:stranded-sessions-closed')
+export const STRANDED_REPAIR_KEY = scopedKey('arabesque:stranded-sessions-closed')
 
 // How quiet a session must be before the repair treats it as abandoned rather
 // than in progress somewhere else. Well beyond any gap between two measures,
@@ -53,8 +53,10 @@ export const AGGREGATES_VERSION = 3
 // today, and the window bounds a computation that runs at every measure.
 export const REINFORCEMENT_WINDOW_SESSIONS = 10
 
-// Consecutive clean passes that retire a measure from the suggestions — the
-// bar reinforcement mode itself sets to declare a measure done.
+// Consecutive clean passes that retire a measure from the suggestions — as
+// many as the reinforcement drill asks of a measure (targetRepeatCount in
+// musicxml.js), though the drill does not ask for them in a row: one finished
+// with a spoiled repetition among its clean ones leaves its measure suggested.
 export const REINFORCEMENT_CLEAN_STREAK = 3
 
 // Sessions a measure must span before its error rate can be called stagnant.

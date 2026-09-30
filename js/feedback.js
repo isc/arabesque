@@ -32,7 +32,7 @@ const APP_VERSION = BUILD === 'dev' ? (CHANGELOG[0]?.date ?? 'unknown') : BUILD
 // So the account stays the source of truth, and changing it changes the
 // default, while a report deliberately sent anonymously stays anonymous: an
 // emptied field is remembered as an empty string, which is an answer.
-const REMEMBERED_EMAIL_KEY = `${KEY_PREFIX}feedback-email`
+export const REMEMBERED_EMAIL_KEY = `${KEY_PREFIX}feedback-email`
 
 export function defaultFeedbackEmail() {
   try {
