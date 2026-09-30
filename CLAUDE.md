@@ -91,7 +91,19 @@ name with anything but letters, digits and `-` turned into `-`), refreshed on
 each push and removed when the PR closes; `.github/workflows/preview.yml`
 posts the link as a sticky comment. Production and previews are both served
 from the `gh-pages` branch — `deploy-pages.yml` publishes `public/` at its
-root, previews go under `previews/`. A preview is on the same origin as
+root, previews go under `previews/`, and `preview-cleanup.yml` removes a
+preview when its PR closes.
+
+**Every workflow that writes to `gh-pages` joins the concurrency group
+`gh-pages` with `queue: max`** (so `cancel-in-progress: false`). Without the
+queue, GitHub keeps one run waiting per group and cancels it, silently, when
+another arrives: a merge starts the deploy and the preview's cleanup in the
+same second, and the deploy was the one lost — twice on 2026-09-30, a fix
+staying offline until the next merge. The queue also keeps the writes one at
+a time, which peaceiris needs (it does not retry a rejected push). GitHub
+orders the queue only on a best-effort basis, so the deploy publishes the
+head of main when it runs, never the commit of its event, and it goes green
+only once `arabesque.app/.deploy-sha` says that commit is online. A preview is on the same origin as
 production, so it reads and writes the same IndexedDB and localStorage: runs
 played on a preview land in the real practice journal.
 

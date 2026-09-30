@@ -13,9 +13,11 @@ permissions:
   contents: write
   pull-requests: write
 
+# Same group as deploy-pages.yml and preview-cleanup.yml, queued: see there.
 concurrency:
   group: gh-pages
   cancel-in-progress: false
+  queue: max
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -72,7 +74,7 @@ jobs:
         run: |
           url="https://arabesque.app/previews/$SLUG/.preview-sha"
           for i in $(seq 1 60); do
-            actual=$(curl -fsSL "$url" 2>/dev/null | tr -d '[:space:]' || true)
+            actual=$(curl -fsSL --max-time 10 "$url" 2>/dev/null | tr -d '[:space:]' || true)
             if [ "$actual" = "$EXPECTED_SHA" ]; then
               echo "Preview live with $EXPECTED_SHA after ${i}×5s"
               exit 0
