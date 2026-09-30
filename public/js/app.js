@@ -296,33 +296,13 @@ export function midiApp() {
       // change rebuilding the schedule, the last note — and the page mirrors it
       // from here, once, rather than from every control that can move it.
       playback.setOnTransportChange(() => this.syncPlaybackState())
-
-      // The sticky-bar offset feeds both scrollToMeasure (JS) and
-      // scroll-margin-top (CSS, via --pt-sticky-offset). Recompute on
-      // resize and when the mode-context band toggles visibility.
-      applyStickyOffset()
-      let relayoutTimer = null
-      window.addEventListener('resize', () => {
-        applyStickyOffset()
-        clearTimeout(relayoutTimer)
-        relayoutTimer = setTimeout(() => this.handleViewportResize(), RESIZE_RELAYOUT_DEBOUNCE_MS)
-      })
-      // $nextTick (not queueMicrotask) — Alpine flips x-show display on
-      // the next tick, so we'd otherwise measure 0 for the band that's
-      // about to appear. osmdInstance is updated via afterScoreLoad()
-      // directly because $watch would deep-compare via JSON.stringify and
-      // OSMD has circular references (note ↔ voiceEntry).
-      // Each mode has its own band, or none, above the score.
-      this.$watch('mode', () => this.$nextTick(applyStickyOffset))
+      this.followStickyBars()
       keyHint = initKeyboardHint({
         owedGroup: musicxml.getOwedGroup,
         eligible: () => this.keyHintContext && document.visibilityState === 'visible',
         onVisibleChange: (visible) => { this.keyHintVisible = visible },
         onCaptionChange: (caption) => { this.keyHintCaption = caption },
       })
-      // The playback band appears and disappears with the listening, and it is
-      // as tall as the strict one — so the sticky offset has to follow it too.
-      this.$watch('isListening', () => this.$nextTick(applyStickyOffset))
       this.$watch('strictBpm', () => { if (!this.bpmHold) this.commitBpm('strictBpm') })
       this.$watch('playbackBpm', () => { if (!this.bpmHold) this.commitBpm('playbackBpm') })
 
@@ -339,6 +319,45 @@ export function midiApp() {
       midiReady = midi.connectMIDI({ silent: true, autoSelectFirst: true })
         .then(() => this.syncMidiState())
 
+      this.wireKeyboard()
+      this.wireScoreEngine()
+
+      // Nothing is awaited in front of the load: the spinner the head script
+      // raised is lowered only by the render or by reportScoreLoadFailure, so
+      // whatever is waited on here can leave the page loading with nothing to
+      // say. The database open sat here and did exactly that.
+      const scoreUrl = new URLSearchParams(window.location.search).get('url')
+      if (scoreUrl) await this.loadScoreFromURL(scoreUrl, trackerReady)
+
+      this.followPageLifecycle()
+    },
+
+    // The sticky bars' height feeds both scrollToMeasure (JS) and
+    // scroll-margin-top (CSS, via --pt-sticky-offset), and a narrower window
+    // lays the score out again.
+    followStickyBars() {
+      // Recomputed on resize and when a band toggles visibility.
+      applyStickyOffset()
+      let relayoutTimer = null
+      window.addEventListener('resize', () => {
+        applyStickyOffset()
+        clearTimeout(relayoutTimer)
+        relayoutTimer = setTimeout(() => this.handleViewportResize(), RESIZE_RELAYOUT_DEBOUNCE_MS)
+      })
+      // $nextTick (not queueMicrotask) — Alpine flips x-show display on
+      // the next tick, so we'd otherwise measure 0 for the band that's
+      // about to appear. osmdInstance is updated via afterScoreLoad()
+      // directly because $watch would deep-compare via JSON.stringify and
+      // OSMD has circular references (note ↔ voiceEntry).
+      // Each mode has its own band, or none, above the score.
+      this.$watch('mode', () => this.$nextTick(applyStickyOffset))
+      // The playback band appears and disappears with the listening, and it is
+      // as tall as the strict one — so the sticky offset has to follow it too.
+      this.$watch('isListening', () => this.$nextTick(applyStickyOffset))
+    },
+
+    // The notes the keyboard sends, to whichever engine the mode gives them.
+    wireKeyboard() {
       const NAVIGATE_BACK_KEY = C8 // the highest piano key: the least jarring sound
 
       midi.setCallbacks({
@@ -376,6 +395,11 @@ export function midiApp() {
         onConnectionChange: () => this.syncMidiState(),
       })
 
+    },
+
+    // What the score engine reports as the player goes: runs, measures, wrong
+    // notes, the end of a drill, a bar clicked.
+    wireScoreEngine() {
       musicxml.setCallbacks({
         onScoreCompleted: async () => {
           practiceTracker.markScoreCompleted()
@@ -432,13 +456,11 @@ export function midiApp() {
         },
       })
 
-      // Nothing is awaited in front of the load: the spinner the head script
-      // raised is lowered only by the render or by reportScoreLoadFailure, so
-      // whatever is waited on here can leave the page loading with nothing to
-      // say. The database open sat here and did exactly that.
-      const scoreUrl = new URLSearchParams(window.location.search).get('url')
-      if (scoreUrl) await this.loadScoreFromURL(scoreUrl, trackerReady)
+    },
 
+    // Once the score is up: the session's close as the page goes, the wake
+    // lock as it comes back, and the sync.
+    followPageLifecycle() {
       // endSession() is the clean close, but its IndexedDB writes need the page
       // to stay alive long enough to commit — leaving mid-piece regularly
       // stranded a session. pagehide additionally drops a synchronous snapshot
@@ -456,12 +478,10 @@ export function midiApp() {
       onForeground(() => {
         if (this.osmdInstance) this.requestWakeLock()
       })
-      // This page never pulls — not on open, not on tab-back. A pull can
-      // trigger rebuildAggregates(), which clears every aggregate and replays
-      // every stored session one by one; doing that with a score on screen and
-      // MIDI coming in is how you freeze mid-piece. It has nothing to gain
-      // either: it displays no synced data, and what it has to contribute goes
-      // up through its own end-of-session trigger.
+      // This page syncs only when a session ends (rollSession), between runs:
+      // not on open, not on tab-back. What it has to contribute goes up then,
+      // and it displays no synced data to refresh. A pull rebuilds every
+      // aggregate, which is no work for a moment with MIDI coming in.
       initAutoSync({ storage, practiceTracker }, { syncOnReturn: false })
     },
 
