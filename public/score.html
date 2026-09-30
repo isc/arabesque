@@ -197,13 +197,13 @@
         <div data-bpm-field="strictBpm"></div>
         <button
           class="pt-band-button"
-          :aria-pressed="loopEnabled"
+          :aria-pressed="strictPassage.loop"
           :title="$t('score.loopTitle')"
           @click="toggleLoop"
           x-text="$t('score.loopBtn')"
         >🔁 Boucle</button>
         <select
-          x-show="loopEnabled"
+          x-show="strictPassage.loop"
           class="pt-band-select"
           x-model="trainerMode"
           :disabled="isStrictPlaying"
@@ -254,7 +254,7 @@
       <div class="pt-band-controls">
         <button
           class="pt-band-button"
-          :aria-pressed="trainingLoop"
+          :aria-pressed="trainingPassage.loop"
           :title="$t('score.trainingLoopTitle')"
           @click="toggleTrainingLoop"
           x-text="$t('score.loopBtn')"

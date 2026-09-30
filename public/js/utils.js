@@ -192,7 +192,7 @@ export function formatDate(date) {
 // Strict mode's loop and training mode's passage are picked with exactly this
 // gesture, so it is written once: `armed` is only ever raised while the mode
 // offers an end to pick, which is what `loop` carries into the next click.
-export function pickPassageMeasure({ measureIndex, start, armed, loop }) {
+export function pickPassageMeasure(measureIndex, { start, armed, loop }) {
   if (armed && measureIndex >= start) return { start, end: measureIndex, armed: false }
   return { start: measureIndex, end: null, armed: loop }
 }
