@@ -54,11 +54,12 @@ export const AGGREGATES_VERSION = 3
 // today, and the window bounds a computation that runs at every measure.
 export const REINFORCEMENT_WINDOW_SESSIONS = 10
 
-// Consecutive clean passes that retire a measure from the suggestions — as
-// many as the reinforcement drill asks of a measure (targetRepeatCount in
-// musicxml.js), though the drill does not ask for them in a row: one finished
-// with a spoiled repetition among its clean ones leaves its measure suggested.
-export const REINFORCEMENT_CLEAN_STREAK = 3
+// Clean passes that retire a measure from the suggestions, and fill a drill's
+// dots in training (musicxml.js). Counted the drill's way in a training
+// session — reinforcement is filed as training — where a spoiled repetition
+// leaves the dots already filled; in a row anywhere else. A measure the drill
+// has just called done leaves the suggestions with it.
+export const REINFORCEMENT_CLEAN_PASSES = 3
 
 // Sessions a measure must span before its error rate can be called stagnant.
 const STAGNATION_MIN_SESSIONS = 3
@@ -134,12 +135,12 @@ function recentSessions(sessions) {
 
 // The measures worth offering, unranked, over that window.
 function* reinforceCandidates(sessions, hands) {
-  for (const { sourceMeasureIndex, hands: selection, bySession } of measureHistories(recentSessions(sessions), hands)) {
+  for (const { sourceMeasureIndex, hands: selection, bySession, modes } of measureHistories(recentSessions(sessions), hands)) {
     const attempts = bySession.flat()
     if (!attempts.some(fumbled)) continue
-    // Settled: the measure has since been played cleanly as many times in a
-    // row as reinforcement mode itself demands to call it done.
-    if (cleanStreak(attempts) >= REINFORCEMENT_CLEAN_STREAK) continue
+    // Settled: played cleanly REINFORCEMENT_CLEAN_PASSES times in a row since,
+    // or drilled to done in training and not fumbled since.
+    if (cleanStreak(attempts) >= REINFORCEMENT_CLEAN_PASSES || drilledToDone(bySession, modes)) continue
 
     yield {
       sourceMeasureIndex,
@@ -169,12 +170,13 @@ function measureHistories(sessions, hands) {
         if (!histories) bySelection.set(selection, (histories = new Map()))
         let history = histories.get(measure.sourceMeasureIndex)
         if (!history) {
-          history = { sourceMeasureIndex: measure.sourceMeasureIndex, hands: selection, bySession: [], session: null }
+          history = { sourceMeasureIndex: measure.sourceMeasureIndex, hands: selection, bySession: [], modes: [], session: null }
           histories.set(measure.sourceMeasureIndex, history)
         }
         if (history.session !== session) {
           history.session = session
           history.bySession.push([])
+          history.modes.push(session.mode)
         }
         history.bySession.at(-1).push(attempt)
       }
@@ -198,6 +200,18 @@ function cleanStreak(attempts) {
   let streak = 0
   for (let i = attempts.length - 1; i >= 0 && !fumbled(attempts[i]); i--) streak++
   return streak
+}
+
+// Whether the measure's last training session — its drill — gave it its
+// clean passes, a spoiled one among them or not, with no fumble in any
+// session since. `bySession` and `modes` as measureHistories keeps them.
+function drilledToDone(bySession, modes) {
+  for (let i = bySession.length - 1; i >= 0; i--) {
+    const attempts = bySession[i]
+    if (modes[i] === 'training' && attempts.length - countFumbles(attempts) >= REINFORCEMENT_CLEAN_PASSES) return true
+    if (attempts.some(fumbled)) return false
+  }
+  return false
 }
 
 // Stagnation is the trend over sessions, not within one: a measure stagnates

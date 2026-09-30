@@ -521,7 +521,8 @@ describe('practiceTracker', () => {
 
   describe('measures to reinforce', () => {
     // Sessions as the ranking takes them: oldest first, one entry per measure.
-    const session = (measures) => ({
+    const session = (measures, mode = 'free') => ({
+      mode,
       measures: Object.entries(measures).map(([index, attempts]) => ({
         sourceMeasureIndex: Number(index),
         attempts: attempts.map(([wrongNotes, durationMs = 100]) => ({
@@ -545,6 +546,31 @@ describe('practiceTracker', () => {
       const fumbled = [session({ 0: [[2]] })]
       expect(measuresToReinforce([...fumbled, session({ 0: [[0], [0]] })])).toHaveLength(1)
       expect(measuresToReinforce([...fumbled, session({ 0: [[0], [0], [0]] })])).toEqual([])
+    })
+
+    // The drill keeps the dots already filled through a spoiled repetition, and
+    // says the measure is done at the third clean one: the suggestions agree
+    // with it rather than offer the measure again at once. Reinforcement is
+    // filed as training.
+    describe('after a drill', () => {
+      const fumbled = session({ 0: [[2]] })
+      const drill = session({ 0: [[0], [1], [0], [0]] }, 'training')
+
+      it('drops a measure the drill filled, a spoiled repetition among its clean ones', () => {
+        expect(measuresToReinforce([fumbled, drill])).toEqual([])
+      })
+
+      it('offers it again once fumbled since', () => {
+        expect(measuresToReinforce([fumbled, drill, session({ 0: [[0], [2]] })])).toHaveLength(1)
+      })
+
+      it('still asks for them in a row outside a drill', () => {
+        expect(measuresToReinforce([fumbled, session({ 0: [[0], [1], [0], [0]] })])).toHaveLength(1)
+      })
+
+      it('leaves a drill given up before its last clean repetition', () => {
+        expect(measuresToReinforce([fumbled, session({ 0: [[0], [1], [0]] }, 'training')])).toHaveLength(1)
+      })
     })
 
     it('sorts by wrong notes, then by duration', () => {

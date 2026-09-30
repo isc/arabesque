@@ -66,7 +66,7 @@ export default {
     filterHeading: 'What {filter} selects',
     reinforceHotSpot: 'A bar fumbled at least {factor} times as often as the piece on average, over its last {n} sessions',
     reinforceAttempts: 'Attempted at least {n} times',
-    reinforceClean: 'And not yet played cleanly {n} attempts in a row',
+    reinforceClean: 'And not yet played cleanly {n} attempts in a row, nor completed in training',
     stalePractised: 'Practised for at least {n} min in total',
     staleSilent: 'And not opened again for more than {n} days',
     heading: 'To reach {status}',

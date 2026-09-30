@@ -9,7 +9,7 @@ import {
   hasMinimumPractice,
   MIN_PRACTICE_MS_FOR_STATUS,
   REINFORCEMENT_WINDOW_SESSIONS,
-  REINFORCEMENT_CLEAN_STREAK,
+  REINFORCEMENT_CLEAN_PASSES,
 } from './practiceTracker.js'
 import { initStorage } from './storage.js'
 import { formatDate, formatRelativeDate, statusLabel, scorePageUrl, searchWords, matchesSearch } from './utils.js'
@@ -616,7 +616,7 @@ export function libraryApp() {
           items: [
             t('criteria.reinforceHotSpot', { factor: HOT_SPOT_FACTOR, n: REINFORCEMENT_WINDOW_SESSIONS }),
             t('criteria.reinforceAttempts', { n: HOT_SPOT_MIN_ATTEMPTS }),
-            t('criteria.reinforceClean', { n: REINFORCEMENT_CLEAN_STREAK }),
+            t('criteria.reinforceClean', { n: REINFORCEMENT_CLEAN_PASSES }),
           ],
         }
       }
