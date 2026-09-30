@@ -187,8 +187,7 @@
   tab-size: 4;
 }
 
-body { width: 100%; margin: 0; }
-main { display: block; }
+body { margin: 0; }
 section { margin-bottom: 1rem; }
 ::selection { background: color-mix(in srgb, var(--pt-accent) 25%, transparent); }
 
@@ -216,7 +215,7 @@ a[role="button"] { display: inline-block; }
 /* Centred page column, with its gutters at every width: the auto margins
    centre it once the window is wider than the page's own max-width (below),
    and until then the padding is what keeps its text off the edges. */
-.container { width: 100%; margin-inline: auto; padding-inline: var(--pt-space-4); }
+.container { margin-inline: auto; padding-inline: var(--pt-space-4); }
 
 /* --- Buttons ---------------------------------------------------------------
    A plain button is the accent-filled primary. The variants are `.danger`,
@@ -265,7 +264,6 @@ button[type="submit"] { width: 100%; margin-bottom: 1rem; }
 :is(button, [role="button"]).danger {
   border-color: var(--pt-error);
   background: var(--pt-error);
-  color: var(--pt-text-inverse);
 }
 :is(button, [role="button"]).danger:hover {
   border-color: color-mix(in srgb, var(--pt-error) 80%, black);
@@ -558,14 +556,16 @@ a:hover { text-decoration: underline; }
 /* --- Text ------------------------------------------------------------------ */
 .pt-hint { color: var(--pt-text-muted); font-size: 0.9rem; }
 
-/* The small uppercase label above a section or a figure. */
-.pt-eyebrow {
-  margin: 0;
+/* The small uppercase label above a section or a figure — the ⚙️ menu's
+   "Langue" too, which keeps a heading's margin under it. */
+.pt-eyebrow,
+.pt-popover h4 {
   font-size: 0.78rem;
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: var(--pt-text-subtle);
 }
+.pt-eyebrow { margin: 0; }
 
 /* --- Layout ---------------------------------------------------------------- */
 /* A title on the left, its controls pushed to the right. */
@@ -718,7 +718,7 @@ button.pt-topbar__pill:disabled { opacity: 0.4; cursor: default; }
 .pt-journal__entry a { color: var(--pt-text); font-weight: 500; }
 .pt-journal__entry a:hover { color: var(--pt-accent); text-decoration: none; }
 .pt-journal__entry small { color: var(--pt-text-muted); display: block; font-size: 0.75rem; margin-top: 2px; }
-.pt-journal__entry--empty { color: var(--pt-text-subtle); font-style: italic; font-size: 0.82rem; }
+.pt-journal__entry--empty { color: var(--pt-text-subtle); font-style: italic; }
 
 /* --- Footer ---------------------------------------------------------------- */
 .pt-footer {
@@ -809,7 +809,7 @@ button.pt-topbar__pill:disabled { opacity: 0.4; cursor: default; }
 .pt-modebar > .pt-segmented,
 .pt-modebar > .pt-hands,
 .pt-modebar > .pt-action-button { align-items: center; height: 34px; padding-block: 0; }
-.pt-modebar .pt-segmented button { height: 28px; padding-block: 0; line-height: 28px; }
+.pt-modebar .pt-segmented button,
 .pt-modebar .pt-hands__option { height: 28px; padding-block: 0; line-height: 28px; }
 /* The reinforce badge stays inline-block (no flex) so the screen-reader
    text stays a single line — Capybara matches "Renforcer N mesure" without
@@ -817,38 +817,9 @@ button.pt-topbar__pill:disabled { opacity: 0.4; cursor: default; }
    the 34px shared by the other modebar controls. */
 .pt-modebar > .pt-reinforce-badge { height: 34px; padding-block: 0; line-height: 32px; }
 
-.pt-segmented {
-  display: inline-flex;
-  background: var(--pt-surface-2);
-  border-radius: var(--pt-radius-md);
-  padding: 3px;
-  gap: 2px;
-  flex: 0 0 auto;
-  width: max-content;
-}
-.pt-segmented button {
-  background: transparent;
-  border: none;
-  padding: 6px 14px;
-  border-radius: 6px;
-  color: var(--pt-text-muted);
-  font-size: 0.88rem;
-  font-weight: 500;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  flex: 0 0 auto;
-  white-space: nowrap;
-}
-.pt-segmented button:hover { color: var(--pt-text); }
-.pt-segmented button[aria-pressed="true"] {
-  background: var(--pt-bg-elevated);
-  color: var(--pt-text);
-  box-shadow: var(--pt-shadow-sm);
-}
-.pt-segmented button[data-mode="training"][aria-pressed="true"] { color: var(--pt-mode-training); }
-.pt-segmented button[data-mode="strict"][aria-pressed="true"] { color: var(--pt-mode-strict); }
-
+/* Two segmented controls on one track: the modes (buttons, one pressed) and
+   the hands (checkboxes, one ticked or both). */
+.pt-segmented,
 .pt-hands {
   display: inline-flex;
   background: var(--pt-surface-2);
@@ -856,20 +827,39 @@ button.pt-topbar__pill:disabled { opacity: 0.4; cursor: default; }
   padding: 3px;
   gap: 2px;
 }
+.pt-segmented button,
 .pt-hands__option {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 5px 10px;
   border-radius: 6px;
+  color: var(--pt-text-muted);
+}
+.pt-segmented button:hover,
+.pt-hands__option:hover { color: var(--pt-text); }
+.pt-segmented button[aria-pressed="true"],
+.pt-hands__option:has(input:checked) { background: var(--pt-bg-elevated); color: var(--pt-text); box-shadow: var(--pt-shadow-sm); }
+
+.pt-segmented { flex: 0 0 auto; width: max-content; }
+.pt-segmented button {
+  background: transparent;
+  border: none;
+  padding: 6px 14px;
+  font-size: 0.88rem;
+  font-weight: 500;
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+.pt-segmented button[data-mode="training"][aria-pressed="true"] { color: var(--pt-mode-training); }
+.pt-segmented button[data-mode="strict"][aria-pressed="true"] { color: var(--pt-mode-strict); }
+
+.pt-hands__option {
+  padding: 5px 10px;
   cursor: pointer;
   font-size: 0.85rem;
-  color: var(--pt-text-muted);
   margin: 0;
 }
-.pt-hands__option:hover { color: var(--pt-text); }
 .pt-hands__option input[type="checkbox"] { margin: 0; width: 14px; height: 14px; }
-.pt-hands__option:has(input:checked) { background: var(--pt-bg-elevated); color: var(--pt-text); box-shadow: var(--pt-shadow-sm); }
 /* Frozen for the length of a strict run: the checkbox dims on its own (base
    layer), the label has to stop offering itself. */
 .pt-hands__option:has(input:disabled) { cursor: not-allowed; color: var(--pt-text-muted); }
@@ -987,7 +977,6 @@ button.pt-topbar__pill:disabled { opacity: 0.4; cursor: default; }
   width: 80px;
   padding: 4px 8px;
   border: 1px solid color-mix(in srgb, currentColor 25%, transparent);
-  border-radius: var(--pt-radius-sm);
   background: var(--pt-bg-elevated);
   color: var(--pt-band);
   height: 28px;
@@ -1014,7 +1003,6 @@ button.pt-topbar__pill:disabled { opacity: 0.4; cursor: default; }
   width: 40px;
   align-self: stretch;
   padding: 0;
-  border-radius: var(--pt-radius-sm);
   font-size: 1.15rem;
   line-height: 1;
   /* A held button must not be taken for a scroll, a text selection or a
@@ -1111,7 +1099,6 @@ button.pt-topbar__pill:disabled { opacity: 0.4; cursor: default; }
   flex-direction: column;
   gap: var(--pt-space-3);
 }
-.pt-popover h4 { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--pt-text-subtle); }
 .pt-popover hr { border: none; border-top: 1px solid var(--pt-border); margin: 0; }
 .pt-popover__section { display: flex; flex-direction: column; gap: var(--pt-space-2); }
 
@@ -1193,7 +1180,7 @@ button.pt-topbar__pill:disabled { opacity: 0.4; cursor: default; }
   border: 2px solid var(--pt-border);
   border-radius: var(--pt-radius-lg);
 }
-.pt-profile-tile:hover { background: var(--pt-surface-2); border-color: var(--pt-border-strong); color: var(--pt-text); }
+.pt-profile-tile:hover { background: var(--pt-surface-2); border-color: var(--pt-border-strong); }
 .pt-profile-tile[aria-pressed="true"] { border-color: var(--pt-accent); background: var(--pt-accent-soft); }
 .pt-profile-tile__avatar { font-size: 2.5rem; line-height: 1; }
 .pt-profile-tile__name { font-weight: 600; overflow-wrap: anywhere; }
@@ -1369,7 +1356,6 @@ button.pt-topbar__pill:disabled { opacity: 0.4; cursor: default; }
   padding: 1px 7px;
   border-radius: var(--pt-radius-pill);
   font-size: 0.78rem;
-  font-weight: 500;
 }
 .pt-focus__chip[aria-pressed="true"] .pt-focus__count {
   background: color-mix(in srgb, var(--pt-mode-reinforcement) 18%, var(--pt-bg-elevated));
@@ -1791,7 +1777,8 @@ dialog > article > footer {
 }
 
 .pt-modal-section { margin-top: var(--pt-space-4); }
-.pt-modal-section h4 { color: var(--pt-text-muted); font-size: 0.85rem; letter-spacing: 0.01em; }
+.pt-modal-section h4,
+.pt-changelog-entry h4 { color: var(--pt-text-muted); font-size: 0.85rem; letter-spacing: 0.01em; }
 
 .pt-modal-note { color: var(--pt-text-muted); margin-top: var(--pt-space-3); font-size: 0.9rem; }
 .pt-modal-note--inline { margin-left: var(--pt-space-2); margin-top: 0; }
@@ -1810,11 +1797,6 @@ dialog > article > footer {
 }
 .pt-changelog-entry { margin-top: var(--pt-space-4); }
 .pt-changelog-entry:first-of-type { margin-top: 0; }
-.pt-changelog-entry h4 {
-  color: var(--pt-text-muted);
-  font-size: 0.85rem;
-  letter-spacing: 0.01em;
-}
 .pt-changelog-entry ul,
 .pt-criteria ul { margin: 0; padding-left: 1.1rem; }
 .pt-changelog-entry li { margin-bottom: var(--pt-space-2); }
@@ -2125,7 +2107,6 @@ img[id^="cursorImg"] { scroll-margin-top: var(--pt-sticky-offset, 100px); }
   align-items: center;
   gap: var(--pt-space-2);
   font-weight: 600;
-  color: var(--pt-text);
 }
 .pt-landing__brand img { width: 28px; height: 28px; }
 
@@ -2191,8 +2172,9 @@ a.pt-hero__visual:hover {
 
 .pt-feature { gap: var(--pt-space-3); }
 .pt-feature__icon { font-size: 1.6rem; line-height: 1; }
-.pt-feature h3 { font-size: 1rem; margin: 0; }
-.pt-feature p { font-size: 0.9rem; color: var(--pt-text-muted); margin: 0; }
+/* A feature and a step read the same: a heading, then a muted line. */
+:is(.pt-feature, .pt-step) h3 { margin: 0; }
+:is(.pt-feature, .pt-step) p { font-size: 0.9rem; color: var(--pt-text-muted); margin: 0; }
 
 .pt-steps {
   display: grid;
@@ -2211,8 +2193,6 @@ a.pt-hero__visual:hover {
   font-weight: 700;
 }
 .pt-step__num::before { content: counter(step); }
-.pt-step h3 { font-size: 1rem; margin: 0; }
-.pt-step p { font-size: 0.9rem; color: var(--pt-text-muted); margin: 0; }
 
 @media (max-width: 720px) {
   .pt-hero { padding-block: var(--pt-space-6) var(--pt-space-8); }
