@@ -213,11 +213,10 @@ th { text-align: left; }
 label { display: block; margin-bottom: 6px; }
 a[role="button"] { display: inline-block; }
 
-/* Centred page column. The gutters exist only below 576px, where the column
-   is full-width; wider than that the auto margins are the gutters. Pages that
-   set their own max-width therefore restore padding-inline themselves. */
+/* Centred page column, with its gutters at every width: the auto margins
+   centre it once the window is wider than the page's own max-width (below),
+   and until then the padding is what keeps its text off the edges. */
 .container { width: 100%; margin-inline: auto; padding-inline: var(--pt-space-4); }
-@media (min-width: 576px) { .container { padding-inline: 0; } }
 
 /* --- Buttons ---------------------------------------------------------------
    A plain button is the accent-filled primary. The variants are `.danger`,
@@ -940,13 +939,9 @@ button.pt-topbar__pill:disabled { opacity: 0.4; cursor: default; }
 /* =============================================================================
    Data page (backup + account)
    ========================================================================== */
-/* The container drops its inline padding above 576px (it assumes a box
-   narrower than the viewport, centred by its auto margins), so a narrow page
-   has to restore the gutters itself — as .pt-landing does. */
 .pt-data-page,
 .pt-practice-page,
 .pt-prose {
-  padding-inline: var(--pt-space-4);
   padding-block: var(--pt-space-5) var(--pt-space-8);
 }
 /* Card pages stack their cards; .pt-prose is left out — its rhythm comes from
@@ -1167,7 +1162,7 @@ button.pt-topbar__pill:disabled { opacity: 0.4; cursor: default; }
    scrolls itself; only the sidebar and the table list scroll, each within
    their own column. The chrome (header + filters + focus) is laid out
    above the grid as a flex item, so it doesn't need sticky positioning. */
-.pt-library-page { height: 100dvh; --pt-page-max: none; padding-inline: var(--pt-space-4); display: flex; flex-direction: column; overflow: hidden; }
+.pt-library-page { height: 100dvh; --pt-page-max: none; display: flex; flex-direction: column; overflow: hidden; }
 
 .pt-library-chrome {
   flex: 0 0 auto;
@@ -2069,12 +2064,7 @@ img[id^="cursorImg"] { scroll-margin-top: var(--pt-sticky-offset, 100px); }
 /* =============================================================================
    Landing page (/) — pitch + onboarding shown to first-time visitors.
    ========================================================================== */
-/* The container's inline padding is zeroed from the 576px breakpoint up,
-   assuming the box is narrower than the viewport and centered (margin auto
-   supplies the gutters). Below 960px that assumption breaks — the container
-   is still full-width — so restore the padding explicitly, same as
-   .pt-library-page does. */
-.pt-landing { --pt-page-max: 960px; padding-inline: var(--pt-space-4); }
+.pt-landing { --pt-page-max: 960px; }
 
 .pt-landing__nav {
   display: flex;
