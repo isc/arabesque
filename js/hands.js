@@ -8,7 +8,9 @@
 export const TWO_HANDS = 'both'
 
 // Neither hand ticked. A measure played so has nothing to validate, so it
-// can't be part of what was played and says nothing about the hands.
+// can't be part of what was played and says nothing about the hands. The
+// toggles no longer allow it (updateActiveHands), but attempts recorded
+// before they stopped still carry it.
 export const NO_HANDS = 'none'
 
 // How a hand selection is stored on a measure attempt.

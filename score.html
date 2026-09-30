@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="app-version" content="b9adac0a5868" />
+    <meta name="app-version" content="39dc469945e9" />
     <title data-i18n="score.pageTitle">Arabesque</title>
     <link rel="icon" href="favicon.svg" type="image/svg+xml" />
     <link rel="manifest" href="manifest.webmanifest" />
@@ -56,7 +56,8 @@
       import { midiApp } from './js/app.js'
       import { startAlpine } from './js/alpineBoot.js'
       import { mountHeaderMenu } from './js/headerMenu.js'
-      startAlpine({ midiApp }, [mountHeaderMenu])
+      import { mountBpmFields } from './js/bpmField.js'
+      startAlpine({ midiApp }, [mountHeaderMenu, mountBpmFields])
     </script>
   </head>
   <body @keydown.escape.window="handleEscape()">
@@ -148,11 +149,11 @@
            Short label, the words in full for assistive tech and hover. -->
       <div class="pt-hands">
         <label class="pt-hands__option" :title="$t('score.rightHand')">
-          <input type="checkbox" x-model="rightHandActive" @change="updateActiveHands" :disabled="isStrictPlaying" :aria-label="$t('score.rightHand')" />
+          <input type="checkbox" x-model="rightHandActive" @change="updateActiveHands('right')" :disabled="isStrictPlaying" :aria-label="$t('score.rightHand')" />
           <span x-text="$t('hands.right')">MD</span>
         </label>
         <label class="pt-hands__option" :title="$t('score.leftHand')">
-          <input type="checkbox" x-model="leftHandActive" @change="updateActiveHands" :disabled="isStrictPlaying" :aria-label="$t('score.leftHand')" />
+          <input type="checkbox" x-model="leftHandActive" @change="updateActiveHands('left')" :disabled="isStrictPlaying" :aria-label="$t('score.leftHand')" />
           <span x-text="$t('hands.left')">MG</span>
         </label>
       </div>
@@ -191,45 +192,9 @@
           x-text="isStrictPlaying ? $t('score.pauseBtn') : $t('score.startBtn')"
         ></button>
         <!-- The tempo is typed with a keyboard and pressed with a thumb: the
-             −/+ buttons step it by a notch, and hold to keep stepping. A div
-             rather than a label around the lot, since a label hands its clicks
-             to the first control it holds — which would now be a button. -->
-        <div class="pt-bpm-field">
-          <button
-            type="button"
-            class="pt-band-button pt-bpm-field__step"
-            :disabled="isStrictPlaying"
-            :aria-label="$t('score.tempoDown')"
-            @click="stepBpmField('strictBpm', -1)"
-            @pointerdown="startBpmHold('strictBpm', -1)"
-            @pointerup="endBpmHold('strictBpm')"
-            @pointerleave="endBpmHold('strictBpm')"
-            @pointercancel="endBpmHold('strictBpm')"
-          >−</button>
-          <label class="pt-sr-only" for="strict-bpm" x-text="$t('score.tempoBpm')">Tempo en BPM</label>
-          <input
-            id="strict-bpm"
-            type="number"
-            :min="bpmMin"
-            :max="bpmMax"
-            :step="bpmStep"
-            x-model.number="strictBpm"
-            :disabled="isStrictPlaying"
-            :aria-label="$t('score.tempoBpm')"
-          />
-          <span class="pt-bpm-field__suffix" x-text="$t('score.bpm')">BPM</span>
-          <button
-            type="button"
-            class="pt-band-button pt-bpm-field__step"
-            :disabled="isStrictPlaying"
-            :aria-label="$t('score.tempoUp')"
-            @click="stepBpmField('strictBpm', 1)"
-            @pointerdown="startBpmHold('strictBpm', 1)"
-            @pointerup="endBpmHold('strictBpm')"
-            @pointerleave="endBpmHold('strictBpm')"
-            @pointercancel="endBpmHold('strictBpm')"
-          >+</button>
-        </div>
+             −/+ buttons step it by a notch, and hold to keep stepping. The
+             field is built by bpmField.js, the same in both bands. -->
+        <div data-bpm-field="strictBpm"></div>
         <button
           class="pt-band-button"
           :aria-pressed="loopEnabled"
@@ -276,39 +241,7 @@
           :aria-label="isPlaying ? $t('score.pause') : $t('score.resume')"
           x-text="isPlaying ? $t('score.pauseBtn') : $t('score.resumeBtn')"
         ></button>
-        <div class="pt-bpm-field">
-          <button
-            type="button"
-            class="pt-band-button pt-bpm-field__step"
-            :aria-label="$t('score.playbackTempoDown')"
-            @click="stepBpmField('playbackBpm', -1)"
-            @pointerdown="startBpmHold('playbackBpm', -1)"
-            @pointerup="endBpmHold('playbackBpm')"
-            @pointerleave="endBpmHold('playbackBpm')"
-            @pointercancel="endBpmHold('playbackBpm')"
-          >−</button>
-          <label class="pt-sr-only" for="playback-bpm" x-text="$t('score.playbackTempoBpm')">Tempo de lecture en BPM</label>
-          <input
-            id="playback-bpm"
-            type="number"
-            :min="bpmMin"
-            :max="bpmMax"
-            :step="bpmStep"
-            x-model.number.debounce.400ms="playbackBpm"
-            :aria-label="$t('score.playbackTempoBpm')"
-          />
-          <span class="pt-bpm-field__suffix" x-text="$t('score.bpm')">BPM</span>
-          <button
-            type="button"
-            class="pt-band-button pt-bpm-field__step"
-            :aria-label="$t('score.playbackTempoUp')"
-            @click="stepBpmField('playbackBpm', 1)"
-            @pointerdown="startBpmHold('playbackBpm', 1)"
-            @pointerup="endBpmHold('playbackBpm')"
-            @pointerleave="endBpmHold('playbackBpm')"
-            @pointercancel="endBpmHold('playbackBpm')"
-          >+</button>
-        </div>
+        <div data-bpm-field="playbackBpm"></div>
       </div>
       <span class="pt-context__row" x-text="playbackBandText()">Cliquez sur une mesure pour écouter à partir de là.</span>
     </div>
@@ -390,7 +323,7 @@
           <!-- Free: where the run went wrong, its ranking + evolution chart -->
           <template x-if="resultMode === 'free'">
             <div>
-              <p x-show="wrongMeasuresText" class="pt-modal-note pt-modal-note--lead" x-text="wrongMeasuresText"></p>
+              <p x-show="resultWrongMeasures" class="pt-modal-note pt-modal-note--lead" x-text="resultWrongMeasures"></p>
               <div class="pt-result-cols">
                 <div class="pt-playthrough-scroll" x-show="previousPlaythroughs.length > 0">
                   <table class="pt-playthrough-table">
@@ -408,10 +341,10 @@
                     </tbody>
                   </table>
                 </div>
-                <template x-if="playthroughChartSvg(previousPlaythroughs)">
+                <template x-if="resultChart">
                   <div class="pt-modal-section">
                     <h4 x-text="$t('score.playtimeEvolution')">Évolution du temps de jeu</h4>
-                    <div x-html="playthroughChartSvg(previousPlaythroughs)"></div>
+                    <div x-html="resultChart"></div>
                   </div>
                 </template>
               </div>
@@ -504,9 +437,9 @@
           <p class="pt-modal-note" x-text="$t('score.noHistory')">Aucun historique pour cette partition.</p>
         </template>
 
-        <template x-for="chart in playthroughCharts" :key="chart.key">
+        <template x-for="chart in historyCharts" :key="chart.key">
           <div class="pt-modal-section">
-            <h4 x-text="chartTitle(chart)">Évolution du temps de jeu</h4>
+            <h4 x-text="chart.title">Évolution du temps de jeu</h4>
             <div x-html="chart.svg"></div>
           </div>
         </template>
@@ -539,8 +472,8 @@
                 <div class="pt-history-day__body">
                   <small x-show="day.fullPlaythroughs.length === 0 && day.measuresWorked.length > 0" x-text="$tn('score.measuresPlayed', day.measuresWorked.length)"></small>
                   <small x-show="day.measuresReinforced.length > 0" x-text="$tn('score.measuresReinforced', day.measuresReinforced.length)"></small>
-                  <template x-for="group in playthroughGroups(day.fullPlaythroughs)" :key="group.key">
-                    <small x-text="formatPlaythroughs(group)"></small>
+                  <template x-for="line in day.runLines" :key="line.key">
+                    <small x-text="line.text"></small>
                   </template>
                 </div>
               </div>

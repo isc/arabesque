@@ -42,3 +42,9 @@ export function startOfLocalDay(date) {
 export function daysBetween(from, to) {
   return Math.round((startOfLocalDay(to) - startOfLocalDay(from)) / 86_400_000)
 }
+
+// Oldest first, for anything with a `startedAt` — a session, a run. It is
+// always an ISO string in UTC, so it sorts as text: a comparator building two
+// Dates per comparison was most of the cost of a call that runs at every
+// measure boundary.
+export const byStartedAt = (a, b) => (a.startedAt < b.startedAt ? -1 : a.startedAt > b.startedAt ? 1 : 0)

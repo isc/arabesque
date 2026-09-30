@@ -63,7 +63,7 @@ export default {
     filterHeading: 'Ce que sélectionne {filter}',
     reinforceHotSpot: 'Une mesure ratée au moins {factor} fois plus souvent que la moyenne du morceau, sur ses {n} dernières séances',
     reinforceAttempts: 'Tentée au moins {n} fois',
-    reinforceClean: 'Et pas encore rejouée proprement {n} passages de suite',
+    reinforceClean: 'Et pas encore rejouée proprement {n} passages de suite, ni réussie à l’entraînement',
     stalePractised: 'Travaillée au moins {n} min en tout',
     staleSilent: 'Et pas rouverte depuis plus de {n} jours',
     heading: 'Pour passer en {status}',

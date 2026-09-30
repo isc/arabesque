@@ -12,6 +12,7 @@ import { scrollSystemIntoView, isUnderStickyBars } from './utils.js'
 import { arrayBufferToXml, isMusicXml } from './mxlLoader.js'
 import { stripPlaybackTempoMarks } from './tempoMarks.js'
 import { recordError } from './errorLog.js'
+import { REINFORCEMENT_CLEAN_PASSES } from './practiceTracker.js'
 
 let osmdInstance = null
 let allNotes = []
@@ -33,10 +34,9 @@ let legacyKeyMap = new Map()
 let currentMeasureIndex = 0
 let trainingMode = false
 // Clean repetitions that fill a drill's dots: a passage's in training, a
-// measure's in reinforcement. As many as the streak that retires a measure
-// from the suggestions (REINFORCEMENT_CLEAN_STREAK), but not the same rule:
-// a spoiled repetition here leaves the dots already filled.
-let targetRepeatCount = 3
+// measure's in reinforcement. A spoiled repetition leaves the dots already
+// filled, and the suggestions count a drill the same way (practiceTracker.js).
+const targetRepeatCount = REINFORCEMENT_CLEAN_PASSES
 let repeatCount = 0
 // Whether the traversal of the passage under way is still flawless — one
 // measure's worth of it by default, the whole passage when a range is picked.
@@ -153,9 +153,13 @@ export function initMusicXML() {
       // back would otherwise owe every note it missed since the downbeat, the
       // other hand's already green and unplayable again.
       resetNotesFromIndex(currentMeasureIndex, currentMeasureIndex)
-      // Dropping a hand can leave the cursor on a measure only that hand plays.
-      const landing = cursorMeasureFor(currentMeasureIndex)
-      if (landing === currentMeasureIndex) return
+      // Dropping a hand can leave the cursor on a measure only that hand plays:
+      // it moves on to the next one the hands left play. When the rest of the
+      // score has none — a single staff is all right hand — it stays put rather
+      // than park on the last measure, where it stayed once the hand came back
+      // (feedback 65538ec6).
+      const landing = nextPlayable(currentMeasureIndex)
+      if (landing === currentMeasureIndex || landing >= allNotes.length) return
       currentMeasureIndex = landing
       updateMeasureCursor()
     },

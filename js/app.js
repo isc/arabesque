@@ -1,10 +1,10 @@
 import { initMidi, nativePairingAvailable, openNativePairing } from './midi.js'
 import { initMusicXML } from './musicxml.js'
 import { initFingeringEditor } from './fingeringEditor.js'
-import { initPracticeTracker, byStartedAt } from './practiceTracker.js'
-import { playthroughGroups, TWO_HANDS, handsKey } from './hands.js'
-import { formatDuration, formatDate, applyStickyOffset, scorePageUrl, onForeground, withHands, withRunKind, pickPassageMeasure, loopRangeText } from './utils.js'
-import { noteLabel } from './noteExtraction.js'
+import { fingeringPad } from './fingeringPad.js'
+import { initPracticeTracker } from './practiceTracker.js'
+import { TWO_HANDS, handsKey } from './hands.js'
+import { formatDuration, formatDate, applyStickyOffset, scorePageUrl, onForeground, withHands, pickPassageMeasure, loopRangeText } from './utils.js'
 import { initStorage } from './storage.js'
 import { loadMxlAsXml } from './mxlLoader.js'
 import { injectFingerings } from './fingeringInjector.js'
@@ -13,60 +13,25 @@ import { initPlayback, getBPM } from './playback.js'
 import { initStrictPlaythrough } from './strictPlaythrough.js'
 import { initKeyboardHint, C8 } from './keyboardHint.js'
 import { createTempoPlan, createTempoTrainer, GRADUATED, BPM_STEP, STREAK, CLEAN_RATE } from './tempoTrainer.js'
-import { stepBpm, holdToRepeat, BPM_MIN, BPM_MAX, BPM_DEFAULT } from './bpmStepper.js'
+import { BPM_DEFAULT } from './bpmStepper.js'
+import { bpmField } from './bpmField.js'
 import { headerMenu } from './headerMenu.js'
 import { initAutoSync, triggerSync } from './autoSync.js'
 import { scopedKey } from './profiles.js'
-import { t, tn, locale } from './i18n.js'
+import { t, tn } from './i18n.js'
 import { recordError } from './errorLog.js'
 import { loadCatalog, fileUrl, isCollection } from './catalog.js'
-
-// Built once: the active locale is fixed for the page lifetime (switching
-// language reloads), so these don't need rebuilding per call/point.
-const PLAYTHROUGH_LIST_FORMATTER = new Intl.ListFormat(locale(), { style: 'long', type: 'conjunction' })
-const CHART_DATE_FULL = new Intl.DateTimeFormat(locale())
-const CHART_DATE_AXIS = new Intl.DateTimeFormat(locale(), { day: 'numeric', month: 'short' })
-
-
-// The headline figure of a strict run: notes in tempo, as a percentage.
-function strictAccuracy({ hit, total }) {
-  return total ? Math.round((hit / total) * 100) : 0
-}
-
-// A free run's wrong notes. Runs filed before the count was shown carry it
-// too: every measure attempt has always recorded its wrong notes.
-function wrongNotesText(n) {
-  return n ? tn('score.wrongNotes', n) : t('score.noWrongNote')
-}
-
-// What a run is measured by, per kind of run (see hands' playthroughGroups):
-// a free run by the time it took, a strict run by its hit rate — which means
-// nothing without the tempo, so its label carries it. Read wherever runs are
-// listed, titled or plotted, so a kind is described in one place. A free run's
-// label says how clean it was as well: a time alone reads the same for a run
-// that stumbled through as for one that didn't.
-const RUN_KINDS = {
-  free: {
-    title: 'score.playtimeEvolution',
-    aria: 'score.chartAria',
-    value: (pt) => pt.durationMs,
-    format: formatDuration,
-    label: (pt) => `${formatDuration(pt.durationMs)} (${wrongNotesText(pt.wrongNotes)})`,
-    ceiling: Infinity,
-  },
-  strict: {
-    title: 'score.accuracyEvolution',
-    aria: 'score.strictChartAria',
-    value: (pt) => strictAccuracy(pt.strict),
-    format: (pct) => t('score.percent', { pct: Math.round(pct) }),
-    label: (pt) => t('score.strictRunSummary', { pct: strictAccuracy(pt.strict), bpm: pt.strict.bpm }),
-    ceiling: 100,
-  },
-}
-
-function runKind(strict) {
-  return strict ? RUN_KINDS.strict : RUN_KINDS.free
-}
+import {
+  strictAccuracy,
+  wrongNotesText,
+  strictRunLabel,
+  rankingOf,
+  wrongMeasuresText,
+  playthroughChartSvg,
+  playthroughCharts,
+  withRunLines,
+  hotMeasures,
+} from './playthroughHistory.js'
 
 // What the strict and training bands say once a passage's first bar is picked
 // and its last is awaited: to click that bar, while a click would reach the
@@ -75,9 +40,6 @@ function runKind(strict) {
 function armedRangeText(from, clickIsTheBands) {
   return t(clickIsTheBands ? 'score.loopHintEnd' : 'score.startAt', { n: from })
 }
-
-// How many measures the result modal names before it only counts them.
-const WRONG_MEASURES_LISTED = 6
 
 // Redrawing a full score costs ~200ms, and dragging a window edge fires resize
 // continuously — wait for the drag to settle before paying for it once.
@@ -182,6 +144,8 @@ export function midiApp() {
 
   return {
     ...headerMenu(),
+    ...fingeringPad({ storage, fingeringEditor }),
+    ...bpmField(),
     bluetoothConnected: false,
     midiDeviceName: null,
     osmdInstance: null,
@@ -214,18 +178,6 @@ export function midiApp() {
     // `?? 0`: no pick means the top.
     strictStartMeasure: null,
     strictBpm: BPM_DEFAULT,
-    // Bound to both number inputs, so the field accepts exactly what the
-    // buttons can reach and its arrow keys move the same notch they do.
-    bpmMin: BPM_MIN,
-    bpmMax: BPM_MAX,
-    bpmStep: BPM_STEP,
-    // The −/+ buttons beside both tempo fields: the hold in progress, if any
-    // (the function that ends it), and whether the press that just ended ever
-    // repeated — the click it ends with fires after the release, and is the one
-    // that needs the answer. A hold ticks some eleven times a second, so the
-    // watches below sit one out and the release commits once (see commitBpm).
-    bpmHold: null,
-    bpmRepeated: false,
     strictResult: null,
     // The tempo trainer: strict runs of a passage in a loop, the tempo moving
     // between runs (see tempoTrainer.js). Armed by the loop button in place of
@@ -292,6 +244,7 @@ export function midiApp() {
     scoreHistory: [],
     historyTotalMs: 0,
     historyHotMeasures: [],
+    historyCharts: [],
     measuresToReinforce: [],
     showMidiHelpModal: false,
 
@@ -300,16 +253,14 @@ export function midiApp() {
     showResultModal: false,
     resultMode: null,
     previousPlaythroughs: [],
+    resultChart: '',
+    // Where the run just finished went wrong, by measure number.
+    resultWrongMeasures: '',
 
     // Container width the score is currently laid out for, so a height-only
     // resize doesn't pay for a redraw (see handleViewportResize).
     lastRelayoutWidth: null,
 
-    fingeringEnabled: false,
-    showFingeringModal: false,
-    selectedNoteKey: null,
-    selectedNoteLabel: '',
-    fingeringSequence: '',
     // The on-screen keyboard (keyboardHint.js): whether it has come up, and the
     // notes it is showing, by name.
     keyHintVisible: false,
@@ -329,40 +280,19 @@ export function midiApp() {
     get keyHintShown() {
       return this.keyHintVisible && this.keyHintContext
     },
-    fingeringKeydownHandler: null,
 
     async init() {
       // The engine says when the transport moves — ⏸, ▶, a seek, a tempo
       // change rebuilding the schedule, the last note — and the page mirrors it
       // from here, once, rather than from every control that can move it.
       playback.setOnTransportChange(() => this.syncPlaybackState())
-
-      // The sticky-bar offset feeds both scrollToMeasure (JS) and
-      // scroll-margin-top (CSS, via --pt-sticky-offset). Recompute on
-      // resize and when the mode-context band toggles visibility.
-      applyStickyOffset()
-      let relayoutTimer = null
-      window.addEventListener('resize', () => {
-        applyStickyOffset()
-        clearTimeout(relayoutTimer)
-        relayoutTimer = setTimeout(() => this.handleViewportResize(), RESIZE_RELAYOUT_DEBOUNCE_MS)
-      })
-      // $nextTick (not queueMicrotask) — Alpine flips x-show display on
-      // the next tick, so we'd otherwise measure 0 for the band that's
-      // about to appear. osmdInstance is updated via afterScoreLoad()
-      // directly because $watch would deep-compare via JSON.stringify and
-      // OSMD has circular references (note ↔ voiceEntry).
-      // Each mode has its own band, or none, above the score.
-      this.$watch('mode', () => this.$nextTick(applyStickyOffset))
+      this.followStickyBars()
       keyHint = initKeyboardHint({
         owedGroup: musicxml.getOwedGroup,
         eligible: () => this.keyHintContext && document.visibilityState === 'visible',
         onVisibleChange: (visible) => { this.keyHintVisible = visible },
         onCaptionChange: (caption) => { this.keyHintCaption = caption },
       })
-      // The playback band appears and disappears with the listening, and it is
-      // as tall as the strict one — so the sticky offset has to follow it too.
-      this.$watch('isListening', () => this.$nextTick(applyStickyOffset))
       this.$watch('strictBpm', () => { if (!this.bpmHold) this.commitBpm('strictBpm') })
       this.$watch('playbackBpm', () => { if (!this.bpmHold) this.commitBpm('playbackBpm') })
 
@@ -379,6 +309,45 @@ export function midiApp() {
       midiReady = midi.connectMIDI({ silent: true, autoSelectFirst: true })
         .then(() => this.syncMidiState())
 
+      this.wireKeyboard()
+      this.wireScoreEngine()
+
+      // Nothing is awaited in front of the load: the spinner the head script
+      // raised is lowered only by the render or by reportScoreLoadFailure, so
+      // whatever is waited on here can leave the page loading with nothing to
+      // say. The database open sat here and did exactly that.
+      const scoreUrl = new URLSearchParams(window.location.search).get('url')
+      if (scoreUrl) await this.loadScoreFromURL(scoreUrl, trackerReady)
+
+      this.followPageLifecycle()
+    },
+
+    // The sticky bars' height feeds both scrollToMeasure (JS) and
+    // scroll-margin-top (CSS, via --pt-sticky-offset), and a narrower window
+    // lays the score out again.
+    followStickyBars() {
+      // Recomputed on resize and when a band toggles visibility.
+      applyStickyOffset()
+      let relayoutTimer = null
+      window.addEventListener('resize', () => {
+        applyStickyOffset()
+        clearTimeout(relayoutTimer)
+        relayoutTimer = setTimeout(() => this.handleViewportResize(), RESIZE_RELAYOUT_DEBOUNCE_MS)
+      })
+      // $nextTick (not queueMicrotask) — Alpine flips x-show display on
+      // the next tick, so we'd otherwise measure 0 for the band that's
+      // about to appear. osmdInstance is updated via afterScoreLoad()
+      // directly because $watch would deep-compare via JSON.stringify and
+      // OSMD has circular references (note ↔ voiceEntry).
+      // Each mode has its own band, or none, above the score.
+      this.$watch('mode', () => this.$nextTick(applyStickyOffset))
+      // The playback band appears and disappears with the listening, and it is
+      // as tall as the strict one — so the sticky offset has to follow it too.
+      this.$watch('isListening', () => this.$nextTick(applyStickyOffset))
+    },
+
+    // The notes the keyboard sends, to whichever engine the mode gives them.
+    wireKeyboard() {
       const NAVIGATE_BACK_KEY = C8 // the highest piano key: the least jarring sound
 
       midi.setCallbacks({
@@ -415,7 +384,11 @@ export function midiApp() {
         // to connect, and only pressing that button again refreshed it.
         onConnectionChange: () => this.syncMidiState(),
       })
+    },
 
+    // What the score engine reports as the player goes: runs, measures, wrong
+    // notes, the end of a drill, a bar clicked.
+    wireScoreEngine() {
       musicxml.setCallbacks({
         onScoreCompleted: async () => {
           practiceTracker.markScoreCompleted()
@@ -471,14 +444,11 @@ export function midiApp() {
           return false
         },
       })
+    },
 
-      // Nothing is awaited in front of the load: the spinner the head script
-      // raised is lowered only by the render or by reportScoreLoadFailure, so
-      // whatever is waited on here can leave the page loading with nothing to
-      // say. The database open sat here and did exactly that.
-      const scoreUrl = new URLSearchParams(window.location.search).get('url')
-      if (scoreUrl) await this.loadScoreFromURL(scoreUrl, trackerReady)
-
+    // Once the score is up: the session's close as the page goes, the wake
+    // lock as it comes back, and the sync.
+    followPageLifecycle() {
       // endSession() is the clean close, but its IndexedDB writes need the page
       // to stay alive long enough to commit — leaving mid-piece regularly
       // stranded a session. pagehide additionally drops a synchronous snapshot
@@ -496,12 +466,10 @@ export function midiApp() {
       onForeground(() => {
         if (this.osmdInstance) this.requestWakeLock()
       })
-      // This page never pulls — not on open, not on tab-back. A pull can
-      // trigger rebuildAggregates(), which clears every aggregate and replays
-      // every stored session one by one; doing that with a score on screen and
-      // MIDI coming in is how you freeze mid-piece. It has nothing to gain
-      // either: it displays no synced data, and what it has to contribute goes
-      // up through its own end-of-session trigger.
+      // This page syncs only when a session ends (rollSession), between runs:
+      // not on open, not on tab-back. What it has to contribute goes up then,
+      // and it displays no synced data to refresh. A pull rebuilds every
+      // aggregate, which is no work for a moment with MIDI coming in.
       initAutoSync({ storage, practiceTracker }, { syncOnReturn: false })
     },
 
@@ -539,7 +507,6 @@ export function midiApp() {
       if (!file) return
       try {
         await musicxml.loadMusicXML(file)
-        this.fingeringEnabled = false
         this.scoreUrl = null
         await this.afterScoreLoad()
         await this.markScoreReady()
@@ -554,7 +521,6 @@ export function midiApp() {
     // not wait on (see init) — only the session started below does.
     async loadScoreFromURL(url, trackerReady = Promise.resolve()) {
       this.scoreUrl = url
-      this.fingeringEnabled = true
       this.lookUpListing(url) // fire-and-forget: the sheet never waits on it
 
       try {
@@ -846,44 +812,6 @@ export function midiApp() {
       if (field === 'playbackBpm') playback.setTempo(this[field])
     },
 
-    // The −/+ buttons beside a tempo field, in both bands: `field` is the
-    // tempo they move ('strictBpm' or 'playbackBpm'), `direction` -1 or +1.
-    // Typing a tempo still works — this is the way to change one with a thumb.
-    startBpmHold(field, direction) {
-      // Whatever was held before — a second finger on the other button, or a
-      // press let go somewhere else — is ended rather than left ticking: the
-      // chain re-arms itself, so an orphan would step the tempo for the life of
-      // the page. Two buttons, one hold.
-      this.endBpmHold(field)
-      this.bpmRepeated = false
-      this.bpmHold = holdToRepeat(() => { this[field] = stepBpm(this[field], direction) })
-    },
-
-    // The end of a press: stops the repeat and commits the tempo it held back.
-    // Taken from pointerup, and from the pointer leaving the button or the
-    // gesture being taken over — a press let go off the button never becomes a
-    // click, and its chain would tick on.
-    //
-    // Whether it repeated outlives the hold, because the click that ends the
-    // press has not fired yet. A touch fires pointerleave on the way out of a
-    // press it has already released, which is why an ended hold is not ended a
-    // second time — that would forget the answer with the click still to come.
-    endBpmHold(field) {
-      if (!this.bpmHold) return
-      this.bpmRepeated = this.bpmHold()
-      this.bpmHold = null
-      if (this.bpmRepeated) this.commitBpm(field)
-    },
-
-    stepBpmField(field, direction) {
-      // A press is a click, whatever pressed it — mouse, thumb, Entrée on the
-      // focused button — so the notch is stepped here. The click that ends a
-      // repeating hold is its release, not one notch more.
-      const repeated = this.bpmRepeated
-      this.bpmRepeated = false
-      if (!repeated) this[field] = stepBpm(this[field], direction)
-    },
-
     // What the playback band says: where the piece is held, or how to move it.
     playbackBandText() {
       if (this.playbackTransport === 'paused') return t('score.playbackPausedAt', { n: this.playbackMeasure + 1 })
@@ -1153,7 +1081,7 @@ export function midiApp() {
     },
 
     trainerRunLine(run) {
-      return RUN_KINDS.strict.label({ strict: run.verdict })
+      return strictRunLabel(run.verdict)
     },
 
     // A strict run is practice like any other, and until it was filed here it
@@ -1245,18 +1173,13 @@ export function midiApp() {
       return (r.offTempoEarly ?? 0) + (r.offTempoLate ?? 0)
     },
 
+    // The ranking and its chart, made once as the modal opens: the chart used
+    // to be generated twice per render, once to ask whether there was one.
     // `allPlaythroughs` comes most recent first (getAllPlaythroughs).
     showScoreComplete(allPlaythroughs) {
-      const mostRecent = allPlaythroughs[0]
-      // Ranked fastest-first, current playthrough flagged so the modal can
-      // highlight it. Only the runs comparable with it are in the running —
-      // playthroughGroups says which: a right-hand run beats every two-hand
-      // time on the clock without being the better performance, and a strict
-      // run's time is the metronome's, not the player's.
-      const comparable = playthroughGroups(allPlaythroughs).find((g) => g.playthroughs.includes(mostRecent))
-      this.previousPlaythroughs = (comparable?.playthroughs ?? [])
-        .map((pt) => ({ ...pt, isCurrent: pt === mostRecent }))
-        .sort((a, b) => a.durationMs - b.durationMs)
+      this.previousPlaythroughs = rankingOf(allPlaythroughs)
+      this.resultChart = playthroughChartSvg(this.previousPlaythroughs)
+      this.resultWrongMeasures = wrongMeasuresText(allPlaythroughs[0]?.wrongMeasures ?? [])
       this.openResultModal('free')
     },
 
@@ -1266,29 +1189,6 @@ export function midiApp() {
       return this.previousPlaythroughs[0]?.hands ?? TWO_HANDS
     },
 
-    // Beside a run's time in the result modal's ranking.
-    wrongNotesText,
-
-    // Where the run just finished went wrong, by measure number — past a
-    // handful of them, only how many: a list that long says nothing more.
-    get wrongMeasuresText() {
-      const measures = this.previousPlaythroughs.find((p) => p.isCurrent)?.wrongMeasures ?? []
-      if (measures.length === 0) return ''
-      if (measures.length > WRONG_MEASURES_LISTED) return t('score.wrongMeasuresMany', { n: measures.length })
-      const list = PLAYTHROUGH_LIST_FORMATTER.format(measures.map((m) => String(m + 1)))
-      return tn('score.wrongMeasures', measures.length, { list })
-    },
-
-    // One evolution chart per kind of run and hand selection — play time for
-    // free runs, hit rate for strict ones. Built here rather than in the
-    // template so each SVG is generated once, and so a group with too few
-    // runs to plot simply drops out.
-    get playthroughCharts() {
-      const playthroughs = this.scoreHistory.flatMap((d) => d.fullPlaythroughs)
-      return playthroughGroups(playthroughs)
-        .map((group) => ({ ...group, svg: this.playthroughChartSvg(group.playthroughs) }))
-        .filter((group) => group.svg)
-    },
 
     openResultModal(mode) {
       this.resultMode = mode
@@ -1362,36 +1262,32 @@ export function midiApp() {
       return this.setMode('reinforcement', this.measuresToReinforce)
     },
 
-    updateActiveHands() {
+    // `changed` is the hand just ticked or unticked. No hand at all plays
+    // nothing, so unticking the only hand ticked swaps to the other: from MD
+    // alone, one click gives MG alone (feedback 65538ec6).
+    updateActiveHands(changed) {
+      if (!this.rightHandActive && !this.leftHandActive) {
+        if (changed === 'right') this.leftHandActive = true
+        else this.rightHandActive = true
+      }
       musicxml.setActiveHands(this.activeHands)
       strictPlaythrough.setActiveHands(this.activeHands)
       practiceTracker.setActiveHands(this.activeHands)
       this.refreshReinforcementSuggestions()
     },
 
+    // Everything the modal shows is made here, once, as it opens.
     async openScoreHistory() {
       if (!this.scoreUrl) return
-      this.scoreHistory = await practiceTracker.getScoreHistory(this.scoreUrl)
-      this.historyTotalMs = this.scoreHistory.reduce((sum, d) => sum + (d.totalPracticeTimeMs || 0), 0)
-      this.historyHotMeasures = await this.computeHotMeasures()
+      const [history, aggregate] = await Promise.all([
+        practiceTracker.getScoreHistory(this.scoreUrl),
+        storage.getAggregate(this.scoreUrl),
+      ])
+      this.scoreHistory = history.map(withRunLines)
+      this.historyTotalMs = history.reduce((sum, d) => sum + (d.totalPracticeTimeMs || 0), 0)
+      this.historyCharts = playthroughCharts(history.flatMap((d) => d.fullPlaythroughs))
+      this.historyHotMeasures = hotMeasures(aggregate)
       this.showHistoryModal = true
-    },
-
-    // Top measures with the highest error rate, surfaced inside the
-    // history modal so practiced measures with persistent trouble are
-    // visible without diving into the data.
-    async computeHotMeasures() {
-      const agg = await storage.getAggregate(this.scoreUrl)
-      if (!agg || !agg.measures) return []
-      const entries = Object.entries(agg.measures)
-        .map(([idx, m]) => ({
-          index: Number(idx),
-          attempts: m.totalAttempts || 0,
-          errorRate: m.errorRate || 0,
-        }))
-        .filter((m) => m.attempts >= 2 && m.errorRate > 0)
-        .sort((a, b) => b.errorRate - a.errorRate)
-      return entries.slice(0, 5)
     },
 
     // Attaches the current score to the shared feedback submission (see
@@ -1403,152 +1299,9 @@ export function midiApp() {
     formatDate,
     formatDuration,
 
-    playthroughGroups,
 
-    formatPlaythroughs(group) {
-      // Reverse to show chronological order (oldest first)
-      const runs = [...group.playthroughs].reverse()
-      const list = runs.map(runKind(group.strict).label)
-      const summary = t('score.playthroughsSummary', { n: runs.length, list: PLAYTHROUGH_LIST_FORMATTER.format(list) })
-      return withRunKind(summary, group)
-    },
-
-    chartTitle(group) {
-      return withRunKind(t(runKind(group.strict).title), group)
-    },
-
-    // Built as a string (not <template x-for>) because Alpine's templates
-    // render in HTML namespace and won't show up inside <svg>. Returns ''
-    // when fewer than 2 points — the calling x-if then skips the section.
-    // Plots what the runs are measured by — they are all of one kind, the
-    // way playthroughGroups hands them over.
-    playthroughChartSvg(playthroughs) {
-      if (playthroughs.length < 2) return ''
-      const metric = runKind(playthroughs[0].strict)
-
-      const sorted = [...playthroughs].sort(byStartedAt)
-      const values = sorted.map(metric.value)
-      const dMin = Math.min(...values)
-      const dMax = Math.max(...values)
-      // A tenth of the spread of headroom either side; a hit rate stops at 100.
-      const yMin = Math.max(0, dMin - (dMax - dMin) * 0.1)
-      const yMax = Math.min(metric.ceiling, (dMax + (dMax - dMin) * 0.1) || dMax * 1.1)
-
-      const W = 600
-      const H = 200
-      const PAD = { top: 12, right: 12, bottom: 28, left: 56 }
-      const innerW = W - PAD.left - PAD.right
-      const innerH = H - PAD.top - PAD.bottom
-      // Evenly spaced by playthrough index: gaps between dates aren't shown.
-      const n = sorted.length
-      const xScale = (i) =>
-        PAD.left + (n === 1 ? innerW / 2 : (i / (n - 1)) * innerW)
-      const yScale = (d) =>
-        PAD.top + innerH - ((d - yMin) / (yMax - yMin || 1)) * innerH
-
-      const points = sorted.map((p, i) => ({
-        x: xScale(i),
-        y: yScale(metric.value(p)),
-        label: metric.label(p),
-        date: CHART_DATE_FULL.format(new Date(p.startedAt)),
-      }))
-      const fmtAxis = (iso) => CHART_DATE_AXIS.format(new Date(iso))
-
-      const axisY = PAD.top + innerH
-      const xMin = PAD.left
-      const xMax = PAD.left + innerW
-
-      const yLabels = [
-        `<text x="${xMin - 8}" y="${yScale(yMax) + 4}" text-anchor="end" class="chart-label">${metric.format(yMax)}</text>`,
-        `<text x="${xMin - 8}" y="${yScale(yMin) + 4}" text-anchor="end" class="chart-label">${metric.format(yMin)}</text>`,
-      ].join('')
-      const xLabels = [
-        `<text x="${xMin}" y="${H - 8}" text-anchor="start" class="chart-label">${fmtAxis(sorted[0].startedAt)}</text>`,
-        `<text x="${xMax}" y="${H - 8}" text-anchor="end" class="chart-label">${fmtAxis(sorted[n - 1].startedAt)}</text>`,
-      ].join('')
-      const circles = points
-        .map(
-          (p) =>
-            `<circle cx="${p.x}" cy="${p.y}" r="4" class="chart-point"><title>${p.date} — ${p.label}</title></circle>`,
-        )
-        .join('')
-
-      return `<svg viewBox="0 0 ${W} ${H}" class="playthrough-chart" role="img" aria-label="${t(metric.aria)}">
-        <line x1="${xMin}" x2="${xMax}" y1="${axisY}" y2="${axisY}" class="chart-axis" />
-        ${yLabels}
-        ${xLabels}
-        ${circles}
-      </svg>`
-    },
-
-    // Fingering annotation methods
-    setupFingeringHandlers() {
-      if (!this.fingeringEnabled) return
-      fingeringEditor.setupFingeringClickHandlers({
-        onNoteClick: (noteData) => this.openFingeringModal(noteData),
-      })
-    },
-
-    openFingeringModal(noteData) {
-      this.selectedNoteKey = noteData.fingeringKey
-      // A click resolves to one notehead, chord or not, so the pad's title names
-      // a single note.
-      this.selectedNoteLabel = noteLabel(noteData)
-      this.fingeringSequence = ''
-      this.showFingeringModal = true
-
-      this.fingeringKeydownHandler = (e) => {
-        if (e.key >= '1' && e.key <= '5') {
-          e.preventDefault()
-          this.appendFinger(parseInt(e.key, 10))
-        } else if (e.key === 'Backspace') {
-          e.preventDefault()
-          this.fingeringSequence = this.fingeringSequence.slice(0, -1)
-        } else if (e.key === 'Enter') {
-          e.preventDefault()
-          this.validateFingering()
-        } else if (e.key === 'Escape') {
-          this.closeFingeringModal()
-        }
-      }
-      document.addEventListener('keydown', this.fingeringKeydownHandler)
-    },
-
-    appendFinger(digit) {
-      this.fingeringSequence += digit
-    },
-
-    closeFingeringModal() {
-      this.showFingeringModal = false
-      document.removeEventListener('keydown', this.fingeringKeydownHandler)
-    },
-
-    async validateFingering() {
-      if (!this.fingeringSequence) return
-      await this.selectFingering(parseInt(this.fingeringSequence, 10))
-    },
-
-    // The pad closes last, once the fingering is stored and drawn: its closing
-    // is what says the entry is done (the browser tests wait on it).
-    async selectFingering(finger) {
-      await storage.setFingering(this.scoreUrl, this.selectedNoteKey, finger)
-
-      // Try to update SVG directly if fingering already exists (instant update)
-      if (!fingeringEditor.updateFingeringSVG(this.selectedNoteKey, finger)) {
-        // No existing SVG: inject into OSMD's data model and do a light re-render
-        // (skips XML fetch/parse/load — just layout recalc + SVG redraw)
-        fingeringEditor.addFingeringToDataModel(this.selectedNoteKey, finger)
-        this.rerenderScore()
-      }
-      this.closeFingeringModal()
-    },
-
-    async removeFingering() {
-      await storage.removeFingering(this.scoreUrl, this.selectedNoteKey)
-      fingeringEditor.removeFingeringFromDataModel(this.selectedNoteKey)
-      this.rerenderScore()
-      this.closeFingeringModal()
-    },
+    // Called from the markup.
+    wrongNotesText,
 
     // Every redraw replaces the SVG, taking with it everything painted on it:
     // note colours, fingering handlers, the training cursor, the strict marker,
