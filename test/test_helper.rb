@@ -517,10 +517,10 @@ class CapybaraTestBase < Minitest::Test
 
   # Aggregate rows as the current build writes them. A row stamped with other
   # rules, or with none, is replayed from the sessions on the next page load
-  # (AGGREGATES_VERSION in practiceTracker.js) — and a row planted with no
+  # (AGGREGATES_VERSION in aggregates.js) — and a row planted with no
   # sessions behind it is replayed into nothing.
   def seed_aggregates(rows)
-    version = Integer(js_constant('practiceTracker.js', 'AGGREGATES_VERSION'))
+    version = Integer(js_constant('aggregates.js', 'AGGREGATES_VERSION'))
     seed_store('aggregates', rows.map { |row| { rulesVersion: version }.merge(row) })
   end
 

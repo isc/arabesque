@@ -94,7 +94,7 @@ class LibraryFiltersTest < CapybaraTestBase
     assert_equal ['baroque'], shown_periods.uniq
   end
 
-  # The numbers asserted here are STATUS_THRESHOLDS (practiceTracker.js), which
+  # The numbers asserted here are STATUS_THRESHOLDS (aggregates.js), which
   # is also what computeScoreStatus() grades by — if the rules move, this test
   # is where the two are checked to have moved together.
   def test_status_filter_spells_out_what_the_next_status_takes
@@ -295,7 +295,7 @@ class LibraryFiltersTest < CapybaraTestBase
     refute_includes titles, 'Nocturne No. 20 in C♯ Minor'
 
     # And the card says the half the label never could: the floor. The numbers
-    # are MIN_PRACTICE_MS_FOR_STATUS and STALE_DAYS (library.js/practiceTracker.js).
+    # are MIN_PRACTICE_MS_FOR_STATUS and STALE_DAYS (aggregates.js/library.js).
     criteria = find('.pt-criteria')
     assert_match(/PAS JOUÉ DEPUIS/i, criteria.text)
     assert_match(/au moins 1 min en tout/, criteria.text)
@@ -373,14 +373,14 @@ class LibraryFiltersTest < CapybaraTestBase
   end
 
   # The floor under every status.
-  MIN_PRACTICE_MS = Integer(js_constant('practiceTracker.js', 'MIN_PRACTICE_MS_FOR_STATUS'))
+  MIN_PRACTICE_MS = Integer(js_constant('aggregates.js', 'MIN_PRACTICE_MS_FOR_STATUS'))
   BALLADE = 'scores/Chopin_-_Ballade_no._1_in_G_minor_Op._23.mxl'
   PRELUDE = 'scores/Prlude_No._4_in_E_Minor_Op._28_-_Frdric_Chopin.mxl'
   NOCTURNE_20 = 'scores/Nocturne_No._20_in_C_sharp_Minor.mxl'
   AIR = 'scores/J._S._Bach_-_Air_on_the_G_String_Piano_arrangement.mxl'
 
   # Attempts at one bar, oldest first, true for a fumble — sized to clear or
-  # miss practiceTracker.js's hasHotSpots.
+  # miss reinforcement.js's hasHotSpots.
   HOT_SPOT = [true, true, true].freeze
   CLEAN = [false, false, false].freeze
   SHAKY = [true, false, true].freeze

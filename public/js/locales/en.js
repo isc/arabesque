@@ -59,9 +59,9 @@ export default {
   },
   // What the current filter selects, shown under the filtered library list.
   // The numbers come from the constants the rules themselves judge by:
-  // STATUS_THRESHOLDS, the reinforcement window, the hot-spot thresholds
-  // (HOT_SPOT_*) and the practice floor
-  // (practiceTracker.js), and STALE_DAYS (library.js).
+  // STATUS_THRESHOLDS and the practice floor (aggregates.js), the
+  // reinforcement window and the hot-spot thresholds (HOT_SPOT_*,
+  // reinforcement.js), and STALE_DAYS (library.js).
   criteria: {
     filterHeading: 'What {filter} selects',
     reinforceHotSpot: 'A bar fumbled at least {factor} times as often as the piece on average, over its last {n} sessions',
