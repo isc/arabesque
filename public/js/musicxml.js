@@ -617,7 +617,12 @@ function resetMeasureProgress({ keepRepeats = false, keepRepetition = false, not
   if (!keepRepeats) repeatCount = 0
   if (!keepRepetition) currentRepetitionIsClean = true
 
-  // Reset practice tracking for new attempt
+  startAttempt(measureData)
+}
+
+// Opens the journal's attempt at a measure (onMeasureStarted), and the clock
+// and the count of wrong notes kept beside it.
+function startAttempt(measureData) {
   measureStartTime = Date.now()
   measureWrongNotes = 0
   callbacks.onMeasureStarted?.(measureData.sourceMeasureIndex, atScoreStart())
@@ -1018,116 +1023,115 @@ export function isHeldByTie(note, notesAtTimestamp, heldMidiNotes) {
   )
 }
 
-// Activate a note when pressed (Note ON) - for polyphonic validation
+// The measure under the cursor, or null when there is nothing there to play:
+// no score, a cursor past the end, a measure without notes.
+function measureUnderCursor() {
+  const measureData = allNotes[currentMeasureIndex]
+  return osmdInstance && measureData?.notes?.length ? measureData : null
+}
+
+// A note no key has answered yet: neither validated nor held down.
+const awaitsKey = (noteData) => !noteData.played && !noteData.active
+
+// Note ON, in free play, training and reinforcement: what a key does to the
+// measure under the cursor. It carries a trill on or ends it, holds down a note
+// of the chord owed — which is played once all of it is down — or is a wrong
+// note.
 function activateNote(midiNote) {
-  // Track all held notes globally (for tie continuation validation)
+  // Held whatever it turns out to be: a tie continuation further on is
+  // validated by the key already down (isHeldByTie).
   heldMidiNotes.add(midiNote)
 
-  if (!osmdInstance || allNotes.length === 0) return false
-  if (currentMeasureIndex >= allNotes.length) return false
+  const measureData = measureUnderCursor()
+  if (!measureData) return
+  const activeNotes = measureData.notes.filter(isNoteActiveForHands)
+  let expectedNote = activeNotes.find(awaitsKey)
+  if (!expectedNote) return
 
-  const measureData = allNotes[currentMeasureIndex]
-  if (!measureData || !measureData.notes || measureData.notes.length === 0) return false
-
-  // Filter notes by active hands
-  const activeNotes = measureData.notes.filter((n) => isNoteActiveForHands(n))
-  let expectedNote = activeNotes.find((n) => !n.played && !n.active)
-  if (!expectedNote) return false
-
-  // Handle trill sentinel: allow free alternation between trillMidi and trillUpperMidi.
-  // Strict mode asks the same musical question through requiredSequence /
-  // advanceEvent (noteExtraction.js, strictMatching.js) and answers it more
-  // tightly — strict alternation rather than either pitch in any order. The two
-  // should become one rule; see the note over requiredSequence.
-  // The sentinel is consumed when the player presses the next real note after the trill.
   if (expectedNote.isTrillEnd) {
-    const isTrillNote = isTrillPitch(expectedNote, midiNote)
-
-    // Find the next non-sentinel note to decide whether the trill should end
-    const nextAfterTrill = activeNotes.find(
-      (n) => n !== expectedNote && !n.played && !n.active,
-    )
-
-    if (!nextAfterTrill) {
-      // Trill is the last thing in the measure -- any trill note completes it
-      if (isTrillNote) {
-        expectedNote.played = true
-        handleNoteValidated(measureData, expectedNote, 1)
-        return true
-      }
-      // Wrong note: fall through to normal matching (will report error)
-    } else {
-      // Check if the pressed note matches what comes after the trill
-      const endsTrillWithNextNote = activeNotes.some(
-        (n) =>
-          !n.played &&
-          !n.active &&
-          !n.isTrillEnd &&
-          n.timestamp === nextAfterTrill.timestamp &&
-          n.midiNumber === midiNote,
-      )
-
-      if (endsTrillWithNextNote) {
-        // End trill: skip sentinel, fall through to normal validation
-        expectedNote.played = true
-        expectedNote = activeNotes.find((n) => !n.played && !n.active)
-      } else if (isTrillNote) {
-        return true // Trill continuation, no advancement
-      }
-      // Wrong note: fall through to normal matching (will report error)
-    }
+    expectedNote = throughTheTrill(measureData, activeNotes, expectedNote, midiNote)
+    if (!expectedNote) return
   }
 
-  const expectedTimestamp = expectedNote.timestamp
-
-  // Find all notes at the expected timestamp with the matching MIDI number (not yet played or active)
-  // Only consider notes from active hands
-  const matchingIndices = []
-  for (let i = 0; i < measureData.notes.length; i++) {
-    const noteData = measureData.notes[i]
-    if (
-      isNoteActiveForHands(noteData) &&
-      !noteData.played &&
-      !noteData.active &&
-      noteData.timestamp === expectedTimestamp &&
-      noteData.midiNumber === midiNote
-    ) {
-      matchingIndices.push(i)
-    }
-  }
-
-  if (matchingIndices.length === 0) {
+  const chord = activeNotes.filter((n) => n.timestamp === expectedNote.timestamp)
+  const pressed = chord.filter((n) => awaitsKey(n) && n.midiNumber === midiNote)
+  if (pressed.length === 0) {
     // A trill going on is not a wrong note, and advances nothing. It is judged
     // where the player is, not at the note due next, which may already lie
     // past the trill's end.
-    if (isTrillStillSounding(activeNotes, midiNote, lastValidatedTimestamp(activeNotes, expectedTimestamp))) return true
-
-    // Wrong note - mark repetition as dirty in training mode, and redden its dot
-    // right away rather than leaving the player to discover at the bar line that
-    // it won't fill. Only the first wrong note of a repetition changes anything.
-    if (trainingMode && currentRepetitionIsClean) {
-      currentRepetitionIsClean = false
-      updateRepeatIndicators()
-    }
-
-    // Initialize practice tracking on first wrong note if not already set
-    if (measureStartTime === null) {
-      measureStartTime = Date.now()
-      measureWrongNotes = 0
-      callbacks.onMeasureStarted?.(measureData.sourceMeasureIndex, atScoreStart())
-    }
-
-    measureWrongNotes++
-    callbacks.onWrongNote?.(midiNote)
-
-    const expected = activeNotes.find((n) => !n.played && !n.active)
-    if (expected) flashWrongNote(expected)
-    return false
+    const at = lastValidatedTimestamp(activeNotes, expectedNote.timestamp)
+    if (!isTrillStillSounding(activeNotes, midiNote, at)) handleWrongNote(measureData, expectedNote, midiNote)
+    return
   }
 
-  // Mark matching notes as active (highlighted but not validated yet)
-  for (const index of matchingIndices) {
-    const noteData = measureData.notes[index]
+  holdDown(pressed)
+  // The chord is played once every note of it is down: pressed, or held by the
+  // key of a tie from before rather than struck again.
+  if (chord.every((n) => n.played || n.active || isHeldByTie(n, chord, heldMidiNotes))) {
+    markTimestampGroupPlayed(chord)
+    handleNoteValidated(measureData, chord[0], chord.length)
+    // A held tie can fully cover a *later* timestamp (the tied pitch plus its
+    // same-pitch unisons in other voices). No fresh keypress can trigger that
+    // group, so cascade those validations here instead of stalling.
+    cascadeHeldTieValidations()
+  }
+}
+
+// A trill owed next — its sentinel, isTrillEnd — takes either of its two
+// pitches, in any order and any number, until the note after it is played.
+// Strict mode asks the same musical question through requiredSequence /
+// advanceEvent (noteExtraction.js, strictMatching.js) and answers it more
+// tightly — strict alternation rather than either pitch in any order. The two
+// should become one rule; see the note over requiredSequence.
+//
+// Returns the note the key goes on to be matched against: the one after the
+// trill when the key ends it, the sentinel itself when the key is no trill
+// note — or null when the trill took the key.
+function throughTheTrill(measureData, activeNotes, sentinel, midiNote) {
+  const isTrillNote = isTrillPitch(sentinel, midiNote)
+  const nextAfterTrill = activeNotes.find((n) => n !== sentinel && awaitsKey(n))
+
+  // The trill is the last thing in the measure: any of its notes completes it.
+  if (!nextAfterTrill) {
+    if (!isTrillNote) return sentinel
+    sentinel.played = true
+    handleNoteValidated(measureData, sentinel, 1)
+    return null
+  }
+
+  // The note after the trill ends it, and is the note owed from there.
+  const endsTrill = activeNotes.some(
+    (n) => awaitsKey(n) && !n.isTrillEnd && n.timestamp === nextAfterTrill.timestamp && n.midiNumber === midiNote,
+  )
+  if (endsTrill) {
+    sentinel.played = true
+    return nextAfterTrill
+  }
+  // Any other trill note carries the trill on, and advances nothing.
+  return isTrillNote ? null : sentinel
+}
+
+// A key that is none of the notes owed. In training it spoils the repetition
+// under way, whose dot reddens right away rather than leaving the player to
+// discover at the bar line that it won't fill. The journal counts it, and the
+// note that was owed flashes.
+function handleWrongNote(measureData, expectedNote, midiNote) {
+  // Only the first wrong note of a repetition changes anything on the dots.
+  if (trainingMode && currentRepetitionIsClean) {
+    currentRepetitionIsClean = false
+    updateRepeatIndicators()
+  }
+  // A wrong note can be the first thing played in a measure.
+  if (measureStartTime === null) startAttempt(measureData)
+  measureWrongNotes++
+  callbacks.onWrongNote?.(midiNote)
+  flashWrongNote(expectedNote)
+}
+
+// The notes a key answers light up as held: pressed, but not played until the
+// rest of their chord is down.
+function holdDown(notes) {
+  for (const noteData of notes) {
     // Drop any flash still running: the note the player owed has just arrived,
     // and it should read as played rather than stay red until the animation ends.
     const notehead = svgNotehead(noteData)
@@ -1135,27 +1139,6 @@ function activateNote(midiNote) {
     setMark(noteData, 'active-note', true, notehead)
     noteData.active = true
   }
-
-  // Check if ALL notes at this timestamp are now active (only for active hands)
-  // For tie continuations, check if the MIDI note is currently held instead of requiring activation
-  const notesAtTimestamp = measureData.notes.filter(
-    (n) => n.timestamp === expectedTimestamp && isNoteActiveForHands(n),
-  )
-  const allActiveAtTimestamp = notesAtTimestamp.every(
-    (n) => n.played || n.active || isHeldByTie(n, notesAtTimestamp, heldMidiNotes),
-  )
-
-  if (allActiveAtTimestamp) {
-    // All polyphonic notes are held together - validate them all
-    markTimestampGroupPlayed(notesAtTimestamp)
-    handleNoteValidated(measureData, notesAtTimestamp[0], notesAtTimestamp.length)
-    // A held tie can fully cover a *later* timestamp (the tied pitch plus its
-    // same-pitch unisons in other voices). No fresh keypress can trigger that
-    // group, so cascade those validations here instead of stalling.
-    cascadeHeldTieValidations()
-  }
-
-  return true
 }
 
 // Mark every note in a timestamp group as played (validated), updating noteheads.
@@ -1195,18 +1178,14 @@ function cascadeHeldTieValidations() {
   }
 }
 
-// Deactivate a note when released (Note OFF) - for polyphonic validation
+// Note OFF: a key let go before the rest of its chord came down takes its note
+// back, and the chord waits for it again.
 function deactivateNote(midiNote) {
-  // Remove from held notes set
   heldMidiNotes.delete(midiNote)
 
-  if (!osmdInstance || allNotes.length === 0) return
-  if (currentMeasureIndex >= allNotes.length) return
+  const measureData = measureUnderCursor()
+  if (!measureData) return
 
-  const measureData = allNotes[currentMeasureIndex]
-  if (!measureData || !measureData.notes || measureData.notes.length === 0) return
-
-  // Find active notes with this MIDI number and deactivate them
   for (const noteData of measureData.notes) {
     if (noteData.active && noteData.midiNumber === midiNote) {
       setMark(noteData, 'active-note', false)
@@ -1323,79 +1302,64 @@ function advanceReinforcement() {
   })
 }
 
-// Helper function to handle post-validation logic (scroll, measure completion)
+// Free play walks on down the score, a measure at a time, and a run that
+// reaches its end is over.
+function advanceFreePlay(measureData) {
+  playedSourceMeasures.add(measureData.sourceMeasureIndex)
+  const next = nextPlayable(currentMeasureIndex + 1)
+
+  if (next < allNotes.length) {
+    // Entering a repeat takes the marks off the bars about to be played again.
+    const toReset = sourceMeasuresToResetOnEntry(allNotes, currentMeasureIndex, next, playedSourceMeasures)
+    for (const sourceMeasureIndex of toReset) resetSourceMeasureVisualState(sourceMeasureIndex)
+    // Scroll to the next measure before moving onto it
+    scrollToNextMeasureIfNeeded(next)
+    currentMeasureIndex = next
+    // The next measure's attempt opens with the first thing played in it.
+    measureStartTime = null
+    measureWrongNotes = 0
+    return
+  }
+
+  // Complete when every source measure the active hands play has been
+  // played. Derived from the hands rather than counted as we go, so a run
+  // still adds up after the hand toggles moved mid-way through it.
+  const owed = allNotes.filter((m) => m.notes.some(isNoteActiveForHands))
+  if (owed.every((m) => playedSourceMeasures.has(m.sourceMeasureIndex))) {
+    callbacks.onScoreCompleted?.(currentMeasureIndex)
+  }
+  backToTheTopAfterTheBeat()
+}
+
+// What validated notes do to their measure: the first to be played opens it,
+// and once the active hands owe nothing more in it, it is over — reported to
+// the journal, and the work moves on the way the mode does.
 function handleNoteValidated(measureData, noteData, validatedCount) {
-  // Initialize system tracking on first note of first measure
   const playedCount = measureData.notes.filter((n) => n.played).length
-  const isFirstNoteOfMeasure = playedCount === validatedCount
-
-  if (isFirstNoteOfMeasure) {
-    // Initialize/update system tracking on first note of each measure
-    const noteSystemIndex = getSystemIndexForNote(noteData.note)
-    currentSystemIndex = noteSystemIndex
-
-    // Initialize practice tracking if not already set
-    if (measureStartTime === null) {
-      measureStartTime = Date.now()
-      measureWrongNotes = 0
-      callbacks.onMeasureStarted?.(measureData.sourceMeasureIndex, atScoreStart())
-    }
+  if (playedCount === validatedCount) {
+    // The autoscroll follows the system the measure is played on.
+    currentSystemIndex = getSystemIndexForNote(noteData.note)
+    if (measureStartTime === null) startAttempt(measureData)
   }
 
-  // Only consider notes from active hands when checking if measure is complete
-  const activeNotesInMeasure = measureData.notes.filter((n) => isNoteActiveForHands(n))
-  const allNotesPlayed = activeNotesInMeasure.every((note) => note.played)
+  if (!measureData.notes.filter(isNoteActiveForHands).every((n) => n.played)) return
 
-  if (allNotesPlayed) {
-    // Notify practice tracking that measure is completed
-    const attemptDuration = measureStartTime ? Date.now() - measureStartTime : 0
-    callbacks.onMeasureCompleted?.({
-      sourceMeasureIndex: measureData.sourceMeasureIndex,
-      durationMs: attemptDuration,
-      wrongNotes: measureWrongNotes,
-      // This measure's own verdict, not the passage's: a fumble in the third bar
-      // of a passage spoils the repetition, but the first two were played clean
-      // and the journal — and the measures it suggests reinforcing — must go on
-      // saying so.
-      clean: measureWrongNotes === 0,
-    })
+  callbacks.onMeasureCompleted?.({
+    sourceMeasureIndex: measureData.sourceMeasureIndex,
+    durationMs: measureStartTime ? Date.now() - measureStartTime : 0,
+    wrongNotes: measureWrongNotes,
+    // This measure's own verdict, not the passage's: a fumble in the third bar
+    // of a passage spoils the repetition, but the first two were played clean
+    // and the journal — and the measures it suggests reinforcing — must go on
+    // saying so.
+    clean: measureWrongNotes === 0,
+  })
 
-    if (trainingMode) {
-      // Reinforcement drills its own list of measures one by one, so it banks a
-      // dot per measure and moves down the list rather than over a passage.
-      if (reinforcementMode) return advanceReinforcement()
-      advanceTraining()
-    } else {
-      // Mark current source measure as played
-      const currentSourceMeasure = measureData.sourceMeasureIndex
-      playedSourceMeasures.add(currentSourceMeasure)
-
-      const next = nextPlayable(currentMeasureIndex + 1)
-      const toReset = sourceMeasuresToResetOnEntry(allNotes, currentMeasureIndex, next, playedSourceMeasures)
-
-      if (next < allNotes.length) {
-        for (const sourceMeasureIndex of toReset) {
-          resetSourceMeasureVisualState(sourceMeasureIndex)
-        }
-        // Scroll to the next measure before moving onto it
-        scrollToNextMeasureIfNeeded(next)
-        currentMeasureIndex = next
-        // Reset practice tracking for next measure in free mode
-        measureStartTime = null
-        measureWrongNotes = 0
-      } else {
-        // Complete when every source measure the active hands play has been
-        // played. Derived from the hands rather than counted as we go, so a run
-        // still adds up after the hand toggles moved mid-way through it.
-        const owed = allNotes.filter((m) => m.notes.some(isNoteActiveForHands))
-        const allMeasuresPlayed = owed.every((m) => playedSourceMeasures.has(m.sourceMeasureIndex))
-        if (allMeasuresPlayed) {
-          callbacks.onScoreCompleted?.(currentMeasureIndex)
-        }
-        backToTheTopAfterTheBeat()
-      }
-    }
-  }
+  if (!trainingMode) advanceFreePlay(measureData)
+  // Reinforcement drills its own list of measures one by one, so it banks a
+  // dot per measure and moves down the list rather than over a passage.
+  else if (reinforcementMode) advanceReinforcement()
+  else advanceTraining()
 }
 
 function svgNote(note) {
