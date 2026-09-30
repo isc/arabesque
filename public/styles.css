@@ -127,6 +127,11 @@
   --pt-transition-fast: 120ms ease;
   --pt-transition-med: 220ms ease;
 
+  /* The height every control in the score page's bars shares — the modebar's
+     segmented tracks and chips, a band's cluster and the line beside it — so
+     that each bar reads as one band. */
+  --pt-bar-control: 34px;
+
   /* On-screen keyboard (keyboardHint.js): its caption bar and its keys. The
      spacer under the score is sized from them, so the last system can always
      be scrolled clear of the strip. */
@@ -525,7 +530,7 @@ a:hover { text-decoration: underline; }
 .pt-practice-page { --pt-page-max: 1080px; }
 /* Long-form text pages (privacy, support): the data page's reading measure. */
 .pt-prose { --pt-page-max: 720px; }
-.pt-prose h2 { margin-block: var(--pt-space-8) var(--pt-space-3); font-size: var(--pt-font-size-xl); }
+.pt-prose h2 { margin-block: var(--pt-space-8) var(--pt-space-3); }
 .pt-prose p { margin-block: 0 var(--pt-space-3); max-width: 68ch; }
 
 /* --- Page header: back link, title, actions -------------------------------- */
@@ -636,7 +641,6 @@ a:hover { text-decoration: underline; }
   border: 1px solid var(--pt-border);
   border-radius: var(--pt-radius-md);
   color: var(--pt-text-muted);
-  font-size: var(--pt-font-size-md);
   line-height: 1;
   padding: 0;
 }
@@ -668,9 +672,9 @@ a:hover { text-decoration: underline; }
 :where(button, a).pt-chip:hover { background-color: var(--pt-surface-2); border-color: var(--pt-border-strong); }
 .pt-chip:disabled { opacity: 0.4; cursor: default; }
 
-/* Compact dropdown, sized to sit in a row of chips — their height, where a
-   form column's field would be twice it — the composer and period filters,
-   and the narrow-screen sort. */
+/* Compact dropdown, at the height of the chips it sits among rather than of a
+   form column's field — the composer and period filters, and the
+   narrow-screen sort. */
 .pt-select {
   margin: 0;
   padding: 4px 28px 4px 12px;
@@ -683,7 +687,7 @@ a:hover { text-decoration: underline; }
   min-width: 180px;
   /* The chevron the base draws on a bare <select>, the same size, so every
      dropdown in the app shows the same mark — only the inset is tighter, this
-     control being a pill in a row of pills rather than a full-width field. */
+     control sitting among chips rather than filling a form column. */
   background-position: right 8px center;
 }
 .pt-select:hover { background-color: var(--pt-bg-elevated); }
@@ -786,7 +790,6 @@ a:hover { text-decoration: underline; }
 .pt-topbar__title {
   flex: 1;
   min-width: 0;
-  font-size: var(--pt-font-size-md);
   font-weight: 500;
   color: var(--pt-text);
   overflow: hidden;
@@ -838,7 +841,7 @@ a:hover { text-decoration: underline; }
    the outer container. */
 .pt-modebar > .pt-segmented,
 .pt-modebar > .pt-hands,
-.pt-modebar > .pt-chip { align-items: center; height: 34px; padding-block: 0; }
+.pt-modebar > .pt-chip { align-items: center; height: var(--pt-bar-control); padding-block: 0; }
 .pt-modebar .pt-segmented button,
 .pt-modebar .pt-hands__option { height: 28px; padding-block: 0; line-height: 28px; }
 
@@ -934,7 +937,7 @@ a:hover { text-decoration: underline; }
      a cross-axis default here would say nothing — except to the next reader,
      who would take it for the thing keeping the cluster aligned and feel free
      to give an item a height of its own. That is 91bf14f9. */
-  height: 34px;
+  height: var(--pt-bar-control);
   flex: 0 0 auto;
   background: var(--pt-bg-elevated);
   border: 1px solid color-mix(in srgb, var(--pt-band) 30%, transparent);
@@ -1010,9 +1013,9 @@ a:hover { text-decoration: underline; }
   /* One box for both buttons, so the glyph is centred in it — sized on the
      glyph, − and + land at different heights and neither lines up with the
      field. The height is the line's, taken by stretching rather than named:
-     34px is the band's *outer* height, and inside its 1px border there are
-     only 32, so a named 34 spent two of them under the cluster's
-     overflow: hidden — along with the top of these corners. */
+     --pt-bar-control is the band's *outer* height, and inside its 1px border
+     there are two pixels fewer, so naming it spent those two under the
+     cluster's overflow: hidden — along with the top of these corners. */
   width: 40px;
   align-self: stretch;
   padding: 0;
@@ -1057,7 +1060,7 @@ a:hover { text-decoration: underline; }
      count-in, so pressing ▶ does not shift the score the player is reading. */
   min-height: var(--pt-space-10);
 }
-.pt-context__row { display: flex; align-items: center; gap: var(--pt-space-3); flex: 1 1 auto; min-width: 0; min-height: 34px; }
+.pt-context__row { display: flex; align-items: center; gap: var(--pt-space-3); flex: 1 1 auto; min-width: 0; min-height: var(--pt-bar-control); }
 /* Playback is not a mode, so it takes the app's accent rather than a mode colour. */
 .pt-context--training { --pt-band: var(--pt-mode-training); --pt-band-bg: var(--pt-mode-training-bg); }
 .pt-context--strict { --pt-band: var(--pt-mode-strict); --pt-band-bg: var(--pt-mode-strict-bg); }
@@ -1066,7 +1069,7 @@ a:hover { text-decoration: underline; }
    picker takes a line of its own under the other three. */
 @media (max-width: 600px) {
   .pt-band-controls { flex-wrap: wrap; height: auto; max-width: 100%; }
-  .pt-band-controls > * { height: 34px; }
+  .pt-band-controls > * { height: var(--pt-bar-control); }
   /* Same two classes as the rule above it, so the border it puts back
      outweighs that rule's `border: none` by coming later. */
   .pt-band-controls .pt-band-select { flex: 1 1 100%; border-top: 1px solid color-mix(in srgb, var(--pt-band) 20%, transparent); }
@@ -1256,7 +1259,7 @@ a:hover { text-decoration: underline; }
 .pt-library__table tbody td:nth-child(2) a:hover { color: var(--pt-accent); }
 
 /* The "last played" cell. */
-.pt-row__time { font-size: var(--pt-font-size-sm); color: var(--pt-text-muted); font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+.pt-row__time { color: var(--pt-text-muted); font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
 .pt-row__time small { display: block; color: var(--pt-text-subtle); font-size: var(--pt-font-size-xs); margin-top: 2px; }
 
 /* Library uses an app-shell layout: the page fills the viewport and never
@@ -1688,7 +1691,7 @@ dialog > article > header {
   gap: var(--pt-space-3);
 }
 dialog > article > header p { margin: 0; }
-dialog > article > header strong { font-size: var(--pt-font-size-md); font-weight: 600; }
+dialog > article > header strong { font-weight: 600; }
 dialog > article > footer {
   padding: var(--pt-space-3) 0 0;
   margin: var(--pt-space-4) 0 0;
@@ -1736,7 +1739,6 @@ dialog > article > footer {
   display: flex;
   align-items: baseline;
   gap: var(--pt-space-2);
-  font-size: var(--pt-font-size-md);
   margin-bottom: var(--pt-space-2);
 }
 .pt-modal-stat strong { font-size: var(--pt-font-size-2xl); font-weight: 700; }
@@ -1984,7 +1986,7 @@ svg g.vf-notehead.wrong-note path { animation: pt-wrong-note-flash 700ms; }
   box-shadow: var(--pt-key-shadow), inset 0 -3px 0 rgb(255 255 255 / var(--lip));
   color: var(--pt-text-inverse);
 }
-.pt-keyhint__c { color: var(--pt-text-subtle); font-size: var(--pt-font-size-2xs); }
+.pt-keyhint__c { color: var(--pt-text-subtle); }
 .pt-keyhint__name { font-weight: 700; }
 /* A lit key glows from inside in its colour — blue for owed, green for right,
    red for wrong — rather than turning into a flat block, so it still reads as
