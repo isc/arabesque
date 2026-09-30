@@ -59,7 +59,7 @@ export default {
   },
   // What the current filter selects, shown under the filtered library list.
   // The numbers come from the constants the rules themselves judge by:
-  // STATUS_THRESHOLDS and the practice floor (practiceTracker.js), the
+  // STATUS_THRESHOLDS and the practice floor (aggregates.js), the
   // reinforcement window and the hot-spot thresholds (HOT_SPOT_*,
   // reinforcement.js), and STALE_DAYS (library.js).
   criteria: {

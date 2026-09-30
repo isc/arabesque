@@ -21,7 +21,7 @@
 // practiceTracker) so it stays page-agnostic.
 import { currentProfileId, listProfiles, mergeProfiles, scopedKey } from './profiles.js'
 import { NEVER_SYNCED } from './storage.js'
-import { knownNames } from './practiceTracker.js'
+import { knownNames } from './aggregates.js'
 
 // Per profile: the throttle in autoSync.js reads it, and a profile just
 // switched to has its own catching up to do.

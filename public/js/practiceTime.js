@@ -18,7 +18,7 @@ import { byStartedAt } from './days.js'
 // These values are baked into stored aggregates: totalPracticeTimeMs is
 // accumulated with them at session end, while the journal and the per-score
 // history re-derive with them on every read. Retuning them desyncs the two
-// unless AGGREGATES_VERSION (practiceTracker.js) is bumped with them.
+// unless AGGREGATES_VERSION (aggregates.js) is bumped with them.
 const INTERRUPTION_NORMALIZATION = {
   measureFloorMs: 15000,
   measureFactor: 4,

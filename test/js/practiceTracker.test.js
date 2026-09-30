@@ -1,12 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import 'fake-indexeddb/auto'
-import {
-  initPracticeTracker,
-  MIN_PRACTICE_MS_FOR_STATUS,
-  AGGREGATES_VERSION,
-  PENDING_SESSION_KEY,
-  STRANDED_REPAIR_KEY,
-} from '../../public/js/practiceTracker.js'
+import { initPracticeTracker, PENDING_SESSION_KEY, STRANDED_REPAIR_KEY } from '../../public/js/practiceTracker.js'
+import { MIN_PRACTICE_MS_FOR_STATUS, AGGREGATES_VERSION } from '../../public/js/aggregates.js'
 import { playthroughHands, playthroughGroups, TWO_HANDS } from '../../public/js/hands.js'
 import { initStorage } from '../../public/js/storage.js'
 import { installLocalStorage } from './support/browserGlobals.js'

@@ -57,7 +57,7 @@ export default {
   // Ce que sélectionne le filtre en cours, sous la liste filtrée de la
   // bibliothèque. Les nombres viennent des constantes que les règles elles-mêmes
   // appliquent : STATUS_THRESHOLDS et le plancher de pratique
-  // (practiceTracker.js), la fenêtre de renforcement et les seuils des mesures
+  // (aggregates.js), la fenêtre de renforcement et les seuils des mesures
   // qui accrochent (HOT_SPOT_*, reinforcement.js), et STALE_DAYS (library.js).
   criteria: {
     filterHeading: 'Ce que sélectionne {filter}',

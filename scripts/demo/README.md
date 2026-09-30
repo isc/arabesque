@@ -85,7 +85,7 @@ to a real user.
   recompute its own aggregates. The statuses on screen — Répertoire,
   Perfectionnement, Déchiffrage — are therefore whatever the real rules make of
   that history. The profiles at the top are matched to the thresholds in
-  `practiceTracker.js`; if a capture comes out with everything in "Déchiffrage",
+  `aggregates.js`; if a capture comes out with everything in "Déchiffrage",
   those thresholds have moved and the profiles need matching to them again.
 - **`play.js`** plays the opening of the piece through the same mock MIDI input
   the test suite uses. The notes it sends come from `extractNotesFromScore` —

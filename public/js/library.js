@@ -1,11 +1,6 @@
 import { initMidi } from './midi.js'
-import {
-  initPracticeTracker,
-  STATUS_THRESHOLDS,
-  cleanMeasureRatio,
-  hasMinimumPractice,
-  MIN_PRACTICE_MS_FOR_STATUS,
-} from './practiceTracker.js'
+import { initPracticeTracker } from './practiceTracker.js'
+import { STATUS_THRESHOLDS, cleanMeasureRatio, hasMinimumPractice, MIN_PRACTICE_MS_FOR_STATUS } from './aggregates.js'
 import {
   hasHotSpots,
   HOT_SPOT_FACTOR,
