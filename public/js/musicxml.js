@@ -153,11 +153,6 @@ export function initMusicXML() {
       // back would otherwise owe every note it missed since the downbeat, the
       // other hand's already green and unplayable again.
       resetNotesFromIndex(currentMeasureIndex, currentMeasureIndex)
-      // No hand ticked plays nothing, and would send the cursor to the last
-      // measure — where it stayed once a hand was ticked again: unticking MD
-      // before ticking MG left a left-hand run with nothing to validate until
-      // measure 1 was picked by hand (feedback 65538ec6).
-      if (!activeHands.right && !activeHands.left) return
       // Dropping a hand can leave the cursor on a measure only that hand plays.
       const landing = cursorMeasureFor(currentMeasureIndex)
       if (landing === currentMeasureIndex) return
@@ -168,6 +163,21 @@ export function initMusicXML() {
     getAllNotes: () => allNotes,
     repaintNoteMarks,
     getOwedGroup: owedGroup,
+    // The name the catalog gives the score (app.js), put over what the file
+    // says of itself for the sheet's next draw. A label the catalog leaves
+    // empty goes, with whatever the file's credits had put in it.
+    nameSheet: ({ title, subtitle, composer, arranger }) => {
+      const sheet = osmdInstance?.Sheet
+      if (!sheet) return
+      sheet.TitleString = title
+      sheet.ComposerString = composer
+      if (subtitle) sheet.SubtitleString = subtitle
+      else sheet.Subtitle = undefined
+      // Drawn at the top left, where OSMD puts a lyricist: it has no place
+      // for an arranger.
+      if (arranger) sheet.LyricistString = `Arr. ${arranger}`
+      else sheet.Lyricist = undefined
+    },
     getScoreMetadata: () => ({
       title: osmdInstance?.Sheet?.Title?.text || null,
       composer: osmdInstance?.Sheet?.Composer?.text || null,
