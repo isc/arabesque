@@ -73,4 +73,19 @@ class HandSelectionTest < CapybaraTestBase
       assert_selector 'svg g.vf-notehead.played-note', count: 2
     end
   end
+
+  # Unticking MD before ticking MG leaves no hand ticked for a moment, which
+  # sent the cursor to the last measure and kept it there: the left hand's
+  # run had nothing to validate until measure 1 was picked by hand
+  # (feedback 65538ec6).
+  def test_passing_through_no_hand_keeps_the_cursor_in_place
+    load_score('one-hand-rest-measure.xml', 6)
+
+    uncheck 'Main droite'
+    uncheck 'Main gauche'
+    check 'Main gauche'
+    play_note('C3')
+
+    assert_selector 'svg g.vf-notehead.played-note', count: 1
+  end
 end

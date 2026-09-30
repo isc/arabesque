@@ -153,6 +153,11 @@ export function initMusicXML() {
       // back would otherwise owe every note it missed since the downbeat, the
       // other hand's already green and unplayable again.
       resetNotesFromIndex(currentMeasureIndex, currentMeasureIndex)
+      // No hand ticked plays nothing, and would send the cursor to the last
+      // measure — where it stayed once a hand was ticked again: unticking MD
+      // before ticking MG left a left-hand run with nothing to validate until
+      // measure 1 was picked by hand (feedback 65538ec6).
+      if (!activeHands.right && !activeHands.left) return
       // Dropping a hand can leave the cursor on a measure only that hand plays.
       const landing = cursorMeasureFor(currentMeasureIndex)
       if (landing === currentMeasureIndex) return
