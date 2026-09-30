@@ -184,3 +184,47 @@ describe('storage on a lost connection', () => {
     expect(open).toHaveBeenCalledTimes(1)
   })
 })
+
+// A page left while it creates the database abandons the upgrade, which
+// Chrome would otherwise keep every later open waiting behind (openDatabase).
+// There is no page to leave where these tests run: one stands in here.
+describe('a page left while the database is created', () => {
+  let leave
+  // Handed each open's upgrade, ahead of storage.js's own handler.
+  let onUpgrade
+
+  beforeEach(() => {
+    indexedDB = new IDBFactory()
+    const page = new EventTarget()
+    vi.stubGlobal('addEventListener', page.addEventListener.bind(page))
+    vi.stubGlobal('removeEventListener', page.removeEventListener.bind(page))
+    leave = () => page.dispatchEvent(new Event('pagehide'))
+    onUpgrade = () => {}
+    const open = indexedDB.open.bind(indexedDB)
+    indexedDB.open = (...args) => {
+      const request = open(...args)
+      request.addEventListener('upgradeneeded', () => onUpgrade(request.transaction))
+      return request
+    }
+  })
+
+  it('abandons an upgrade still under way, for the next open to start again', async () => {
+    const storage = initStorage()
+    onUpgrade = () => queueMicrotask(leave)
+    await expect(storage.init()).rejects.toHaveProperty('name', 'AbortError')
+
+    onUpgrade = () => {}
+    expect([...(await storage.init()).objectStoreNames]).toEqual([...STORES].sort())
+  })
+
+  // The upgrade is over a moment before storage.js hears of it, from its
+  // complete event. A listener of that event ahead of storage.js's own leaves
+  // the page in that moment, where abort() used to throw: uncaught, here as in
+  // the browser, and vitest fails the run on it.
+  it('leaves an upgrade that is over alone', async () => {
+    const storage = initStorage()
+    onUpgrade = (upgrade) => upgrade.addEventListener('complete', leave)
+
+    expect([...(await storage.init()).objectStoreNames]).toEqual([...STORES].sort())
+  })
+})
