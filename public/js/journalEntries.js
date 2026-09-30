@@ -12,16 +12,18 @@
 //
 //   <div data-journal-entries="dateEntry.log"></div>
 //
-// The component behind it must expose scorePageUrl(), formatDuration() and the
-// journalEntryHelpers below.
+// The component behind it spreads journalEntryHelpers, below: every helper the
+// markup calls.
 import { playthroughGroups } from './hands.js'
-import { withRunKind } from './utils.js'
+import { withRunKind, scorePageUrl, formatDuration } from './utils.js'
 import { t, tn } from './i18n.js'
 
 // Alpine expressions read the component's scope, not this module's, so the
 // helpers the markup calls are spread into both pages' data.
 export const journalEntryHelpers = {
   playthroughGroups,
+  scorePageUrl,
+  formatDuration,
 
   // "L'Harmonie des anges · Burgmüller". Either half can be missing — an
   // aggregate rebuilt from a catalog that had not heard of the score carries

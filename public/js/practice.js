@@ -11,7 +11,7 @@ import { initPracticeTracker, practiceStreaks, practiceYearStats } from './pract
 import { localDayKey } from './days.js'
 import { initAutoSync } from './autoSync.js'
 import { onDayChange } from './dayRollover.js'
-import { formatDuration, formatVerboseDate, scorePageUrl } from './utils.js'
+import { formatDuration, formatVerboseDate } from './utils.js'
 import { journalEntryHelpers } from './journalEntries.js'
 import { t, locale } from './i18n.js'
 
@@ -222,8 +222,7 @@ export function practiceApp() {
       return this.selected ? formatVerboseDate(this.selected.date) : ''
     },
 
-    formatDuration,
-    scorePageUrl,
+    // formatDuration among them, which the page's own markup calls too.
     ...journalEntryHelpers,
   }
 }

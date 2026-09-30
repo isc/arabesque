@@ -343,7 +343,8 @@ travel with it — a manifest without a worker is not installable:
 
 `test/js/swShell.test.js` asserts that the set of pages carrying the manifest is
 exactly the set registering the worker, and that the theme colour matches the
-manifest's. The precache list is generated from
+manifest's. It lists every page as one of the app's or one of the others, so a
+new page goes into one of its two lists. The precache list is generated from
 `public/` by the same deploy step, so a new file is covered without being
 listed anywhere; add a new top-level directory to `SHELL_SKIP` in
 `scripts/stamp-version.mjs` if it must stay out.

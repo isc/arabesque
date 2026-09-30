@@ -3,6 +3,7 @@ import { readdirSync, readFileSync } from 'node:fs'
 import { join, relative } from 'node:path'
 import fr from '../../public/js/locales/fr.js'
 import en from '../../public/js/locales/en.js'
+import { htmlPages } from '../../scripts/stamp-version.mjs'
 
 // The two catalogs hold the same keys. Nothing else would say so when they
 // drift: t() falls back to the other language, then to the key itself, so a
@@ -35,7 +36,7 @@ describe('the locale catalogs', () => {
 const PUBLIC = join(import.meta.dirname, '..', '..', 'public')
 const listed = (dir) => readdirSync(dir).map((name) => join(dir, name))
 const SOURCES = [
-  ...listed(PUBLIC).filter((path) => path.endsWith('.html')),
+  ...htmlPages().map((page) => join(PUBLIC, page)),
   // The markup some modules build: the ⚙️ menu, the journal.
   ...listed(join(PUBLIC, 'js')).filter((path) => path.endsWith('.js')),
 ]

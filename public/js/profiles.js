@@ -28,7 +28,7 @@
 // on the right one.
 import { t } from './i18n.js'
 
-const PROFILES_KEY = 'arabesque:profiles'
+export const PROFILES_KEY = 'arabesque:profiles'
 export const MAIN_PROFILE_ID = 'main'
 // What a scoped storage name carries after its base (scopedKey).
 export const SCOPE_SEPARATOR = '@'

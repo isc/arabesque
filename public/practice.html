@@ -14,15 +14,9 @@
     <script type="module" src="js/swRegister.js"></script>
     <script type="module">
       import { practiceApp } from './js/practice.js'
-      import { initAlpineI18n } from './js/i18n.js'
+      import { startAlpine } from './js/alpineBoot.js'
       import { mountJournalEntries } from './js/journalEntries.js'
-      window.practiceApp = practiceApp
-      // Inject the shared journal entry line before Alpine boots.
-      mountJournalEntries()
-      initAlpineI18n()
-      const alpine = document.createElement('script')
-      alpine.src = 'vendor/alpinejs.3.14.9.min.js'
-      document.head.appendChild(alpine)
+      startAlpine({ practiceApp }, [mountJournalEntries])
     </script>
   </head>
   <body>

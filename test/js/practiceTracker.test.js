@@ -8,6 +8,8 @@ import {
   AGGREGATES_VERSION,
   measuresToReinforce,
   hasHotSpots,
+  PENDING_SESSION_KEY,
+  STRANDED_REPAIR_KEY,
 } from '../../public/js/practiceTracker.js'
 import { playthroughHands, playthroughGroups, TWO_HANDS } from '../../public/js/hands.js'
 import { initStorage } from '../../public/js/storage.js'
@@ -770,11 +772,11 @@ describe('practiceTracker', () => {
 
     it('does not credit twice when the session did commit after all', async () => {
       await interruptedSession()
-      const stash = localStorage.getItem('arabesque:pending-session')
+      const stash = localStorage.getItem(PENDING_SESSION_KEY)
       // endSession() won the race, then the page died before it could clear the
       // stash — so the snapshot is still there on the next load.
       await tracker.endSession()
-      localStorage.setItem('arabesque:pending-session', stash)
+      localStorage.setItem(PENDING_SESSION_KEY, stash)
       const before = await storage.getAggregate('/scores/test.xml')
       expect(before.totalSessions).toBe(1)
 
@@ -797,7 +799,7 @@ describe('practiceTracker', () => {
 
     it('keeps a snapshot when a different session ends', async () => {
       await interruptedSession()
-      const stash = localStorage.getItem('arabesque:pending-session')
+      const stash = localStorage.getItem(PENDING_SESSION_KEY)
 
       // Another session runs to a clean close — a new score opened on the same
       // page, say. It must not consume the stranded one's snapshot.
@@ -806,13 +808,11 @@ describe('practiceTracker', () => {
       await tracker.endMeasureAttempt(true)
       await tracker.endSession()
 
-      expect(localStorage.getItem('arabesque:pending-session')).toBe(stash)
+      expect(localStorage.getItem(PENDING_SESSION_KEY)).toBe(stash)
 
       await initPracticeTracker(storage).init()
       expect((await storage.getAggregate('/scores/test.xml')).totalSessions).toBe(1)
     })
-
-    const STRANDED_REPAIR_KEY = 'arabesque:stranded-sessions-closed'
 
     // A session stranded long ago, as left behind by a version with no
     // snapshots: measures played and saved, endedAt never stamped — on a
