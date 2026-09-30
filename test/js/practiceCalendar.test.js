@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import 'fake-indexeddb/auto'
-import { initPracticeTracker, practiceStreaks, practiceYearStats } from '../../public/js/practiceTracker.js'
+import { initPracticeTracker } from '../../public/js/practiceTracker.js'
+import { practiceStreaks, practiceYearStats } from '../../public/js/practiceJournal.js'
 import { shiftDayKey } from '../../public/js/days.js'
 import { initStorage } from '../../public/js/storage.js'
 import { levelFor } from '../../public/js/practice.js'

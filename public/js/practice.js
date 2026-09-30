@@ -7,7 +7,8 @@
 // and the streaks stay honest across a year boundary, which a per-year read
 // could not do.
 import { initStorage } from './storage.js'
-import { initPracticeTracker, practiceStreaks, practiceYearStats } from './practiceTracker.js'
+import { initPracticeTracker } from './practiceTracker.js'
+import { practiceStreaks, practiceYearStats } from './practiceJournal.js'
 import { localDayKey } from './days.js'
 import { initAutoSync } from './autoSync.js'
 import { onDayChange } from './dayRollover.js'

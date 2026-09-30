@@ -3,13 +3,7 @@ import { TWO_HANDS, handsKey } from './hands.js'
 import { scopedKey } from './profiles.js'
 import { localDayKey, shiftDayKey, startOfLocalDay, byStartedAt, sessionDay } from './days.js'
 import { loadCatalog } from './catalog.js'
-import {
-  computeSessionDuration,
-  getFullPlaythroughs,
-  getLastMeasureEndTime,
-  playedInFull,
-  sessionAttempts,
-} from './practiceTime.js'
+import { getFullPlaythroughs, getLastMeasureEndTime, sessionAttempts } from './practiceTime.js'
 import { measuresToReinforce } from './reinforcement.js'
 import {
   AGGREGATES_VERSION,
@@ -19,6 +13,7 @@ import {
   knownNames,
   titleOf,
 } from './aggregates.js'
+import { buildDailyLog, buildPracticeCalendar, buildScoreHistory } from './practiceJournal.js'
 
 // Where a session interrupted by a page teardown waits to be closed properly
 // (see stashPendingSession). The profile's own: the snapshot must be replayed
@@ -33,53 +28,6 @@ export const STRANDED_REPAIR_KEY = scopedKey('arabesque:stranded-sessions-closed
 // than in progress somewhere else. Well beyond any gap between two measures,
 // and the sessions this exists for are months old.
 const STRANDED_MIN_AGE_MS = 60 * 60 * 1000
-
-// What a year of the calendar adds up to. The streaks are deliberately not in
-// here: a run that started in December is one run, and cutting it at 1 January
-// would be an artefact of the view — practiceStreaks() reads the whole history.
-export function practiceYearStats(calendar, year) {
-  const prefix = `${year}-`
-  let days = 0
-  let practiceTimeMs = 0
-  let playthroughs = 0
-  for (const [key, day] of calendar) {
-    if (!key.startsWith(prefix)) continue
-    days += 1
-    practiceTimeMs += day.practiceTimeMs
-    playthroughs += day.timesPlayedInFull
-  }
-  return { days, practiceTimeMs, playthroughs }
-}
-
-// Runs of consecutive practised days, from a collection of day keys: the one
-// ending now, and the longest anywhere in the history.
-//
-// The current run tolerates a silent today. Until midnight the day is still
-// playable, so a streak that stands at yesterday is alive, not broken — the
-// opposite reading would show "0" every morning to someone who practises
-// every evening.
-export function practiceStreaks(dayKeys, today = new Date()) {
-  const days = new Set(dayKeys)
-
-  let longest = 0
-  let run = 0
-  let previous = null
-  for (const key of [...days].sort()) {
-    run = previous && shiftDayKey(previous, 1) === key ? run + 1 : 1
-    previous = key
-    if (run > longest) longest = run
-  }
-
-  const todayKey = localDayKey(today)
-  let cursor = days.has(todayKey) ? todayKey : shiftDayKey(todayKey, -1)
-  let current = 0
-  while (days.has(cursor)) {
-    current += 1
-    cursor = shiftDayKey(cursor, -1)
-  }
-
-  return { current, longest }
-}
 
 export function initPracticeTracker(storageInstance = null) {
   const storage = storageInstance || initStorage()
@@ -563,8 +511,7 @@ export function initPracticeTracker(storageInstance = null) {
     sessionCache = { scoreId: null, sessions: [] }
   }
 
-  // One row per practised day, keyed by local day ('YYYY-MM-DD'), for the
-  // year-at-a-glance calendar. Days with no practice are simply absent.
+  // The calendar's squares, from one read of the whole history.
   //
   // getDailyLogs() already groups sessions by day, but it answers a much richer
   // question — which scores, which measures, how many full playthroughs, with
@@ -572,15 +519,7 @@ export function initPracticeTracker(storageInstance = null) {
   // asked for. A year of coloured squares needs one duration per day, so this
   // walks the sessions once and keeps only what a square and its tooltip show.
   async function getPracticeCalendar() {
-    const byDay = new Map()
-    for (const session of await storage.getSessions()) {
-      const key = sessionDay(session)
-      if (!byDay.has(key)) byDay.set(key, { practiceTimeMs: 0, timesPlayedInFull: 0 })
-      const day = byDay.get(key)
-      day.practiceTimeMs += computeSessionDuration(session)
-      if (playedInFull(session)) day.timesPlayedInFull += 1
-    }
-    return byDay
+    return buildPracticeCalendar(await storage.getSessions())
   }
 
   async function getDailyLog(date) {
@@ -623,81 +562,7 @@ export function initPracticeTracker(storageInstance = null) {
     return dates.map((date) => buildDailyLog(byDay.get(localDayKey(date)) ?? [], names))
   }
 
-  // One day of the journal, its scores named by `names` (scoreId →
-  // { title, composer }).
-  function buildDailyLog(sessions, names) {
-    const scoreMap = new Map()
-    for (const session of sessions) {
-      if (!scoreMap.has(session.scoreId)) {
-        const name = names.get(session.scoreId)
-        scoreMap.set(session.scoreId, newEntry({
-          scoreId: session.scoreId,
-          scoreTitle: name?.title || null,
-          composer: name?.composer || null,
-        }))
-      }
-      addSession(scoreMap.get(session.scoreId), session)
-    }
-
-    return Array.from(scoreMap.values())
-      .map(withPlaythroughs)
-      .sort((a, b) => b.lastPlayedAt - a.lastPlayedAt)
-  }
-
-  // A line of the journal — a score, on a day — or a day of a score's history:
-  // the sessions grouped under it, and what they add up to (addSession).
-  function newEntry(fields) {
-    return {
-      ...fields,
-      sessions: [],
-      measuresWorked: new Set(),
-      measuresReinforced: new Set(),
-      totalPracticeTimeMs: 0,
-      lastPlayedAt: null,
-    }
-  }
-
-  // What a session adds to the entry it is grouped under, the same for both
-  // groupings.
-  function addSession(entry, session) {
-    entry.sessions.push(session)
-    entry.totalPracticeTimeMs += computeSessionDuration(session)
-    const lastPlayedAt = getLastMeasureEndTime(session)
-    if (!entry.lastPlayedAt || lastPlayedAt > entry.lastPlayedAt) entry.lastPlayedAt = lastPlayedAt
-    for (const measure of session.measures) {
-      const measureIndex = Number(measure.sourceMeasureIndex)
-      entry.measuresWorked.add(measureIndex)
-      if (session.mode === 'training') entry.measuresReinforced.add(measureIndex)
-    }
-  }
-
-  // The tail both groupings share: the sets they filled become sorted arrays,
-  // and their sessions become the runs through the whole score they hold.
-  // `timesPlayedInFull` stays what it says — the two-handed ones.
-  // The sessions themselves stay behind: nothing on screen reads them, and the
-  // entries are held in the pages' reactive state.
-  function withPlaythroughs({ sessions, ...entry }) {
-    const fullPlaythroughs = getFullPlaythroughs(sessions)
-    return {
-      ...entry,
-      measuresWorked: Array.from(entry.measuresWorked).sort((a, b) => a - b),
-      measuresReinforced: Array.from(entry.measuresReinforced).sort((a, b) => a - b),
-      fullPlaythroughs,
-      timesPlayedInFull: fullPlaythroughs.filter((pt) => pt.hands === TWO_HANDS).length,
-    }
-  }
-
-  // A score's days, newest first, keyed like the journal's.
   async function getScoreHistory(scoreId) {
-    const sessions = await storage.getSessions(scoreId)
-    const byDay = new Map()
-    for (const session of sessions) {
-      const date = sessionDay(session)
-      if (!byDay.has(date)) byDay.set(date, newEntry({ date }))
-      addSession(byDay.get(date), session)
-    }
-    return Array.from(byDay.values())
-      .map(withPlaythroughs)
-      .sort((a, b) => b.date.localeCompare(a.date))
+    return buildScoreHistory(await storage.getSessions(scoreId))
   }
 }
