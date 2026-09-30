@@ -1,16 +1,18 @@
 import { initMidi } from './midi.js'
 import {
   initPracticeTracker,
-  hasHotSpots,
-  HOT_SPOT_FACTOR,
-  HOT_SPOT_MIN_ATTEMPTS,
   STATUS_THRESHOLDS,
   cleanMeasureRatio,
   hasMinimumPractice,
   MIN_PRACTICE_MS_FOR_STATUS,
+} from './practiceTracker.js'
+import {
+  hasHotSpots,
+  HOT_SPOT_FACTOR,
+  HOT_SPOT_MIN_ATTEMPTS,
   REINFORCEMENT_WINDOW_SESSIONS,
   REINFORCEMENT_CLEAN_PASSES,
-} from './practiceTracker.js'
+} from './reinforcement.js'
 import { initStorage } from './storage.js'
 import { formatDate, formatRelativeDate, statusLabel, scorePageUrl, searchWords, matchesSearch } from './utils.js'
 import { journalEntryHelpers } from './journalEntries.js'

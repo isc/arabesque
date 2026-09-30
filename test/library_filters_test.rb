@@ -380,7 +380,7 @@ class LibraryFiltersTest < CapybaraTestBase
   AIR = 'scores/J._S._Bach_-_Air_on_the_G_String_Piano_arrangement.mxl'
 
   # Attempts at one bar, oldest first, true for a fumble — sized to clear or
-  # miss practiceTracker.js's hasHotSpots.
+  # miss reinforcement.js's hasHotSpots.
   HOT_SPOT = [true, true, true].freeze
   CLEAN = [false, false, false].freeze
   SHAKY = [true, false, true].freeze
