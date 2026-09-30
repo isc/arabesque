@@ -48,11 +48,22 @@ function parseEvent(token) {
   return { ...base, kind: 'notes', pitches, fingering }
 }
 
+// `*f` marks the event after it with a dynamic.
 function parseMeasure(text) {
   const tokens = text.trim().split(/\s+/).filter(Boolean)
   let time = null
   if (tokens[0]?.startsWith('@')) time = tokens.shift().slice(1)
-  return { time, events: tokens.map(parseEvent) }
+  const events = []
+  let dynamic = null
+  for (const token of tokens) {
+    if (token.startsWith('*')) dynamic = token.slice(1)
+    else {
+      events.push(dynamic ? { ...parseEvent(token), dynamic } : parseEvent(token))
+      dynamic = null
+    }
+  }
+  if (dynamic) throw new Error(`*${dynamic} marks no event: "${text.trim()}"`)
+  return { time, events }
 }
 
 // A staff's words: measures split by `|` like its notes, syllables by spaces.
@@ -202,7 +213,15 @@ function songXml(song) {
       if (written !== expected) throw new Error(`${song.slug}, measure ${number}, staff ${s + 1}: ${written} instead of ${expected} divisions`)
       if (s > 0) parts.push(`<backup><duration>${written}</duration></backup>`)
       const events = sung(beamed(measure.events, time), measure.syllables)
-      for (const event of events) parts.push(noteXml(event, staffNumber, voice, total))
+      for (const event of events) {
+        // The book prints a dynamic under the treble and over the bass, between the staves.
+        if (event.dynamic) {
+          parts.push(
+            `<direction placement="${s === 0 ? 'below' : 'above'}"><direction-type><dynamics><${event.dynamic}/></dynamics></direction-type><voice>${voice}</voice>${staffNumber ? `<staff>${staffNumber}</staff>` : ''}</direction>`,
+          )
+        }
+        parts.push(noteXml(event, staffNumber, voice, total))
+      }
     })
 
     // Fine closes the bar the piece ends in, and a D.C. that leads back to it

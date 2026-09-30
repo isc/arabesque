@@ -27,6 +27,7 @@
 //   F#4+A4q   a chord; F3+F#3q-43 fingers each of its notes in turn
 //   r     a hidden rest of any value (rq, rh, rw); R alone: the whole measure
 //   @5/4  at the start of a measure: this measure's time signature
+//   *f    a dynamic (f, p, mf…) printed at the event that follows
 //
 // rhWords and lhWords sing that staff: same `|` measures, syllables separated
 // by spaces, landing on the measure's notes in order (a rest is not sung, and
@@ -181,8 +182,8 @@ export const SONGS = [
     title: "C'est la bagarre",
     time: '4/4',
     showTime: true,
-    rh: 'G4q-3 G4q F#4h-2 | R | G4q G4e G4e F#4h | R | G4q-3 A4q A4q G4q | Fn4w | rq E4q-1 Fn4q-2 F#4q-3 | G4w-4 | rq G4q-4 F#4q-3 Fn4q-2 | E4w-1',
-    lh: 'R | G3q-2 G3q F#3h-3 | R | G3q G3e G3e F#3h | R | rq G3q-4 A3q-3 B3q-2 | C4w-1 | rq E3q-4 Fn3q-3 F#3q-2 | G3h-1 A3q-3 B3q | C4q F3+F#3q-43 F3+F#3h',
+    rh: '*f G4q-3 G4q F#4h-2 | R | *f G4q G4e G4e F#4h | R | *f G4q-3 A4q A4q G4q | Fn4w | rq *f E4q-1 Fn4q-2 F#4q-3 | G4w-4 | rq *f G4q-4 F#4q-3 Fn4q-2 | E4w-1',
+    lh: 'R | *p G3q-2 G3q F#3h-3 | R | *p G3q G3e G3e F#3h | R | rq *p G3q-4 A3q-3 B3q-2 | C4w-1 | rq *p E3q-4 Fn3q-3 F#3q-2 | G3h-1 A3q-3 B3q | C4q F3+F#3q-43 F3+F#3h',
     rhWords: "Tiens un dièse | | en- cor' un dièse | | mais voi- là l'bé- | carre | c'est bien trop | tard | c'est la ba- | garre",
   },
 ]
