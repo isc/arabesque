@@ -102,6 +102,12 @@ fingerprint per score file, including each part of a collection.
 of the scores as they are, and the generator writes nothing when a score cannot
 be read or opens with fewer notes than the library needs to find it.
 
+The catalog names a listed piece everywhere, the head of the sheet included:
+the score page puts the entry's title and short composer, and its optional
+`subtitle` and `arranger` (drawn "Arr. …" at the top left), over whatever the
+file says of itself (`nameSheet` in `public/js/musicxml.js`). So a file's own
+header never shows, and a correction goes in `scores.json`, not in the file.
+
 Correcting a score in place — a wrong trill, a measure re-engraved — does reach
 devices that already opened the piece: the service worker serves `/scores/` from
 the cache and refreshes behind the answer, so the fix lands on the opening after

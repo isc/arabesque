@@ -607,8 +607,9 @@ export function midiApp() {
       }
       listedName = listed.name
       // The catalog usually answers before the sheet is parsed, and this does
-      // nothing: afterScoreLoad takes the name then. Answering after, it
-      // replaces the sheet's own.
+      // nothing: afterScoreLoad names it then, ahead of its first draw.
+      // Answering after, it names the bar at once and the sheet at its next
+      // draw.
       this.captureScoreMetadata()
     },
 
@@ -618,11 +619,14 @@ export function midiApp() {
       window.location.href = scorePageUrl(part.url)
     },
 
-    // The name the page shows: the catalog's for a score it lists, as the
-    // library and the journal show it, and the sheet's own for any other.
+    // The name the page shows, in its bar and at the head of the sheet: the
+    // catalog's for a score it lists, as the library and the journal show it,
+    // and the sheet's own for any other. The session opened on the score
+    // takes it from the sheet too (startFreshSession).
     captureScoreMetadata() {
       if (!this.osmdInstance) return
-      const { title, composer } = listedName ?? musicxml.getScoreMetadata()
+      if (listedName) musicxml.nameSheet(listedName)
+      const { title, composer } = musicxml.getScoreMetadata()
       this.scoreTitle = title || null
       this.scoreComposer = composer || null
       if (title) {
