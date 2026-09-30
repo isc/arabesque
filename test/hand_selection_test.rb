@@ -88,4 +88,16 @@ class HandSelectionTest < CapybaraTestBase
     play_note('C3')
     assert_selector 'svg g.vf-notehead.played-note', count: 1
   end
+
+  # A single staff is all right hand: the left hand alone has nothing to play,
+  # which used to send the cursor to the last measure for good.
+  def test_a_hand_with_nothing_to_play_leaves_the_cursor_in_place
+    load_score('two-measures.xml', 2)
+
+    uncheck 'Main droite'
+    check 'Main droite'
+    play_note('C4')
+
+    assert_selector 'svg g.vf-notehead.played-note', count: 1
+  end
 end

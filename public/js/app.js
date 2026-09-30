@@ -1350,8 +1350,7 @@ export function midiApp() {
 
     // `changed` is the hand just ticked or unticked. No hand at all plays
     // nothing, so unticking the only hand ticked swaps to the other: from MD
-    // alone, one click gives MG alone. Going through "none" on the way used to
-    // park the cursor on the last measure (feedback 65538ec6).
+    // alone, one click gives MG alone (feedback 65538ec6).
     updateActiveHands(changed) {
       if (!this.rightHandActive && !this.leftHandActive) {
         if (changed === 'right') this.leftHandActive = true

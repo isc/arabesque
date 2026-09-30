@@ -153,9 +153,13 @@ export function initMusicXML() {
       // back would otherwise owe every note it missed since the downbeat, the
       // other hand's already green and unplayable again.
       resetNotesFromIndex(currentMeasureIndex, currentMeasureIndex)
-      // Dropping a hand can leave the cursor on a measure only that hand plays.
-      const landing = cursorMeasureFor(currentMeasureIndex)
-      if (landing === currentMeasureIndex) return
+      // Dropping a hand can leave the cursor on a measure only that hand plays:
+      // it moves on to the next one the hands left play. When the rest of the
+      // score has none — a single staff is all right hand — it stays put rather
+      // than park on the last measure, where it stayed once the hand came back
+      // (feedback 65538ec6).
+      const landing = nextPlayable(currentMeasureIndex)
+      if (landing === currentMeasureIndex || landing >= allNotes.length) return
       currentMeasureIndex = landing
       updateMeasureCursor()
     },
