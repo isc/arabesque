@@ -12,26 +12,17 @@ import { migrateFingeringRecord } from './fingeringKeys.js'
 import { initPlayback, getBPM } from './playback.js'
 import { initStrictPlaythrough } from './strictPlaythrough.js'
 import { initKeyboardHint, C8 } from './keyboardHint.js'
-import { createTempoPlan, createTempoTrainer, GRADUATED, BPM_STEP, STREAK, CLEAN_RATE } from './tempoTrainer.js'
+import { createTempoPlan, createTempoTrainer, GRADUATED, BPM_STEP, STREAK } from './tempoTrainer.js'
 import { BPM_DEFAULT } from './bpmStepper.js'
 import { bpmField } from './bpmField.js'
+import { resultModal } from './resultModal.js'
 import { headerMenu } from './headerMenu.js'
 import { initAutoSync, triggerSync } from './autoSync.js'
 import { scopedKey } from './profiles.js'
 import { t, tn } from './i18n.js'
 import { recordError } from './errorLog.js'
 import { loadCatalog, fileUrl, isCollection } from './catalog.js'
-import {
-  strictAccuracy,
-  wrongNotesText,
-  strictRunLabel,
-  rankingOf,
-  wrongMeasuresText,
-  playthroughChartSvg,
-  playthroughCharts,
-  withRunLines,
-  hotMeasures,
-} from './playthroughHistory.js'
+import { playthroughCharts, withRunLines, hotMeasures } from './playthroughHistory.js'
 
 // A passage picked on the score, the same in the strict and training bands:
 // where it starts, where it ends (null: none picked yet), whether the next
@@ -155,6 +146,11 @@ export function midiApp() {
     ...headerMenu(),
     ...fingeringPad({ storage, fingeringEditor }),
     ...bpmField(),
+    ...resultModal({
+      // The next run starts as the piece did (feedback b7682019).
+      onOpen: () => keyHint.restart(),
+      repetitions: () => musicxml.getTrainingState().targetRepeatCount,
+    }),
     bluetoothConnected: false,
     midiDeviceName: null,
     osmdInstance: null,
@@ -187,7 +183,6 @@ export function midiApp() {
     // it ends, null for the end of the score. See `passage` above.
     strictPassage: passage(null),
     strictBpm: BPM_DEFAULT,
-    strictResult: null,
     // The tempo trainer: strict runs of the passage in a loop, the tempo moving
     // between runs (see tempoTrainer.js). Armed by the loop button
     // (strictPassage.loop) in place of a single run.
@@ -195,7 +190,6 @@ export function midiApp() {
     // What the band says about the loop under way, and what the result modal
     // says once it is over.
     trainerStatus: null,
-    trainerSummary: null,
     // Training mode works a passage: one measure by default — the measure
     // clicked, the work moving on down the score once its three dots are
     // filled (`end` null) — or a range picked with 🔁, whose measures are then
@@ -247,15 +241,6 @@ export function midiApp() {
     historyCharts: [],
     measuresToReinforce: [],
     showMidiHelpModal: false,
-
-    // Single result modal for end-of-playthrough (free/training), end-of-
-    // strict run, and end-of-reinforcement. Body switches on resultMode.
-    showResultModal: false,
-    resultMode: null,
-    previousPlaythroughs: [],
-    resultChart: '',
-    // Where the run just finished went wrong, by measure number.
-    resultWrongMeasures: '',
 
     // Container width the score is currently laid out for, so a height-only
     // resize doesn't pay for a redraw (see handleViewportResize).
@@ -1016,19 +1001,6 @@ export function midiApp() {
       return t('score.trainingHint', { times })
     },
 
-    // What the result modal says when training ends: which passage came out
-    // clean, or that the score itself is done.
-    trainingDoneText() {
-      if (this.trainingPassage.end == null) return t('score.trainingDone')
-      const from = this.trainingPassage.start + 1
-      const to = this.trainingPassage.end + 1
-      return tn('score.trainingPassageDone', to - from + 1, {
-        from,
-        to,
-        times: musicxml.getTrainingState().targetRepeatCount,
-      })
-    },
-
     trainerModeLabel(mode) {
       return mode === GRADUATED
         ? t('score.trainerGraduated', { step: BPM_STEP, streak: STREAK })
@@ -1056,15 +1028,6 @@ export function midiApp() {
       if (this.strictPassage.end != null) return loopRangeText(from, this.strictPassage.end + 1)
       if (from > 1) return t('score.loopRangeOpen', { from })
       return clickIsStrict ? t('score.loopHint') : ''
-    },
-
-    trainerTempoLine() {
-      const { fromBpm, toBpm } = this.trainerSummary
-      return fromBpm === toBpm ? t('score.trainerTempoSame', { from: fromBpm }) : t('score.trainerTempo', { from: fromBpm, to: toBpm })
-    },
-
-    trainerRunLine(run) {
-      return strictRunLabel(run.verdict)
     },
 
     // A strict run is practice like any other, and until it was filed here it
@@ -1136,60 +1099,6 @@ export function midiApp() {
       keyHint.rest()
     },
 
-    strictAccuracyPercent() {
-      return this.strictResult ? strictAccuracy(this.strictResult) : 0
-    },
-
-    // How the accuracy is coloured: a good run reads as one — from the share
-    // of notes in tempo that makes a run clean for the tempo trainer, on the
-    // rate itself rather than the rounded figure. It used to be the mode's red
-    // whatever the figure, which made 94 % look like a fail.
-    strictAccuracyClass() {
-      const { hit = 0, total = 0 } = this.strictResult ?? {}
-      const rate = total ? hit / total : 0
-      return rate >= CLEAN_RATE ? 'is-good' : rate >= 0.7 ? 'is-fair' : ''
-    },
-
-    strictOffTempoTotal() {
-      const r = this.strictResult
-      if (!r) return 0
-      return (r.offTempoEarly ?? 0) + (r.offTempoLate ?? 0)
-    },
-
-    // The ranking and its chart, made once as the modal opens: the chart used
-    // to be generated twice per render, once to ask whether there was one.
-    // `allPlaythroughs` comes most recent first (getAllPlaythroughs).
-    showScoreComplete(allPlaythroughs) {
-      this.previousPlaythroughs = rankingOf(allPlaythroughs)
-      this.resultChart = playthroughChartSvg(this.previousPlaythroughs)
-      this.resultWrongMeasures = wrongMeasuresText(allPlaythroughs[0]?.wrongMeasures ?? [])
-      this.openResultModal('free')
-    },
-
-    // The hands every run in the ranking was played with, named in the title
-    // when they aren't both.
-    get resultHands() {
-      return this.previousPlaythroughs[0]?.hands ?? TWO_HANDS
-    },
-
-
-    openResultModal(mode) {
-      this.resultMode = mode
-      this.showResultModal = true
-      // The next run starts as the piece did (feedback b7682019).
-      keyHint.restart()
-      // The ranking is fastest-first and scrolls in its own column, so the run
-      // that just ended can sit well below the fold. Bring it into view.
-      this.$nextTick(() => {
-        document.querySelector('.pt-playthrough-table tr.is-current')?.scrollIntoView({ block: 'center' })
-      })
-    },
-
-    closeResultModal() {
-      this.showResultModal = false
-      this.resultMode = null
-    },
-
     dismissKeyHint() {
       keyHint.dismiss()
     },
@@ -1205,16 +1114,6 @@ export function midiApp() {
       if (this.showMidiHelpModal) return (this.showMidiHelpModal = false)
       const noMidi = document.getElementById('noMidiModal')
       if (noMidi?.open) noMidi.close()
-    },
-
-    resultTitle() {
-      switch (this.resultMode) {
-        case 'strict':         return t('score.resultTitleStrict')
-        case 'trainer':        return t('score.resultTitleTrainer')
-        case 'training':       return t('score.resultTitleTraining')
-        case 'reinforcement':  return t('score.resultTitleReinforcement')
-        default:               return withHands(t('score.resultTitleScore'), this.resultHands)
-      }
     },
 
     // Refreshed at every measure boundary, so the badge shows up as soon as a
@@ -1282,9 +1181,6 @@ export function midiApp() {
     formatDate,
     formatDuration,
 
-
-    // Called from the markup.
-    wrongNotesText,
 
     // Every redraw replaces the SVG, taking with it everything painted on it:
     // note colours, fingering handlers, the training cursor, the strict marker,
