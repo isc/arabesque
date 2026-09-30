@@ -1116,11 +1116,14 @@ button.pt-topbar__pill:disabled { opacity: 0.4; cursor: default; }
 .pt-stack--tight { gap: var(--pt-space-2); }
 
 
-/* Table layout. `overflow: hidden` on the
-   table would clip rounded corners cleanly but it also breaks sticky
-   thead, so the corner radii are applied directly to the four corner
-   cells instead. */
-table {
+/* =============================================================================
+   Library page layout
+   ========================================================================== */
+
+/* The score list. `overflow: hidden` on the table would clip rounded corners
+   cleanly but it also breaks sticky thead, so the corner radii are applied
+   directly to the four corner cells instead. */
+.pt-library__table {
   background: var(--pt-bg-elevated);
   border: 1px solid var(--pt-border);
   border-radius: var(--pt-radius-lg);
@@ -1128,11 +1131,11 @@ table {
   border-spacing: 0;
   font-size: 0.92rem;
 }
-table thead th:first-child { border-top-left-radius: var(--pt-radius-lg); }
-table thead th:last-child  { border-top-right-radius: var(--pt-radius-lg); }
-table tbody tr:last-child td:first-child { border-bottom-left-radius: var(--pt-radius-lg); }
-table tbody tr:last-child td:last-child  { border-bottom-right-radius: var(--pt-radius-lg); }
-table thead th {
+.pt-library__table thead th:first-child { border-top-left-radius: var(--pt-radius-lg); }
+.pt-library__table thead th:last-child  { border-top-right-radius: var(--pt-radius-lg); }
+.pt-library__table tbody tr:last-child td:first-child { border-bottom-left-radius: var(--pt-radius-lg); }
+.pt-library__table tbody tr:last-child td:last-child  { border-bottom-right-radius: var(--pt-radius-lg); }
+.pt-library__table thead th {
   background: var(--pt-surface-2);
   padding: var(--pt-space-2) var(--pt-space-4);
   font-size: 0.78rem;
@@ -1140,34 +1143,25 @@ table thead th {
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: var(--pt-text-muted);
-  border: none;
 }
-table tbody td {
+.pt-library__table tbody td {
   padding: var(--pt-space-3) var(--pt-space-4);
-  border: none;
   border-top: 1px solid var(--pt-border);
-  vertical-align: middle;
 }
-table tbody tr { transition: background-color var(--pt-transition-fast); }
-table tbody tr:hover { background: var(--pt-surface-2); }
-table th.pt-th-right { text-align: right; }
-table th.pt-th-sort { cursor: pointer; user-select: none; }
-table th.pt-th-sort:hover { color: var(--pt-text); background: var(--pt-border); }
-table th.pt-th-sort[aria-sort="ascending"],
-table th.pt-th-sort[aria-sort="descending"] { color: var(--pt-text); }
-table tbody td a:not(.pt-pill) { color: var(--pt-text); font-weight: 500; }
-table tbody td a:not(.pt-pill):hover { color: var(--pt-accent); text-decoration: none; }
-table tbody td:nth-child(2) a { color: var(--pt-text-muted); font-weight: 400; text-decoration: underline dotted; text-underline-offset: 3px; }
-table tbody td:nth-child(2) a:hover { color: var(--pt-accent); }
+.pt-library__table tbody tr { transition: background-color var(--pt-transition-fast); }
+.pt-library__table tbody tr:hover { background: var(--pt-surface-2); }
+.pt-th-right { text-align: right; }
+.pt-th-sort { cursor: pointer; user-select: none; }
+.pt-th-sort:hover { color: var(--pt-text); background: var(--pt-border); }
+.pt-th-sort:is([aria-sort="ascending"], [aria-sort="descending"]) { color: var(--pt-text); }
+.pt-library__table tbody td a:not(.pt-pill) { color: var(--pt-text); font-weight: 500; }
+.pt-library__table tbody td a:not(.pt-pill):hover { color: var(--pt-accent); text-decoration: none; }
+.pt-library__table tbody td:nth-child(2) a { color: var(--pt-text-muted); font-weight: 400; text-decoration: underline dotted; text-underline-offset: 3px; }
+.pt-library__table tbody td:nth-child(2) a:hover { color: var(--pt-accent); }
 
-/* Library table: the "last played" cell. */
+/* The "last played" cell. */
 .pt-row__time { font-size: 0.85rem; color: var(--pt-text-muted); font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
 .pt-row__time small { display: block; color: var(--pt-text-subtle); font-size: 0.75rem; margin-top: 2px; }
-
-
-/* =============================================================================
-   Library page layout
-   ========================================================================== */
 
 /* Library uses an app-shell layout: the page fills the viewport and never
    scrolls itself; only the sidebar and the table list scroll, each within
@@ -1199,7 +1193,7 @@ table tbody td:nth-child(2) a:hover { color: var(--pt-accent); }
 }
 .pt-library__main { display: flex; flex-direction: column; min-width: 0; overflow-y: auto; min-height: 0; }
 
-.pt-library__main table thead { position: sticky; top: 0; z-index: 1; }
+.pt-library__table thead { position: sticky; top: 0; z-index: 1; }
 
 .pt-page-header {
   display: flex;
@@ -1481,7 +1475,7 @@ table tbody td:nth-child(2) a:hover { color: var(--pt-accent); }
   .pt-library-page { height: auto; overflow: visible; }
   .pt-library { grid-template-columns: 1fr; }
   .pt-library__sidebar, .pt-library__main { overflow-y: visible; }
-  .pt-library__main table thead { position: static; }
+  .pt-library__table thead { position: static; }
 }
 
 /* Phone layout for the library — the second of two stages, and deliberately a
@@ -1509,15 +1503,15 @@ table tbody td:nth-child(2) a:hover { color: var(--pt-accent); }
 
   /* The rows do their own layout below; these two only have to stop being a
      table box, or the cells would still be laid out in columns. */
-  .pt-library__main table,
-  .pt-library__main tbody { display: block; }
+  .pt-library__table,
+  .pt-library__table tbody { display: block; }
   /* The sort control in .pt-librarybar replaces them. */
-  .pt-library__main thead { display: none; }
+  .pt-library__table thead { display: none; }
 
   /* Title on its own line, then whatever of composer / status / practice time
      the score has, in source order. The cells that stay empty simply take no
      room, which is why this needs no separators between them. */
-  .pt-library__main tbody tr {
+  .pt-library__table tbody tr {
     display: flex;
     flex-wrap: wrap;
     align-items: baseline;
@@ -1528,12 +1522,12 @@ table tbody td:nth-child(2) a:hover { color: var(--pt-accent); }
     padding: var(--pt-space-3);
     border-top: 1px solid var(--pt-border);
   }
-  .pt-library__main tbody td { padding: 0; border: none; }
-  .pt-library__main tbody td:first-child { flex: 0 0 100%; }
+  .pt-library__table tbody td { padding: 0; border: none; }
+  .pt-library__table tbody td:first-child { flex: 0 0 100%; }
   /* Right-aligned and block-level in the table; neither survives the reflow. */
-  .pt-library__main .pt-row__time { text-align: left; }
-  .pt-library__main .pt-row__time small { display: inline; margin: 0; }
-  .pt-library__main .pt-row__time small::before { content: " · "; }
+  .pt-library__table .pt-row__time { text-align: left; }
+  .pt-library__table .pt-row__time small { display: inline; margin: 0; }
+  .pt-library__table .pt-row__time small::before { content: " · "; }
 }
 
 /* =============================================================================
@@ -1730,10 +1724,9 @@ dialog > article > footer {
    Use :first-of-type rather than :first-child because Alpine's
    <template x-for> sits inside <tbody> as the actual first child, which
    makes :first-child match nothing on the data rows. */
-.pt-playthrough-table { width: 100%; border: none; background: transparent; border-radius: 0; }
+.pt-playthrough-table { border-spacing: 0; }
 .pt-playthrough-table tbody td { padding: 6px 8px; font-size: 0.9rem; border-top: 1px solid var(--pt-border); }
 .pt-playthrough-table tbody tr:first-of-type td { border-top: none; }
-.pt-playthrough-table tbody tr:hover { background: transparent; }
 .pt-playthrough-table tbody tr.is-current { background: var(--pt-accent-soft); }
 .pt-playthrough-table tbody tr.is-current td:first-child strong { color: var(--pt-accent); }
 .pt-playthrough-table tbody td small { color: var(--pt-text-muted); }
