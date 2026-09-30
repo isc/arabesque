@@ -1,9 +1,9 @@
 import { initMidi, nativePairingAvailable, openNativePairing } from './midi.js'
 import { initMusicXML } from './musicxml.js'
 import { initFingeringEditor } from './fingeringEditor.js'
-import { initPracticeTracker, byStartedAt } from './practiceTracker.js'
+import { initPracticeTracker } from './practiceTracker.js'
 import { playthroughGroups, TWO_HANDS, handsKey } from './hands.js'
-import { formatDuration, formatDate, applyStickyOffset, scorePageUrl, onForeground, withHands, withRunKind, pickPassageMeasure, loopRangeText } from './utils.js'
+import { formatDuration, formatDate, applyStickyOffset, scorePageUrl, onForeground, withHands, pickPassageMeasure, loopRangeText } from './utils.js'
 import { noteLabel } from './noteExtraction.js'
 import { initStorage } from './storage.js'
 import { loadMxlAsXml } from './mxlLoader.js'
@@ -17,56 +17,20 @@ import { stepBpm, holdToRepeat, BPM_MIN, BPM_MAX, BPM_DEFAULT } from './bpmStepp
 import { headerMenu } from './headerMenu.js'
 import { initAutoSync, triggerSync } from './autoSync.js'
 import { scopedKey } from './profiles.js'
-import { t, tn, locale } from './i18n.js'
+import { t, tn } from './i18n.js'
 import { recordError } from './errorLog.js'
 import { loadCatalog, fileUrl, isCollection } from './catalog.js'
-
-// Built once: the active locale is fixed for the page lifetime (switching
-// language reloads), so these don't need rebuilding per call/point.
-const PLAYTHROUGH_LIST_FORMATTER = new Intl.ListFormat(locale(), { style: 'long', type: 'conjunction' })
-const CHART_DATE_FULL = new Intl.DateTimeFormat(locale())
-const CHART_DATE_AXIS = new Intl.DateTimeFormat(locale(), { day: 'numeric', month: 'short' })
-
-
-// The headline figure of a strict run: notes in tempo, as a percentage.
-function strictAccuracy({ hit, total }) {
-  return total ? Math.round((hit / total) * 100) : 0
-}
-
-// A free run's wrong notes. Runs filed before the count was shown carry it
-// too: every measure attempt has always recorded its wrong notes.
-function wrongNotesText(n) {
-  return n ? tn('score.wrongNotes', n) : t('score.noWrongNote')
-}
-
-// What a run is measured by, per kind of run (see hands' playthroughGroups):
-// a free run by the time it took, a strict run by its hit rate — which means
-// nothing without the tempo, so its label carries it. Read wherever runs are
-// listed, titled or plotted, so a kind is described in one place. A free run's
-// label says how clean it was as well: a time alone reads the same for a run
-// that stumbled through as for one that didn't.
-const RUN_KINDS = {
-  free: {
-    title: 'score.playtimeEvolution',
-    aria: 'score.chartAria',
-    value: (pt) => pt.durationMs,
-    format: formatDuration,
-    label: (pt) => `${formatDuration(pt.durationMs)} (${wrongNotesText(pt.wrongNotes)})`,
-    ceiling: Infinity,
-  },
-  strict: {
-    title: 'score.accuracyEvolution',
-    aria: 'score.strictChartAria',
-    value: (pt) => strictAccuracy(pt.strict),
-    format: (pct) => t('score.percent', { pct: Math.round(pct) }),
-    label: (pt) => t('score.strictRunSummary', { pct: strictAccuracy(pt.strict), bpm: pt.strict.bpm }),
-    ceiling: 100,
-  },
-}
-
-function runKind(strict) {
-  return strict ? RUN_KINDS.strict : RUN_KINDS.free
-}
+import {
+  strictAccuracy,
+  wrongNotesText,
+  rankingOf,
+  wrongMeasuresText,
+  playthroughsSummary,
+  chartTitle,
+  playthroughChartSvg,
+  playthroughCharts,
+  hotMeasures,
+} from './playthroughHistory.js'
 
 // What the strict and training bands say once a passage's first bar is picked
 // and its last is awaited: to click that bar, while a click would reach the
@@ -76,8 +40,6 @@ function armedRangeText(from, clickIsTheBands) {
   return t(clickIsTheBands ? 'score.loopHintEnd' : 'score.startAt', { n: from })
 }
 
-// How many measures the result modal names before it only counts them.
-const WRONG_MEASURES_LISTED = 6
 
 // Redrawing a full score costs ~200ms, and dragging a window edge fires resize
 // continuously — wait for the drag to settle before paying for it once.
@@ -292,6 +254,7 @@ export function midiApp() {
     scoreHistory: [],
     historyTotalMs: 0,
     historyHotMeasures: [],
+    historyCharts: [],
     measuresToReinforce: [],
     showMidiHelpModal: false,
 
@@ -300,6 +263,7 @@ export function midiApp() {
     showResultModal: false,
     resultMode: null,
     previousPlaythroughs: [],
+    resultChart: '',
 
     // Container width the score is currently laid out for, so a height-only
     // resize doesn't pay for a redraw (see handleViewportResize).
@@ -1245,18 +1209,12 @@ export function midiApp() {
       return (r.offTempoEarly ?? 0) + (r.offTempoLate ?? 0)
     },
 
+    // The ranking and its chart, made once as the modal opens: the chart used
+    // to be generated twice per render, once to ask whether there was one.
     // `allPlaythroughs` comes most recent first (getAllPlaythroughs).
     showScoreComplete(allPlaythroughs) {
-      const mostRecent = allPlaythroughs[0]
-      // Ranked fastest-first, current playthrough flagged so the modal can
-      // highlight it. Only the runs comparable with it are in the running —
-      // playthroughGroups says which: a right-hand run beats every two-hand
-      // time on the clock without being the better performance, and a strict
-      // run's time is the metronome's, not the player's.
-      const comparable = playthroughGroups(allPlaythroughs).find((g) => g.playthroughs.includes(mostRecent))
-      this.previousPlaythroughs = (comparable?.playthroughs ?? [])
-        .map((pt) => ({ ...pt, isCurrent: pt === mostRecent }))
-        .sort((a, b) => a.durationMs - b.durationMs)
+      this.previousPlaythroughs = rankingOf(allPlaythroughs)
+      this.resultChart = playthroughChartSvg(this.previousPlaythroughs)
       this.openResultModal('free')
     },
 
@@ -1266,28 +1224,9 @@ export function midiApp() {
       return this.previousPlaythroughs[0]?.hands ?? TWO_HANDS
     },
 
-    // Beside a run's time in the result modal's ranking.
-    wrongNotesText,
-
-    // Where the run just finished went wrong, by measure number — past a
-    // handful of them, only how many: a list that long says nothing more.
+    // Where the run just finished went wrong, by measure number.
     get wrongMeasuresText() {
-      const measures = this.previousPlaythroughs.find((p) => p.isCurrent)?.wrongMeasures ?? []
-      if (measures.length === 0) return ''
-      if (measures.length > WRONG_MEASURES_LISTED) return t('score.wrongMeasuresMany', { n: measures.length })
-      const list = PLAYTHROUGH_LIST_FORMATTER.format(measures.map((m) => String(m + 1)))
-      return tn('score.wrongMeasures', measures.length, { list })
-    },
-
-    // One evolution chart per kind of run and hand selection — play time for
-    // free runs, hit rate for strict ones. Built here rather than in the
-    // template so each SVG is generated once, and so a group with too few
-    // runs to plot simply drops out.
-    get playthroughCharts() {
-      const playthroughs = this.scoreHistory.flatMap((d) => d.fullPlaythroughs)
-      return playthroughGroups(playthroughs)
-        .map((group) => ({ ...group, svg: this.playthroughChartSvg(group.playthroughs) }))
-        .filter((group) => group.svg)
+      return wrongMeasuresText(this.previousPlaythroughs.find((p) => p.isCurrent)?.wrongMeasures ?? [])
     },
 
     openResultModal(mode) {
@@ -1376,29 +1315,18 @@ export function midiApp() {
       this.refreshReinforcementSuggestions()
     },
 
+    // Everything the modal shows is made here, once, as it opens.
     async openScoreHistory() {
       if (!this.scoreUrl) return
-      this.scoreHistory = await practiceTracker.getScoreHistory(this.scoreUrl)
-      this.historyTotalMs = this.scoreHistory.reduce((sum, d) => sum + (d.totalPracticeTimeMs || 0), 0)
-      this.historyHotMeasures = await this.computeHotMeasures()
+      const [history, aggregate] = await Promise.all([
+        practiceTracker.getScoreHistory(this.scoreUrl),
+        storage.getAggregate(this.scoreUrl),
+      ])
+      this.scoreHistory = history
+      this.historyTotalMs = history.reduce((sum, d) => sum + (d.totalPracticeTimeMs || 0), 0)
+      this.historyCharts = playthroughCharts(history.flatMap((d) => d.fullPlaythroughs))
+      this.historyHotMeasures = hotMeasures(aggregate)
       this.showHistoryModal = true
-    },
-
-    // Top measures with the highest error rate, surfaced inside the
-    // history modal so practiced measures with persistent trouble are
-    // visible without diving into the data.
-    async computeHotMeasures() {
-      const agg = await storage.getAggregate(this.scoreUrl)
-      if (!agg || !agg.measures) return []
-      const entries = Object.entries(agg.measures)
-        .map(([idx, m]) => ({
-          index: Number(idx),
-          attempts: m.totalAttempts || 0,
-          errorRate: m.errorRate || 0,
-        }))
-        .filter((m) => m.attempts >= 2 && m.errorRate > 0)
-        .sort((a, b) => b.errorRate - a.errorRate)
-      return entries.slice(0, 5)
     },
 
     // Attaches the current score to the shared feedback submission (see
@@ -1412,81 +1340,10 @@ export function midiApp() {
 
     playthroughGroups,
 
-    formatPlaythroughs(group) {
-      // Reverse to show chronological order (oldest first)
-      const runs = [...group.playthroughs].reverse()
-      const list = runs.map(runKind(group.strict).label)
-      const summary = t('score.playthroughsSummary', { n: runs.length, list: PLAYTHROUGH_LIST_FORMATTER.format(list) })
-      return withRunKind(summary, group)
-    },
-
-    chartTitle(group) {
-      return withRunKind(t(runKind(group.strict).title), group)
-    },
-
-    // Built as a string (not <template x-for>) because Alpine's templates
-    // render in HTML namespace and won't show up inside <svg>. Returns ''
-    // when fewer than 2 points — the calling x-if then skips the section.
-    // Plots what the runs are measured by — they are all of one kind, the
-    // way playthroughGroups hands them over.
-    playthroughChartSvg(playthroughs) {
-      if (playthroughs.length < 2) return ''
-      const metric = runKind(playthroughs[0].strict)
-
-      const sorted = [...playthroughs].sort(byStartedAt)
-      const values = sorted.map(metric.value)
-      const dMin = Math.min(...values)
-      const dMax = Math.max(...values)
-      // A tenth of the spread of headroom either side; a hit rate stops at 100.
-      const yMin = Math.max(0, dMin - (dMax - dMin) * 0.1)
-      const yMax = Math.min(metric.ceiling, (dMax + (dMax - dMin) * 0.1) || dMax * 1.1)
-
-      const W = 600
-      const H = 200
-      const PAD = { top: 12, right: 12, bottom: 28, left: 56 }
-      const innerW = W - PAD.left - PAD.right
-      const innerH = H - PAD.top - PAD.bottom
-      // Evenly spaced by playthrough index: gaps between dates aren't shown.
-      const n = sorted.length
-      const xScale = (i) =>
-        PAD.left + (n === 1 ? innerW / 2 : (i / (n - 1)) * innerW)
-      const yScale = (d) =>
-        PAD.top + innerH - ((d - yMin) / (yMax - yMin || 1)) * innerH
-
-      const points = sorted.map((p, i) => ({
-        x: xScale(i),
-        y: yScale(metric.value(p)),
-        label: metric.label(p),
-        date: CHART_DATE_FULL.format(new Date(p.startedAt)),
-      }))
-      const fmtAxis = (iso) => CHART_DATE_AXIS.format(new Date(iso))
-
-      const axisY = PAD.top + innerH
-      const xMin = PAD.left
-      const xMax = PAD.left + innerW
-
-      const yLabels = [
-        `<text x="${xMin - 8}" y="${yScale(yMax) + 4}" text-anchor="end" class="chart-label">${metric.format(yMax)}</text>`,
-        `<text x="${xMin - 8}" y="${yScale(yMin) + 4}" text-anchor="end" class="chart-label">${metric.format(yMin)}</text>`,
-      ].join('')
-      const xLabels = [
-        `<text x="${xMin}" y="${H - 8}" text-anchor="start" class="chart-label">${fmtAxis(sorted[0].startedAt)}</text>`,
-        `<text x="${xMax}" y="${H - 8}" text-anchor="end" class="chart-label">${fmtAxis(sorted[n - 1].startedAt)}</text>`,
-      ].join('')
-      const circles = points
-        .map(
-          (p) =>
-            `<circle cx="${p.x}" cy="${p.y}" r="4" class="chart-point"><title>${p.date} — ${p.label}</title></circle>`,
-        )
-        .join('')
-
-      return `<svg viewBox="0 0 ${W} ${H}" class="playthrough-chart" role="img" aria-label="${t(metric.aria)}">
-        <line x1="${xMin}" x2="${xMax}" y1="${axisY}" y2="${axisY}" class="chart-axis" />
-        ${yLabels}
-        ${xLabels}
-        ${circles}
-      </svg>`
-    },
+    // Called from the markup.
+    wrongNotesText,
+    playthroughsSummary,
+    chartTitle,
 
     // Fingering annotation methods
     setupFingeringHandlers() {

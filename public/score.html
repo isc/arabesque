@@ -408,10 +408,10 @@
                     </tbody>
                   </table>
                 </div>
-                <template x-if="playthroughChartSvg(previousPlaythroughs)">
+                <template x-if="resultChart">
                   <div class="pt-modal-section">
                     <h4 x-text="$t('score.playtimeEvolution')">Évolution du temps de jeu</h4>
-                    <div x-html="playthroughChartSvg(previousPlaythroughs)"></div>
+                    <div x-html="resultChart"></div>
                   </div>
                 </template>
               </div>
@@ -504,7 +504,7 @@
           <p class="pt-modal-note" x-text="$t('score.noHistory')">Aucun historique pour cette partition.</p>
         </template>
 
-        <template x-for="chart in playthroughCharts" :key="chart.key">
+        <template x-for="chart in historyCharts" :key="chart.key">
           <div class="pt-modal-section">
             <h4 x-text="chartTitle(chart)">Évolution du temps de jeu</h4>
             <div x-html="chart.svg"></div>
@@ -540,7 +540,7 @@
                   <small x-show="day.fullPlaythroughs.length === 0 && day.measuresWorked.length > 0" x-text="$tn('score.measuresPlayed', day.measuresWorked.length)"></small>
                   <small x-show="day.measuresReinforced.length > 0" x-text="$tn('score.measuresReinforced', day.measuresReinforced.length)"></small>
                   <template x-for="group in playthroughGroups(day.fullPlaythroughs)" :key="group.key">
-                    <small x-text="formatPlaythroughs(group)"></small>
+                    <small x-text="playthroughsSummary(group)"></small>
                   </template>
                 </div>
               </div>
