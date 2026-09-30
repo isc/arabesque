@@ -19,6 +19,7 @@ import { initAutoSync, triggerSync } from './autoSync.js'
 import { scopedKey } from './profiles.js'
 import { t, tn, locale } from './i18n.js'
 import { recordError } from './errorLog.js'
+import { loadCatalog, fileUrl, isCollection } from './catalog.js'
 
 // Built once: the active locale is fixed for the page lifetime (switching
 // language reloads), so these don't need rebuilding per call/point.
@@ -113,6 +114,9 @@ export function midiApp() {
   let wakeLock = null
   // Settles when the MIDI handshake is done; awaited by markScoreReady().
   let midiReady = Promise.resolve()
+  // The name the catalog gives the score under way (lookUpListing): null until
+  // it has answered, and for a score it does not list.
+  let listedName = null
   // Orders the reinforcement refreshes fired at every measure boundary (see
   // refreshReinforcementSuggestions).
   let reinforcementRefreshSeq = 0
@@ -551,7 +555,7 @@ export function midiApp() {
     async loadScoreFromURL(url, trackerReady = Promise.resolve()) {
       this.scoreUrl = url
       this.fingeringEnabled = true
-      this.loadCollectionInfo(url) // fire-and-forget: the navigator appears when ready
+      this.lookUpListing(url) // fire-and-forget: the sheet never waits on it
 
       try {
         await this.renderScoreWithFingerings()
@@ -581,26 +585,32 @@ export function midiApp() {
       document.getElementById('score').dataset.renderComplete = Date.now()
     },
 
-    // If the loaded file is one part of a collection in the catalog, expose
-    // the sibling parts so the topbar can offer prev/next navigation.
-    async loadCollectionInfo(url) {
+    // What the catalog says of the score at `url`: a part of a collection
+    // brings its siblings, for the topbar's prev/next navigation, and a listed
+    // score the name the page shows (captureScoreMetadata).
+    async lookUpListing(url) {
+      let catalog
       try {
-        const response = await fetch('data/scores.json')
-        const data = await response.json()
-        for (const score of data.scores) {
-          if (!Array.isArray(score.parts)) continue
-          const index = score.parts.findIndex((p) => data.baseUrl + p.file === url)
-          if (index === -1) continue
-          this.collection = {
-            title: score.title,
-            parts: score.parts.map((p) => ({ ...p, url: data.baseUrl + p.file })),
-          }
-          this.collectionIndex = index
-          return
-        }
+        catalog = await loadCatalog()
       } catch (error) {
-        recordError(error, 'Collection parts could not be looked up')
+        recordError(error, 'The score catalog could not be read')
+        return
       }
+      const listed = catalog.byUrl.get(url)
+      if (!listed) return
+      if (isCollection(listed.score)) {
+        this.collection = {
+          title: listed.score.title,
+          parts: listed.score.parts.map((part) => ({ ...part, url: fileUrl(catalog, part.file) })),
+        }
+        this.collectionIndex = listed.index
+      }
+      listedName = listed.name
+      // The catalog usually answers before the sheet is parsed, and this does
+      // nothing: afterScoreLoad names it then, ahead of its first draw.
+      // Answering after, it names the bar at once and the sheet at its next
+      // draw.
+      this.captureScoreMetadata()
     },
 
     gotoPart(index) {
@@ -609,13 +619,18 @@ export function midiApp() {
       window.location.href = scorePageUrl(part.url)
     },
 
+    // The name the page shows, in its bar and at the head of the sheet: the
+    // catalog's for a score it lists, as the library and the journal show it,
+    // and the sheet's own for any other. The session opened on the score
+    // takes it from the sheet too (startFreshSession).
     captureScoreMetadata() {
       if (!this.osmdInstance) return
-      const metadata = musicxml.getScoreMetadata()
-      this.scoreTitle = metadata.title || null
-      this.scoreComposer = metadata.composer || null
-      if (metadata.title) {
-        document.title = `${metadata.title}${metadata.composer ? ' — ' + metadata.composer : ''} · ${t('score.pageTitle')}`
+      if (listedName) musicxml.nameSheet(listedName)
+      const { title, composer } = musicxml.getScoreMetadata()
+      this.scoreTitle = title || null
+      this.scoreComposer = composer || null
+      if (title) {
+        document.title = `${title}${composer ? ' — ' + composer : ''} · ${t('score.pageTitle')}`
       }
     },
 
@@ -711,9 +726,8 @@ export function midiApp() {
       // not in it — so they go before the module can be asked to paint them
       // back onto it.
       strictPlaythrough.clearMarks()
-      // As soon as OSMD has parsed the sheet — the title and composer are read
-      // straight off it, and waiting for the render meant the topbar sat on its
-      // "Partition" placeholder for the whole of it.
+      // As soon as OSMD has parsed the sheet — waiting for the render meant the
+      // topbar sat on its "Partition" placeholder for the whole of it.
       this.captureScoreMetadata()
       // Wait for Alpine to update DOM (show #score container), then render
       await this.$nextTick()

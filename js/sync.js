@@ -68,42 +68,6 @@ async function selectAll(query) {
   }
 }
 
-// Map scoreId → { title, composer } from the score catalog, so aggregates
-// rebuilt from pulled sessions keep their titles (sessions don't store them).
-// Memoized: the catalog can't change within a page load, and syncs are now
-// frequent enough that re-fetching and re-mapping it each time is pure waste.
-let catalogMeta = null
-
-async function fetchCatalogMeta() {
-  if (catalogMeta) return catalogMeta
-  try {
-    const res = await fetch('data/scores.json')
-    const data = await res.json()
-    const base = data.baseUrl || ''
-    const map = {}
-    for (const s of data.scores || []) {
-      if (Array.isArray(s.parts)) {
-        for (const p of s.parts) map[base + p.file] = { title: p.title, composer: s.composer }
-      } else if (s.file) {
-        map[base + s.file] = { title: s.title, composer: s.composer }
-      }
-    }
-    catalogMeta = map
-    return map
-  } catch {
-    return {}
-  }
-}
-
-// Aggregates are derived: once sessions arrive from elsewhere — pulled by a
-// sync, imported from a backup — they are replayed from every session there
-// is, the scores named from the catalog. `fallbackNames` as rebuildAggregates
-// takes them.
-async function rebuildAggregatesFromCatalog(practiceTracker, fallbackNames) {
-  const meta = await fetchCatalogMeta()
-  await practiceTracker.rebuildAggregates((scoreId) => meta[scoreId] ?? null, fallbackNames)
-}
-
 // A backup brought to this device joins what it holds, the way a pull does:
 // the sessions it lacks go in, its fingerings are entered as if played here
 // (importFingerings), and the aggregates are replayed from every session. The
@@ -114,7 +78,7 @@ export async function importBackup({ storage, practiceTracker }, backup) {
   const importedSessions = await storage.importSessions(backup.sessions)
   const importedFingerings = await importFingerings(storage, backup.fingerings ?? [])
   const names = knownNames(backup.aggregates ?? [])
-  await rebuildAggregatesFromCatalog(practiceTracker, names)
+  await practiceTracker.rebuildAggregates(names)
   return { importedSessions, importedFingerings }
 }
 
@@ -220,7 +184,7 @@ export async function runSync({ supabase, storage, practiceTracker, userId = nul
   const { fingeringsPushed, fingeringsPulled } = await syncFingerings({ supabase, storage, uid, profileId, remoteStamps: stampsRead.data })
 
   // --- Recompute aggregates locally if we pulled any sessions ---
-  if (pulled > 0) await rebuildAggregatesFromCatalog(practiceTracker)
+  if (pulled > 0) await practiceTracker.rebuildAggregates()
 
   setLastSync(new Date().toISOString(), profileId)
   return { pushed: toPush.length, pulled, fingeringsPushed, fingeringsPulled, profilesChanged }

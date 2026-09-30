@@ -2,6 +2,7 @@ import { initStorage } from './storage.js'
 import { TWO_HANDS, NO_HANDS, attemptHands, handsKey, playthroughHands } from './hands.js'
 import { scopedKey } from './profiles.js'
 import { localDayKey, shiftDayKey, startOfLocalDay } from './days.js'
+import { loadCatalog } from './catalog.js'
 
 // The day a session counts for: the one it started on, where the player is.
 const sessionDay = (session) => localDayKey(session.startedAt)
@@ -621,8 +622,7 @@ export function initPracticeTracker(storageInstance = null) {
   }
 
   // Replays the sessions when a stored row was counted by other rules than
-  // AGGREGATES_VERSION. No catalog to name the scores from here: the rebuild
-  // falls back on the names the rows already carry.
+  // AGGREGATES_VERSION.
   async function rebuildOutdatedAggregates() {
     const aggregates = await storage.getAllAggregates()
     if (aggregates.some((a) => a.rulesVersion !== AGGREGATES_VERSION)) await rebuildAggregates()
@@ -631,17 +631,14 @@ export function initPracticeTracker(storageInstance = null) {
   // Recompute every aggregate from scratch by replaying all stored sessions in
   // chronological order. Used after sessions arrive from elsewhere — a sync's
   // pull, a backup's import — and when the rules change (see
-  // AGGREGATES_VERSION). `metaFor(scoreId)` supplies { title, composer } from
-  // the catalog — pass one: sessions stored before they carried their own name
-  // would otherwise leave their scores untitled, and the practice journal shows
-  // "Untitled". rebuildAggregatesFromCatalog() in sync.js passes it.
-  // `fallbackNames` (scoreId → { title, composer }) are names to fall back on
-  // below every other, as an imported backup's aggregates offer.
+  // AGGREGATES_VERSION). `fallbackNames` (scoreId → { title, composer }) are
+  // names to fall back on below every other, as an imported backup's
+  // aggregates offer.
   //
   // Folded in memory and written in one transaction: a replay walks every
   // session ever played, and a read and a write per session made it seconds
   // long on WebKit, during which a page closed left the aggregates half built.
-  async function rebuildAggregates(metaFor = () => null, fallbackNames = new Map()) {
+  async function rebuildAggregates(fallbackNames = new Map()) {
     // The sessions that arrived are missing from the cached ones too.
     dropSessionCache()
     const [sessions, aggregates] = await Promise.all([storage.getSessions(), storage.getAllAggregates()])
@@ -650,14 +647,13 @@ export function initPracticeTracker(storageInstance = null) {
     // session stored before sessions carried their own name can offer. Only
     // a row that has a name: an untitled one would hide the fallback's.
     const known = knownNames(aggregates)
-    // Where a replayed session gets its name: the catalog first, so a score
-    // renamed there is renamed here; then the session's own record; then the
-    // snapshot. The catalog alone is not enough — it does not hold a file the
-    // player opened from disk, nor a score added since this device cached
-    // data/scores.json, and the rebuild used to leave those untitled for good
-    // (feedback 401b88bf).
+    // Where a replayed session gets its name: its own record, then the
+    // snapshot, then the fallback. A score the catalog lists is shown under
+    // the catalog's name whatever is stored (getDailyLogs), so these names are
+    // for the others — a file the player opened from disk, a score added since
+    // this device cached data/scores.json — which the rebuild used to leave
+    // untitled for good (feedback 401b88bf).
     const nameFor = (session) =>
-      metaFor(session.scoreId) ??
       (session.scoreTitle ? titleOf(session) : null) ??
       known.get(session.scoreId) ??
       fallbackNames.get(session.scoreId) ??
@@ -1080,7 +1076,7 @@ export function initPracticeTracker(storageInstance = null) {
 
   // The journal asks for a run of consecutive days at once: one read of the
   // sessions for all of them, sorted into their days here, and one of the
-  // aggregates that name their scores.
+  // names of their scores.
   async function getDailyLogs(dates) {
     if (dates.length === 0) return []
 
@@ -1088,10 +1084,10 @@ export function initPracticeTracker(storageInstance = null) {
     // Day keys sort as text: the read spans the first day's midnight to the
     // one after the last day.
     const days = [...wanted].sort()
-    const sessions = await storage.getSessionsStartedBetween(
-      startOfLocalDay(days[0]),
-      startOfLocalDay(shiftDayKey(days.at(-1), 1)),
-    )
+    const [sessions, catalog] = await Promise.all([
+      storage.getSessionsStartedBetween(startOfLocalDay(days[0]), startOfLocalDay(shiftDayKey(days.at(-1), 1))),
+      loadCatalog().catch(() => null),
+    ])
     const byDay = new Map()
     const scoreIds = new Set()
     for (const session of sessions) {
@@ -1102,21 +1098,29 @@ export function initPracticeTracker(storageInstance = null) {
       scoreIds.add(session.scoreId)
     }
 
-    const aggregates = new Map((await storage.getAggregates([...scoreIds])).map((row) => [row.scoreId, row]))
-    return dates.map((date) => buildDailyLog(byDay.get(localDayKey(date)) ?? [], aggregates))
+    // A score the catalog lists goes by the catalog's name, as the library
+    // shows it: the one its sessions were stored under is the file's own,
+    // which disagrees with the catalog's on a quarter of it. The row's name is
+    // for the others — and for all of them when the catalog cannot be read.
+    const names = new Map((await storage.getAggregates([...scoreIds])).map((row) => [row.scoreId, titleOf(row)]))
+    for (const scoreId of scoreIds) {
+      const listed = catalog?.byUrl.get(scoreId)
+      if (listed) names.set(scoreId, listed.name)
+    }
+    return dates.map((date) => buildDailyLog(byDay.get(localDayKey(date)) ?? [], names))
   }
 
-  // One day of the journal, its scores named by `aggregates` (scoreId → row),
-  // the single source of truth for a score's name.
-  function buildDailyLog(sessions, aggregates) {
+  // One day of the journal, its scores named by `names` (scoreId →
+  // { title, composer }).
+  function buildDailyLog(sessions, names) {
     const scoreMap = new Map()
     for (const session of sessions) {
       if (!scoreMap.has(session.scoreId)) {
-        const aggregate = aggregates.get(session.scoreId)
+        const name = names.get(session.scoreId)
         scoreMap.set(session.scoreId, newEntry({
           scoreId: session.scoreId,
-          scoreTitle: aggregate?.scoreTitle || null,
-          composer: aggregate?.composer || null,
+          scoreTitle: name?.title || null,
+          composer: name?.composer || null,
         }))
       }
       addSession(scoreMap.get(session.scoreId), session)

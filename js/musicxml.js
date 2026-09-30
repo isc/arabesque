@@ -163,6 +163,21 @@ export function initMusicXML() {
     getAllNotes: () => allNotes,
     repaintNoteMarks,
     getOwedGroup: owedGroup,
+    // The name the catalog gives the score (app.js), put over what the file
+    // says of itself for the sheet's next draw. A label the catalog leaves
+    // empty goes, with whatever the file's credits had put in it.
+    nameSheet: ({ title, subtitle, composer, arranger }) => {
+      const sheet = osmdInstance?.Sheet
+      if (!sheet) return
+      sheet.TitleString = title
+      sheet.ComposerString = composer
+      if (subtitle) sheet.SubtitleString = subtitle
+      else sheet.Subtitle = undefined
+      // Drawn at the top left, where OSMD puts a lyricist: it has no place
+      // for an arranger.
+      if (arranger) sheet.LyricistString = `Arr. ${arranger}`
+      else sheet.Lyricist = undefined
+    },
     getScoreMetadata: () => ({
       title: osmdInstance?.Sheet?.Title?.text || null,
       composer: osmdInstance?.Sheet?.Composer?.text || null,
