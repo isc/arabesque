@@ -1,7 +1,7 @@
 import { initStorage } from './storage.js'
 import { TWO_HANDS, NO_HANDS, attemptHands, handsKey, playthroughHands } from './hands.js'
 import { scopedKey } from './profiles.js'
-import { localDayKey, shiftDayKey, startOfLocalDay } from './days.js'
+import { localDayKey, shiftDayKey, startOfLocalDay, byStartedAt } from './days.js'
 import { loadCatalog } from './catalog.js'
 
 // The day a session counts for: the one it started on, where the player is.
@@ -120,11 +120,6 @@ export function hasHotSpots(sessions, hands = TWO_HANDS) {
   return false
 }
 
-// Oldest first, for anything with a `startedAt` — a session, a run. It is
-// always an ISO string in UTC, so it sorts as text: a comparator building two
-// Dates per comparison was most of the cost of a call that runs at every
-// measure boundary.
-export const byStartedAt = (a, b) => (a.startedAt < b.startedAt ? -1 : a.startedAt > b.startedAt ? 1 : 0)
 
 // The window that makes both rules forget: only the last
 // REINFORCEMENT_WINDOW_SESSIONS sessions of a score count, so a bar massacred

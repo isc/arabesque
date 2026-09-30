@@ -37,7 +37,7 @@ const PUBLIC = join(import.meta.dirname, '..', '..', 'public')
 const listed = (dir) => readdirSync(dir).map((name) => join(dir, name))
 const SOURCES = [
   ...htmlPages().map((page) => join(PUBLIC, page)),
-  // The markup some modules build: the ⚙️ menu, the journal.
+  // The markup some modules build: the ⚙️ menu, the journal, the tempo field.
   ...listed(join(PUBLIC, 'js')).filter((path) => path.endsWith('.js')),
 ]
 
