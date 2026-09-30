@@ -155,6 +155,17 @@ describe('runSync', () => {
     expect(r).toMatchObject({ pushed: 0, pulled: 1 })
   })
 
+  it('marks the run of 27 August as played with the right hand, once', async () => {
+    const id = '1787823211947-4nl20rx'
+    const run = { ...endedSession(id, '/s/1.xml'), playthroughStartedAt: '2026-01-01T10:00:00.000Z', completedAt: '2026-01-01T10:05:00.000Z' }
+    await storage.saveSession(run)
+    const supabase = makeFakeSupabase({ sessions: [{ user_id: USER, id, data: run, ended_at: run.endedAt }] })
+
+    expect((await runSync({ supabase, storage, practiceTracker })).pulled).toBe(1)
+    expect((await storage.getSession(id)).measures[0].attempts[0].hands).toBe('right')
+    expect((await runSync({ supabase, storage, practiceTracker })).pulled).toBe(0)
+  })
+
   it('skips in-progress sessions (no endedAt)', async () => {
     const s = endedSession('a', '/s/1.xml')
     s.endedAt = null
