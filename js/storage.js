@@ -124,7 +124,16 @@ async function openDatabase(name) {
       // from the cache opens afresh, its rejected open having been dropped.
       // (Optional: there is no page to leave where the unit tests run.)
       const upgrade = request.transaction
-      const abandon = () => upgrade.abort()
+      const abandon = () => {
+        try {
+          upgrade.abort()
+        } catch {
+          /* Over already. An upgrade is finished a moment before its complete
+             event is dispatched, and abort() throws in between ("The
+             transaction has finished"): nothing but the throw can tell the page
+             so, the complete event being the first sign it gets. */
+        }
+      }
       globalThis.addEventListener?.('pagehide', abandon)
       const settled = () => globalThis.removeEventListener?.('pagehide', abandon)
       upgrade.addEventListener('complete', settled)
