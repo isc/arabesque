@@ -13,9 +13,9 @@
     <!--
       Reproduces the Arabesque's left hand: a sustained F#3 minim under a triplet that
       starts on the same F#3. MuseScore writes the triplet's first quaver as an invisible
-      (print-object="no") note so that one head serves both voices. A minim head and a
-      quaver head cannot be merged, so VexFlow lays the hidden one out beside the visible
-      one - and without its ink the beam hangs off a bare stem.
+      (print-object="no") note so that one head serves both voices. Before OSMD 2.2.0,
+      VexFlow laid the hidden quaver head out beside the minim's, and without its ink the
+      beam hung off a bare stem; now the beam starts from the minim's head.
     -->
     <measure number="1">
       <attributes>

@@ -7,24 +7,24 @@ class InvisibleNotesTest < CapybaraTestBase
     visit '/score.html'
   end
 
-  def test_a_hidden_note_sharing_its_head_with_a_unison_keeps_its_notehead
+  def test_a_hidden_note_sharing_its_head_with_a_unison_lets_the_visible_head_serve_both
     load_score('hidden-unison-notehead.xml', 4)
 
-    # Four notes, four heads with ink in them: the hidden quaver's head is drawn too,
-    # since VexFlow could not merge it into the minim's and its beam needs a head.
-    assert_selector 'svg g.vf-notehead path:not([fill="#00000000"])', count: 4
+    # Four notes, three heads with ink: the hidden quaver's head sits on the minim's,
+    # transparent, and the triplet's beam starts from the minim's head.
+    assert_selector 'svg g.vf-notehead path:not([fill="#00000000"])', count: 3
+    assert_selector 'svg g.vf-notehead path[fill="#00000000"]', count: 1
 
-    # Its ink lives in the minim's notehead group, so the single keypress that validates
-    # the pitch colours both heads at once.
+    # The single keypress that validates the pitch colours the head both voices share.
     play_note('F#3')
-    assert_selector 'svg g.vf-notehead.played-note path', count: 2
+    assert_selector 'svg g.vf-notehead.played-note path:not([fill="#00000000"])', count: 1
   end
 
   def test_a_hidden_note_whose_head_is_merged_with_its_unison_stays_invisible
     load_score('hidden-unison-merged-notehead.xml', 7)
 
     # Eight notes, seven heads with ink: VexFlow put the hidden quaver's head right on the
-    # dotted minim's, and inking it would fill the minim's open head. OSMD inks it anyway.
+    # dotted minim's, and inking it would fill the minim's open head.
     assert_selector 'svg g.vf-notehead path:not([fill="#00000000"])', count: 7
     assert_selector 'svg g.vf-notehead path[fill="#00000000"]', count: 1
   end
