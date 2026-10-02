@@ -1145,6 +1145,15 @@ function throughTheTrill(measureData, activeNotes, sentinel, midiNote) {
   return isTrillNote ? null : sentinel
 }
 
+// Whether free play's run has begun: a run starts with its first right note.
+// What is tried before it — the first note looked for, keys played on while
+// the last run's results are up — is no part of it, in time or in wrong notes,
+// so only that note opens the first measure's attempt. Training opens its
+// attempts itself, as it sets each repetition up.
+function runUnderway() {
+  return training.on || playedSourceMeasures.size > 0
+}
+
 // A key that is none of the notes owed. In training it spoils the repetition
 // under way, whose dot reddens right away rather than leaving the player to
 // discover at the bar line that it won't fill. The journal counts it, and the
@@ -1155,8 +1164,9 @@ function handleWrongNote(measureData, expectedNote, midiNote) {
     training.clean = false
     updateRepeatIndicators()
   }
-  // A wrong note can be the first thing played in a measure.
-  if (!attempt.open) startAttempt(measureData)
+  // A wrong note can be the first thing played in a measure, but not the
+  // first of a run: with no attempt open the journal has nothing to count it in.
+  if (!attempt.open && runUnderway()) startAttempt(measureData)
   callbacks.onWrongNote?.(midiNote)
   flashWrongNote(expectedNote)
 }

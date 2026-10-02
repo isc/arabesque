@@ -64,7 +64,7 @@ class PlaybackTest < CapybaraTestBase
   # playing on under the new mode — the very state the rule exists to prevent.
   def test_starting_reinforcement_ends_the_listening
     # A fumbled bar, so there is something to reinforce.
-    open_with_the_first_bar_fumbled
+    open_with_the_second_bar_fumbled
     assert_text 'Renforcer 1 mesure'
 
     # Held at its first bar before reinforcement is asked for: nothing is left

@@ -39,6 +39,32 @@ class PracticeTrackingTest < CapybaraTestBase
     assert_text 'Fausses notes à la mesure 2.'
   end
 
+  # A run starts with its first right note: keys tried before it — the first
+  # note looked for, or played on while the last run's results are up — are
+  # no part of it, in wrong notes as in time.
+  def test_keys_tried_before_a_run_are_no_part_of_it
+    open_two_measures
+
+    play_notes(%w[E4 G4])
+    looked_until = page.evaluate_script('Date.now()')
+    play_notes(%w[C4 D4])
+    assert_selector 'dialog[open] tr.is-current', text: 'sans faute'
+    wait_for_records('sessions', where: <<~JS.strip)
+      record.completedAt && new Date(record.playthroughStartedAt).getTime() >= #{looked_until}
+      && record.measures.every((m) => m.attempts.every((a) => a.wrongNotes === 0))
+    JS
+
+    # The sheet back at the top, the results still up.
+    assert_no_selector 'svg g.vf-notehead.played-note'
+    play_notes(%w[F4 A4])
+    click_on 'Close'
+    play_notes(%w[C4 D4])
+    assert_selector 'dialog[open] tr.is-current', text: 'sans faute'
+    wait_for_records('sessions', count: 2, where: <<~JS.strip)
+      record.completedAt && record.measures.every((m) => m.attempts.every((a) => a.wrongNotes === 0))
+    JS
+  end
+
   def test_history_modal_shows_playthrough_evolution_chart
     # Inject 3 completed playthroughs with decreasing durations into IndexedDB,
     # then open the history modal and verify the chart renders.
