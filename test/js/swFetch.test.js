@@ -79,7 +79,7 @@ describe('the service worker', () => {
     expect(network).not.toHaveBeenCalled()
   })
 
-  it.each(['/scores/bwv847.mxl', '/vendor/opensheetmusicdisplay.2.1.3.min.js'])(
+  it.each(['/scores/bwv847.mxl', '/vendor/opensheetmusicdisplay.2.2.0.min.js'])(
     'keeps %s in the cache a deploy does not throw away',
     async (path) => {
       await respond(request(path))
