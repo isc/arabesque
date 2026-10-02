@@ -753,11 +753,13 @@ class CapybaraTestBase < Minitest::Test
 
   # repeat-endings.xml with measure 1 fumbled, a wrong note before the right
   # one: what puts it on the list to reinforce.
-  def open_with_the_first_bar_fumbled
+  # repeat-endings.xml with its second bar fumbled: E4 where it owes D4. Not
+  # the first bar: a run starts with its first right note, and a key tried
+  # before that is no part of it.
+  def open_with_the_second_bar_fumbled
     visit '/score.html?url=/test-fixtures/repeat-endings.xml'
     wait_for_score_render(4)
-    play_note('D4')
-    play_note('C4')
+    play_notes(%w[C4 E4 D4])
   end
 
   # Drops a test fixture on the page's file picker, whatever it holds.
