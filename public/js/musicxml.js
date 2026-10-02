@@ -577,7 +577,7 @@ function stretchBeamedStemsOnFormat() {
 }
 
 // Another stopgap for OSMD 2.1.3, until a release carries the upstream fix,
-// https://github.com/opensheetmusicdisplay/opensheetmusicdisplay/pull/XXXX (to be opened). A slur
+// https://github.com/opensheetmusicdisplay/opensheetmusicdisplay/pull/1789. A slur
 // starts and ends at the edge of its notes' boxes, which OSMD takes from VexFlow before the beams
 // stretch the stems to reach them. On the stem side of beamed notes — a slur above stem-up eighths —
 // the slur started on a stem, under the beam, and crossed the beam and the fingerings above it
