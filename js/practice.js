@@ -22,10 +22,10 @@ import { t, locale } from './i18n.js'
 // would repaint every ordinary half-hour as pale.
 const LEVEL_THRESHOLDS_MS = [10, 30, 60].map((minutes) => minutes * 60 * 1000)
 
-// Every band, "nothing" included — what the legend draws, and the one place
-// that says how many there are. styles.css supplies a colour per level.
-export const LEVELS = LEVEL_THRESHOLDS_MS.map((_, index) => index + 1)
-LEVELS.unshift(0)
+// Every level a day can be painted in, "nothing" included: what the legend
+// draws, counted up to levelFor's darkest so that it ends on the colour of a
+// long day. styles.css supplies a colour per level.
+export const LEVELS = Array.from({ length: levelFor(Infinity) + 1 }, (_, level) => level)
 
 const MONTH_FORMATTER = new Intl.DateTimeFormat(locale(), { month: 'short' })
 
