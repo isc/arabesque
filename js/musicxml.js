@@ -576,11 +576,49 @@ function stretchBeamedStemsOnFormat() {
   measure.format.stretchesBeamedStems = true
 }
 
+// Another stopgap for OSMD 2.1.3, until a release carries the upstream fix,
+// https://github.com/opensheetmusicdisplay/opensheetmusicdisplay/pull/1789. A slur
+// starts and ends at the edge of its notes' boxes, which OSMD takes from VexFlow before the beams
+// stretch the stems to reach them. On the stem side of beamed notes — a slur above stem-up eighths —
+// the slur started on a stem, under the beam, and crossed the beam and the fingerings above it
+// (feedback b244b633, Träumerei bar 3). stretchBeamedStemsOnFormat hid it on the first draw only: a
+// redraw — a resize, a fingering entered — finds the beams already stretched and leaves them alone.
+// The upstream fix gives those boxes the stems as drawn; this moves the slur's ends out by as much,
+// without touching the boxes, which 2.1.3 places the notes from.
+function startSlursPastTheBeam() {
+  const slur = opensheetmusicdisplay.GraphicalSlur.prototype
+  if (slur.calculateStartAndEnd.startsPastTheBeam) return
+  const calculateStartAndEnd = slur.calculateStartAndEnd
+  slur.calculateStartAndEnd = function (startNote, endNote, ...args) {
+    const ends = calculateStartAndEnd.call(this, startNote, endNote, ...args)
+    const above = this.placement === 0 // PlacementEnum.Above, which OSMD does not export
+    ends.startY += beamedStemOverhang(startNote, above)
+    ends.endY += beamedStemOverhang(endNote, above)
+    return ends
+  }
+  slur.calculateStartAndEnd.startsPastTheBeam = true
+}
+
+// How far the stem of a beamed note, drawn out to its beam, reaches past the edge of the note's box
+// on the slur's side: 0 for any other note, or when the box already reaches the beam.
+function beamedStemOverhang(note, above) {
+  const vfNote = note?.vfnote?.[0]
+  if (!vfNote?.beam || !vfNote.hasStem?.()) return 0
+  if ((vfNote.getStemDirection() === 1) !== above) return 0 // VexFlow's Stem.UP
+  const box = note.parentVoiceEntry.PositionAndShape
+  // In staff spaces from the stave's top line, like the box: VexFlow draws a staff space 10px high.
+  const stemTip = (vfNote.getStemExtents().topY - vfNote.getStave().getYForLine(0)) / 10
+  return above
+    ? Math.min(0, stemTip - (box.RelativePosition.y + box.BorderTop))
+    : Math.max(0, stemTip - (box.RelativePosition.y + box.BorderBottom))
+}
+
 // A sheet OSMD cannot read throws, for the caller to say so: swallowed here,
 // the page carried on without a score, and only reached its error card
 // through the TypeError that the missing sheet caused further down.
 async function renderMusicXML(xmlContent) {
   stretchBeamedStemsOnFormat()
+  startSlursPastTheBeam()
   const scoreContainer = document.getElementById('score')
   const osmd = new opensheetmusicdisplay.OpenSheetMusicDisplay(scoreContainer, {
     drawPartNames: false,
