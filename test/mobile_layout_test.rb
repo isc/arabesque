@@ -46,7 +46,7 @@ class MobileLayoutTest < CapybaraTestBase
     page.current_window.resize_to(*PHONE)
     visit "/score.html?url=#{SCORE_URL}"
     wait_for_score_render
-    assert_selector '.pt-topbar__pill', text: 'Historique'
+    assert_selector '.pt-topbar__actions .pt-chip', text: 'Historique'
 
     right = page.evaluate_script(<<~JS)
       document.querySelector('.pt-topbar__actions').getBoundingClientRect().right

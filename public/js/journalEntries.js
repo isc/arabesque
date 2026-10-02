@@ -44,7 +44,7 @@ export const journalEntryHelpers = {
 }
 
 const ENTRIES_HTML = (rows) => `
-<div class="pt-journal__entries">
+<div class="pt-stack pt-stack--tight">
   <template x-for="entry in ${rows}" :key="entry.scoreId">
     <div class="pt-journal__entry">
       <a :href="scorePageUrl(entry.scoreId)" x-text="entryLabel(entry)"></a>

@@ -389,3 +389,7 @@ committed.
   Pico CSS used to supply), then the application's own `.pt-*` components.
   Reach for an existing token or component before adding CSS, and put anything
   generic enough to be reused in the base layer rather than in a page rule.
+  The components layer opens on the pieces several pages share — a small
+  bordered control in a row of others is a `.pt-chip` — and each page's own
+  rules follow under its banner. A font size is one of the `--pt-font-size-*`
+  steps, never a new rem.
