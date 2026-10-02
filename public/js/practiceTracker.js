@@ -328,15 +328,16 @@ export function initPracticeTracker(storageInstance = null) {
     currentMeasureAttempt.clean = false
   }
 
-  async function endMeasureAttempt(clean = null) {
+  // Closes the attempt with its own verdict: clean unless recordWrongNote() was
+  // called since it opened. An attempt is one measure's, not the passage's: a
+  // fumble in the third bar of a passage spoils the repetition, but the first
+  // two were played clean, and the journal — and the measures it suggests
+  // reinforcing — go on saying so.
+  async function endMeasureAttempt() {
     if (!currentSession || !currentMeasureAttempt) return null
 
     const startTime = new Date(currentMeasureAttempt.startedAt).getTime()
     currentMeasureAttempt.durationMs = Date.now() - startTime
-
-    if (clean !== null) {
-      currentMeasureAttempt.clean = clean
-    }
 
     const completedAttempt = { ...currentMeasureAttempt }
     currentMeasureAttempt = null

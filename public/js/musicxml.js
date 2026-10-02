@@ -97,13 +97,13 @@ const reinforcement = {
   index: 0,
 }
 
-// The journal's attempt at the measure under the cursor (onMeasureStarted,
-// onMeasureCompleted): when it opened, and the wrong notes it took. No start
-// while none is open — free play opens one with the first thing played in a
+// Whether the journal's attempt at the measure under the cursor is open
+// (onMeasureStarted, onMeasureCompleted). The tracker keeps the attempt itself —
+// its clock, its wrong notes, its verdict — and the engine only says when it
+// opens and closes. Free play opens one with the first thing played in a
 // measure.
 const attempt = {
-  startedAt: null,
-  wrongNotes: 0,
+  open: false,
 }
 
 // Padding around measure notes for clickable area
@@ -391,8 +391,7 @@ function resetPlaybackState() {
   heldMidiNotes.clear()
   playedSourceMeasures.clear()
   cursor.measureIndex = cursorMeasureFor(0)
-  attempt.startedAt = null
-  attempt.wrongNotes = 0
+  attempt.open = false
   resetReinforcementState()
   resetTrainingRange()
 }
@@ -657,11 +656,9 @@ function resetMeasureProgress({ keepRepeats = false, keepRepetition = false, not
   startAttempt(measureData)
 }
 
-// Opens the journal's attempt at a measure (onMeasureStarted), and the clock
-// and the count of wrong notes kept beside it.
+// Opens the journal's attempt at a measure (onMeasureStarted).
 function startAttempt(measureData) {
-  attempt.startedAt = Date.now()
-  attempt.wrongNotes = 0
+  attempt.open = true
   callbacks.onMeasureStarted?.(measureData.sourceMeasureIndex, atScoreStart())
 }
 
@@ -1159,8 +1156,7 @@ function handleWrongNote(measureData, expectedNote, midiNote) {
     updateRepeatIndicators()
   }
   // A wrong note can be the first thing played in a measure.
-  if (attempt.startedAt === null) startAttempt(measureData)
-  attempt.wrongNotes++
+  if (!attempt.open) startAttempt(measureData)
   callbacks.onWrongNote?.(midiNote)
   flashWrongNote(expectedNote)
 }
@@ -1353,8 +1349,7 @@ function advanceFreePlay(measureData) {
     scrollToNextMeasureIfNeeded(next)
     cursor.measureIndex = next
     // The next measure's attempt opens with the first thing played in it.
-    attempt.startedAt = null
-    attempt.wrongNotes = 0
+    attempt.open = false
     return
   }
 
@@ -1376,21 +1371,12 @@ function handleNoteValidated(measureData, noteData, validatedCount) {
   if (playedCount === validatedCount) {
     // The autoscroll follows the system the measure is played on.
     cursor.systemIndex = getSystemIndexForNote(noteData.note)
-    if (attempt.startedAt === null) startAttempt(measureData)
+    if (!attempt.open) startAttempt(measureData)
   }
 
   if (!measureData.notes.filter(isNoteActiveForHands).every((n) => n.played)) return
 
-  callbacks.onMeasureCompleted?.({
-    sourceMeasureIndex: measureData.sourceMeasureIndex,
-    durationMs: attempt.startedAt ? Date.now() - attempt.startedAt : 0,
-    wrongNotes: attempt.wrongNotes,
-    // This measure's own verdict, not the passage's: a fumble in the third bar
-    // of a passage spoils the repetition, but the first two were played clean
-    // and the journal — and the measures it suggests reinforcing — must go on
-    // saying so.
-    clean: attempt.wrongNotes === 0,
-  })
+  callbacks.onMeasureCompleted?.()
 
   if (!training.on) advanceFreePlay(measureData)
   // Reinforcement drills its own list of measures one by one, so it banks a
