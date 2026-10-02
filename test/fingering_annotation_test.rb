@@ -7,6 +7,7 @@ class FingeringAnnotationTest < CapybaraTestBase
   TWO_VOICE_SCORE_URL = '/test-fixtures/two-voice-fingerings.xml'
   CHOPIN_WALTZ_URL = 'scores/Waltz_in_A_MinorChopin.mxl'
   BEAMED_MORDENT_URL = '/test-fixtures/fingering-over-beamed-mordent.xml'
+  BEAMED_SLUR_URL = '/test-fixtures/slur-over-beamed-fingering.xml'
 
   # Every head of a chord opens the pad on its own note. The pad used to say
   # nothing about which one, so on a dense score the player could not tell
@@ -184,10 +185,40 @@ class FingeringAnnotationTest < CapybaraTestBase
     assert_operator label_bottom, :<=, mordent_top + 0.5
   end
 
+  # A slur above beamed stem-up notes starts above the beam, and stays there when
+  # a fingering redraws the score. OSMD started it where the stem ended before the
+  # beam stretched it: on the stem, under the beam, so that the slur crossed the
+  # beam and the fingering of the next note (feedback b244b633, Träumerei bar 3).
+  # The first draw happened to be right; the redraw the fingering pad makes was not.
+  def test_a_slur_over_beamed_notes_starts_above_the_beam_after_a_redraw
+    visit "/score.html?url=#{BEAMED_SLUR_URL}"
+    wait_for_score_render(11)
+    assert_slur_starts_above_the_beam
+
+    enter_fingering(0, 5)
+    assert_fingering '5'
+    assert_slur_starts_above_the_beam
+  end
+
   private
 
   def assert_fingering(text)
     assert_selector 'svg g.vf-text', text: text
+  end
+
+  # The score's only slur starts above the tip of its first note's stem, which
+  # the beam stretched to reach it — both in OSMD's units, a staff space, where
+  # up is negative.
+  def assert_slur_starts_above_the_beam
+    slur_start, stem_tip = page.evaluate_script(<<~JS)
+      (() => {
+        const slur = osmdInstance.GraphicSheet.MusicPages[0].MusicSystems[0].StaffLines[0].GraphicalSlurs[0]
+        const note = slur.staffEntries[0].findGraphicalNoteFromNote(slur.slur.StartNote).vfnote[0]
+        const stemTip = (note.getStemExtents().topY - note.getStave().getYForLine(0)) / 10
+        return [slur.bezierStartPt.y, stemTip]
+      })()
+    JS
+    assert_operator slur_start, :<, stem_tip
   end
 
   # What the pad names each notehead of the score, one click at a time.
