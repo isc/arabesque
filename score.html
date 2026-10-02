@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="app-version" content="7d22addcd15f" />
+    <meta name="app-version" content="04ad57c98bf2" />
     <title data-i18n="score.pageTitle">Arabesque</title>
     <link rel="icon" href="favicon.svg" type="image/svg+xml" />
     <link rel="manifest" href="manifest.webmanifest" />
@@ -63,7 +63,7 @@
   <body @keydown.escape.window="handleEscape()">
     <div class="pt-stickybars">
     <header class="pt-topbar">
-      <a href="library.html" class="pt-topbar__back" data-i18n="score.back">← Bibliothèque</a>
+      <a href="library.html" class="pt-back" data-i18n="score.back">← Bibliothèque</a>
       <div class="pt-topbar__title" x-show="osmdInstance" x-cloak>
         <span x-text="collection ? collection.title : (scoreTitle || $t('score.titleFallback'))"></span>
         <small x-show="scoreComposer" x-text="scoreComposer"></small>
@@ -72,7 +72,7 @@
       <!-- Part navigator, shown when the score belongs to a collection -->
       <div class="pt-part-nav" x-show="collection && osmdInstance" x-cloak>
         <button
-          class="pt-topbar__pill"
+          class="pt-chip"
           :disabled="collectionIndex <= 0"
           @click="gotoPart(collectionIndex - 1)"
           :aria-label="$t('score.prevExercise')"
@@ -83,7 +83,7 @@
           </template>
         </select>
         <button
-          class="pt-topbar__pill"
+          class="pt-chip"
           :disabled="collectionIndex >= (collection?.parts.length ?? 0) - 1"
           @click="gotoPart(collectionIndex + 1)"
           :aria-label="$t('score.nextExercise')"
@@ -91,11 +91,11 @@
       </div>
       <div class="pt-topbar__actions">
         <!-- MIDI status / connect -->
-        <span class="pt-topbar__pill pt-midi-status" x-show="bluetoothConnected" x-cloak :title="$t('score.midiConnected')">
+        <span class="pt-chip pt-midi-status" x-show="bluetoothConnected" x-cloak :title="$t('score.midiConnected')">
           🎹 <span x-text="midiDeviceName || $t('score.midiKeyboard')"></span>
         </span>
         <button
-          class="pt-topbar__pill pt-midi-status is-disconnected"
+          class="pt-chip pt-midi-status is-disconnected"
           x-show="!bluetoothConnected"
           x-cloak
           @click="connectMIDI"
@@ -104,7 +104,7 @@
 
         <!-- History (only for library scores) -->
         <button
-          class="pt-topbar__pill"
+          class="pt-chip"
           x-show="!!scoreUrl"
           x-cloak
           @click="openScoreHistory"
@@ -160,7 +160,7 @@
 
       <a
         href="#"
-        class="pt-reinforce-badge"
+        class="pt-chip pt-reinforce-badge"
         x-show="measuresToReinforce.length > 0 && currentMode !== 'training' && !isStrictPlaying"
         @click.prevent="startReinforcementMode()"
         x-text="reinforceLabel()"
@@ -170,7 +170,7 @@
       <div class="pt-modebar__spacer"></div>
 
       <button
-        class="pt-action-button"
+        class="pt-chip pt-action-button"
         :class="{ 'is-active': isListening }"
         @click="togglePlayback"
         x-text="isListening ? $t('score.stop') : $t('score.listen')"
@@ -407,10 +407,10 @@
         </div>
 
         <footer>
-          <button class="pt-action-button" x-show="!!scoreUrl" @click="closeResultModal(); openScoreHistory()" x-text="$t('score.history')">📜 Historique</button>
-          <button class="pt-action-button" @click="closeResultModal()" x-text="$t('score.close')">Fermer</button>
+          <button class="pt-chip pt-action-button" x-show="!!scoreUrl" @click="closeResultModal(); openScoreHistory()" x-text="$t('score.history')">📜 Historique</button>
+          <button class="pt-chip pt-action-button" @click="closeResultModal()" x-text="$t('score.close')">Fermer</button>
           <button
-            class="pt-action-button is-primary"
+            class="pt-chip pt-action-button is-primary"
             x-show="resultMode !== 'reinforcement' && measuresToReinforce.length > 0"
             @click="closeResultModal(); startReinforcementMode()"
             x-text="reinforceLabel()"
@@ -514,10 +514,10 @@
           <template x-for="finger in [1, 2, 3, 4, 5]" :key="finger">
             <button @click="appendFinger(finger)" x-text="finger"></button>
           </template>
-          <button class="pt-action-button" @click="removeFingering()">×</button>
+          <button class="pt-chip pt-action-button" @click="removeFingering()">×</button>
         </div>
         <footer>
-          <button class="pt-action-button is-primary" @click="validateFingering()" x-text="$t('score.fingeringValidate')">✓ Valider</button>
+          <button class="pt-chip pt-action-button is-primary" @click="validateFingering()" x-text="$t('score.fingeringValidate')">✓ Valider</button>
         </footer>
       </article>
     </dialog>
@@ -574,7 +574,7 @@
         </template>
 
         <footer>
-          <button class="pt-action-button is-primary" @click="showMidiHelpModal = false; connectMIDI()" x-text="$t('score.midiHelpRetry')">Réessayer la connexion</button>
+          <button class="pt-chip pt-action-button is-primary" @click="showMidiHelpModal = false; connectMIDI()" x-text="$t('score.midiHelpRetry')">Réessayer la connexion</button>
         </footer>
       </article>
     </dialog>
