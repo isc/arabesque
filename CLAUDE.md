@@ -111,9 +111,11 @@ played on a preview land in the real practice journal.
 
 **IMPORTANT:** After adding or removing a score (editing `public/data/scores.json`
 and the file in `public/scores/`), regenerate the fingerprints so the score is
-findable by playing its opening notes on the MIDI keyboard:
+findable by playing its opening notes on the MIDI keyboard, and record its bar
+count (a score removed takes `--accept <file>`, see below):
 ```bash
 node scripts/generate-fingerprints.mjs
+node scripts/bar-counts.mjs
 ```
 `public/data/fingerprints.json` must stay in sync with the catalog: one
 fingerprint per score file, including each part of a collection.
@@ -141,6 +143,13 @@ The one exception is splitting a bar so a system can break inside it: write the
 second half as `<measure number="N" implicit="yes">`, N being the bar it
 completes, and both halves stay one bar — same index, note count running on —
 so nothing re-points (`barCounter` in `public/js/fingeringKeys.js`).
+
+`test/js/barCounts.test.js` holds every score to the bar count recorded in
+`test/js/bar-counts.json`, counted that same way. `node scripts/bar-counts.mjs`
+records a new score, and refuses a recorded one whose count changed or whose
+file was renamed or removed — practice history is filed by file name — unless
+it is named with `--accept <file>`: the moment to weigh what the change
+re-points, not a formality to get the test green.
 
 A catalog entry with `parts: [{title, file}]` instead of `file` is a
 **collection** (e.g. the Hanon exercises): one library row, a part navigator on
