@@ -461,130 +461,43 @@ async function renderScore({ reextract = true, afterDraw = null } = {}) {
   setupMeasureClickHandlers()
 }
 
-// Two fix-ups for the notes a score hides with print-object="no", both DOM work on the freshly
-// drawn SVG: OSMD renders such notes with a fully transparent fill rather than removing them,
-// to preserve layout, so their elements are all there to be adjusted.
-//
-// Clicks: an invisible notehead still captures them. OSMD's VexFlow patch tags the
-// note/notehead groups with pointer-events="bounding-box", so they intercept clicks over
-// their whole box (fill ignored) and steal them from the real note drawn underneath — e.g.
-// the realized gruppetto written alongside the turn symbol in the Pathétique 2nd movement.
-// We skip these notes during extraction, so they have no fingering entry and a click on them
-// silently does nothing. Clearing the attribute on the group and its tagged descendants lets
+// An invisible notehead still captures clicks. OSMD renders a note the score hides with
+// print-object="no" with a fully transparent fill rather than removing it, to preserve layout,
+// and its VexFlow patch tags the note/notehead groups with pointer-events="bounding-box", so they
+// intercept clicks over their whole box (fill ignored) and steal them from the real note drawn
+// underneath — e.g. the realized gruppetto written alongside the turn symbol in the Pathétique 2nd
+// movement. We skip these notes during extraction, so they have no fingering entry and a click on
+// them silently does nothing. Clearing the attribute on the group and its tagged descendants lets
 // the click fall through to the visible note below.
 //
-// Colour: a note hidden only because another voice writes the same pitch at the same time — how
-// MuseScore asks for one head to serve both voices — gets its head, stem and beam from OSMD,
-// inked like the visible note it shares its head with. Where VexFlow gives the two heads places
-// of their own, the hidden one moves into the visible note's notehead group — see
-// unisonNoteheadPair() — so our played/active colouring reaches it. Where it merges them, OSMD
-// inks the hidden head anyway, on top of the visible one: a filled eighth over an open half note
-// reads as a quarter (Liebestraum bar 42). That head goes back to transparent — see areSideBySide().
-// A stopgap for OSMD 2.1.3: once a release carries the upstream fix,
-// https://github.com/opensheetmusicdisplay/opensheetmusicdisplay/pull/1732, OSMD leaves that head
-// transparent itself and the else branch below has nothing left to do.
+// A note hidden only because another voice writes the same pitch at the same time — how MuseScore
+// asks for one head to serve both voices — shares the visible note's head since OSMD 2.2.0
+// (#1732), so the colouring of that head already shows both.
 function fixUpInvisibleNotes() {
-  const groups = []
-  const pairs = []
   for (const measure of score.osmdInstance.Sheet.SourceMeasures) {
     for (const container of measure.verticalSourceStaffEntryContainers || []) {
       for (const staffEntry of container.staffEntries || []) {
         for (const voiceEntry of staffEntry?.voiceEntries || []) {
-          const notes = voiceEntry.notes || []
-          for (let noteheadIndex = 0; noteheadIndex < notes.length; noteheadIndex++) {
-            const note = notes[noteheadIndex]
+          for (const note of voiceEntry.notes || []) {
             if (note.PrintObject !== false) continue
             const group = score.osmdInstance.rules.GNote(note)?.getSVGGElement?.()
             if (!group) continue
-            groups.push(group)
-            const pair = unisonNoteheadPair(note, noteheadIndex)
-            if (pair) pairs.push(pair)
+            group.setAttribute('pointer-events', 'none')
+            group.querySelectorAll('[pointer-events]').forEach((el) => el.setAttribute('pointer-events', 'none'))
           }
         }
       }
     }
   }
-
-  // Measure before touching anything: a getBBox() that follows a DOM write forces a layout
-  // flush, and one per hidden note would re-lay the whole score dozens of times over. Same
-  // read-then-write split as alignFingeringLabelsToNoteheads().
-  const sideBySide = pairs.map(areSideBySide)
-
-  for (const group of groups) {
-    group.setAttribute('pointer-events', 'none')
-    group.querySelectorAll('[pointer-events]').forEach((el) => el.setAttribute('pointer-events', 'none'))
-  }
-  // The head moves into the visible note's notehead group so the played/active colouring
-  // reaches it: the CSS paints every path inside the group, so both heads light up together
-  // under the single keypress that validates the pitch.
-  pairs.forEach(({ hiddenPath, visibleHead }, i) => {
-    if (sideBySide[i]) visibleHead.appendChild(hiddenPath)
-    else hiddenPath.setAttribute('fill', '#00000000')
-  })
 }
 
-// The head of an invisible note and the notehead group of the visible unison it hides behind,
-// or null when the note is not one of those unisons — OSMD's visibleUnisonNoteSharingNotehead()
-// decides that, and inks the head from it. Only a beamed note gets a head: an unbeamed one
-// keeps its stem and flag transparent, and a head on its own would be a note nobody plays.
-function unisonNoteheadPair(note, noteheadIndex) {
-  if (!note.NoteBeam) return null
-  const partner = note.visibleUnisonNoteSharingNotehead?.()
-  if (!partner) return null
-  const hiddenPath = svgNotehead({ note, noteheadIndex })?.querySelector('path')
-  const visibleHead = svgNotehead({
-    note: partner,
-    noteheadIndex: partner.ParentVoiceEntry.Notes.indexOf(partner),
-  })
-  const visiblePath = visibleHead?.querySelector('path')
-  return hiddenPath && visiblePath ? { hiddenPath, visibleHead, visiblePath } : null
-}
-
-// Whether VexFlow gave the two heads places of their own rather than merging them into one.
-// Merged heads report the exact same x, and the visible one is then all the ink both stems
-// need — a second head on top of it would only overprint, a filled one hiding an open one.
-function areSideBySide({ hiddenPath, visiblePath }) {
-  const boxes = getBoundingBoxesForNotes([hiddenPath, visiblePath])
-  // A head that cannot be measured (a detached or hidden SVG) is one we leave hidden.
-  return boxes.length === 2 && Math.abs(boxes[0].x - boxes[1].x) >= 1
-}
-
-// A stopgap for OSMD 2.1.3, like fixUpInvisibleNotes, until a release carries the upstream fix,
-// https://github.com/opensheetmusicdisplay/opensheetmusicdisplay/pull/1744. OSMD lays out what goes
-// above a staff — fingerings among them — from a first, offscreen draw of each measure, in which the
-// notes are drawn before their beams. A beam only stretches its notes' stems as it is drawn itself,
-// and an ornament sits on the end of its stem: on a beamed stem-up note, that first draw put the
-// ornament lower than it ends up — by the whole stretch, under the beam where the stretch is long —
-// and the fingering came down onto it (feedback 8ab0a2f9, BWV 847 bar 34). Stretching the stems as
-// the measure is formatted puts the ornament where it will be drawn, in both draws. The upstream fix
-// does it in draw() and gives the notes their stave first, which only matters with a beam rule
-// (OptimizeExtremeLedgerBeams) this app leaves off.
-function stretchBeamedStemsOnFormat() {
-  const measure = opensheetmusicdisplay.VexFlowMeasure.prototype
-  if (measure.format.stretchesBeamedStems) return
-  const format = measure.format
-  measure.format = function (...args) {
-    const result = format.apply(this, args)
-    const beams = [
-      ...Object.values(this.vfbeams ?? {}).flat(),
-      ...(this.autoVfBeams ?? []),
-      ...(this.autoTupletVfBeams ?? []),
-    ]
-    for (const beam of beams) if (!beam.postFormatted) beam.postFormat()
-    return result
-  }
-  measure.format.stretchesBeamedStems = true
-}
-
-// Another stopgap for OSMD 2.1.3, until a release carries the upstream fix,
+// A stopgap for OSMD 2.2.0, until a release carries the upstream fix,
 // https://github.com/opensheetmusicdisplay/opensheetmusicdisplay/pull/1789. A slur
 // starts and ends at the edge of its notes' boxes, which OSMD takes from VexFlow before the beams
 // stretch the stems to reach them. On the stem side of beamed notes — a slur above stem-up eighths —
 // the slur started on a stem, under the beam, and crossed the beam and the fingerings above it
-// (feedback b244b633, Träumerei bar 3). stretchBeamedStemsOnFormat hid it on the first draw only: a
-// redraw — a resize, a fingering entered — finds the beams already stretched and leaves them alone.
-// The upstream fix gives those boxes the stems as drawn; this moves the slur's ends out by as much,
-// without touching the boxes, which 2.1.3 places the notes from.
+// (feedback b244b633, Träumerei bar 3). The upstream fix gives those boxes the stems as drawn; this
+// moves the slur's ends out by as much, without touching the boxes, which OSMD places the notes from.
 function startSlursPastTheBeam() {
   const slur = opensheetmusicdisplay.GraphicalSlur.prototype
   if (slur.calculateStartAndEnd.startsPastTheBeam) return
@@ -617,7 +530,6 @@ function beamedStemOverhang(note, above) {
 // the page carried on without a score, and only reached its error card
 // through the TypeError that the missing sheet caused further down.
 async function renderMusicXML(xmlContent) {
-  stretchBeamedStemsOnFormat()
   startSlursPastTheBeam()
   const scoreContainer = document.getElementById('score')
   const osmd = new opensheetmusicdisplay.OpenSheetMusicDisplay(scoreContainer, {
