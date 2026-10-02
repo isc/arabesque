@@ -186,7 +186,7 @@ describe('runSync', () => {
   it('does not credit the session being played to the aggregates it rebuilds', async () => {
     practiceTracker.startSession('/s/live.xml', 'Live', 'Composer', 'free', 10)
     practiceTracker.startMeasureAttempt(0)
-    await practiceTracker.endMeasureAttempt(true)
+    await practiceTracker.endMeasureAttempt()
     // endMeasureAttempt persists in the background; make sure the in-progress
     // session is on disk before the sync replays what it finds there.
     await storage.saveSession(practiceTracker.getCurrentSession())

@@ -379,8 +379,8 @@ export function midiApp() {
         onMeasureStarted: (sourceMeasureIndex, startsPlaythrough) => {
           practiceTracker.startMeasureAttempt(sourceMeasureIndex, startsPlaythrough, this.activeHands)
         },
-        onMeasureCompleted: (data) => {
-          practiceTracker.endMeasureAttempt(data.clean)
+        onMeasureCompleted: () => {
+          practiceTracker.endMeasureAttempt()
           this.refreshReinforcementSuggestions()
         },
         onWrongNote: (midiNote) => {

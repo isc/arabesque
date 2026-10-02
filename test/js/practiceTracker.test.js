@@ -47,7 +47,7 @@ describe('practiceTracker', () => {
     it('saves session to storage on end', async () => {
       tracker.startSession('/scores/test.xml', 'Test', 'Composer', 'training')
       tracker.startMeasureAttempt(0)
-      tracker.endMeasureAttempt(true)
+      tracker.endMeasureAttempt()
       const savedSession = await tracker.endSession()
 
       const retrieved = await storage.getSession(savedSession.id)
@@ -65,7 +65,7 @@ describe('practiceTracker', () => {
     it('toggleMode preserves metadata and saves previous session', async () => {
       tracker.startSession('/scores/test.xml', 'Test Score', 'Test Composer', 'free')
       tracker.startMeasureAttempt(0)
-      tracker.endMeasureAttempt(true)
+      tracker.endMeasureAttempt()
 
       expect(await tracker.toggleMode('training')).toBe(true)
 
@@ -110,13 +110,13 @@ describe('practiceTracker', () => {
 
     it('groups attempts by measure index', async () => {
       tracker.startMeasureAttempt(0)
-      tracker.endMeasureAttempt(true)
+      tracker.endMeasureAttempt()
 
       tracker.startMeasureAttempt(1)
-      tracker.endMeasureAttempt(true)
+      tracker.endMeasureAttempt()
 
       tracker.startMeasureAttempt(0)
-      tracker.endMeasureAttempt(false)
+      tracker.endMeasureAttempt()
 
       const session = await tracker.endSession()
       const measure0 = session.measures.find((m) => m.sourceMeasureIndex === 0)
@@ -241,14 +241,14 @@ describe('practiceTracker', () => {
       // First session
       tracker.startSession('/scores/test.xml', 'Test', 'Composer', 'training')
       tracker.startMeasureAttempt(0)
-      tracker.endMeasureAttempt(true)
+      tracker.endMeasureAttempt()
       await tracker.endSession()
 
       // Second session with errors
       tracker.startSession('/scores/test.xml', 'Test', 'Composer', 'training')
       tracker.startMeasureAttempt(0)
       tracker.recordWrongNote()
-      tracker.endMeasureAttempt(false)
+      tracker.endMeasureAttempt()
       await tracker.endSession()
 
       const stats = await tracker.getScoreStats('/scores/test.xml')
@@ -266,12 +266,12 @@ describe('practiceTracker', () => {
       // Measure 0: 3 clean attempts (enough for perfectionnement)
       for (let i = 0; i < 3; i++) {
         tracker.startMeasureAttempt(0)
-        tracker.endMeasureAttempt(true)
+        tracker.endMeasureAttempt()
       }
 
       // Measure 1: 1 clean attempt (not enough)
       tracker.startMeasureAttempt(1)
-      tracker.endMeasureAttempt(true)
+      tracker.endMeasureAttempt()
 
       tracker.markScoreCompleted()
       await tracker.endSession()
@@ -349,7 +349,7 @@ describe('practiceTracker', () => {
       for (const m of [0, 1]) {
         for (let i = 0; i < 10; i++) {
           tracker.startMeasureAttempt(m)
-          tracker.endMeasureAttempt(true)
+          tracker.endMeasureAttempt()
         }
       }
 
@@ -486,7 +486,7 @@ describe('practiceTracker', () => {
       advanceClock(20_000)
       tracker.setActiveHands(RIGHT)
       advanceClock(20_000)
-      await tracker.endMeasureAttempt(true)
+      await tracker.endMeasureAttempt()
       await playMeasure(1, 40_000, RIGHT)
       tracker.markScoreCompleted()
       await tracker.endSession()
@@ -501,7 +501,7 @@ describe('practiceTracker', () => {
       tracker.startMeasureAttempt(1, false, RIGHT)
       tracker.setActiveHands(BOTH)
       advanceClock(40_000)
-      await tracker.endMeasureAttempt(true)
+      await tracker.endMeasureAttempt()
       tracker.markScoreCompleted()
       await tracker.endSession()
 
@@ -575,7 +575,7 @@ describe('practiceTracker', () => {
     async function interruptedSession() {
       tracker.startSession('/scores/test.xml', 'Test', 'Composer', 'free', 4)
       tracker.startMeasureAttempt(0)
-      await tracker.endMeasureAttempt(true)
+      await tracker.endMeasureAttempt()
       await storage.saveSession(tracker.getCurrentSession())
       const id = tracker.getCurrentSession().id
       tracker.stashPendingSession()
@@ -649,7 +649,7 @@ describe('practiceTracker', () => {
       // page, say. It must not consume the stranded one's snapshot.
       tracker.startSession('/scores/other.xml', 'Other', 'Composer', 'free', 4)
       tracker.startMeasureAttempt(0)
-      await tracker.endMeasureAttempt(true)
+      await tracker.endMeasureAttempt()
       await tracker.endSession()
 
       expect(localStorage.getItem(PENDING_SESSION_KEY)).toBe(stash)
@@ -728,7 +728,7 @@ describe('practiceTracker', () => {
     it('returns practiced scores for today', async () => {
       tracker.startSession('/scores/test.xml', 'Test', 'Composer', 'training')
       tracker.startMeasureAttempt(0)
-      tracker.endMeasureAttempt(true)
+      tracker.endMeasureAttempt()
       await tracker.endSession()
 
       const log = await tracker.getDailyLog(new Date())
@@ -807,11 +807,11 @@ describe('practiceTracker', () => {
 
       // Only play 3 of 5 measures
       tracker.startMeasureAttempt(0)
-      tracker.endMeasureAttempt(true)
+      tracker.endMeasureAttempt()
       tracker.startMeasureAttempt(1)
-      tracker.endMeasureAttempt(true)
+      tracker.endMeasureAttempt()
       tracker.startMeasureAttempt(2)
-      tracker.endMeasureAttempt(true)
+      tracker.endMeasureAttempt()
 
       await tracker.endSession()
 
@@ -1007,7 +1007,7 @@ describe('practiceTracker', () => {
   async function playMeasure(measureIndex, delayMs = 0, activeHands = undefined) {
     tracker.startMeasureAttempt(measureIndex, measureIndex === 0, activeHands)
     advanceClock(delayMs)
-    await tracker.endMeasureAttempt(true)
+    await tracker.endMeasureAttempt()
   }
 
   async function playSession(scoreId, measures, mode = 'training', markComplete = false) {
