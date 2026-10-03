@@ -9,10 +9,18 @@
 // `<part-list>` is not a part nor `<measure-style>` a measure; `<note` cannot
 // collide with `<notations>` for the same reason.
 export const PART = /<part(?=[\s>])[\s\S]*?<\/part>/g
-export const TOKEN = /<measure(?=[\s>])[^>]*>|<note(?:\s[^>]*)?>[\s\S]*?<\/note>/g
+export const MEASURE = /<measure(?=[\s>])[^>]*>/g
+export const TOKEN = new RegExp(`${MEASURE.source}|<note(?:\\s[^>]*)?>[\\s\\S]*?<\\/note>`, 'g')
 
-export const MEASURE_NUMBER = /\bnumber=["']([^"']*)["']/
-export const IMPLICIT = /\bimplicit=["']yes["']/
+const MEASURE_NUMBER = /\bnumber=["']([^"']*)["']/
+const IMPLICIT = /\bimplicit=["']yes["']/
+
+// A `<measure …>` tag as fileNumbering() takes it (fingeringKeys.js): its
+// number, NaN when it is no integer ("X1") or missing, and whether it is
+// implicit.
+export function measureOf(tag) {
+  return { number: parseInt(MEASURE_NUMBER.exec(tag)?.[1], 10), implicit: IMPLICIT.test(tag) }
+}
 export const STAVES = /<staves>\s*(\d+)\s*<\/staves>/g
 
 // Off a note. Built once: the alternative is a fresh RegExp per note, over

@@ -139,6 +139,8 @@ or only those the PR explains.
   without one, no period filter shows the piece.
 - Fingerprints: `node scripts/generate-fingerprints.mjs`. Check the new line's
   notes are the piece's opening.
+- Bar count: `node scripts/bar-counts.mjs` records the new score's bars, which
+  `test/js/barCounts.test.js` then holds it to.
 - Look at it: serve `public/` (`cd public && python3 -m http.server 4599`),
   open `score.html?url=scores%2F<file>.mxl` with `playwright-cli`, take a
   full-page screenshot and read it — title, clefs, the last bar, anything the

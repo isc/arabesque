@@ -133,7 +133,7 @@ import {
 import { AFTER_NOTATIONS } from '../public/js/fingeringInjector.js'
 import { query, quote } from './lib/supabase.mjs'
 import { openScore } from './mxl.mjs'
-import { PART, TOKEN, MEASURE_NUMBER, IMPLICIT, STAFF, VOICE, REST, STAVES, CUE_OR_HIDDEN, numberOf } from './lib/musicxml.mjs'
+import { PART, TOKEN, measureOf, STAFF, VOICE, REST, STAVES, CUE_OR_HIDDEN, numberOf } from './lib/musicxml.mjs'
 
 const PUBLIC_DIR = join(import.meta.dirname, '..', 'public')
 
@@ -219,8 +219,8 @@ export function* walkNotes(xml) {
     for (const match of partXml.matchAll(TOKEN)) {
       const token = match[0]
       if (token.startsWith('<measure')) {
-        const number = parseInt(MEASURE_NUMBER.exec(token)?.[1], 10)
-        if (!numbering.measure(number, IMPLICIT.test(token)).continues) legacyCounters = new Map()
+        const { number, implicit } = measureOf(token)
+        if (!numbering.measure(number, implicit).continues) legacyCounters = new Map()
         // OSMD's MeasureNumberXML, which the old keys used: set only when the
         // attribute reads as an integer, left undefined otherwise ("X1").
         printed = Number.isInteger(number) ? number : undefined
