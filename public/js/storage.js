@@ -103,42 +103,52 @@ async function openDatabase(name) {
   let created = false
 
   const database = await new Promise((resolve, reject) => {
-    const request = indexedDB.open(name, DB_VERSION)
+    const open = () => {
+      const request = indexedDB.open(name, DB_VERSION)
+      let abandoned = false
 
-    request.onerror = () => reject(request.error)
-    request.onsuccess = () => resolve(request.result)
-
-    request.onupgradeneeded = (event) => {
-      created ||= event.oldVersion === 0
-      const database = event.target.result
-      for (const { name, keyPath, indexes = [] } of STORE_DEFS) {
-        if (database.objectStoreNames.contains(name)) continue
-        const store = database.createObjectStore(name, { keyPath })
-        for (const index of indexes) store.createIndex(index, index, { unique: false })
+      request.onerror = () => {
+        if (abandoned) globalThis.addEventListener('pageshow', open, { once: true })
+        else reject(request.error)
       }
-      // A page left while its upgrade is still running can be frozen into the
-      // back/forward cache with the upgrade half done, and Chrome keeps every
-      // later open of the database waiting behind it — no blocked event, no
-      // error, forever: the next page's score never drew. Leaving abandons the
-      // upgrade instead; the next open starts it again, and a page restored
-      // from the cache opens afresh, its rejected open having been dropped.
-      // (Optional: there is no page to leave where the unit tests run.)
-      const upgrade = request.transaction
-      const abandon = () => {
-        try {
-          upgrade.abort()
-        } catch {
-          /* Over already. An upgrade is finished a moment before its complete
-             event is dispatched, and abort() throws in between ("The
-             transaction has finished"): nothing but the throw can tell the page
-             so, the complete event being the first sign it gets. */
+      request.onsuccess = () => resolve(request.result)
+
+      request.onupgradeneeded = (event) => {
+        created ||= event.oldVersion === 0
+        const database = event.target.result
+        for (const { name, keyPath, indexes = [] } of STORE_DEFS) {
+          if (database.objectStoreNames.contains(name)) continue
+          const store = database.createObjectStore(name, { keyPath })
+          for (const index of indexes) store.createIndex(index, index, { unique: false })
         }
+        // A page left while its upgrade is still running can be frozen into the
+        // back/forward cache with the upgrade half done, and Chrome keeps every
+        // later open of the database waiting behind it — no blocked event, no
+        // error, forever: the next page's score never drew. Leaving abandons the
+        // upgrade instead, and the open waits for the page to come back from the
+        // cache to start it again; a page that never comes back has nothing
+        // waiting on it. Not a rejection: nothing on a page being left would
+        // catch it, and it would land in the errors a feedback report carries.
+        // (Optional: there is no page to leave where the unit tests run.)
+        const upgrade = request.transaction
+        const abandon = () => {
+          try {
+            upgrade.abort()
+            abandoned = true
+          } catch {
+            /* Over already. An upgrade is finished a moment before its complete
+               event is dispatched, and abort() throws in between ("The
+               transaction has finished"): nothing but the throw can tell the page
+               so, the complete event being the first sign it gets. */
+          }
+        }
+        globalThis.addEventListener?.('pagehide', abandon)
+        const settled = () => globalThis.removeEventListener?.('pagehide', abandon)
+        upgrade.addEventListener('complete', settled)
+        upgrade.addEventListener('abort', settled)
       }
-      globalThis.addEventListener?.('pagehide', abandon)
-      const settled = () => globalThis.removeEventListener?.('pagehide', abandon)
-      upgrade.addEventListener('complete', settled)
-      upgrade.addEventListener('abort', settled)
     }
+    open()
   })
 
   if (legacy) {
