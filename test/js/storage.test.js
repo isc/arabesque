@@ -190,6 +190,7 @@ describe('storage on a lost connection', () => {
 // There is no page to leave where these tests run: one stands in here.
 describe('a page left while the database is created', () => {
   let leave
+  let comeBack
   // Handed each open's upgrade, ahead of storage.js's own handler.
   let onUpgrade
 
@@ -199,6 +200,7 @@ describe('a page left while the database is created', () => {
     vi.stubGlobal('addEventListener', page.addEventListener.bind(page))
     vi.stubGlobal('removeEventListener', page.removeEventListener.bind(page))
     leave = () => page.dispatchEvent(new Event('pagehide'))
+    comeBack = () => page.dispatchEvent(new Event('pageshow'))
     onUpgrade = () => {}
     const open = indexedDB.open.bind(indexedDB)
     indexedDB.open = (...args) => {
@@ -208,13 +210,25 @@ describe('a page left while the database is created', () => {
     }
   })
 
-  it('abandons an upgrade still under way, for the next open to start again', async () => {
+  // Abandoned, not failed: a rejection on a page being left is caught by
+  // nothing, and lands in the errors a feedback report carries.
+  it('abandons an upgrade still under way, and starts it again when the page comes back', async () => {
     const storage = initStorage()
-    onUpgrade = () => queueMicrotask(leave)
-    await expect(storage.init()).rejects.toHaveProperty('name', 'AbortError')
+    let aborted = false
+    onUpgrade = (upgrade) => {
+      onUpgrade = () => {}
+      upgrade.addEventListener('abort', () => (aborted = true))
+      queueMicrotask(leave)
+    }
+    let settled = false
+    const opening = storage.init()
+    opening.then(() => (settled = true), () => (settled = true))
+    await vi.waitFor(() => expect(aborted).toBe(true))
+    await new Promise((resolve) => setTimeout(resolve, 10))
+    expect(settled).toBe(false)
 
-    onUpgrade = () => {}
-    expect([...(await storage.init()).objectStoreNames]).toEqual([...STORES].sort())
+    comeBack()
+    expect([...(await opening).objectStoreNames]).toEqual([...STORES].sort())
   })
 
   // The upgrade is over a moment before storage.js hears of it, from its
