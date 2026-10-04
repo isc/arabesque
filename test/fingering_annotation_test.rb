@@ -8,6 +8,7 @@ class FingeringAnnotationTest < CapybaraTestBase
   CHOPIN_WALTZ_URL = 'scores/Waltz_in_A_MinorChopin.mxl'
   BEAMED_MORDENT_URL = '/test-fixtures/fingering-over-beamed-mordent.xml'
   BEAMED_SLUR_URL = '/test-fixtures/slur-over-beamed-fingering.xml'
+  SLURS_OVER_FINGERINGS_URL = '/test-fixtures/slurs-over-fingerings.xml'
 
   # Every head of a chord opens the pad on its own note. The pad used to say
   # nothing about which one, so on a dense score the player could not tell
@@ -200,7 +201,49 @@ class FingeringAnnotationTest < CapybaraTestBase
     assert_slur_starts_above_the_beam
   end
 
+  # A slur passes over the fingerings under it, its last note's included, with
+  # room to spare. OSMD ended the slur into bar 4 in the 3 of its own last note,
+  # and brought the one in bar 3 within 0.3 of a staff space of the 3 next to its
+  # start, which a player saw touch on an iPad (feedback b244b633, Träumerei).
+  def test_slurs_pass_over_the_fingerings_under_them_after_a_redraw
+    visit "/score.html?url=#{SLURS_OVER_FINGERINGS_URL}"
+    wait_for_score_render(18)
+    assert_slurs_clear_the_fingerings
+
+    enter_fingering(0, 5)
+    assert_fingering '5'
+    assert_slurs_clear_the_fingerings
+  end
+
   private
+
+  # Every slur passes at least 0.45 of a staff space above each fingering it runs
+  # over, near the half a staff space it keeps from its notes, along its curve as
+  # OSMD samples it — in OSMD's units, relative to the staff line, up negative.
+  def assert_slurs_clear_the_fingerings
+    clearances = page.evaluate_script(<<~JS)
+      (() => {
+        const line = osmdInstance.GraphicSheet.MusicPages[0].MusicSystems[0].StaffLines[0]
+        const entries = line.Measures.flatMap((measure) => measure.staffEntries)
+        const labels = entries.flatMap((entry) => entry.FingeringEntries)
+        return line.GraphicalSlurs.map((slur) => {
+          let closest = Infinity
+          // (OSMD samples the curve in a thousand steps; the thousandth, t = 1, comes out as (0, 0).)
+          for (let i = 0; i < 1000; i++) {
+            const { x, y } = slur.calculateCurvePointAtIndex(i / 1000)
+            for (const { PositionAndShape: box } of labels) {
+              const left = box.RelativePosition.x + box.BorderLeft
+              const right = box.RelativePosition.x + box.BorderRight
+              if (x >= left && x <= right) closest = Math.min(closest, box.RelativePosition.y + box.BorderTop - y)
+            }
+          }
+          return closest
+        })
+      })()
+    JS
+    assert_equal 2, clearances.size
+    clearances.each { |clearance| assert_operator clearance, :>=, 0.45 }
+  end
 
   def assert_fingering(text)
     assert_selector 'svg g.vf-text', text: text

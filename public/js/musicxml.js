@@ -504,7 +504,7 @@ function startSlursPastTheBeam() {
   const calculateStartAndEnd = slur.calculateStartAndEnd
   slur.calculateStartAndEnd = function (startNote, endNote, ...args) {
     const ends = calculateStartAndEnd.call(this, startNote, endNote, ...args)
-    const above = this.placement === 0 // PlacementEnum.Above, which OSMD does not export
+    const above = slurIsAbove(this)
     ends.startY += beamedStemOverhang(startNote, above)
     ends.endY += beamedStemOverhang(endNote, above)
     return ends
@@ -526,11 +526,246 @@ function beamedStemOverhang(note, above) {
     : Math.max(0, stemTip - (box.RelativePosition.y + box.BorderBottom))
 }
 
+// Whether OSMD placed the slur above its notes: PlacementEnum.Above, which OSMD does not export.
+function slurIsAbove(graphicalSlur) {
+  return graphicalSlur.placement === 0
+}
+
+// Another stopgap for OSMD 2.2.0, until a release carries the upstream fix,
+// https://github.com/opensheetmusicdisplay/opensheetmusicdisplay/pull/1803. OSMD shapes a slur
+// from what lies between its first and last notes, without them, and only keeps the tangents at its
+// ends above that, not the curve, which runs under its tangents: a slur ended in the fingering of its
+// own last note, and could graze one next to its start (feedback b244b633, Träumerei bars 3-4).
+// As upstream, the curve keeps from what it passes over the distance it keeps from its notes, and a
+// slur that runs into a fingering of its first or last note is calculated again with that end past it.
+// Upstream does both inside calculateCurve(); here they follow it, and redo what it does after them:
+// add the curve to the sky or bottom line.
+function clearFingeringsUnderSlurs() {
+  const slur = opensheetmusicdisplay.GraphicalSlur.prototype
+  if (slur.calculateCurve.clearsFingerings) return
+
+  const calculateCurve = slur.calculateCurve
+  slur.calculateCurve = function (...args) {
+    const span = slurSpan(this)
+    if (!span) return calculateCurve.apply(this, args)
+    const { staffLine, first, last } = span
+    // What the curve passes over, as the lines are before it goes into them.
+    const lines = { sky: staffLine.SkyLine, bottom: staffLine.BottomLine }
+    const between = (line) => line.slice(span.fromIndex, span.toIndex)
+    const before = { sky: between(lines.sky), bottom: between(lines.bottom) }
+    // The lines as a whole, to calculate the curve again: only where an end has fingerings.
+    const fingered = first.FingeringEntries?.length || last.FingeringEntries?.length
+    const whole = fingered && { sky: lines.sky.slice(), bottom: lines.bottom.slice() }
+
+    calculateCurve.apply(this, args)
+    raiseOverObstacles(this, span, before)
+    const start = span.startsHere ? fingeringsRunInto(this, first, this.bezierStartPt.x, span.startEdge) : []
+    const end = span.endsHere ? fingeringsRunInto(this, last, span.endEdge, this.bezierEndPt.x) : []
+    if (start.length || end.length) {
+      for (const name of ['sky', 'bottom']) {
+        for (let i = 0; i < whole[name].length; i++) lines[name][i] = whole[name][i]
+      }
+      this.fingeringsRunInto = { span, start, end }
+      try {
+        calculateCurve.apply(this, args)
+      } finally {
+        this.fingeringsRunInto = undefined
+      }
+      raiseOverObstacles(this, span, before)
+    }
+    addCurveToLine(this, staffLine)
+  }
+  slur.calculateCurve.clearsFingerings = true
+
+  const calculateStartAndEnd = slur.calculateStartAndEnd
+  slur.calculateStartAndEnd = function (...args) {
+    const ends = calculateStartAndEnd.apply(this, args)
+    if (this.fingeringsRunInto) {
+      const { span, start, end } = this.fingeringsRunInto
+      ends.startY = pastFingerings(this, span.first, ends.startX, span.startEdge, ends.startY, start)
+      ends.endY = pastFingerings(this, span.last, span.endEdge, ends.endX, ends.endY, end)
+    }
+    return ends
+  }
+}
+
+// Where calculateCurve() looks for what the slur passes over: between its first and last staff
+// entries, as x relative to the staff line, and as the indices of the sky and bottom lines there.
+// Nothing for a slur from or to a grace note, which this leaves as OSMD draws it.
+function slurSpan(graphicalSlur) {
+  const [first, last] = [graphicalSlur.staffEntries[0], graphicalSlur.staffEntries.at(-1)]
+  const staffLine = first?.parentMeasure?.ParentStaffLine
+  if (!staffLine || graphicalSlur.graceStart || graphicalSlur.graceEnd) return null
+  const { StartNote: startNote, EndNote: endNote } = graphicalSlur.slur
+  const lastMeasure = last.parentMeasure.PositionAndShape
+  // The notes as calculateCurve() finds them, if they are on this staff line.
+  const startsHere = Boolean(
+    first.findGraphicalNoteFromNote(startNote) ||
+      first.findEndTieGraphicalNoteFromNoteWithStartingSlur?.(startNote, graphicalSlur.slur),
+  )
+  const endsHere = Boolean(last.findGraphicalNoteFromNote(endNote))
+  const startEdge = startsHere
+    ? staffEntryX(first, 'BorderRight')
+    : first.parentMeasure.beginInstructionsWidth // a slur carried over from the system before
+  let endEdge = staffEntryX(last, 'BorderLeft')
+  if (!endsHere) {
+    endEdge = endNote ? lastMeasure.RelativePosition.x + lastMeasure.Size.width : graphicalSlur.getUnattachedEndX()
+  }
+  const calculator = staffLine.SkyBottomLineCalculator
+  const length = staffLine.SkyLine.length
+  const fromIndex = Math.max(0, calculator.getRightIndexForPointX(startEdge, length))
+  const toIndex = Math.min(length - 1, calculator.getLeftIndexForPointX(endEdge, length))
+  const samplingUnit = calculator.SamplingUnit
+  return { staffLine, first, last, startsHere, endsHere, startEdge, endEdge, fromIndex, toIndex, samplingUnit }
+}
+
+// The x of the staff entry's edge, relative to its staff line, as OSMD's calculateCurve() takes it.
+function staffEntryX(staffEntry, border) {
+  const box = staffEntry.PositionAndShape
+  return staffEntry.parentMeasure.PositionAndShape.RelativePosition.x + box.RelativePosition.x + box[border]
+}
+
+// The slur's curve at t from 0 to 1, as OSMD samples it: calculateCurvePointAtIndex(1) is (0, 0).
+function curvePoint(graphicalSlur, t) {
+  return t < 1 ? graphicalSlur.calculateCurvePointAtIndex(t) : graphicalSlur.bezierEndPt
+}
+
+// How far out from the staff the box's near and far edges are, on the slur's side.
+function outwardExtent(graphicalSlur, box) {
+  const top = box.RelativePosition.y + box.BorderTop
+  const bottom = box.RelativePosition.y + box.BorderBottom
+  return slurIsAbove(graphicalSlur) ? [-bottom, -top] : [top, bottom]
+}
+
+// The fingering boxes of the staff entry over the stretch from fromX to toX (relative to the staff
+// line), nearest the staff first.
+function endFingerings(graphicalSlur, staffEntry, fromX, toX) {
+  return (staffEntry.FingeringEntries ?? [])
+    .map((fingering) => fingering.PositionAndShape) // relative to the staff line
+    .filter((box) => box.RelativePosition.x + box.BorderRight > fromX && box.RelativePosition.x + box.BorderLeft < toX)
+    .sort((a, b) => outwardExtent(graphicalSlur, a)[0] - outwardExtent(graphicalSlur, b)[0])
+}
+
+// Those the curve passes through, or closer to than SlurNoteHeadYOffset, between fromX and toX.
+function fingeringsRunInto(graphicalSlur, staffEntry, fromX, toX) {
+  const outward = slurIsAbove(graphicalSlur) ? -1 : 1
+  const margin = graphicalSlur.rules.SlurNoteHeadYOffset
+  return endFingerings(graphicalSlur, staffEntry, fromX, toX).filter((box) => {
+    const [near, far] = outwardExtent(graphicalSlur, box)
+    const left = Math.max(fromX, box.RelativePosition.x + box.BorderLeft)
+    const right = Math.min(toX, box.RelativePosition.x + box.BorderRight)
+    for (let i = 0; i <= 100; i++) {
+      const point = curvePoint(graphicalSlur, i / 100)
+      const out = point.y * outward
+      if (point.x >= left && point.x <= right && out > near - margin && out < far + margin) return true
+    }
+    return false
+  })
+}
+
+// y, or the y past the fingerings the curve ran into, and those stacked on them, for the slur's start
+// or end on the staff entry. calculateCurve() then moves it out by SlurNoteHeadYOffset, the distance it
+// keeps from its notes, which it so keeps from these.
+function pastFingerings(graphicalSlur, staffEntry, fromX, toX, y, runInto) {
+  if (!runInto.length) return y
+  const outward = slurIsAbove(graphicalSlur) ? -1 : 1
+  const margin = graphicalSlur.rules.SlurNoteHeadYOffset
+  let distance = y * outward
+  for (const box of endFingerings(graphicalSlur, staffEntry, fromX, toX)) {
+    const [near, far] = outwardExtent(graphicalSlur, box)
+    if (runInto.includes(box) || (near < distance + 2 * margin && far > distance)) distance = Math.max(distance, far)
+  }
+  return distance * outward
+}
+
+// Raises the curve's control points where it passes closer than SlurNoteHeadYOffset to what is under
+// it: the sky or bottom line between its first and last staff entries, as it was before the curve
+// (before), each sample at both its edges, since what it holds can be anywhere along it. In the frame
+// where the curve's ends are on the x axis and what it passes over is above, raising a control point
+// only raises the curve: its height at an x grows linearly with theirs. What is in the first half
+// raises the start control point, what is in the second the end one, no steeper than the steepest
+// tangent OSMD allows. Only what is under the tangents counts: the curve can reach between it and them.
+function raiseOverObstacles(graphicalSlur, span, before) {
+  const { bezierStartPt: p0, bezierStartControlPt: p1, bezierEndControlPt: p2, bezierEndPt: p3 } = graphicalSlur
+  const above = slurIsAbove(graphicalSlur)
+  const length = Math.hypot(p3.x - p0.x, p3.y - p0.y)
+  if (length < 0.0001) return
+  // The frame: x along the chord, y out from the staff, perpendicular to it.
+  const ux = (p3.x - p0.x) / length
+  const uy = (p3.y - p0.y) / length
+  const [nx, ny] = above ? [uy, -ux] : [-uy, ux]
+  const toFrame = (x, y) => ({ x: (x - p0.x) * ux + (y - p0.y) * uy, y: (x - p0.x) * nx + (y - p0.y) * ny })
+  const c1 = toFrame(p1.x, p1.y)
+  const c2 = toFrame(p2.x, p2.y)
+  const endX = length
+
+  const line = above ? before.sky : before.bottom
+  const bareStaff = above ? span.staffLine.TopLineOffset : span.staffLine.BottomLineOffset
+  const obstacles = []
+  line.forEach((value, k) => {
+    if (value === 0 || value === bareStaff) return // the bare staff, as calculateTopPoints() leaves it out
+    const i = span.fromIndex + k
+    for (const x of [i / span.samplingUnit, (i + 1) / span.samplingUnit]) obstacles.push(toFrame(x, value))
+  })
+
+  const bernstein = (t) => [3 * (1 - t) * (1 - t) * t, 3 * (1 - t) * t * t]
+  const startSlope = c1.y / c1.x
+  const endSlope = c2.y / (endX - c2.x)
+  const misses = []
+  for (const obstacle of obstacles) {
+    if (!(obstacle.x > 0 && obstacle.x < endX)) continue
+    // Out of the curve's reach, e.g. stems hanging over the slur from a beam above.
+    if (obstacle.y > obstacle.x * startSlope || obstacle.y > (endX - obstacle.x) * endSlope) continue
+    let [low, high] = [0, 1] // the curve's x grows with t: bisect
+    for (let i = 0; i < 30; i++) {
+      const t = (low + high) / 2
+      const [b1, b2] = bernstein(t)
+      if (b1 * c1.x + b2 * c2.x + t * t * t * endX < obstacle.x) low = t
+      else high = t
+    }
+    const t = (low + high) / 2
+    const [b1, b2] = bernstein(t)
+    const miss = obstacle.y + graphicalSlur.rules.SlurNoteHeadYOffset - (b1 * c1.y + b2 * c2.y)
+    if (miss > 0) misses.push({ t, miss, b1, b2 })
+  }
+  let startRaise = 0
+  for (const { t, miss, b1 } of misses) if (t <= 0.5) startRaise = Math.max(startRaise, miss / b1)
+  let endRaise = 0
+  for (const { t, miss, b1, b2 } of misses) if (t > 0.5) endRaise = Math.max(endRaise, (miss - b1 * startRaise) / b2)
+  const maxSlope = Math.tan((graphicalSlur.rules.SlurTangentMaxAngle * Math.PI) / 180)
+  const raise1 = Math.max(0, Math.min(c1.y + startRaise, c1.x * maxSlope) - c1.y)
+  const raise2 = Math.max(0, Math.min(c2.y + endRaise, (endX - c2.x) * maxSlope) - c2.y)
+  p1.x += raise1 * nx
+  p1.y += raise1 * ny
+  p2.x += raise2 * nx
+  p2.y += raise2 * ny
+}
+
+// Adds the slur's curve to the sky or bottom line, as calculateCurve() does: again after the curve
+// rose, where it is then farther out.
+function addCurveToLine(graphicalSlur, staffLine) {
+  const above = slurIsAbove(graphicalSlur)
+  const line = above ? staffLine.SkyLine : staffLine.BottomLine
+  const calculator = staffLine.SkyBottomLineCalculator
+  const { bezierStartPt: start, bezierEndPt: end } = graphicalSlur
+  const startIndex = calculator.getLeftIndexForPointX(start.x, line.length)
+  const endIndex = calculator.getLeftIndexForPointX(end.x, line.length)
+  const outmost = (a, b) => (above ? Math.min(a, b) : Math.max(a, b))
+  for (let i = startIndex; i < endIndex; i++) {
+    const t = Math.abs(i / calculator.SamplingUnit - start.x) / (end.x - start.x)
+    const point = graphicalSlur.calculateCurvePointAtIndex(t)
+    const index = calculator.getLeftIndexForPointX(point.x, line.length)
+    if (index >= startIndex) line[index] = outmost(line[index], point.y)
+    if (index + 1 < line.length) line[index + 1] = outmost(line[index + 1], point.y)
+  }
+}
+
 // A sheet OSMD cannot read throws, for the caller to say so: swallowed here,
 // the page carried on without a score, and only reached its error card
 // through the TypeError that the missing sheet caused further down.
 async function renderMusicXML(xmlContent) {
   startSlursPastTheBeam()
+  clearFingeringsUnderSlurs()
   const scoreContainer = document.getElementById('score')
   const osmd = new opensheetmusicdisplay.OpenSheetMusicDisplay(scoreContainer, {
     drawPartNames: false,
