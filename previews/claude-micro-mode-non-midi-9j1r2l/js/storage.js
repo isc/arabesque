@@ -1,5 +1,4 @@
-import { traced } from './perfTrace.js' // TEMP diagnostic
-import { scopedKey, listProfiles, SCOPE_SEPARATOR } from './profiles.js'
+import { scopedKey, listProfiles, pruneRemovedProfileKeys, SCOPE_SEPARATOR } from './profiles.js'
 
 // Each profile has a database of its own, named from this (profiles.js). The
 // main profile's is the bare name — the one this device had before profiles.
@@ -8,11 +7,30 @@ const DB_BASE_NAME = 'arabesque'
 // moved over on first open (see readLegacyDatabase) so nobody has to re-import
 // a backup.
 const LEGACY_DB_NAME = 'piano-trainer'
-const DB_VERSION = 3
+export const DB_VERSION = 3
 const FINGERINGS_STORE = 'fingerings'
 const SESSIONS_STORE = 'sessions'
 const AGGREGATES_STORE = 'aggregates'
-const STORES = [FINGERINGS_STORE, SESSIONS_STORE, AGGREGATES_STORE]
+
+// The kinds of data a profile keeps, a store each: how its records are keyed,
+// what they are looked up by, and how a backup carries them, under the store's
+// own name. Whatever goes over every store — creating them, moving the
+// pre-rename database, exporting a backup — reads this list, so a store added
+// here is in all of them, once DB_VERSION is raised: the upgrade is what
+// creates it where the database already exists. storage.test.js holds a
+// backup to restoring every store it carries, which is what makes sync.js's
+// importBackup learn a new one. Backups made outside the app write the same
+// keys: landing-video/capture/fetch-backup.mjs and scripts/demo/seed.js.
+const STORE_DEFS = [
+  // Without `synced` in a backup: it is this device's own exchange with the
+  // server, as meaningless to another device as its last-sync time.
+  { name: FINGERINGS_STORE, keyPath: 'scoreUrl', toBackup: ({ synced, ...record }) => record },
+  { name: SESSIONS_STORE, keyPath: 'id', indexes: ['scoreId', 'startedAt'] },
+  // Derived from the sessions, and rebuilt from them on import: a backup's
+  // copy only lends its names (sync.js).
+  { name: AGGREGATES_STORE, keyPath: 'scoreId' },
+]
+export const STORES = STORE_DEFS.map((def) => def.name)
 // What an operation fails with when the connection under it is gone rather
 // than the operation being wrong: InvalidStateError from transaction() on a
 // connection the browser has closed ("The database connection is closing"),
@@ -20,12 +38,11 @@ const STORES = [FINGERINGS_STORE, SESSIONS_STORE, AGGREGATES_STORE]
 // Database server lost"). See withDb.
 const CONNECTION_LOST = new Set(['InvalidStateError', 'UnknownError'])
 
-// TEMP: built once so the probe costs no per-put string when it's disabled.
-const PUT_LABELS = {
-  [FINGERINGS_STORE]: 'IDB put fingerings',
-  [SESSIONS_STORE]: 'IDB put sessions',
-  [AGGREGATES_STORE]: 'IDB put aggregates',
-}
+// The version a fingering record new to this device last exchanged with the
+// server: none, and nothing in it. sync.js merges the server's copy against
+// it, so what was entered here joins what other devices entered first rather
+// than replacing it.
+export const NEVER_SYNCED = Object.freeze({ fingerings: Object.freeze({}), updatedAt: -1 })
 
 function promisifyRequest(request) {
   return new Promise((resolve, reject) => {
@@ -86,32 +103,52 @@ async function openDatabase(name) {
   let created = false
 
   const database = await new Promise((resolve, reject) => {
-    const request = indexedDB.open(name, DB_VERSION)
+    const open = () => {
+      const request = indexedDB.open(name, DB_VERSION)
+      let abandoned = false
 
-    request.onerror = () => reject(request.error)
-    request.onsuccess = () => resolve(request.result)
-
-    request.onupgradeneeded = (event) => {
-      created ||= event.oldVersion === 0
-      const database = event.target.result
-
-      // Create fingerings store if needed
-      if (!database.objectStoreNames.contains(FINGERINGS_STORE)) {
-        database.createObjectStore(FINGERINGS_STORE, { keyPath: 'scoreUrl' })
+      request.onerror = () => {
+        if (abandoned) globalThis.addEventListener('pageshow', open, { once: true })
+        else reject(request.error)
       }
+      request.onsuccess = () => resolve(request.result)
 
-      // Create sessions store if needed
-      if (!database.objectStoreNames.contains(SESSIONS_STORE)) {
-        const sessionsStore = database.createObjectStore(SESSIONS_STORE, { keyPath: 'id' })
-        sessionsStore.createIndex('scoreId', 'scoreId', { unique: false })
-        sessionsStore.createIndex('startedAt', 'startedAt', { unique: false })
-      }
-
-      // Create aggregates store if needed
-      if (!database.objectStoreNames.contains(AGGREGATES_STORE)) {
-        database.createObjectStore(AGGREGATES_STORE, { keyPath: 'scoreId' })
+      request.onupgradeneeded = (event) => {
+        created ||= event.oldVersion === 0
+        const database = event.target.result
+        for (const { name, keyPath, indexes = [] } of STORE_DEFS) {
+          if (database.objectStoreNames.contains(name)) continue
+          const store = database.createObjectStore(name, { keyPath })
+          for (const index of indexes) store.createIndex(index, index, { unique: false })
+        }
+        // A page left while its upgrade is still running can be frozen into the
+        // back/forward cache with the upgrade half done, and Chrome keeps every
+        // later open of the database waiting behind it — no blocked event, no
+        // error, forever: the next page's score never drew. Leaving abandons the
+        // upgrade instead, and the open waits for the page to come back from the
+        // cache to start it again; a page that never comes back has nothing
+        // waiting on it. Not a rejection: nothing on a page being left would
+        // catch it, and it would land in the errors a feedback report carries.
+        // (Optional: there is no page to leave where the unit tests run.)
+        const upgrade = request.transaction
+        const abandon = () => {
+          try {
+            upgrade.abort()
+            abandoned = true
+          } catch {
+            /* Over already. An upgrade is finished a moment before its complete
+               event is dispatched, and abort() throws in between ("The
+               transaction has finished"): nothing but the throw can tell the page
+               so, the complete event being the first sign it gets. */
+          }
+        }
+        globalThis.addEventListener?.('pagehide', abandon)
+        const settled = () => globalThis.removeEventListener?.('pagehide', abandon)
+        upgrade.addEventListener('complete', settled)
+        upgrade.addEventListener('abort', settled)
       }
     }
+    open()
   })
 
   if (legacy) {
@@ -128,15 +165,17 @@ async function openDatabase(name) {
 }
 
 // Drops the databases of profiles this device no longer lists — removed here,
-// or removed elsewhere and learnt by sync. Done on the way in rather than at
-// removal time: a profile removed while its own page is open cannot drop the
-// database that page holds, and the next open can. Only ever another
-// profile's database, never the one being opened: the current profile is
-// always listed. Best effort, and nobody waits for it: a browser without
-// indexedDB.databases() keeps the orphans, which cost nothing.
+// or removed elsewhere and learnt by sync — and the keys scoped to them. Done
+// on the way in rather than at removal time: a profile removed while its own
+// page is open cannot drop the database that page holds, and the next open
+// can. Only ever another profile's database, never the one being opened: a
+// page keeps its own even once a sync has learnt it was removed, and the next
+// page, on another profile, drops it. Best effort, and nobody waits for it: a
+// browser without indexedDB.databases() keeps the orphans, which cost nothing.
 async function pruneProfileStorage() {
+  pruneRemovedProfileKeys()
   if (!indexedDB.databases) return
-  const known = new Set(listProfiles().map((p) => scopedKey(DB_BASE_NAME, p.id)))
+  const known = new Set([scopedKey(DB_BASE_NAME), ...listProfiles().map((p) => scopedKey(DB_BASE_NAME, p.id))])
   for (const { name } of await indexedDB.databases()) {
     if (name?.startsWith(DB_BASE_NAME + SCOPE_SEPARATOR) && !known.has(name)) indexedDB.deleteDatabase(name)
   }
@@ -195,24 +234,32 @@ export function initStorage() {
     return withStore(storeName, 'readonly', (store) => promisifyRequest(store.get(key)))
   }
 
-  function dbGetAll(storeName) {
-    return withStore(storeName, 'readonly', (store) => promisifyRequest(store.getAll()))
+  // Every record, or with `index` those whose key there matches `query` (a
+  // value or an IDBKeyRange).
+  function dbGetAll(storeName, { index, query } = {}) {
+    return withStore(storeName, 'readonly', (store) => promisifyRequest((index ? store.index(index) : store).getAll(query)))
+  }
+
+  // The records under `keys`, in one transaction; a key with none is left out.
+  function dbGetMany(storeName, keys) {
+    return withStore(storeName, 'readonly', async (store) =>
+      (await Promise.all(keys.map((key) => promisifyRequest(store.get(key))))).filter(Boolean))
   }
 
   function dbPut(storeName, data) {
-    // TEMP: put() structure-clones the value synchronously on the main thread,
-    // and the session object grows with every measure played. Wrapping put()
-    // itself is what isolates that clone from the transaction's own latency.
-    return withStore(storeName, 'readwrite', (store) =>
-      promisifyRequest(traced(PUT_LABELS[storeName], () => store.put(data))))
+    return withStore(storeName, 'readwrite', (store) => promisifyRequest(store.put(data)))
   }
 
   return {
     init: ensureDb,
 
     // Fingerings methods
+    //
+    // A score with no record yet gets one that has never met the server
+    // (NEVER_SYNCED). A record written before `synced` existed carries none,
+    // and is left to its own rule (sync.js).
     async getFingerings(scoreUrl) {
-      return (await dbGet(FINGERINGS_STORE, scoreUrl)) || { scoreUrl, fingerings: {} }
+      return (await dbGet(FINGERINGS_STORE, scoreUrl)) || { scoreUrl, fingerings: {}, synced: NEVER_SYNCED }
     },
 
     async setFingering(scoreUrl, noteKey, finger) {
@@ -229,6 +276,11 @@ export function initStorage() {
 
     async _updateFingerings(scoreUrl, updateFn) {
       const data = await this.getFingerings(scoreUrl)
+      // Edited as a copy: a record a sync wrote back holds one map for both
+      // its fingerings and `synced` (IndexedDB stores the two references as
+      // one object), and an edit in place would move the version the next
+      // sync merges against along with it.
+      data.fingerings = { ...data.fingerings }
       updateFn(data.fingerings)
       data.updatedAt = Date.now()
       await dbPut(FINGERINGS_STORE, data)
@@ -239,9 +291,21 @@ export function initStorage() {
     },
 
     // Overwrite a whole fingerings record ({ scoreUrl, fingerings, updatedAt }).
-    // Used by cloud sync to apply a newer remote version (last-write-wins).
     async putFingeringRecord(record) {
       await dbPut(FINGERINGS_STORE, record)
+    },
+
+    // Overwrite records, each only if the stored one still carries the stamp
+    // it was read with (`read`, 0 for none), all read and written in one
+    // transaction: a writer that read a record earlier — sync writing back what
+    // it exchanged, the score page translating old keys — must not write over
+    // a fingering entered since.
+    putFingeringRecordsIfUnchanged(entries) {
+      return withStore(FINGERINGS_STORE, 'readwrite', (store) =>
+        Promise.all(entries.map(async ({ record, read }) => {
+          const stored = await promisifyRequest(store.get(record.scoreUrl))
+          if ((stored?.updatedAt ?? 0) === read) await promisifyRequest(store.put(record))
+        })))
     },
 
     // Sessions methods
@@ -254,14 +318,25 @@ export function initStorage() {
       return (await dbGet(SESSIONS_STORE, id)) || null
     },
 
-    async getSessions(scoreId = null, dateRange = null) {
-      const sessions = await withStore(SESSIONS_STORE, 'readonly', (store) =>
-        promisifyRequest(scoreId ? store.index('scoreId').getAll(scoreId) : store.getAll()))
-      if (!dateRange) return sessions
-      return sessions.filter((session) => {
-        const sessionDate = new Date(session.startedAt)
-        return sessionDate >= dateRange.start && sessionDate <= dateRange.end
-      })
+    getSessions(scoreId = null) {
+      return dbGetAll(SESSIONS_STORE, scoreId ? { index: 'scoreId', query: scoreId } : {})
+    },
+
+    // Every session's id, and nothing else of it: the whole history reads as
+    // megabytes, its keys as a few kilobytes.
+    getSessionIds() {
+      return withStore(SESSIONS_STORE, 'readonly', (store) => promisifyRequest(store.getAllKeys()))
+    },
+
+    // The sessions of `ids`; an id with none is left out.
+    getSessionsById(ids) {
+      return dbGetMany(SESSIONS_STORE, ids)
+    },
+
+    // The sessions started from `from` up to, not including, `to` (Dates).
+    // `startedAt` is always an ISO string in UTC, so its index sorts by time.
+    getSessionsStartedBetween(from, to) {
+      return dbGetAll(SESSIONS_STORE, { index: 'startedAt', query: IDBKeyRange.bound(from.toISOString(), to.toISOString(), false, true) })
     },
 
     // Aggregates methods
@@ -274,46 +349,35 @@ export function initStorage() {
       return (await dbGet(AGGREGATES_STORE, scoreId)) || null
     },
 
+    // The rows of `scoreIds`; a score with none is left out.
+    getAggregates(scoreIds) {
+      return dbGetMany(AGGREGATES_STORE, scoreIds)
+    },
+
     async getAllAggregates() {
       return (await dbGetAll(AGGREGATES_STORE)) || []
     },
 
-    // Backup methods
+    // Every store, each under its own name (see STORE_DEFS).
     async exportBackup() {
-      const sessions = await this.getSessions()
-      const aggregates = await this.getAllAggregates()
-      const fingerings = await this.getAllFingerings()
-
-      return {
-        exportDate: new Date().toISOString(),
-        sessions,
-        aggregates,
-        fingerings,
+      const backup = { exportDate: new Date().toISOString() }
+      for (const { name, toBackup = (record) => record } of STORE_DEFS) {
+        backup[name] = (await dbGetAll(name)).map(toBackup)
       }
+      return backup
     },
 
-    async importBackup(backupData) {
-      if (!backupData || !backupData.sessions) {
-        throw new Error('Invalid backup data format')
-      }
-
-      const importCounts = await withDb(async (db) => {
-        const transaction = db.transaction([SESSIONS_STORE, AGGREGATES_STORE, FINGERINGS_STORE], 'readwrite')
-        const counts = {
-          sessions: putAllToStore(transaction, SESSIONS_STORE, backupData.sessions),
-          aggregates: putAllToStore(transaction, AGGREGATES_STORE, backupData.aggregates),
-          fingerings: putAllToStore(transaction, FINGERINGS_STORE, backupData.fingerings),
-        }
+    // Sessions from elsewhere — a backup's, a sync's pull — that this device
+    // does not have yet, by id, in one transaction. Resolves to how many were
+    // new.
+    importSessions(sessions) {
+      return withDb(async (db) => {
+        const transaction = db.transaction([SESSIONS_STORE], 'readwrite')
+        const here = new Set(await promisifyRequest(transaction.objectStore(SESSIONS_STORE).getAllKeys()))
+        const imported = putAllToStore(transaction, SESSIONS_STORE, sessions.filter((s) => !here.has(s.id)))
         await promisifyTransaction(transaction)
-        return counts
+        return imported
       })
-
-      return {
-        success: true,
-        importedSessions: importCounts.sessions,
-        importedAggregates: importCounts.aggregates,
-        importedFingerings: importCounts.fingerings,
-      }
     },
 
     // Swap the whole aggregates store for `aggregates`, in one transaction.

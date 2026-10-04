@@ -1,476 +1,55 @@
 import { initStorage } from './storage.js'
-import { TWO_HANDS, NO_HANDS, attemptHands, handsKey, playthroughHands } from './hands.js'
+import { TWO_HANDS, handsKey } from './hands.js'
 import { scopedKey } from './profiles.js'
+import { localDayKey, shiftDayKey, startOfLocalDay, byStartedAt, sessionDay } from './days.js'
+import { loadCatalog } from './catalog.js'
+import { getFullPlaythroughs, getLastMeasureEndTime, sessionAttempts } from './practiceTime.js'
+import { measuresToReinforce } from './reinforcement.js'
+import {
+  AGGREGATES_VERSION,
+  applyName,
+  createDefaultAggregate,
+  foldSession,
+  knownNames,
+  titleOf,
+} from './aggregates.js'
+import { buildDailyLog, buildPracticeCalendar, buildScoreHistory } from './practiceJournal.js'
 
 // Where a session interrupted by a page teardown waits to be closed properly
 // (see stashPendingSession). The profile's own: the snapshot must be replayed
 // into the database the session came from, whoever opens the app next.
-const PENDING_SESSION_KEY = scopedKey('arabesque:pending-session')
+export const PENDING_SESSION_KEY = scopedKey('arabesque:pending-session')
 
 // Marks the one-off repair of sessions stranded before those snapshots existed
 // (see closeStrandedSessions). Per profile like the database it speaks of.
-const STRANDED_REPAIR_KEY = scopedKey('arabesque:stranded-sessions-closed')
+export const STRANDED_REPAIR_KEY = scopedKey('arabesque:stranded-sessions-closed')
 
 // How quiet a session must be before the repair treats it as abandoned rather
 // than in progress somewhere else. Well beyond any gap between two measures,
 // and the sessions this exists for are months old.
 const STRANDED_MIN_AGE_MS = 60 * 60 * 1000
 
-// Default knobs for interruption removal. A segment is "aberrant" (an
-// interruption) when it exceeds max(floor, factor × median) of its own kind.
-// Measures (~7s) and gaps (~0.7s) live on different scales, so each has its own
-// threshold. Calibrated on real exported data: the gap floor sits at the clear
-// knee of the gap distribution (~8s); the measure factor barely matters because
-// real mid-measure interruptions are 15–30× the median, far above any
-// reasonable threshold.
-//
-// These values are baked into stored aggregates: totalPracticeTimeMs is
-// accumulated with them at session end, while the journal and the per-score
-// history re-derive with them on every read. Retuning them desyncs the two
-// unless AGGREGATES_VERSION is bumped with them.
-const INTERRUPTION_NORMALIZATION = {
-  measureFloorMs: 15000,
-  measureFactor: 4,
-  gapFloorMs: 8000,
-  gapFactor: 4,
-}
-
-// The rules an aggregate row was counted by, stamped on the row. An aggregate
-// is derived once, when a session ends, and then kept — so changing what it
-// counts leaves every row already written telling the old story. Bump this
-// with such a change, and init() replays the sessions of any row that carries
-// another number, on every device: an old backup imported included.
-//   2 — a bar's clean passes count both hands only
-export const AGGREGATES_VERSION = 2
-
-// Reinforcement suggestions look at this many of a score's most recent
-// sessions. What was fumbled months ago says nothing about what needs work
-// today, and the window bounds a computation that runs at every measure.
-export const REINFORCEMENT_WINDOW_SESSIONS = 10
-
-// Consecutive clean passes that retire a measure from the suggestions — the
-// bar reinforcement mode itself sets to declare a measure done.
-export const REINFORCEMENT_CLEAN_STREAK = 3
-
-// Sessions a measure must span before its error rate can be called stagnant.
-const STAGNATION_MIN_SESSIONS = 3
-
-// What makes a bar stand out from the rest of its piece, for the library's 🎯
-// chip: fumbled at least HOT_SPOT_FACTOR times as often as the piece as a
-// whole over the same window, on at least HOT_SPOT_MIN_ATTEMPTS attempts — one
-// unlucky pass proves nothing.
-export const HOT_SPOT_FACTOR = 2
-export const HOT_SPOT_MIN_ATTEMPTS = 3
-
-// What reinforcement mode offers on the score page. Given a score's sessions
-// in any order, the measures it would drill right now, best candidates first.
-//
-// Each hand selection keeps a list of its own (feedback 0868d96f): a bar
-// fumbled with the left hand alone is not a bar to drill two-handed, and clean
-// right-hand passes don't retire a bar still fumbled with both. `hands` is the
-// selection asked about, as handsKey() stores it; left out, every selection
-// answers on its own and each candidate says which one it came from.
-export function measuresToReinforce(sessions, { hands, limit = 5 } = {}) {
-  return [...reinforceCandidates(sessions, hands)]
-    .sort(
-      (a, b) =>
-        Number(b.stagnant) - Number(a.stagnant) ||
-        b.wrongNotes - a.wrongNotes ||
-        b.durationMs - a.durationMs
-    )
-    .slice(0, limit)
-}
-
-// The library's question, asked of every score it lists: is this piece worth
-// opening to reinforce? Not "does reinforcement mode offer anything" — at the
-// error rates real practice runs at (a bar fumbled four times in ten is
-// ordinary), some bar is always short of its clean streak, and a chip asking
-// that held every piece ever played. What earns the chip is a hot spot: a bar
-// reinforcement would offer that also stands out from the rest of the piece.
-// A piece fumbled everywhere has none — the whole piece is the work there, not
-// a handful of bars — and neither does one played evenly well.
-//
-// Asked of both hands by default: the score page opens with both ticked, so
-// that is the badge the chip sends the player to, and a hand practised alone
-// is not pooled with passes it had no part in.
-export function hasHotSpots(sessions, hands = TWO_HANDS) {
-  const recent = recentSessions(sessions)
-  let attempts = 0
-  let fumbles = 0
-  for (const { bySession } of measureHistories(recent, hands)) {
-    for (const session of bySession) {
-      attempts += session.length
-      fumbles += countFumbles(session)
-    }
-  }
-  const threshold = (HOT_SPOT_FACTOR * fumbles) / attempts
-
-  for (const bar of reinforceCandidates(recent, hands)) {
-    if (bar.attempts >= HOT_SPOT_MIN_ATTEMPTS && bar.fumbles / bar.attempts >= threshold) return true
-  }
-  return false
-}
-
-// The window that makes both rules forget: only the last
-// REINFORCEMENT_WINDOW_SESSIONS sessions of a score count, so a bar massacred
-// six months ago and left alone says nothing today.
-//
-// `startedAt` is always an ISO string in UTC, so it sorts as text — and a
-// comparator building two Dates per comparison was most of the cost of a call
-// that runs at every measure boundary.
-function recentSessions(sessions) {
-  return [...sessions]
-    .sort((a, b) => (a.startedAt < b.startedAt ? -1 : a.startedAt > b.startedAt ? 1 : 0))
-    .slice(-REINFORCEMENT_WINDOW_SESSIONS)
-}
-
-// The measures worth offering, unranked, over that window.
-function* reinforceCandidates(sessions, hands) {
-  for (const { sourceMeasureIndex, hands: selection, bySession } of measureHistories(recentSessions(sessions), hands)) {
-    const attempts = bySession.flat()
-    if (!attempts.some(fumbled)) continue
-    // Settled: the measure has since been played cleanly as many times in a
-    // row as reinforcement mode itself demands to call it done.
-    if (cleanStreak(attempts) >= REINFORCEMENT_CLEAN_STREAK) continue
-
-    yield {
-      sourceMeasureIndex,
-      hands: selection,
-      attempts: attempts.length,
-      fumbles: countFumbles(attempts),
-      wrongNotes: attempts.reduce((sum, a) => sum + (a.wrongNotes || 0), 0),
-      durationMs: attempts[attempts.length - 1].durationMs || 0,
-      stagnant: isStagnant(bySession),
-    }
-  }
-}
-
-// Attempts per hand selection and measure across the given sessions — only
-// the `hands` selection when one is given — kept grouped by session: the
-// totals answer "how badly", the grouping answers "is it getting better".
-function measureHistories(sessions, hands) {
-  const bySelection = new Map()
-
-  for (const session of sessions) {
-    for (const measure of session.measures || []) {
-      for (const attempt of measure.attempts || []) {
-        const selection = attemptHands(attempt)
-        if (selection === NO_HANDS || (hands && selection !== hands)) continue
-
-        let histories = bySelection.get(selection)
-        if (!histories) bySelection.set(selection, (histories = new Map()))
-        let history = histories.get(measure.sourceMeasureIndex)
-        if (!history) {
-          history = { sourceMeasureIndex: measure.sourceMeasureIndex, hands: selection, bySession: [], session: null }
-          histories.set(measure.sourceMeasureIndex, history)
-        }
-        if (history.session !== session) {
-          history.session = session
-          history.bySession.push([])
-        }
-        history.bySession.at(-1).push(attempt)
-      }
-    }
-  }
-
-  return [...bySelection.values()].flatMap((histories) => [...histories.values()])
-}
-
-// A wrong note always fails the attempt, but the matcher can fail one on its
-// own (a missed note ends the measure unclean without recording anything).
-function fumbled(attempt) {
-  return attempt.clean === false || (attempt.wrongNotes || 0) > 0
-}
-
-function countFumbles(attempts) {
-  return attempts.filter(fumbled).length
-}
-
-function cleanStreak(attempts) {
-  let streak = 0
-  for (let i = attempts.length - 1; i >= 0 && !fumbled(attempts[i]); i--) streak++
-  return streak
-}
-
-// Stagnation is the trend over sessions, not within one: a measure stagnates
-// when the error rate of its recent sessions is no better than that of the
-// earlier ones. Below STAGNATION_MIN_SESSIONS there is no trend to read, only
-// the noise of a good day and a bad one.
-function isStagnant(bySession) {
-  if (bySession.length < STAGNATION_MIN_SESSIONS) return false
-  const rates = bySession.map((attempts) => countFumbles(attempts) / attempts.length)
-  const split = Math.floor(rates.length / 2)
-  return mean(rates.slice(split)) >= mean(rates.slice(0, split))
-}
-
-function mean(values) {
-  return values.reduce((sum, v) => sum + v, 0) / values.length
-}
-
-// What a score has to clear to earn each status, read by computeScoreStatus()
-// below and by the library, which spells the same numbers out to the player
-// under a filtered list. Written down once so the two can't drift apart.
-// `measureRatio` is the share of the score's measures that must each have been
-// played clean `cleanAttempts` times with both hands (see cleanMeasureRatio);
-// `practiceDays` and `timesCompleted` are counted over the score's whole
-// history, playthroughs in full only.
-export const STATUS_THRESHOLDS = {
-  perfectionnement: { cleanAttempts: 3, measureRatio: 0.5, timesCompleted: 1 },
-  repertoire: { cleanAttempts: 10, measureRatio: 1, practiceDays: 3, timesCompleted: 10 },
-}
-
-// The floor under the lowest status. An aggregate row is born the moment a
-// single measure is attempted, so a piece opened, tried for a few seconds and
-// left behind used to wear a "Déchiffrage" badge for work that never happened.
-// One minute of playing time is a read-through of a short piece, and it is the
-// very number the library prints beside the badge, so the rule reads itself off
-// the row.
-export const MIN_PRACTICE_MS_FOR_STATUS = 60_000
-
-export function hasMinimumPractice(aggregate) {
-  return (aggregate?.totalPracticeTimeMs || 0) >= MIN_PRACTICE_MS_FOR_STATUS
-}
-
-// The share of a score's measures played clean at least `times` times, the
-// statuses' yardstick. Read off the aggregates' `cleanAttempts`, which counts
-// two-hand passes only: a bar played clean with the right hand and then with
-// the left is work on the bar, not the bar played — and counting it let a
-// prelude worked hands apart reach Perfectionnement off a single run with both
-// (feedback e8e4c2c5).
-export function cleanMeasureRatio(aggregate, times) {
-  const measures = Object.values(aggregate?.measures || {})
-  if (measures.length === 0) return 0
-  return measures.filter((m) => m.cleanAttempts >= times).length / measures.length
-}
-
-function median(values) {
-  if (values.length === 0) return 0
-  const sorted = [...values].sort((a, b) => a - b)
-  return sorted[Math.floor(sorted.length / 2)]
-}
-
-// Measure attempts overlapping [start, end], in chronological order, flattened
-// to what their readers need: when it started, how long it took, which hands
-// played it, which measure it was and how many wrong notes it took. Bounds are
-// inclusive — a measure played faster than the clock ticks would otherwise fall
-// out of the very run it belongs to, and an attempt touching a bound with no
-// overlap adds nothing to the time either way. Defaults to every attempt in the
-// session.
-function sessionAttempts(session, start = -Infinity, end = Infinity) {
-  const attempts = []
-  for (const measure of session.measures || []) {
-    for (const attempt of measure.attempts || []) {
-      if (!attempt.startedAt) continue
-      const s = new Date(attempt.startedAt).getTime()
-      const durationMs = attempt.durationMs || 0
-      if (s + durationMs >= start && s <= end) {
-        attempts.push({
-          start: s,
-          durationMs,
-          hands: attempt.hands,
-          sourceMeasureIndex: measure.sourceMeasureIndex,
-          wrongNotes: attempt.wrongNotes || 0,
-        })
-      }
-    }
-  }
-  return attempts.sort((a, b) => a.start - b.start)
-}
-
-// When the last of these attempts finished.
-function lastAttemptEnd(intervals) {
-  return intervals.reduce((last, i) => Math.max(last, i.start + i.durationMs), 0)
-}
-
-// Time actually spent playing across [start, end], with interruptions (phone
-// calls, breaks, a score left open on the desk) removed. A pause inflates either
-// a single measure's duration (interrupted mid-measure) or an inter-measure gap
-// (interrupted between measures). We detect aberrant segments — those far above
-// the window's own norm — and replace each with a typical value of its own kind:
-//   - aberrant measure → longest normal measure (the notes were still played)
-//   - aberrant gap      → median normal gap (a transition, not playing)
-function normalizedPlayingTime(intervals, start, end) {
-  const { measureFloorMs, measureFactor, gapFloorMs, gapFactor } = INTERRUPTION_NORMALIZATION
-
-  // Inter-measure gaps (including the trailing gap up to the end of the window).
-  const gaps = []
-  let cursor = start
-  for (const { start: s, durationMs } of intervals) {
-    gaps.push(s - cursor)
-    cursor = Math.max(cursor, s + durationMs)
-  }
-  gaps.push(end - cursor)
-  const positiveGaps = gaps.filter((g) => g > 0)
-
-  // Per-kind aberration thresholds, calibrated on this window's own data.
-  const measureDurations = intervals.map((i) => i.durationMs)
-  const measureThreshold = Math.max(measureFloorMs, measureFactor * median(measureDurations))
-  const gapThreshold = Math.max(gapFloorMs, gapFactor * median(positiveGaps))
-
-  // Replacement values: the "norm" of each kind.
-  const normalMeasures = measureDurations.filter((d) => d <= measureThreshold)
-  const measureCap = normalMeasures.length ? Math.max(...normalMeasures) : measureThreshold
-  const gapReplacement = median(positiveGaps.filter((g) => g <= gapThreshold))
-
-  // Re-tile [start, end]: clamp aberrant segments, keep the rest as-is.
-  const clampGap = (gap) => (gap > gapThreshold ? gapReplacement : gap)
-  let total = 0
-  cursor = start
-  for (const { start: s, durationMs } of intervals) {
-    const gap = s - cursor
-    if (gap > 0) total += clampGap(gap)
-    total += durationMs > measureThreshold ? measureCap : durationMs
-    cursor = Math.max(cursor, s + durationMs)
-  }
-  const trailingGap = end - cursor
-  if (trailingGap > 0) total += clampGap(trailingGap)
-
-  return Math.round(total)
-}
-
-// When the run a completed session holds started and finished. A session
-// carries at most one: the score page ends it and opens the next one as soon
-// as the piece is finished.
-function playthroughWindow(session) {
-  return {
-    start: new Date(session.playthroughStartedAt).getTime(),
-    end: new Date(session.completedAt).getTime(),
-  }
-}
-
-// A completed playthrough, timed from when the player started it to when they
-// finished. Falls back to raw wall-clock when per-measure timing is unavailable.
-export function computePlaythroughDuration(session) {
-  const { start, end } = playthroughWindow(session)
-  return playthroughDuration(sessionAttempts(session, start, end), start, end)
-}
-
-function playthroughDuration(attempts, start, end) {
-  if (attempts.length === 0) return end - start
-  return normalizedPlayingTime(attempts, start, end)
-}
-
-// The wrong notes a run took, and the measures they fell in (source indices,
-// in score order, each once however many times it was played).
-function playthroughWrongNotes(attempts) {
-  let wrongNotes = 0
-  const measures = new Set()
-  for (const a of attempts) {
-    if (!a.wrongNotes) continue
-    wrongNotes += a.wrongNotes
-    measures.add(a.sourceMeasureIndex)
-  }
-  return { wrongNotes, wrongMeasures: [...measures].sort((a, b) => a - b) }
-}
-
-// The hands the run held by a completed session was played with.
-function completedSessionHands(session) {
-  if (!session.playthroughStartedAt) return TWO_HANDS
-  const { start, end } = playthroughWindow(session)
-  return playthroughHands(sessionAttempts(session, start, end))
-}
-
-// The rule the whole app counts by: the piece played in full is a run that
-// went from end to end with both hands on the whole way.
-export function playedInFull(session) {
-  return Boolean(session.completedAt) && completedSessionHands(session) === TWO_HANDS
-}
-
-// Practice time credited to a session: first measure attempt to last, minus
-// interruptions. It has to go through the same normalization as a playthrough —
-// on a raw span, a score left open on the desk counts in full, and a single
-// 79-minute attempt on one measure once turned ten minutes of practice into
-// 1h33 in the journal.
-export function computeSessionDuration(session) {
-  const attempts = sessionAttempts(session)
-  if (attempts.length === 0) return 0
-  return normalizedPlayingTime(attempts, attempts[0].start, lastAttemptEnd(attempts))
-}
-
-// Day the session belongs to in the viewer's timezone — the journal and the
-// calendar are calendars, so a session played at 00:30 belongs to that morning,
-// not to the previous UTC day.
-export function localDayKey(date) {
-  const d = new Date(date)
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-}
-
-// The day `delta` days away from `key`. Built at midday so a DST transition —
-// which in a few timezones happens at midnight — can't land the result on the
-// neighbouring day.
-export function shiftDayKey(key, delta) {
-  const [year, month, day] = key.split('-').map(Number)
-  return localDayKey(new Date(year, month - 1, day + delta, 12))
-}
-
-// What a year of the calendar adds up to. The streaks are deliberately not in
-// here: a run that started in December is one run, and cutting it at 1 January
-// would be an artefact of the view — practiceStreaks() reads the whole history.
-export function practiceYearStats(calendar, year) {
-  const prefix = `${year}-`
-  let days = 0
-  let practiceTimeMs = 0
-  let playthroughs = 0
-  for (const [key, day] of calendar) {
-    if (!key.startsWith(prefix)) continue
-    days += 1
-    practiceTimeMs += day.practiceTimeMs
-    playthroughs += day.timesPlayedInFull
-  }
-  return { days, practiceTimeMs, playthroughs }
-}
-
-// Runs of consecutive practised days, from a collection of day keys: the one
-// ending now, and the longest anywhere in the history.
-//
-// The current run tolerates a silent today. Until midnight the day is still
-// playable, so a streak that stands at yesterday is alive, not broken — the
-// opposite reading would show "0" every morning to someone who practises
-// every evening.
-export function practiceStreaks(dayKeys, today = new Date()) {
-  const days = new Set(dayKeys)
-
-  let longest = 0
-  let run = 0
-  let previous = null
-  for (const key of [...days].sort()) {
-    run = previous && shiftDayKey(previous, 1) === key ? run + 1 : 1
-    previous = key
-    if (run > longest) longest = run
-  }
-
-  const todayKey = localDayKey(today)
-  let cursor = days.has(todayKey) ? todayKey : shiftDayKey(todayKey, -1)
-  let current = 0
-  while (days.has(cursor)) {
-    current += 1
-    cursor = shiftDayKey(cursor, -1)
-  }
-
-  return { current, longest }
-}
-
 export function initPracticeTracker(storageInstance = null) {
   const storage = storageInstance || initStorage()
 
   let currentSession = null
   let currentMeasureAttempt = null
-  // Store metadata separately from session (not persisted in session object)
-  let currentScoreTitle = null
-  let currentComposer = null
   // Set once ensureAggregateTitle() has written title/composer for the
   // current session, so later measures skip the IndexedDB round-trip.
   let aggregateTitleEnsured = false
-  // Sessions read for the reinforcement suggestions, kept between measures
-  // (see scoreSessions).
-  let reinforcementSessions = { scoreId: null, sessions: [] }
+  // One score's stored sessions, kept between reads (see scoreSessions).
+  let sessionCache = { scoreId: null, sessions: [] }
 
   return {
+    // Outdated rows are rebuilt before anything is folded into them: the fold
+    // counts on the row's current shape (its practice days, its counters).
+    // The rebuild replays ended sessions only, so what the two steps after it
+    // close is folded once, by them.
     init: async () => {
       await storage.init()
+      await rebuildOutdatedAggregates()
       await flushPendingSession()
       await closeStrandedSessions()
-      await rebuildOutdatedAggregates()
     },
     stashPendingSession,
     clearPendingSession,
@@ -491,8 +70,6 @@ export function initPracticeTracker(storageInstance = null) {
     getPracticeCalendar,
     getScoreHistory,
     getAllPlaythroughs,
-    getAllScores,
-    computeScoreStatus,
     rebuildAggregates,
     getCurrentSession: () => currentSession,
   }
@@ -513,11 +90,7 @@ export function initPracticeTracker(storageInstance = null) {
     try {
       localStorage.setItem(
         PENDING_SESSION_KEY,
-        JSON.stringify({
-          session: { ...currentSession, endedAt: new Date().toISOString() },
-          scoreTitle: currentScoreTitle,
-          composer: currentComposer,
-        })
+        JSON.stringify({ session: { ...currentSession, endedAt: new Date().toISOString() } })
       )
     } catch {
       // Quota exceeded or no localStorage: nothing better available.
@@ -554,12 +127,12 @@ export function initPracticeTracker(storageInstance = null) {
       return
     }
 
-    const { session, scoreTitle, composer } = pending ?? {}
+    const { session } = pending ?? {}
     if (session?.id && session.measures?.length) {
       const stored = await storage.getSession(session.id)
       if (!stored?.endedAt) {
         await storage.saveSession(session)
-        await updateAggregates(session, { title: scoreTitle, composer })
+        await updateAggregates(session)
       }
     }
     clearPendingSession()
@@ -616,39 +189,41 @@ export function initPracticeTracker(storageInstance = null) {
   }
 
   // Replays the sessions when a stored row was counted by other rules than
-  // AGGREGATES_VERSION. No catalog to name the scores from here: the rebuild
-  // falls back on the names the rows already carry.
+  // AGGREGATES_VERSION.
   async function rebuildOutdatedAggregates() {
     const aggregates = await storage.getAllAggregates()
     if (aggregates.some((a) => a.rulesVersion !== AGGREGATES_VERSION)) await rebuildAggregates()
   }
 
   // Recompute every aggregate from scratch by replaying all stored sessions in
-  // chronological order. Used after cloud sync pulls sessions from another
-  // device, and when the rules change (see AGGREGATES_VERSION). `metaFor(scoreId)` supplies { title, composer } from the catalog —
-  // pass one: sessions don't carry the title, so rebuilding without it leaves
-  // every aggregate untitled and the practice journal shows "Untitled"
-  // throughout. fetchCatalogMeta() in sync.js builds a suitable map.
+  // chronological order. Used after sessions arrive from elsewhere — a sync's
+  // pull, a backup's import — and when the rules change (see
+  // AGGREGATES_VERSION). `fallbackNames` (scoreId → { title, composer }) are
+  // names to fall back on below every other, as an imported backup's
+  // aggregates offer.
   //
   // Folded in memory and written in one transaction: a replay walks every
   // session ever played, and a read and a write per session made it seconds
   // long on WebKit, during which a page closed left the aggregates half built.
-  async function rebuildAggregates(metaFor = () => null) {
+  async function rebuildAggregates(fallbackNames = new Map()) {
+    // The sessions that arrived are missing from the cached ones too.
+    dropSessionCache()
     const [sessions, aggregates] = await Promise.all([storage.getSessions(), storage.getAllAggregates()])
-    sessions.sort((a, b) => (a.startedAt || '').localeCompare(b.startedAt || ''))
+    sessions.sort(byStartedAt)
     // What the aggregates already knew, before they are thrown away — all a
-    // session stored before sessions carried their own name can offer.
-    const known = new Map(aggregates.map((a) => [a.scoreId, { title: a.scoreTitle, composer: a.composer }]))
-    // Where a replayed session gets its name: the catalog first, so a score
-    // renamed there is renamed here; then the session's own record; then the
-    // snapshot. The catalog alone is not enough — it does not hold a file the
-    // player opened from disk, nor a score added since this device cached
-    // data/scores.json, and the rebuild used to leave those untitled for good
-    // (feedback 401b88bf).
+    // session stored before sessions carried their own name can offer. Only
+    // a row that has a name: an untitled one would hide the fallback's.
+    const known = knownNames(aggregates)
+    // Where a replayed session gets its name: its own record, then the
+    // snapshot, then the fallback. A score the catalog lists is shown under
+    // the catalog's name whatever is stored (getDailyLogs), so these names are
+    // for the others — a file the player opened from disk, a score added since
+    // this device cached data/scores.json — which the rebuild used to leave
+    // untitled for good (feedback 401b88bf).
     const nameFor = (session) =>
-      metaFor(session.scoreId) ??
-      (session.scoreTitle ? { title: session.scoreTitle, composer: session.composer } : null) ??
+      (session.scoreTitle ? titleOf(session) : null) ??
       known.get(session.scoreId) ??
+      fallbackNames.get(session.scoreId) ??
       {}
     const rebuilt = new Map()
     for (const session of sessions) {
@@ -667,9 +242,11 @@ export function initPracticeTracker(storageInstance = null) {
     await storage.replaceAggregates([...rebuilt.values()])
   }
 
+  // Every run through the score, most recent first: the ranking at the end of
+  // a piece. Off the sessions the reinforcement suggestions read, which the
+  // end of a piece asks for next — one read of the score's history, not two.
   async function getAllPlaythroughs(scoreId) {
-    const history = await getScoreHistory(scoreId)
-    return history.flatMap((day) => day.fullPlaythroughs)
+    return getFullPlaythroughs(await scoreSessions(scoreId))
   }
 
   function generateId() {
@@ -679,8 +256,6 @@ export function initPracticeTracker(storageInstance = null) {
   function startSession(scoreId, scoreTitle, composer, mode, totalMeasures = null) {
     if (!scoreId) return null
 
-    currentScoreTitle = scoreTitle || null
-    currentComposer = composer || null
     aggregateTitleEnsured = false
 
     const now = new Date().toISOString()
@@ -706,22 +281,23 @@ export function initPracticeTracker(storageInstance = null) {
     return currentSession
   }
 
+  // Hands the score on to a session under `newMode`, closing the one under way.
+  // Resolves with whether that one was filed — whether anything was played in
+  // it — which is what makes it worth a sync.
   async function toggleMode(newMode) {
-    if (!currentSession) return null
+    if (!currentSession) return false
     // Nothing recorded yet: the session just changes hands. Ending it would
-    // drop it anyway, and would throw away the reinforcement window's cache
-    // for nothing (see invalidateReinforcementSessions).
+    // drop it anyway, and would throw away the cached sessions for nothing
+    // (see scoreSessions).
     if (currentSession.measures.length === 0 && !currentMeasureAttempt) {
       currentSession.mode = newMode
-      return currentSession
+      return false
     }
 
-    const { scoreId, totalMeasures } = currentSession
-    // Preserve metadata from instance variables
-    const scoreTitle = currentScoreTitle
-    const composer = currentComposer
-    await endSession()
-    return startSession(scoreId, scoreTitle, composer, newMode, totalMeasures)
+    const { scoreId, scoreTitle, composer, totalMeasures } = currentSession
+    const ended = await endSession()
+    startSession(scoreId, scoreTitle, composer, newMode, totalMeasures)
+    return isWorthFiling(ended)
   }
 
   // `startsPlaythrough` says this measure is where a run through the whole score
@@ -752,15 +328,16 @@ export function initPracticeTracker(storageInstance = null) {
     currentMeasureAttempt.clean = false
   }
 
-  async function endMeasureAttempt(clean = null) {
+  // Closes the attempt with its own verdict: clean unless recordWrongNote() was
+  // called since it opened. An attempt is one measure's, not the passage's: a
+  // fumble in the third bar of a passage spoils the repetition, but the first
+  // two were played clean, and the journal — and the measures it suggests
+  // reinforcing — go on saying so.
+  async function endMeasureAttempt() {
     if (!currentSession || !currentMeasureAttempt) return null
 
     const startTime = new Date(currentMeasureAttempt.startedAt).getTime()
     currentMeasureAttempt.durationMs = Date.now() - startTime
-
-    if (clean !== null) {
-      currentMeasureAttempt.clean = clean
-    }
 
     const completedAttempt = { ...currentMeasureAttempt }
     currentMeasureAttempt = null
@@ -803,7 +380,7 @@ export function initPracticeTracker(storageInstance = null) {
     // practice journal (which reads scoreTitle/composer from aggregates)
     // showing "Untitled". Ensure the title/composer land early and cheaply,
     // without touching the stats that endSession() is responsible for.
-    ensureAggregateTitle(currentSession.scoreId, currentScoreTitle, currentComposer)
+    ensureAggregateTitle(currentSession)
   }
 
   function markScoreCompleted() {
@@ -844,6 +421,11 @@ export function initPracticeTracker(storageInstance = null) {
     currentMeasureAttempt.hands = handsKey(activeHands)
   }
 
+  // A session with no completed measure is not saved.
+  function isWorthFiling(session) {
+    return session.measures.length > 0
+  }
+
   async function endSession() {
     if (!currentSession) return null
 
@@ -851,169 +433,46 @@ export function initPracticeTracker(storageInstance = null) {
 
     const sessionToSave = { ...currentSession }
 
-    // Don't save sessions with no completed measures
-    if (sessionToSave.measures.length > 0) {
+    if (isWorthFiling(sessionToSave)) {
       await storage.saveSession(sessionToSave)
-      await updateAggregates(sessionToSave, { title: currentScoreTitle, composer: currentComposer })
+      await updateAggregates(sessionToSave)
     }
     // Committed: whatever a pagehide stashed for *this* session is redundant.
     clearPendingSession(sessionToSave.id)
-    // The session just left the "live" slot for the stored history the
-    // reinforcement window reads, so that window has to be read again.
-    invalidateReinforcementSessions()
+    // The session just left the "live" slot for the stored history, so the
+    // cached copy of that history has to be read again.
+    dropSessionCache()
 
     currentSession = null
     currentMeasureAttempt = null
     return sessionToSave
   }
 
-  // Shared skeleton for a brand-new aggregate row (used both here and in
-  // foldSession(), which layers session-derived fields on top).
-  function createDefaultAggregate(scoreId) {
-    return {
-      scoreId,
-      // No badge until the practice floor is cleared. This row is written the
-      // moment a title is upserted, before a note has been played, so anything
-      // else here would award the bottom rung for opening a score.
-      status: null,
-      rulesVersion: AGGREGATES_VERSION,
-      totalSessions: 0,
-      totalPracticeTimeMs: 0,
-      timesCompleted: 0,
-      timesCompletedOneHand: 0,
-      practiceDays: [],
-      measures: {},
-    }
-  }
-
   // Cheap, idempotent title/composer upsert — see the call site in
   // recordMeasureAttempt() for why this can't just be an early call to
   // updateAggregates(), which accumulates stats and must run exactly once.
   // Skips the IndexedDB round-trip once a session has already ensured it.
-  async function ensureAggregateTitle(scoreId, title, composer) {
-    if (aggregateTitleEnsured || (!title && !composer)) return
+  async function ensureAggregateTitle(session) {
+    if (aggregateTitleEnsured || (!session.scoreTitle && !session.composer)) return
     // Claimed before the first await: filing a whole run calls this once per
     // measure in a single tick, and a flag set at the end would let every one
     // of those calls through the guard.
     aggregateTitleEnsured = true
 
-    const aggregate = (await storage.getAggregate(scoreId)) || createDefaultAggregate(scoreId)
+    const aggregate = (await storage.getAggregate(session.scoreId)) || createDefaultAggregate(session.scoreId)
     if (aggregate.scoreTitle && aggregate.composer) return
 
-    if (title) aggregate.scoreTitle = title
-    if (composer) aggregate.composer = composer
+    applyName(aggregate, titleOf(session))
     await storage.saveAggregate(aggregate)
   }
 
-  // `meta` ({ title, composer }) is where the score's name comes from, and it
-  // is always the caller's to give: a rebuild replays sessions that are not
-  // the one being played, so reaching for the live session's title here would
-  // file the open score's name under somebody else's scoreId. `{}` says there
-  // is no name to give, and the aggregate keeps the one it has.
-  async function updateAggregates(session, meta) {
+  // `meta` ({ title, composer }) names the score, the session's own name by
+  // default. `{}` says there is no name to give, and the aggregate keeps the
+  // one it has.
+  async function updateAggregates(session, meta = titleOf(session)) {
     const aggregate = foldSession(await storage.getAggregate(session.scoreId), session, meta)
     await storage.saveAggregate(aggregate)
     return aggregate
-  }
-
-  // Credits one ended session to its score's aggregate row — `aggregate` left
-  // out for a score that has none yet — and returns the row. No storage here,
-  // so a rebuild can fold a whole history in memory.
-  function foldSession(aggregate, session, meta) {
-    const { title = null, composer = null } = meta
-
-    if (!aggregate) {
-      aggregate = {
-        ...createDefaultAggregate(session.scoreId),
-        scoreTitle: title,
-        composer,
-        firstPlayedAt: session.startedAt,
-        lastPlayedAt: session.endedAt,
-      }
-    }
-
-    // Always sync title/composer when known
-    if (title) {
-      aggregate.scoreTitle = title
-    }
-    if (composer) {
-      aggregate.composer = composer
-    }
-
-    const lastMeasureEndTime = getLastMeasureEndTime(session)
-    aggregate.lastPlayedAt = lastMeasureEndTime.toISOString()
-    aggregate.totalSessions++
-
-    if (!aggregate.timesCompleted) aggregate.timesCompleted = 0
-    if (!aggregate.timesCompletedOneHand) aggregate.timesCompletedOneHand = 0
-    if (session.completedAt) {
-      // Playing the piece through with one hand is real work, but it is not
-      // the piece played in full — it gets its own counter, and leaves the
-      // "last played in full" date and the status thresholds alone.
-      if (playedInFull(session)) {
-        aggregate.timesCompleted++
-        aggregate.lastCompletedAt = session.completedAt
-      } else {
-        aggregate.timesCompletedOneHand++
-      }
-    }
-
-    if (!aggregate.practiceDays) aggregate.practiceDays = []
-    const sessionDay = session.startedAt.substring(0, 10)
-    if (!aggregate.practiceDays.includes(sessionDay)) {
-      aggregate.practiceDays.push(sessionDay)
-    }
-
-    const sessionDuration = computeSessionDuration(session)
-    aggregate.totalPracticeTimeMs += sessionDuration
-
-    for (const measureData of session.measures) {
-      const measureIndex = measureData.sourceMeasureIndex
-      if (!aggregate.measures[measureIndex]) {
-        aggregate.measures[measureIndex] = {
-          totalAttempts: 0,
-          cleanAttempts: 0,
-          cleanAttemptsOneHand: 0,
-          totalDurationMs: 0,
-          lastPlayedAt: null,
-        }
-      }
-
-      const measureAgg = aggregate.measures[measureIndex]
-      for (const attempt of measureData.attempts) {
-        measureAgg.totalAttempts++
-        // Like timesCompleted: the plain counter is the one the statuses
-        // read, and means both hands.
-        if (attempt.clean && attemptHands(attempt) === TWO_HANDS) measureAgg.cleanAttempts++
-        else if (attempt.clean) measureAgg.cleanAttemptsOneHand++
-        measureAgg.totalDurationMs += attempt.durationMs
-        measureAgg.lastPlayedAt = attempt.startedAt
-      }
-
-      measureAgg.avgDurationMs = Math.round(measureAgg.totalDurationMs / measureAgg.totalAttempts)
-      measureAgg.errorRate =
-        measureAgg.totalAttempts > 0
-          ? (measureAgg.totalAttempts - measureAgg.cleanAttempts - measureAgg.cleanAttemptsOneHand) /
-            measureAgg.totalAttempts
-          : 0
-    }
-
-    aggregate.status = computeScoreStatus(aggregate)
-    return aggregate
-  }
-
-  function computeScoreStatus(aggregate) {
-    const meets = ({ cleanAttempts, measureRatio, practiceDays = 0, timesCompleted }) =>
-      (aggregate.timesCompleted || 0) >= timesCompleted &&
-      (aggregate.practiceDays || []).length >= practiceDays &&
-      cleanMeasureRatio(aggregate, cleanAttempts) >= measureRatio
-
-    if (meets(STATUS_THRESHOLDS.repertoire)) return 'repertoire'
-    if (meets(STATUS_THRESHOLDS.perfectionnement)) return 'perfectionnement'
-
-    // The bottom rung is the only one the floor can bite: the two above it ask
-    // for whole playthroughs, which cannot be had in under a minute anyway.
-    return hasMinimumPractice(aggregate) ? 'dechiffrage' : null
   }
 
   async function getScoreStats(scoreId) {
@@ -1032,60 +491,28 @@ export function initPracticeTracker(storageInstance = null) {
 
   // The score's sessions, with the in-memory one substituted for the copy
   // endMeasureAttempt saved: that one is a measure behind by construction.
-  // Windowing and order are measuresToReinforce()'s business, not this one's.
+  // Windowing and order are the callers' business, not this one's.
   //
-  // Sessions are re-read from storage only when the score changes or a session
-  // is closed, because this runs at every measure boundary and getSessions()
-  // deserializes the score's whole history.
+  // Sessions are re-read from storage only when the score changes, a session
+  // is closed or sessions arrive from elsewhere (rebuildAggregates), because
+  // the reinforcement suggestions ask at every measure boundary and
+  // getSessions() deserializes the score's whole history.
   async function scoreSessions(scoreId) {
-    if (reinforcementSessions.scoreId !== scoreId) {
-      reinforcementSessions = { scoreId, sessions: await storage.getSessions(scoreId) }
+    if (sessionCache.scoreId !== scoreId) {
+      sessionCache = { scoreId, sessions: await storage.getSessions(scoreId) }
     }
 
     const live = currentSession?.scoreId === scoreId ? currentSession : null
-    const sessions = reinforcementSessions.sessions.filter((s) => s.id !== live?.id)
+    const sessions = sessionCache.sessions.filter((s) => s.id !== live?.id)
     if (live) sessions.push(live)
     return sessions
   }
 
-  function invalidateReinforcementSessions() {
-    reinforcementSessions = { scoreId: null, sessions: [] }
+  function dropSessionCache() {
+    sessionCache = { scoreId: null, sessions: [] }
   }
 
-  function getFullPlaythroughs(sessions, totalMeasures) {
-    if (!totalMeasures) return []
-
-    const playthroughs = []
-    for (const session of sessions) {
-      if (!session.completedAt || !session.playthroughStartedAt) continue
-
-      const { start, end } = playthroughWindow(session)
-      const attempts = sessionAttempts(session, start, end)
-      playthroughs.push({
-        startedAt: session.playthroughStartedAt,
-        durationMs: playthroughDuration(attempts, start, end),
-        hands: playthroughHands(attempts),
-        ...playthroughWrongNotes(attempts),
-        // The strict engine's verdict on the run, for a run played to the
-        // metronome; a free run has none.
-        strict: session.strict ?? null,
-      })
-    }
-
-    // Sort by start time descending (most recent first)
-    playthroughs.sort((a, b) => new Date(b.startedAt) - new Date(a.startedAt))
-    return playthroughs
-  }
-
-  // When the player last played in this session, falling back to its start when
-  // no attempt carries usable timing.
-  function getLastMeasureEndTime(session) {
-    const attempts = sessionAttempts(session)
-    return attempts.length > 0 ? new Date(lastAttemptEnd(attempts)) : new Date(session.startedAt)
-  }
-
-  // One row per practised day, keyed by local day ('YYYY-MM-DD'), for the
-  // year-at-a-glance calendar. Days with no practice are simply absent.
+  // The calendar's squares, from one read of the whole history.
   //
   // getDailyLogs() already groups sessions by day, but it answers a much richer
   // question — which scores, which measures, how many full playthroughs, with
@@ -1093,170 +520,50 @@ export function initPracticeTracker(storageInstance = null) {
   // asked for. A year of coloured squares needs one duration per day, so this
   // walks the sessions once and keeps only what a square and its tooltip show.
   async function getPracticeCalendar() {
-    const byDay = new Map()
-    for (const session of await storage.getSessions()) {
-      const key = localDayKey(session.startedAt)
-      if (!byDay.has(key)) byDay.set(key, { practiceTimeMs: 0, timesPlayedInFull: 0 })
-      const day = byDay.get(key)
-      day.practiceTimeMs += computeSessionDuration(session)
-      if (playedInFull(session)) day.timesPlayedInFull += 1
-    }
-    return byDay
+    return buildPracticeCalendar(await storage.getSessions())
   }
 
   async function getDailyLog(date) {
     return (await getDailyLogs([date]))[0]
   }
 
-  // The journal asks for a run of consecutive days at once. Reading them one at
-  // a time means one storage.getSessions() per day, and that has no index on
-  // startedAt: it cursors the whole store and filters in JS, so every extra day
-  // deserializes every session again. One read for the whole span instead, with
-  // the aggregate lookups shared across days.
+  // The journal asks for a run of consecutive days at once: one read of the
+  // sessions for all of them, sorted into their days here, and one of the
+  // names of their scores.
   async function getDailyLogs(dates) {
     if (dates.length === 0) return []
 
-    const bounds = dates.map((d) => new Date(d).setHours(0, 0, 0, 0))
-    const start = new Date(Math.min(...bounds))
-    const end = new Date(Math.max(...bounds))
-    end.setHours(23, 59, 59, 999)
-
-    const sessions = await storage.getSessions(null, { start, end })
+    const wanted = new Set(dates.map(localDayKey))
+    // Day keys sort as text: the read spans the first day's midnight to the
+    // one after the last day.
+    const days = [...wanted].sort()
+    const [sessions, catalog] = await Promise.all([
+      storage.getSessionsStartedBetween(startOfLocalDay(days[0]), startOfLocalDay(shiftDayKey(days.at(-1), 1))),
+      loadCatalog().catch(() => null),
+    ])
     const byDay = new Map()
+    const scoreIds = new Set()
     for (const session of sessions) {
-      const key = localDayKey(session.startedAt)
+      const key = sessionDay(session)
+      if (!wanted.has(key)) continue
       if (!byDay.has(key)) byDay.set(key, [])
       byDay.get(key).push(session)
+      scoreIds.add(session.scoreId)
     }
 
-    const aggregates = new Map()
-    const logs = []
-    for (const date of dates) {
-      logs.push(await buildDailyLog(byDay.get(localDayKey(date)) ?? [], aggregates))
+    // A score the catalog lists goes by the catalog's name, as the library
+    // shows it: the one its sessions were stored under is the file's own,
+    // which disagrees with the catalog's on a quarter of it. The row's name is
+    // for the others — and for all of them when the catalog cannot be read.
+    const names = new Map((await storage.getAggregates([...scoreIds])).map((row) => [row.scoreId, titleOf(row)]))
+    for (const scoreId of scoreIds) {
+      const listed = catalog?.byUrl.get(scoreId)
+      if (listed) names.set(scoreId, listed.name)
     }
-    return logs
-  }
-
-  // `aggregateCache` is shared across the days of one journal read: the same
-  // score shows up on many days and its aggregate never changes mid-read.
-  async function buildDailyLog(sessions, aggregateCache) {
-    const scoreMap = new Map()
-
-    for (const session of sessions) {
-      if (!scoreMap.has(session.scoreId)) {
-        // Look up metadata from aggregate (single source of truth)
-        if (!aggregateCache.has(session.scoreId)) {
-          aggregateCache.set(session.scoreId, await storage.getAggregate(session.scoreId))
-        }
-        const aggregate = aggregateCache.get(session.scoreId)
-
-        scoreMap.set(session.scoreId, {
-          scoreId: session.scoreId,
-          scoreTitle: aggregate?.scoreTitle || null,
-          composer: aggregate?.composer || null,
-          totalMeasures: null,
-          sessions: [],
-          measuresWorked: new Set(),
-          measuresReinforced: new Set(),
-          totalPracticeTimeMs: 0,
-          lastPlayedAt: null,
-        })
-      }
-
-      const entry = scoreMap.get(session.scoreId)
-      entry.sessions.push(session)
-
-      if (session.totalMeasures) {
-        entry.totalMeasures = session.totalMeasures
-      }
-
-      const sessionDuration = computeSessionDuration(session)
-      entry.totalPracticeTimeMs += sessionDuration
-
-      const sessionLastPlayedAt = getLastMeasureEndTime(session)
-      if (!entry.lastPlayedAt || sessionLastPlayedAt > entry.lastPlayedAt) {
-        entry.lastPlayedAt = sessionLastPlayedAt
-      }
-
-      for (const measure of session.measures) {
-        const measureIndex = Number(measure.sourceMeasureIndex)
-        entry.measuresWorked.add(measureIndex)
-        if (session.mode === 'training') {
-          entry.measuresReinforced.add(measureIndex)
-        }
-      }
-    }
-
-    return Array.from(scoreMap.values())
-      .map(withPlaythroughs)
-      .sort((a, b) => b.lastPlayedAt - a.lastPlayedAt)
-  }
-
-  // The tail both groupings share: the sets they filled become sorted arrays,
-  // and their sessions become the runs through the whole score they hold.
-  // `timesPlayedInFull` stays what it says — the two-handed ones.
-  function withPlaythroughs(entry) {
-    const fullPlaythroughs = getFullPlaythroughs(entry.sessions, entry.totalMeasures)
-    return {
-      ...entry,
-      measuresWorked: Array.from(entry.measuresWorked).sort((a, b) => a - b),
-      measuresReinforced: Array.from(entry.measuresReinforced).sort((a, b) => a - b),
-      fullPlaythroughs,
-      timesPlayedInFull: fullPlaythroughs.filter((pt) => pt.hands === TWO_HANDS).length,
-    }
+    return dates.map((date) => buildDailyLog(byDay.get(localDayKey(date)) ?? [], names))
   }
 
   async function getScoreHistory(scoreId) {
-    const sessions = await storage.getSessions(scoreId)
-
-    // Group sessions by date
-    const dateMap = new Map()
-
-    for (const session of sessions) {
-      const dateKey = session.startedAt.substring(0, 10)
-
-      if (!dateMap.has(dateKey)) {
-        dateMap.set(dateKey, {
-          date: dateKey,
-          sessions: [],
-          measuresWorked: new Set(),
-          measuresReinforced: new Set(),
-          totalPracticeTimeMs: 0,
-          totalMeasures: null,
-          lastPlayedAt: null,
-        })
-      }
-
-      const entry = dateMap.get(dateKey)
-      entry.sessions.push(session)
-
-      if (session.totalMeasures) {
-        entry.totalMeasures = session.totalMeasures
-      }
-
-      const sessionDuration = computeSessionDuration(session)
-      entry.totalPracticeTimeMs += sessionDuration
-
-      const sessionLastPlayedAt = getLastMeasureEndTime(session)
-      if (!entry.lastPlayedAt || sessionLastPlayedAt > entry.lastPlayedAt) {
-        entry.lastPlayedAt = sessionLastPlayedAt
-      }
-
-      for (const measure of session.measures) {
-        const measureIndex = Number(measure.sourceMeasureIndex)
-        entry.measuresWorked.add(measureIndex)
-        if (session.mode === 'training') {
-          entry.measuresReinforced.add(measureIndex)
-        }
-      }
-    }
-
-    return Array.from(dateMap.values())
-      .map(withPlaythroughs)
-      .sort((a, b) => new Date(b.date) - new Date(a.date))
-  }
-
-  async function getAllScores() {
-    return storage.getAllAggregates()
+    return buildScoreHistory(await storage.getSessions(scoreId))
   }
 }

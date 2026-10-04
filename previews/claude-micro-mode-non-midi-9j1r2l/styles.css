@@ -6,7 +6,7 @@
    makes layer order outrank specificity, so a component always wins over the
    base rules whatever the two selectors weigh. Without it the file only
    *described* a hierarchy — .pt-sr-only (0-1-0) lost to the base's
-   `input:not([type="checkbox"], [type="radio"])` (0-1-1) and a visually
+   `input:not([type="checkbox"])` (0-1-1) and a visually
    hidden file input kept width:100%, which scrolled the whole page sideways
    on a phone.
 
@@ -15,6 +15,13 @@
    left outside every layer beats all of them, so the space after the last
    closer is a trap rather than a place to append; test/css_layers_test.rb
    fails if anything lands there.
+
+   Where a rule goes. The components layer opens on the pieces more than one
+   page is built from — page shells and header, text, layout, controls (a
+   small bordered control in a row of others is a .pt-chip), the journal
+   line, the footer — and each page's own rules follow under its banner; a
+   class a second page starts using moves up there. A font size is a step of
+   the type scale in the tokens, never a new rem.
 
    The blocks are deliberately not indented: re-indenting 1800 lines to add
    four wrappers would bury the change in whitespace and cost the blame.
@@ -120,6 +127,11 @@
   --pt-transition-fast: 120ms ease;
   --pt-transition-med: 220ms ease;
 
+  /* The height every control in the score page's bars shares — the modebar's
+     segmented tracks and chips, a band's cluster and the line beside it — so
+     that each bar reads as one band. */
+  --pt-bar-control: 34px;
+
   /* On-screen keyboard (keyboardHint.js): its caption bar and its keys. The
      spacer under the score is sized from them, so the last system can always
      be scrolled clear of the strip. */
@@ -138,6 +150,22 @@
   /* Typography */
   --pt-font-ui: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --pt-font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  /* The type scale: every font size set in rem is one of these steps. The
+     first six set text, the last four display — headings, figures, glyphs. A
+     size between two steps is a new step, not a new number in a rule. What is
+     left off it is sized off something else on purpose: code off the line it
+     sits in, the chart's labels in the chart's own units, and the landing's
+     headline, which grows with the window from the 4xl step up. */
+  --pt-font-size-2xs: 0.7rem;   /* the keys' names, the calendar's labels */
+  --pt-font-size-xs: 0.78rem;   /* eyebrows, table heads, counts, captions */
+  --pt-font-size-sm: 0.875rem;  /* chips and bars, hints, secondary text */
+  --pt-font-size-md: 1rem;      /* body, buttons, fields */
+  --pt-font-size-lg: 1.125rem;  /* the landing's lead, a panel's heading */
+  --pt-font-size-xl: 1.25rem;   /* section headings, the year's figures */
+  --pt-font-size-2xl: 1.4rem;   /* a result's figure, the count-in */
+  --pt-font-size-3xl: 1.6rem;   /* page titles */
+  --pt-font-size-4xl: 2rem;     /* the fingering being typed, the spinner */
+  --pt-font-size-5xl: 2.5rem;   /* a profile's avatar */
 
   /* Form-control surfaces (own values, previously Pico's form-element-*) */
   --pt-field-bg: #fbfcfc;
@@ -148,9 +176,9 @@
   /* Icons drawn as background images. A data: URI cannot read a custom
      property, so the stroke colors are literals — keep them in step with
      --pt-text-subtle / --pt-text-inverse above. */
-  /* Stroked in --pt-text-muted rather than the --pt-text-subtle the other Pico
-     icons use: .pt-select draws this at 10px, where subtle stops reading as an
-     affordance. The bare <select> and the <details> marker draw it at 1rem. */
+  /* Stroked in --pt-text-muted rather than the --pt-text-subtle the close and
+     spinner icons use: every dropdown draws it in a 1rem box, which the glyph
+     half fills — an 8px chevron, where subtle stops reading as an affordance. */
   --pt-icon-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%235b6270' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
   --pt-icon-close: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%238a90a0' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cline x1='18' y1='6' x2='6' y2='18'/%3E%3Cline x1='6' y1='6' x2='18' y2='18'/%3E%3C/svg%3E");
   --pt-icon-check: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23ffffff' stroke-width='4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='20 6 9 17 4 12'/%3E%3C/svg%3E");
@@ -187,18 +215,19 @@
   tab-size: 4;
 }
 
-body { width: 100%; margin: 0; }
-main { display: block; }
+body { margin: 0; }
 section { margin-bottom: 1rem; }
 ::selection { background: color-mix(in srgb, var(--pt-accent) 25%, transparent); }
 
 /* Typographic rhythm: one bottom margin, no top margin, so stacked blocks
    never collapse into each other unpredictably. */
-p, ul, ol, dl, table, blockquote, pre, figure, details { margin: 0 0 1rem; }
+p, ul, ol, dl, table, details { margin: 0 0 1rem; }
 ul li { list-style: square; }
 li { margin-bottom: var(--pt-space-1); }
 strong, b { font-weight: bolder; }
-code, kbd, samp, pre {
+code {
+  display: inline-block;
+  padding: 0.375rem;
   font-family: var(--pt-font-mono);
   font-size: 0.875em;
   line-height: initial;
@@ -206,23 +235,20 @@ code, kbd, samp, pre {
   background: var(--pt-surface-2);
   color: var(--pt-text-muted);
 }
-code, kbd, samp { display: inline-block; padding: 0.375rem; }
-kbd { font-weight: bolder; }
-pre { overflow: auto; }
 table { width: 100%; }
 th { text-align: left; }
 label { display: block; margin-bottom: 6px; }
 a[role="button"] { display: inline-block; }
 
-/* Centred page column. The gutters exist only below 576px, where the column
-   is full-width; wider than that the auto margins are the gutters. Pages that
-   set their own max-width therefore restore padding-inline themselves. */
-.container { width: 100%; margin-inline: auto; padding-inline: var(--pt-space-4); }
-@media (min-width: 576px) { .container { padding-inline: 0; } }
+/* Centred page column, with its gutters at every width: the auto margins
+   centre it once the window is wider than the page's own max-width (below),
+   and until then the padding is what keeps its text off the edges. */
+.container { margin-inline: auto; padding-inline: var(--pt-space-4); }
 
 /* --- Buttons ---------------------------------------------------------------
-   `.outline.secondary` is the only variant the app uses; a plain button is
-   the accent-filled primary. */
+   A plain button is the accent-filled primary. The variants are `.danger`,
+   filled, and the two outlined ones, `.outline.secondary` and
+   `.outline.danger` — `.outline` and `.secondary` never go alone. */
 :is(button, [role="button"]) {
   padding: 0.75rem 1rem;
   border: 1px solid var(--pt-accent);
@@ -230,7 +256,7 @@ a[role="button"] { display: inline-block; }
   background: var(--pt-accent);
   color: var(--pt-text-inverse);
   font-family: inherit;
-  font-size: 1rem;
+  font-size: var(--pt-font-size-md);
   font-weight: 400;
   line-height: 1.5;
   letter-spacing: inherit;
@@ -249,23 +275,11 @@ a[role="button"] { display: inline-block; }
   border-color: var(--pt-accent-strong);
 }
 /* A submit button is a form block: full width, with the same bottom margin as
-   the fields above it. Toolbars override both. */
+   the fields above it. A form that sets it beside its field overrides both
+   (.pt-account-form). */
 button[type="submit"] { width: 100%; margin-bottom: 1rem; }
-:is(button, [role="button"]).outline {
-  background: transparent;
-  color: var(--pt-accent);
-}
-:is(button, [role="button"]).outline:hover {
-  background-color: transparent;
-  border-color: var(--pt-accent-strong);
-  color: var(--pt-accent-strong);
-}
-:is(button, [role="button"]).secondary {
-  border-color: var(--pt-text-muted);
-  background: var(--pt-text-muted);
-  color: var(--pt-text-inverse);
-}
 :is(button, [role="button"]).outline.secondary {
+  border-color: var(--pt-text-muted);
   background: transparent;
   color: var(--pt-text-muted);
 }
@@ -278,7 +292,6 @@ button[type="submit"] { width: 100%; margin-bottom: 1rem; }
 :is(button, [role="button"]).danger {
   border-color: var(--pt-error);
   background: var(--pt-error);
-  color: var(--pt-text-inverse);
 }
 :is(button, [role="button"]).danger:hover {
   border-color: color-mix(in srgb, var(--pt-error) 80%, black);
@@ -294,8 +307,7 @@ button[type="submit"] { width: 100%; margin-bottom: 1rem; }
   color: var(--pt-error);
 }
 
-:is(button, [role="button"]):disabled,
-:is(button, [role="button"])[aria-disabled="true"] {
+:is(button, [role="button"]):disabled {
   opacity: 0.5;
   cursor: not-allowed;
   pointer-events: none;
@@ -309,17 +321,17 @@ button[type="submit"] { width: 100%; margin-bottom: 1rem; }
 }
 
 /* --- Form controls --------------------------------------------------------- */
-input, optgroup, select, textarea {
+input, select, textarea {
   margin: 0;
   font-family: inherit;
-  font-size: 1rem;
+  font-size: var(--pt-font-size-md);
   line-height: 1.5;
   letter-spacing: inherit;
 }
 /* The :where() this carried is gone: the layer does that job now, and does it
    for every rule in here rather than this one. .pt-sr-only wins on being a
    component, whatever either selector weighs. */
-input:not([type="checkbox"], [type="radio"]), select, textarea {
+input:not([type="checkbox"]), select, textarea {
   display: block;
   width: 100%;
   margin-bottom: 1rem;
@@ -327,14 +339,14 @@ input:not([type="checkbox"], [type="radio"]), select, textarea {
 /* A field wrapped in its own <label> sits just under the label's text. */
 label > input, label > select, label > textarea { margin-top: var(--pt-space-1); }
 /* Helper text under a field, pulled up against it. */
-:where(input, select, textarea, fieldset) + small {
+:where(input, select, textarea) + small {
   display: block;
   width: 100%;
   margin-top: -12px;
   margin-bottom: 1rem;
   color: var(--pt-text-muted);
 }
-input:not([type="checkbox"], [type="radio"], [type="range"], [type="file"]), select, textarea {
+input:not([type="checkbox"], [type="file"]), select, textarea {
   appearance: none;
   padding: 0.75rem 1rem;
   border: 1px solid var(--pt-field-border);
@@ -344,7 +356,7 @@ input:not([type="checkbox"], [type="radio"], [type="range"], [type="file"]), sel
   transition: background-color var(--pt-transition-fast), border-color var(--pt-transition-fast),
     color var(--pt-transition-fast), box-shadow var(--pt-transition-fast);
 }
-input:not([type="checkbox"], [type="radio"], [type="range"], [type="file"]):focus, select:focus, textarea:focus {
+input:not([type="checkbox"], [type="file"]):focus, select:focus, textarea:focus {
   outline: none;
   border-color: var(--pt-accent);
   background-color: var(--pt-field-bg-active);
@@ -361,7 +373,7 @@ select:not([multiple], [size]) {
   background-position: center right 0.75rem;
   background-size: 1rem auto;
 }
-[type="checkbox"], [type="radio"] {
+[type="checkbox"] {
   appearance: none;
   width: 1.25em;
   height: 1.25em;
@@ -373,17 +385,12 @@ select:not([multiple], [size]) {
   vertical-align: middle;
   cursor: pointer;
 }
-[type="radio"] { border-radius: 50%; }
-[type="checkbox"]:checked, [type="radio"]:checked {
+[type="checkbox"]:checked {
   border-color: var(--pt-accent);
   background-color: var(--pt-accent);
   background-image: var(--pt-icon-check);
   background-position: center;
   background-size: 0.75em auto;
-}
-[type="radio"]:checked {
-  background-image: none;
-  box-shadow: inset 0 0 0 0.25em var(--pt-bg-elevated);
 }
 
 /* --- Busy state ------------------------------------------------------------
@@ -463,10 +470,9 @@ dialog > article :is(a, button)[rel="prev"]::after {
 }
 dialog > article :is(a, button)[rel="prev"]:hover { opacity: 1; background-color: transparent; }
 
-/* Tighter base */
 /* The background goes on html as well as body: body only grows to fit its
    content, so any page shorter than the viewport — the score page while it is
-   still loading, most of all — showed Pico's white html background as a band
+   still loading, most of all — showed the white html background as a band
    underneath. */
 html { font-size: 100%; background: var(--pt-bg); }
 body {
@@ -485,21 +491,282 @@ body {
    got the full viewport it declares. */
 main.container { padding-block: var(--pt-space-4); max-width: var(--pt-page-max, 1200px); }
 
-/* Headings tighter than the base scale */
-h1 { font-size: 1.6rem; font-weight: 600; line-height: 1.125; margin: 0 0 var(--pt-space-3); letter-spacing: -0.01em; }
-h2 { font-size: 1.2rem; font-weight: 600; line-height: 1.15; margin: 0 0 var(--pt-space-3); }
-h3 { font-size: 1rem; font-weight: 600; line-height: 1.175; margin: 0 0 var(--pt-space-2); }
-h4 { font-size: 0.95rem; font-weight: 600; line-height: 1.2; margin: 0 0 var(--pt-space-2); }
-h5, h6 { font-size: 0.9rem; font-weight: 600; line-height: 1.225; margin: 0 0 var(--pt-space-2); }
+/* Headings, on a tighter scale than the browser's. */
+h1 { font-size: var(--pt-font-size-3xl); font-weight: 600; line-height: 1.125; margin: 0 0 var(--pt-space-3); letter-spacing: -0.01em; }
+h2 { font-size: var(--pt-font-size-xl); font-weight: 600; line-height: 1.15; margin: 0 0 var(--pt-space-3); }
+h3 { font-size: var(--pt-font-size-md); font-weight: 600; line-height: 1.175; margin: 0 0 var(--pt-space-2); }
+h4 { font-size: var(--pt-font-size-md); font-weight: 600; line-height: 1.2; margin: 0 0 var(--pt-space-2); }
 
 a { color: var(--pt-accent); text-decoration: none; }
 a:hover { text-decoration: underline; }
 
-button { transition: background-color var(--pt-transition-fast), border-color var(--pt-transition-fast), color var(--pt-transition-fast); }
-
 } /* @layer base */
 
 @layer components {
+/* =============================================================================
+   Shared components — the pieces more than one page is built from. Each page's
+   own rules follow, under its banner.
+   ========================================================================== */
+
+/* --- Page shells ----------------------------------------------------------
+   The <main> of the pages that are a column of cards (data, practice) or of
+   prose (privacy, support). The container gives the gutters and centres the
+   column; each page names its width. */
+.pt-data-page,
+.pt-practice-page,
+.pt-prose {
+  padding-block: var(--pt-space-5) var(--pt-space-8);
+}
+/* Card pages stack their cards; .pt-prose is left out — its rhythm comes from
+   the headings, not from a flex gap. */
+.pt-data-page,
+.pt-practice-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pt-space-4);
+}
+.pt-data-page { --pt-page-max: 720px; }
+/* Wide enough that a full 53-column year fits without scrolling on a laptop. */
+.pt-practice-page { --pt-page-max: 1080px; }
+/* Long-form text pages (privacy, support): the data page's reading measure. */
+.pt-prose { --pt-page-max: 720px; }
+.pt-prose h2 { margin-block: var(--pt-space-8) var(--pt-space-3); }
+.pt-prose p { margin-block: 0 var(--pt-space-3); max-width: 68ch; }
+
+/* --- Page header: back link, title, actions -------------------------------- */
+.pt-page-header {
+  display: flex;
+  align-items: center;
+  gap: var(--pt-space-4);
+  flex-wrap: wrap;
+}
+.pt-page-header h1 { margin: 0; flex-shrink: 0; }
+.pt-page-header__actions { margin-left: auto; display: flex; gap: var(--pt-space-2); align-items: center; }
+.pt-page-header__search {
+  position: relative;
+  flex: 1 1 320px;
+  max-width: 420px;
+  min-width: 240px;
+}
+.pt-page-header__search input[type="search"] {
+  margin: 0;
+  padding: 8px 12px 8px 32px;
+  border-radius: var(--pt-radius-md);
+  background: var(--pt-bg-elevated);
+  font-size: var(--pt-font-size-sm);
+}
+.pt-page-header__search::before {
+  content: "🔍";
+  position: absolute;
+  left: 8px; top: 50%;
+  transform: translateY(-50%);
+  font-size: var(--pt-font-size-xs);
+  pointer-events: none;
+  color: var(--pt-text-muted);
+  opacity: 0.6;
+}
+@media (max-width: 600px) {
+  .pt-page-header { gap: var(--pt-space-2); }
+  .pt-page-header__actions { width: 100%; }
+  .pt-page-header__search { max-width: none; }
+}
+/* The way back to the library: in a page header, and in the score's topbar. */
+.pt-back {
+  color: var(--pt-text-muted);
+  font-size: var(--pt-font-size-sm);
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--pt-space-1);
+}
+.pt-back:hover { color: var(--pt-text); text-decoration: none; }
+
+/* --- Text ------------------------------------------------------------------ */
+.pt-hint { color: var(--pt-text-muted); font-size: var(--pt-font-size-sm); }
+
+/* The small uppercase label above a section or a figure — the ⚙️ menu's
+   "Langue" too, which keeps a heading's margin under it. */
+.pt-eyebrow,
+.pt-popover h4 {
+  font-size: var(--pt-font-size-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--pt-text-subtle);
+}
+.pt-eyebrow { margin: 0; }
+
+/* --- Layout ---------------------------------------------------------------- */
+/* A title on the left, its controls pushed to the right. */
+.pt-row-between {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--pt-space-3);
+  flex-wrap: wrap;
+}
+
+/* A bordered section: what the data and practice pages are a column of, and
+   the landing's feature grid is made of. */
+.pt-card {
+  background: var(--pt-surface);
+  border: 1px solid var(--pt-border);
+  border-radius: var(--pt-radius-lg);
+  padding: var(--pt-space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--pt-space-2);
+  box-shadow: var(--pt-shadow-sm);
+  transition: border-color var(--pt-transition-fast), box-shadow var(--pt-transition-fast);
+}
+/* Vertical rhythm for a card's contents: one gap owns the spacing, so nested
+   Alpine wrappers (template > div) don't each need margins of their own.
+   Defined after .pt-card so its roomier gap wins over the card's own. */
+.pt-stack { display: flex; flex-direction: column; gap: var(--pt-space-3); }
+.pt-stack > * { margin: 0; }
+/* For a list of like items rather than a card's mixed contents: the journal's
+   days, and the entries of a day. */
+.pt-stack--tight { gap: var(--pt-space-2); }
+
+/* --- Controls -------------------------------------------------------------- */
+/* A square button holding one glyph: the ⚙️ menu, the calendar's year arrows
+   and close, the on-screen keyboard's ✕. */
+/* No `cursor: pointer` here: the base gives it to every button and takes it
+   back on :disabled, which is what a disabled year-nav arrow wants. The
+   declaration this component used to carry only ever won by out-specifying
+   that, which is exactly the accident the layers removed. */
+.pt-icon-button {
+  width: 38px; height: 38px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--pt-bg-elevated);
+  border: 1px solid var(--pt-border);
+  border-radius: var(--pt-radius-md);
+  color: var(--pt-text-muted);
+  line-height: 1;
+  padding: 0;
+}
+.pt-icon-button:hover { background: var(--pt-surface-2); border-color: var(--pt-border-strong); color: var(--pt-text); }
+.pt-icon-button[aria-pressed="true"] { background: var(--pt-accent-soft); color: var(--pt-accent); border-color: color-mix(in srgb, var(--pt-accent) 25%, transparent); }
+
+/* A chip: the small bordered control that sits in a row of others — the
+   pills of the score's topbar and of the library header, the library's
+   filters and focus toggles, the modebar's badge and buttons, the score's
+   dialogs' actions. One box and one type size, whatever element it is, so a
+   row of them lines up; what a kind of chip changes is its colours, and for
+   a few its corners. Hover takes a button or a link only: a status drawn as
+   a chip is not something to press. */
+.pt-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border: 1px solid var(--pt-border);
+  border-radius: var(--pt-radius-pill);
+  background-color: var(--pt-bg-elevated);
+  color: var(--pt-text);
+  font-size: var(--pt-font-size-sm);
+  font-weight: 500;
+  line-height: 1.5;
+  white-space: nowrap;
+  text-decoration: none;
+}
+:where(button, a).pt-chip:hover { background-color: var(--pt-surface-2); border-color: var(--pt-border-strong); }
+.pt-chip:disabled { opacity: 0.4; cursor: default; }
+
+/* Compact dropdown, at the height of the chips it sits among rather than of a
+   form column's field — the composer and period filters, and the
+   narrow-screen sort. */
+.pt-select {
+  margin: 0;
+  padding: 4px 28px 4px 12px;
+  border-radius: var(--pt-radius-md);
+  background-color: var(--pt-surface-2);
+  border: 1px solid var(--pt-border-strong);
+  font-size: var(--pt-font-size-sm);
+  color: var(--pt-text);
+  width: auto;
+  min-width: 180px;
+  /* The chevron the base draws on a bare <select>, the same size, so every
+     dropdown in the app shows the same mark — only the inset is tighter, this
+     control sitting among chips rather than filling a form column. */
+  background-position: right 8px center;
+}
+.pt-select:hover { background-color: var(--pt-bg-elevated); }
+.pt-select:focus { outline: 2px solid color-mix(in srgb, var(--pt-accent) 30%, transparent); outline-offset: 1px; }
+
+/* FR/EN language switch: the landing's nav, and the ⚙️ menu. */
+.pt-langswitch {
+  display: inline-flex;
+  flex: 0 0 auto;
+  border: 1px solid var(--pt-border);
+  border-radius: var(--pt-radius-pill);
+  overflow: hidden;
+  background: var(--pt-surface);
+}
+.pt-langswitch button {
+  flex: 0 0 auto;
+  padding: 8px 14px;
+  font-size: var(--pt-font-size-sm);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--pt-text-muted);
+  background: transparent;
+  border: none;
+  border-radius: 0;
+}
+.pt-langswitch button[aria-pressed="true"] {
+  background: var(--pt-accent);
+  color: var(--pt-text-inverse);
+}
+
+/* Status pills (déchiffrage / perfectionnement / répertoire). */
+.pt-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 10px;
+  border-radius: var(--pt-radius-pill);
+  font-size: var(--pt-font-size-xs);
+  font-weight: 500;
+  background: var(--pt-surface-2);
+  color: var(--pt-text-muted);
+  border: 1px solid var(--pt-border);
+  white-space: nowrap;
+  text-decoration: none;
+}
+.pt-pill::before {
+  content: "";
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.85;
+}
+.pt-pill--dechiffrage { background: var(--pt-status-dechiffrage-bg); color: var(--pt-status-dechiffrage); border-color: color-mix(in srgb, var(--pt-status-dechiffrage) 25%, transparent); }
+.pt-pill--perfectionnement { background: var(--pt-status-perfectionnement-bg); color: var(--pt-status-perfectionnement); border-color: color-mix(in srgb, var(--pt-status-perfectionnement) 25%, transparent); }
+.pt-pill--repertoire { background: var(--pt-status-repertoire-bg); color: var(--pt-status-repertoire); border-color: color-mix(in srgb, var(--pt-status-repertoire) 25%, transparent); }
+.pt-pill.is-link:hover { filter: brightness(0.97); }
+
+/* --- Journal entries (journalEntries.js) -----------------------------------
+   One score practised on one day: the library's journal and the calendar's
+   day panel. */
+.pt-journal__entry { font-size: var(--pt-font-size-xs); line-height: 1.4; color: var(--pt-text); }
+.pt-journal__entry a { color: var(--pt-text); font-weight: 500; }
+.pt-journal__entry a:hover { color: var(--pt-accent); text-decoration: none; }
+.pt-journal__entry small { color: var(--pt-text-muted); display: block; font-size: var(--pt-font-size-xs); margin-top: 2px; }
+.pt-journal__entry--empty { color: var(--pt-text-subtle); font-style: italic; }
+
+/* --- Footer ---------------------------------------------------------------- */
+.pt-footer {
+  text-align: center;
+  color: var(--pt-text-subtle);
+  font-size: var(--pt-font-size-sm);
+  padding-block: var(--pt-space-10) var(--pt-space-6);
+  border-top: 1px solid var(--pt-border);
+  margin-top: var(--pt-space-8);
+}
+/* Footer links sit on their own line under the tagline, wrapping to one line
+   each on a narrow screen rather than crowding it. */
+.pt-footer-links { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--pt-space-4); margin-top: var(--pt-space-2); }
+
 /* =============================================================================
    Topbar (sticky page header on score.html)
    ========================================================================== */
@@ -520,19 +787,9 @@ button { transition: background-color var(--pt-transition-fast), border-color va
   padding: var(--pt-space-2) var(--pt-space-4);
   min-height: 48px;
 }
-.pt-topbar__back {
-  color: var(--pt-text-muted);
-  font-size: 0.9rem;
-  flex-shrink: 0;
-  display: inline-flex;
-  align-items: center;
-  gap: var(--pt-space-1);
-}
-.pt-topbar__back:hover { color: var(--pt-text); text-decoration: none; }
 .pt-topbar__title {
   flex: 1;
   min-width: 0;
-  font-size: 0.95rem;
   font-weight: 500;
   color: var(--pt-text);
   overflow: hidden;
@@ -542,83 +799,25 @@ button { transition: background-color var(--pt-transition-fast), border-color va
 .pt-topbar__title small { color: var(--pt-text-muted); font-weight: 400; margin-left: var(--pt-space-2); }
 .pt-topbar__actions { display: flex; align-items: center; gap: var(--pt-space-2); flex-shrink: 0; }
 
-.pt-midi-status {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--pt-space-1);
-  padding: 4px 10px;
-  border-radius: var(--pt-radius-pill);
-  background: var(--pt-success-bg);
-  color: var(--pt-success);
-  font-size: 0.85rem;
-  font-weight: 500;
-}
-.pt-midi-status.is-disconnected { background: var(--pt-surface-2); color: var(--pt-text-muted); }
-.pt-midi-status button {
-  background: transparent;
-  border: none;
-  padding: 0;
-  color: inherit;
-  font: inherit;
-  cursor: pointer;
-  text-decoration: underline dotted;
-}
-
-/* Small pill button in the topbar (e.g. Historique). Less prominent than
-   .pt-action-button so it doesn't compete with the modebar actions. */
-button.pt-topbar__pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  background: var(--pt-bg-elevated);
-  border: 1px solid var(--pt-border);
-  border-radius: var(--pt-radius-pill);
-  padding: 4px 12px;
-  color: var(--pt-text);
-  font-size: 0.85rem;
-  font-weight: 500;
-  cursor: pointer;
-  margin: 0;
-  width: auto;
-  height: auto;
-}
-button.pt-topbar__pill:hover { background: var(--pt-surface-2); border-color: var(--pt-border-strong); }
-button.pt-topbar__pill:disabled { opacity: 0.4; cursor: default; }
+/* The MIDI keyboard's pill: a status once one is connected, and until then
+   the button that connects one, muted. */
+.pt-midi-status:not(.is-disconnected) { background-color: var(--pt-success-bg); color: var(--pt-success); border-color: transparent; }
+.pt-midi-status.is-disconnected { background-color: var(--pt-surface-2); color: var(--pt-text-muted); }
 
 /* Part navigator in the topbar (collections, e.g. exercices de Hanon) */
 .pt-part-nav { display: flex; align-items: center; gap: var(--pt-space-1); flex-shrink: 0; }
 .pt-part-nav select {
   margin: 0;
   width: auto;
-  height: auto;
   padding: 4px 36px 4px 12px;
-  font-size: 0.85rem;
+  font-size: var(--pt-font-size-sm);
   border-radius: var(--pt-radius-pill);
 }
 
-/* Icon buttons (settings, history) */
-/* No `cursor: pointer` here: the base gives it to every button and takes it
-   back on :disabled, which is what a disabled year-nav arrow wants. The
-   declaration this component used to carry only ever won by out-specifying
-   that, which is exactly the accident the layers removed. */
-.pt-icon-button {
-  width: 38px; height: 38px;
-  display: inline-flex; align-items: center; justify-content: center;
-  background: var(--pt-bg-elevated);
-  border: 1px solid var(--pt-border);
-  border-radius: var(--pt-radius-md);
-  color: var(--pt-text-muted);
-  font-size: 1.05rem;
-  line-height: 1;
-  margin: 0;
-  padding: 0;
-}
-.pt-icon-button:hover { background: var(--pt-surface-2); border-color: var(--pt-border-strong); color: var(--pt-text); }
-.pt-icon-button[aria-pressed="true"] { background: var(--pt-accent-soft); color: var(--pt-accent); border-color: color-mix(in srgb, var(--pt-accent) 25%, transparent); }
-/* On the score topbar the gear sits among pill buttons — match their height and
+/* On the score topbar the gear sits among chips — match their height and
    round shape instead of the taller, square library style (which matches the
    search box there). */
-.pt-topbar__actions .pt-icon-button { width: 30px; height: 30px; border-radius: var(--pt-radius-pill); font-size: 1rem; }
+.pt-topbar__actions .pt-icon-button { width: 30px; height: 30px; border-radius: var(--pt-radius-pill); }
 
 /* =============================================================================
    Modebar (segmented control + reinforcement badge + listen)
@@ -633,65 +832,22 @@ button.pt-topbar__pill:disabled { opacity: 0.4; cursor: default; }
   padding: var(--pt-space-2) var(--pt-space-4);
   flex-wrap: wrap;
 }
-/* Neutralize the base button/input/label defaults inside our toolbars.
-   The base form-group margin-bottoms (16px on <div role="group">, 6px on
-   <label>) otherwise interact with flex-wrap to push items to different
-   vertical positions even when they share the same height. */
-.pt-modebar button, .pt-topbar button { margin: 0; width: auto; }
-.pt-modebar input { margin: 0; }
-.pt-modebar > * { flex: 0 0 auto; margin: 0; align-self: center; }
-.pt-modebar__spacer { flex: 1 1 auto !important; min-width: var(--pt-space-3); }
+.pt-modebar > * { flex: 0 0 auto; }
+.pt-modebar__spacer { flex: 1 1 auto; min-width: var(--pt-space-3); }
 
-/* Normalize control heights so segmented / BPM / hands / action button
-   share a baseline. Keeps the toolbar visually a single horizontal band.
-   Inner items are explicitly sized so the base button paddings don't make
-   them overflow the outer container. */
+/* Normalize control heights so the segmented controls and the chips share a
+   baseline. Keeps the toolbar visually a single horizontal band. Inner items
+   are explicitly sized so the base button paddings don't make them overflow
+   the outer container. */
 .pt-modebar > .pt-segmented,
 .pt-modebar > .pt-hands,
-.pt-modebar > .pt-action-button { display: inline-flex; align-items: center; box-sizing: border-box; height: 34px; padding-block: 0; }
-.pt-modebar .pt-segmented button { height: 28px; padding-block: 0; line-height: 28px; }
+.pt-modebar > .pt-chip { align-items: center; height: var(--pt-bar-control); padding-block: 0; }
+.pt-modebar .pt-segmented button,
 .pt-modebar .pt-hands__option { height: 28px; padding-block: 0; line-height: 28px; }
-/* The reinforce badge stays inline-block (no flex) so the screen-reader
-   text stays a single line — Capybara matches "Renforcer N mesure" without
-   newlines splitting it across flex items. Sized via line-height to match
-   the 34px shared by the other modebar controls. */
-.pt-modebar > .pt-reinforce-badge { height: 34px; padding-block: 0; line-height: 32px; box-sizing: border-box; }
 
-.pt-segmented {
-  display: inline-flex;
-  background: var(--pt-surface-2);
-  border-radius: var(--pt-radius-md);
-  padding: 3px;
-  gap: 2px;
-  flex: 0 0 auto;
-  width: max-content;
-}
-.pt-segmented button {
-  background: transparent;
-  border: none;
-  padding: 6px 14px;
-  border-radius: 6px;
-  color: var(--pt-text-muted);
-  font-size: 0.88rem;
-  font-weight: 500;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  margin: 0;
-  width: auto;
-  flex: 0 0 auto;
-  white-space: nowrap;
-}
-.pt-segmented button:hover { color: var(--pt-text); }
-.pt-segmented button[aria-pressed="true"] {
-  background: var(--pt-bg-elevated);
-  color: var(--pt-text);
-  box-shadow: var(--pt-shadow-sm);
-}
-.pt-segmented button[data-mode="training"][aria-pressed="true"] { color: var(--pt-mode-training); }
-.pt-segmented button[data-mode="strict"][aria-pressed="true"] { color: var(--pt-mode-strict); }
-
+/* Two segmented controls on one track: the modes (buttons, one pressed) and
+   the hands (checkboxes, one ticked or both). */
+.pt-segmented,
 .pt-hands {
   display: inline-flex;
   background: var(--pt-surface-2);
@@ -699,20 +855,38 @@ button.pt-topbar__pill:disabled { opacity: 0.4; cursor: default; }
   padding: 3px;
   gap: 2px;
 }
+.pt-segmented button,
 .pt-hands__option {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 5px 10px;
   border-radius: 6px;
-  cursor: pointer;
-  font-size: 0.85rem;
   color: var(--pt-text-muted);
+  font-size: var(--pt-font-size-sm);
+}
+.pt-segmented button:hover,
+.pt-hands__option:hover { color: var(--pt-text); }
+.pt-segmented button[aria-pressed="true"],
+.pt-hands__option:has(input:checked) { background: var(--pt-bg-elevated); color: var(--pt-text); box-shadow: var(--pt-shadow-sm); }
+
+.pt-segmented { flex: 0 0 auto; width: max-content; }
+.pt-segmented button {
+  background: transparent;
+  border: none;
+  padding: 6px 14px;
+  font-weight: 500;
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+.pt-segmented button[data-mode="training"][aria-pressed="true"] { color: var(--pt-mode-training); }
+.pt-segmented button[data-mode="strict"][aria-pressed="true"] { color: var(--pt-mode-strict); }
+
+.pt-hands__option {
+  padding: 5px 10px;
+  cursor: pointer;
   margin: 0;
 }
-.pt-hands__option:hover { color: var(--pt-text); }
 .pt-hands__option input[type="checkbox"] { margin: 0; width: 14px; height: 14px; }
-.pt-hands__option:has(input:checked) { background: var(--pt-bg-elevated); color: var(--pt-text); box-shadow: var(--pt-shadow-sm); }
 /* Frozen for the length of a strict run: the checkbox dims on its own (base
    layer), the label has to stop offering itself. */
 .pt-hands__option:has(input:disabled) { cursor: not-allowed; color: var(--pt-text-muted); }
@@ -722,43 +896,27 @@ button.pt-topbar__pill:disabled { opacity: 0.4; cursor: default; }
 .pt-bpm-field input[type="number"] {
   margin: 0;
   font-family: var(--pt-font-mono);
-  font-size: 0.85rem;
+  font-size: var(--pt-font-size-sm);
   text-align: right;
 }
 .pt-bpm-field input[type="number"]:focus { outline: none; }
-.pt-bpm-field input[type="number"]:disabled { opacity: 0.5; }
-.pt-bpm-field__suffix { font-size: 0.78rem; padding-right: var(--pt-space-1); }
+.pt-bpm-field__suffix { font-size: var(--pt-font-size-xs); padding-right: var(--pt-space-1); }
 
+/* The chip that starts the drill on the bars to reinforce, in the mode's
+   colour — which its hover keeps, border included. */
 .pt-reinforce-badge {
-  display: inline-block;
-  padding: 6px 12px;
-  background: var(--pt-mode-reinforcement-bg);
+  background-color: var(--pt-mode-reinforcement-bg);
   color: var(--pt-mode-reinforcement);
-  border: 1px solid color-mix(in srgb, var(--pt-mode-reinforcement) 25%, transparent);
-  border-radius: var(--pt-radius-pill);
-  font-size: 0.85rem;
-  font-weight: 500;
-  cursor: pointer;
-  text-decoration: none;
-  line-height: 1.2;
-  white-space: nowrap;
+  border-color: color-mix(in srgb, var(--pt-mode-reinforcement) 25%, transparent);
 }
-.pt-reinforce-badge:hover { background: color-mix(in srgb, var(--pt-mode-reinforcement-bg) 80%, var(--pt-mode-reinforcement) 10%); text-decoration: none; }
+.pt-reinforce-badge:hover {
+  background-color: color-mix(in srgb, var(--pt-mode-reinforcement-bg) 80%, var(--pt-mode-reinforcement) 10%);
+  border-color: color-mix(in srgb, var(--pt-mode-reinforcement) 25%, transparent);
+}
 
-.pt-action-button {
-  display: inline-flex; align-items: center; gap: 6px;
-  background: var(--pt-bg-elevated);
-  border: 1px solid var(--pt-border);
-  border-radius: var(--pt-radius-md);
-  padding: 6px 14px;
-  margin: 0;
-  width: auto;
-  color: var(--pt-text);
-  font-size: 0.88rem;
-  font-weight: 500;
-  cursor: pointer;
-}
-.pt-action-button:hover { background: var(--pt-surface-2); }
+/* A chip that is a command: ▶ Écouter, a dialog's actions. Its corners are the
+   segmented controls' beside it rather than a pill's. */
+.pt-action-button { border-radius: var(--pt-radius-md); }
 .pt-action-button.is-active { background: var(--pt-accent-soft); color: var(--pt-accent); border-color: color-mix(in srgb, var(--pt-accent) 20%, transparent); }
 .pt-action-button.is-primary {
   background: var(--pt-accent);
@@ -769,8 +927,8 @@ button.pt-topbar__pill:disabled { opacity: 0.4; cursor: default; }
 
 /* Band cluster: transport + BPM (+ the strict band's loop controls) live in a
    single panel tinted with the band's own colour, so they read as an extension
-   of the band they sit in. Inner items share the same color/typography and are
-   separated by a divider, not by independent boxes that would look unrelated.
+   of the band they sit in. Inner items share the same color/typography in one
+   box, rather than independent boxes that would look unrelated.
    The tint is --pt-band / --pt-band-bg, set once per band below, which is what
    lets strict mode and playback share the whole component. */
 .pt-band-controls {
@@ -779,7 +937,7 @@ button.pt-topbar__pill:disabled { opacity: 0.4; cursor: default; }
      a cross-axis default here would say nothing — except to the next reader,
      who would take it for the thing keeping the cluster aligned and feel free
      to give an item a height of its own. That is 91bf14f9. */
-  height: 34px;
+  height: var(--pt-bar-control);
   flex: 0 0 auto;
   background: var(--pt-bg-elevated);
   border: 1px solid color-mix(in srgb, var(--pt-band) 30%, transparent);
@@ -787,7 +945,6 @@ button.pt-topbar__pill:disabled { opacity: 0.4; cursor: default; }
   overflow: hidden;
   color: var(--pt-band);
 }
-.pt-band-controls > * + * { border-left: 1px solid color-mix(in srgb, var(--pt-band) 20%, transparent); }
 .pt-band-controls > * {
   display: inline-flex;
   align-items: center;
@@ -800,24 +957,19 @@ button.pt-topbar__pill:disabled { opacity: 0.4; cursor: default; }
   border: none;
   background: transparent;
   color: var(--pt-band);
-  font-size: 0.88rem;
+  font-size: var(--pt-font-size-sm);
   font-weight: 600;
-  cursor: pointer;
   white-space: nowrap;
-  width: auto;
 }
 .pt-band-button:hover { background: color-mix(in srgb, var(--pt-band-bg) 70%, var(--pt-band) 12%); }
 .pt-band-button.is-playing { background: var(--pt-band); color: var(--pt-text-inverse); }
 .pt-band-button[aria-pressed="true"] { background: color-mix(in srgb, var(--pt-band) 18%, transparent); }
 /* Sized to its longest option, so a progression reads in full, the chevron
    close by; hovered and focused like the buttons beside it, with their
-   tint rather than the base ring. The selector outweighs the base layer's
-   select:not([multiple], [size]), which sets the chevron's padding. No height
-   here: a definite one opts the box out of the cluster's align-self: stretch
-   (feedback 91bf14f9). */
+   tint rather than the base ring. No height here: a definite one opts the box
+   out of the cluster's align-self: stretch (feedback 91bf14f9). */
 .pt-band-controls .pt-band-select {
   width: auto;
-  margin: 0;
   padding: 0 28px 0 10px;
   border: none;
   border-radius: 0;
@@ -825,7 +977,7 @@ button.pt-topbar__pill:disabled { opacity: 0.4; cursor: default; }
   background-position: right 8px center;
   box-shadow: none;
   color: var(--pt-band);
-  font-size: 0.85rem;
+  font-size: var(--pt-font-size-sm);
 }
 .pt-band-controls .pt-band-select:hover,
 .pt-band-controls .pt-band-select:focus {
@@ -834,9 +986,6 @@ button.pt-topbar__pill:disabled { opacity: 0.4; cursor: default; }
   background-color: color-mix(in srgb, var(--pt-band-bg) 70%, var(--pt-band) 12%);
 }
 .pt-band-controls .pt-bpm-field {
-  /* Not a border being undone: this outweighs the cluster's `> * + *`
-     divider, which the field is the one item not to take. */
-  border: none;
   gap: var(--pt-space-1);
   padding: 0 10px;
 }
@@ -844,7 +993,6 @@ button.pt-topbar__pill:disabled { opacity: 0.4; cursor: default; }
   width: 80px;
   padding: 4px 8px;
   border: 1px solid color-mix(in srgb, currentColor 25%, transparent);
-  border-radius: var(--pt-radius-sm);
   background: var(--pt-bg-elevated);
   color: var(--pt-band);
   height: 28px;
@@ -865,14 +1013,13 @@ button.pt-topbar__pill:disabled { opacity: 0.4; cursor: default; }
   /* One box for both buttons, so the glyph is centred in it — sized on the
      glyph, − and + land at different heights and neither lines up with the
      field. The height is the line's, taken by stretching rather than named:
-     34px is the band's *outer* height, and inside its 1px border there are
-     only 32, so a named 34 spent two of them under the cluster's
-     overflow: hidden — along with the top of these corners. */
+     --pt-bar-control is the band's *outer* height, and inside its 1px border
+     there are two pixels fewer, so naming it spent those two under the
+     cluster's overflow: hidden — along with the top of these corners. */
   width: 40px;
   align-self: stretch;
   padding: 0;
-  border-radius: var(--pt-radius-sm);
-  font-size: 1.15rem;
+  font-size: var(--pt-font-size-lg);
   line-height: 1;
   /* A held button must not be taken for a scroll, a text selection or a
      double-tap zoom. */
@@ -907,13 +1054,13 @@ button.pt-topbar__pill:disabled { opacity: 0.4; cursor: default; }
      of the line, and drop under the controls when it is too narrow. */
   flex-wrap: wrap;
   gap: var(--pt-space-3);
-  font-size: 0.85rem;
+  font-size: var(--pt-font-size-sm);
   color: var(--pt-band);
   /* The band holds its height as its contents swap from the hint to the
      count-in, so pressing ▶ does not shift the score the player is reading. */
   min-height: var(--pt-space-10);
 }
-.pt-context__row { display: flex; align-items: center; gap: var(--pt-space-3); flex: 1 1 auto; min-width: 0; min-height: 34px; }
+.pt-context__row { display: flex; align-items: center; gap: var(--pt-space-3); flex: 1 1 auto; min-width: 0; min-height: var(--pt-bar-control); }
 /* Playback is not a mode, so it takes the app's accent rather than a mode colour. */
 .pt-context--training { --pt-band: var(--pt-mode-training); --pt-band-bg: var(--pt-mode-training-bg); }
 .pt-context--strict { --pt-band: var(--pt-mode-strict); --pt-band-bg: var(--pt-mode-strict-bg); }
@@ -922,17 +1069,16 @@ button.pt-topbar__pill:disabled { opacity: 0.4; cursor: default; }
    picker takes a line of its own under the other three. */
 @media (max-width: 600px) {
   .pt-band-controls { flex-wrap: wrap; height: auto; max-width: 100%; }
-  .pt-band-controls > * { height: 34px; }
+  .pt-band-controls > * { height: var(--pt-bar-control); }
   /* Same two classes as the rule above it, so the border it puts back
      outweighs that rule's `border: none` by coming later. */
-  .pt-band-controls .pt-band-select { flex: 1 1 100%; border-left: none; border-top: 1px solid color-mix(in srgb, var(--pt-band) 20%, transparent); }
+  .pt-band-controls .pt-band-select { flex: 1 1 100%; border-top: 1px solid color-mix(in srgb, var(--pt-band) 20%, transparent); }
 }
-.pt-context label { color: inherit; font-weight: 500; }
 
 .pt-countin__beat {
   font-variant-numeric: tabular-nums;
   font-weight: 700;
-  font-size: 1.35rem;
+  font-size: var(--pt-font-size-2xl);
   line-height: 1;
   /* Every beat holds the width of the one that is lit, so the row does not
      jitter sideways as the count advances. */
@@ -969,7 +1115,6 @@ button.pt-topbar__pill:disabled { opacity: 0.4; cursor: default; }
   flex-direction: column;
   gap: var(--pt-space-3);
 }
-.pt-popover h4 { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--pt-text-subtle); margin: 0 0 var(--pt-space-2); font-weight: 600; }
 .pt-popover hr { border: none; border-top: 1px solid var(--pt-border); margin: 0; }
 .pt-popover__section { display: flex; flex-direction: column; gap: var(--pt-space-2); }
 
@@ -985,11 +1130,10 @@ button.pt-topbar__pill:disabled { opacity: 0.4; cursor: default; }
   border: 1px solid transparent;
   border-radius: var(--pt-radius-sm);
   color: var(--pt-text);
-  font-size: 0.9rem;
+  font-size: var(--pt-font-size-sm);
   font-weight: 500;
   text-align: left;
   text-decoration: none;
-  cursor: pointer;
 }
 /* Everything the menu offers a pointer hovers the same way — the FR/EN pill
    included, which has no hover of its own outside the menu. The language in
@@ -1003,39 +1147,11 @@ button.pt-topbar__pill:disabled { opacity: 0.4; cursor: default; }
    width (the section is a column flex, which would otherwise stretch it). */
 .pt-popover .pt-langswitch { align-self: flex-start; }
 
-/* Hide x-show/x-cloak elements until Alpine boots, so the popover doesn't flash
-   open on load. */
-[x-cloak] { display: none !important; }
-
 /* =============================================================================
    Data page (backup + account)
    ========================================================================== */
-/* The container drops its inline padding above 576px (it assumes a box
-   narrower than the viewport, centred by its auto margins), so a narrow page
-   has to restore the gutters itself — as .pt-landing does. */
-.pt-data-page,
-.pt-practice-page,
-.pt-prose {
-  padding-inline: var(--pt-space-4);
-  padding-block: var(--pt-space-5) var(--pt-space-8);
-}
-/* Card pages stack their cards; .pt-prose is left out — its rhythm comes from
-   the headings, not from a flex gap. */
-.pt-data-page,
-.pt-practice-page {
-  display: flex;
-  flex-direction: column;
-  gap: var(--pt-space-4);
-}
-.pt-data-page { --pt-page-max: 720px; }
-/* Wide enough that a full 53-column year fits without scrolling on a laptop. */
-.pt-practice-page { --pt-page-max: 1080px; }
-/* Long-form text pages (privacy, support): the data page's reading measure. */
-.pt-prose { --pt-page-max: 720px; }
-.pt-prose h2 { margin-block: var(--pt-space-8) var(--pt-space-3); font-size: 1.25rem; }
-.pt-prose p { margin-block: 0 var(--pt-space-3); max-width: 68ch; }
 .pt-data-actions { display: flex; flex-wrap: wrap; gap: var(--pt-space-2); align-items: center; }
-.pt-data-actions button, .pt-data-actions [role="button"] { margin: 0; width: auto; }
+.pt-data-actions button, .pt-data-actions [role="button"] { margin: 0; }
 .pt-account-form { display: flex; flex-wrap: wrap; gap: var(--pt-space-2); align-items: center; }
 /* Any input, not just the email one: the sign-in code field is type="text" and
    would otherwise keep the base full width and bottom margin, wrapping the
@@ -1057,9 +1173,11 @@ button.pt-topbar__pill:disabled { opacity: 0.4; cursor: default; }
 }
 .pt-data-identity strong { overflow-wrap: anywhere; }
 
-/* Profiles (profiles.js): the tiles that switch, in the chooser the library's
-   profile chip opens (a plain .pt-topbar__pill); the rows that edit, on the
-   data page. */
+/* =============================================================================
+   Profiles (profiles.js): the tiles that switch, in the chooser the library's
+   profile chip opens (a plain .pt-chip); the rows that edit, on the
+   data page.
+   ========================================================================== */
 .pt-profile-tiles {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
@@ -1072,25 +1190,16 @@ button.pt-topbar__pill:disabled { opacity: 0.4; cursor: default; }
   flex-direction: column;
   align-items: center;
   gap: var(--pt-space-2);
-  margin: 0;
   padding: var(--pt-space-4) var(--pt-space-2);
-  width: auto;
-  height: auto;
   background: var(--pt-surface);
   color: var(--pt-text);
   border: 2px solid var(--pt-border);
   border-radius: var(--pt-radius-lg);
 }
-.pt-profile-tile:hover { background: var(--pt-surface-2); border-color: var(--pt-border-strong); color: var(--pt-text); }
+.pt-profile-tile:hover { background: var(--pt-surface-2); border-color: var(--pt-border-strong); }
 .pt-profile-tile[aria-pressed="true"] { border-color: var(--pt-accent); background: var(--pt-accent-soft); }
-.pt-profile-tile__avatar { font-size: 2.5rem; line-height: 1; }
+.pt-profile-tile__avatar { font-size: var(--pt-font-size-5xl); line-height: 1; }
 .pt-profile-tile__name { font-weight: 600; overflow-wrap: anywhere; }
-/* A footer inside the scrolling body is out of reach of the
-   dialog > article > footer rule above, so its actions are laid out here.
-   At any depth, not just a direct child: such a footer often sits inside the
-   <form> it submits or the <div> an x-if branch wraps it in. */
-.pt-modal-body footer { display: flex; justify-content: flex-end; margin-top: var(--pt-space-4); }
-.pt-modal-body footer [role="button"] { margin: 0; width: auto; }
 
 /* A row of the profile list is a .pt-account-form with a box around it. */
 .pt-profile-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--pt-space-2); }
@@ -1100,152 +1209,64 @@ button.pt-topbar__pill:disabled { opacity: 0.4; cursor: default; }
   border-radius: var(--pt-radius-md);
 }
 .pt-profile-row.is-current { background: var(--pt-surface-2); }
-.pt-profile-row__current { color: var(--pt-text-muted); font-size: 0.85rem; white-space: nowrap; }
+.pt-profile-row__current { color: var(--pt-text-muted); font-size: var(--pt-font-size-sm); white-space: nowrap; }
 /* The avatar picker: one emoji wide, wherever it sits. */
-.pt-account-form select { margin: 0; width: auto; flex: 0 0 auto; padding-right: 2rem; font-size: 1.25rem; }
+.pt-account-form select { margin: 0; width: auto; flex: 0 0 auto; padding-right: 2rem; font-size: var(--pt-font-size-xl); }
 
 .pt-sync-ok { color: var(--pt-status-repertoire); font-weight: 500; }
-.pt-hint { color: var(--pt-text-muted); font-size: 0.9rem; }
-
-/* A title on the left, its controls pushed to the right. */
-.pt-row-between {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--pt-space-3);
-  flex-wrap: wrap;
-}
-
-/* The small uppercase label above a section or a figure. */
-.pt-eyebrow {
-  margin: 0;
-  font-size: 0.78rem;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--pt-text-subtle);
-}
-
-/* =============================================================================
-   Pills (status, generic)
-   ========================================================================== */
-
-.pt-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 2px 10px;
-  border-radius: var(--pt-radius-pill);
-  font-size: 0.78rem;
-  font-weight: 500;
-  background: var(--pt-surface-2);
-  color: var(--pt-text-muted);
-  border: 1px solid var(--pt-border);
-  white-space: nowrap;
-  text-decoration: none;
-}
-.pt-pill::before {
-  content: "";
-  width: 6px; height: 6px;
-  border-radius: 50%;
-  background: currentColor;
-  opacity: 0.85;
-}
-.pt-pill--dechiffrage { background: var(--pt-status-dechiffrage-bg); color: var(--pt-status-dechiffrage); border-color: color-mix(in srgb, var(--pt-status-dechiffrage) 25%, transparent); }
-.pt-pill--perfectionnement { background: var(--pt-status-perfectionnement-bg); color: var(--pt-status-perfectionnement); border-color: color-mix(in srgb, var(--pt-status-perfectionnement) 25%, transparent); }
-.pt-pill--repertoire { background: var(--pt-status-repertoire-bg); color: var(--pt-status-repertoire); border-color: color-mix(in srgb, var(--pt-status-repertoire) 25%, transparent); }
-.pt-pill.is-link:hover { filter: brightness(0.97); text-decoration: none; }
-
-/* =============================================================================
-   Cards (landing feature grid)
-   ========================================================================== */
-
-.pt-card-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: var(--pt-space-4);
-}
-
-.pt-card {
-  background: var(--pt-surface);
-  border: 1px solid var(--pt-border);
-  border-radius: var(--pt-radius-lg);
-  padding: var(--pt-space-4);
-  display: flex;
-  flex-direction: column;
-  gap: var(--pt-space-2);
-  box-shadow: var(--pt-shadow-sm);
-  transition: border-color var(--pt-transition-fast), box-shadow var(--pt-transition-fast);
-}
-/* Lift only in the browsable grid: elsewhere a card is a static section, and
-   highlighting it on hover reads as "clickable". */
-.pt-card-grid .pt-card:hover { border-color: var(--pt-border-strong); box-shadow: var(--pt-shadow-md); }
-
-/* Vertical rhythm for a card's contents: one gap owns the spacing, so nested
-   Alpine wrappers (template > div) don't each need margins of their own.
-   Defined after .pt-card so its roomier gap wins over the card's own. */
-.pt-stack { display: flex; flex-direction: column; gap: var(--pt-space-3); }
-.pt-stack > * { margin: 0; }
-
-
-/* Table layout. `overflow: hidden` on the
-   table would clip rounded corners cleanly but it also breaks sticky
-   thead, so the corner radii are applied directly to the four corner
-   cells instead. */
-table {
-  background: var(--pt-bg-elevated);
-  border: 1px solid var(--pt-border);
-  border-radius: var(--pt-radius-lg);
-  border-collapse: separate;
-  border-spacing: 0;
-  font-size: 0.92rem;
-}
-table thead th:first-child { border-top-left-radius: var(--pt-radius-lg); }
-table thead th:last-child  { border-top-right-radius: var(--pt-radius-lg); }
-table tbody tr:last-child td:first-child { border-bottom-left-radius: var(--pt-radius-lg); }
-table tbody tr:last-child td:last-child  { border-bottom-right-radius: var(--pt-radius-lg); }
-table thead th {
-  background: var(--pt-surface-2);
-  padding: var(--pt-space-2) var(--pt-space-4);
-  font-size: 0.78rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--pt-text-muted);
-  border: none;
-}
-table tbody td {
-  padding: var(--pt-space-3) var(--pt-space-4);
-  border: none;
-  border-top: 1px solid var(--pt-border);
-  vertical-align: middle;
-}
-table tbody tr:first-child td { border-top: none; }
-table tbody tr { transition: background-color var(--pt-transition-fast); }
-table tbody tr:hover { background: var(--pt-surface-2); }
-table th.pt-th-right { text-align: right; }
-table th.pt-th-sort { cursor: pointer; user-select: none; }
-table th.pt-th-sort:hover { color: var(--pt-text); background: var(--pt-border); }
-table th.pt-th-sort[aria-sort="ascending"],
-table th.pt-th-sort[aria-sort="descending"] { color: var(--pt-text); }
-table tbody td a:not(.pt-pill) { color: var(--pt-text); font-weight: 500; }
-table tbody td a:not(.pt-pill):hover { color: var(--pt-accent); text-decoration: none; }
-table tbody td:nth-child(2) a { color: var(--pt-text-muted); font-weight: 400; text-decoration: underline dotted; text-underline-offset: 3px; }
-table tbody td:nth-child(2) a:hover { color: var(--pt-accent); }
-
-/* Library table: the "last played" cell. */
-.pt-row__time { font-size: 0.85rem; color: var(--pt-text-muted); font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
-.pt-row__time small { display: block; color: var(--pt-text-subtle); font-size: 0.75rem; margin-top: 2px; }
-
 
 /* =============================================================================
    Library page layout
    ========================================================================== */
 
+/* The score list. `overflow: hidden` on the table would clip rounded corners
+   cleanly but it also breaks sticky thead, so the corner radii are applied
+   directly to the four corner cells instead. */
+.pt-library__table {
+  background: var(--pt-bg-elevated);
+  border: 1px solid var(--pt-border);
+  border-radius: var(--pt-radius-lg);
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: var(--pt-font-size-sm);
+}
+.pt-library__table thead th:first-child { border-top-left-radius: var(--pt-radius-lg); }
+.pt-library__table thead th:last-child  { border-top-right-radius: var(--pt-radius-lg); }
+.pt-library__table tbody tr:last-child td:first-child { border-bottom-left-radius: var(--pt-radius-lg); }
+.pt-library__table tbody tr:last-child td:last-child  { border-bottom-right-radius: var(--pt-radius-lg); }
+.pt-library__table thead th {
+  background: var(--pt-surface-2);
+  padding: var(--pt-space-2) var(--pt-space-4);
+  font-size: var(--pt-font-size-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--pt-text-muted);
+}
+.pt-library__table tbody td {
+  padding: var(--pt-space-3) var(--pt-space-4);
+  border-top: 1px solid var(--pt-border);
+}
+.pt-library__table tbody tr { transition: background-color var(--pt-transition-fast); }
+.pt-library__table tbody tr:hover { background: var(--pt-surface-2); }
+.pt-th-right { text-align: right; }
+.pt-th-sort { cursor: pointer; user-select: none; }
+.pt-th-sort:hover { color: var(--pt-text); background: var(--pt-border); }
+.pt-th-sort:is([aria-sort="ascending"], [aria-sort="descending"]) { color: var(--pt-text); }
+.pt-library__table tbody td a:not(.pt-pill) { color: var(--pt-text); font-weight: 500; }
+.pt-library__table tbody td a:not(.pt-pill):hover { color: var(--pt-accent); text-decoration: none; }
+.pt-library__table tbody td:nth-child(2) a { color: var(--pt-text-muted); font-weight: 400; text-decoration: underline dotted; text-underline-offset: 3px; }
+.pt-library__table tbody td:nth-child(2) a:hover { color: var(--pt-accent); }
+
+/* The "last played" cell. */
+.pt-row__time { color: var(--pt-text-muted); font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+.pt-row__time small { display: block; color: var(--pt-text-subtle); font-size: var(--pt-font-size-xs); margin-top: 2px; }
+
 /* Library uses an app-shell layout: the page fills the viewport and never
    scrolls itself; only the sidebar and the table list scroll, each within
    their own column. The chrome (header + filters + focus) is laid out
    above the grid as a flex item, so it doesn't need sticky positioning. */
-.pt-library-page { height: 100dvh; --pt-page-max: none; padding-inline: var(--pt-space-4); display: flex; flex-direction: column; overflow: hidden; }
+.pt-library-page { height: 100dvh; --pt-page-max: none; display: flex; flex-direction: column; overflow: hidden; }
 
 .pt-library-chrome {
   flex: 0 0 auto;
@@ -1271,106 +1292,18 @@ table tbody td:nth-child(2) a:hover { color: var(--pt-accent); }
 }
 .pt-library__main { display: flex; flex-direction: column; min-width: 0; overflow-y: auto; min-height: 0; }
 
-.pt-library__main table thead { position: sticky; top: 0; z-index: 1; }
-.pt-library__main table thead th { background: var(--pt-surface-2); }
-
-.pt-page-header {
-  display: flex;
-  align-items: center;
-  gap: var(--pt-space-4);
-  flex-wrap: wrap;
-}
-.pt-page-header h1 { margin: 0; flex-shrink: 0; }
-.pt-page-header__actions { margin-left: auto; display: flex; gap: var(--pt-space-2); align-items: center; }
-.pt-page-header__actions [role="button"] {
-  margin: 0;
-  padding: 8px 14px;
-  font-size: 0.9rem;
-  height: auto;
-  background: var(--pt-bg-elevated);
-  color: var(--pt-text);
-  border: 1px solid var(--pt-border);
-  border-radius: var(--pt-radius-md);
-  white-space: nowrap;
-  font-weight: 500;
-}
-.pt-page-header__actions [role="button"]:hover { background: var(--pt-surface-2); border-color: var(--pt-border-strong); color: var(--pt-text); }
-.pt-page-header__search {
-  position: relative;
-  flex: 1 1 320px;
-  max-width: 420px;
-  min-width: 240px;
-}
-.pt-page-header__search input[type="search"] {
-  margin: 0;
-  padding: 8px 12px 8px 32px;
-  border-radius: var(--pt-radius-md);
-  background: var(--pt-bg-elevated);
-  height: auto;
-  font-size: 0.9rem;
-  width: 100%;
-}
-.pt-page-header__search::before {
-  content: "🔍";
-  position: absolute;
-  left: 8px; top: 50%;
-  transform: translateY(-50%);
-  font-size: 0.78rem;
-  pointer-events: none;
-  color: var(--pt-text-muted);
-  opacity: 0.6;
-}
+.pt-library__table thead { position: sticky; top: 0; z-index: 1; }
 
 /* Filters row (status pills + composer dropdown) */
 .pt-filters { display: flex; gap: var(--pt-space-2); align-items: center; flex-wrap: wrap; }
-.pt-filter-pill {
-  background: var(--pt-bg-elevated);
-  color: var(--pt-text-muted);
-  border: 1px solid var(--pt-border);
-  border-radius: var(--pt-radius-pill);
-  padding: 4px 12px;
-  font-size: 0.85rem;
-  font-weight: 500;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-.pt-filter-pill:hover { background: var(--pt-surface-2); color: var(--pt-text); }
+.pt-filter-pill { color: var(--pt-text-muted); }
+.pt-filter-pill:hover { color: var(--pt-text); }
 .pt-filter-pill[aria-pressed="true"],
 .pt-filter-pill[aria-expanded="true"] { background: var(--pt-accent); color: var(--pt-text-inverse); border-color: var(--pt-accent); }
 .pt-filter-pill[aria-pressed="true"][data-status="dechiffrage"] { background: var(--pt-status-dechiffrage); border-color: var(--pt-status-dechiffrage); }
 .pt-filter-pill[aria-pressed="true"][data-status="perfectionnement"] { background: var(--pt-status-perfectionnement); border-color: var(--pt-status-perfectionnement); }
 .pt-filter-pill[aria-pressed="true"][data-status="repertoire"] { background: var(--pt-status-repertoire); border-color: var(--pt-status-repertoire); }
-.pt-filter-pill__count { opacity: 0.7; font-size: 0.78rem; }
-
-/* Compact dropdown, sized to sit in a row of pills rather than to fill a form
-   column — the composer and period filters, and the narrow-screen sort. */
-.pt-select {
-  margin: 0;
-  padding: 5px 28px 5px 12px;
-  border-radius: var(--pt-radius-md);
-  background-color: var(--pt-surface-2);
-  border: 1px solid var(--pt-border-strong);
-  font-size: 0.85rem;
-  color: var(--pt-text);
-  height: auto;
-  width: auto;
-  min-width: 180px;
-  cursor: pointer;
-  appearance: none;
-  -webkit-appearance: none;
-  background-image: var(--pt-icon-chevron);
-  background-repeat: no-repeat;
-  /* Same box as the base draws on a bare <select>, so every dropdown in the app
-     shows a mark of the same size — only the inset is tighter, this control
-     being a pill in a row of pills rather than a full-width field. The glyph
-     fills half its square viewBox, so 1rem of box is an 8px chevron. */
-  background-position: right 8px center;
-  background-size: 1rem auto;
-}
-.pt-select:hover { background-color: var(--pt-bg-elevated); }
-.pt-select:focus { outline: 2px solid color-mix(in srgb, var(--pt-accent) 30%, transparent); outline-offset: 1px; }
+.pt-filter-pill__count { opacity: 0.7; font-size: var(--pt-font-size-xs); }
 
 /* Narrow-screen tab bar. A phone has room for one of the two panes at a time;
    a wide screen shows both, so this stays hidden and the pane rules below never
@@ -1383,7 +1316,7 @@ table tbody td:nth-child(2) a:hover { color: var(--pt-accent); }
   border-radius: 0;
   padding: var(--pt-space-2) var(--pt-space-3);
   color: var(--pt-text-muted);
-  font-size: 0.92rem;
+  font-size: var(--pt-font-size-sm);
   font-weight: 500;
 }
 /* Only to say the tab has no hover fill of its own — the layer already keeps
@@ -1405,23 +1338,12 @@ table tbody td:nth-child(2) a:hover { color: var(--pt-accent); }
    Visually distinct from status filter pills: subtle background, no "selected
    = solid color" treatment, more like secondary toggles. */
 .pt-focus { display: flex; gap: var(--pt-space-2); align-items: center; flex-wrap: wrap; }
-.pt-focus__label { font-size: 0.82rem; color: var(--pt-text-muted); margin-right: 2px; }
+.pt-focus__label { font-size: var(--pt-font-size-xs); color: var(--pt-text-muted); margin-right: 2px; }
 .pt-focus__chip {
-  display: inline-flex; align-items: center; gap: 6px;
-  padding: 5px 12px;
-  background: var(--pt-bg-elevated);
   border: 1px dashed var(--pt-border-strong);
   border-radius: var(--pt-radius-md);
-  color: var(--pt-text);
-  font-size: 0.85rem;
-  font-weight: 500;
-  cursor: pointer;
-  margin: 0;
-  width: auto;
-  height: auto;
-  line-height: 1.2;
 }
-.pt-focus__chip:hover { background: var(--pt-surface-2); border-color: var(--pt-mode-reinforcement); }
+.pt-focus__chip:hover { border-color: var(--pt-mode-reinforcement); }
 .pt-focus__chip[aria-pressed="true"] {
   background: var(--pt-mode-reinforcement-bg);
   border: 1px solid var(--pt-mode-reinforcement);
@@ -1431,8 +1353,8 @@ table tbody td:nth-child(2) a:hover { color: var(--pt-accent); }
   background: var(--pt-surface-2);
   padding: 1px 7px;
   border-radius: var(--pt-radius-pill);
-  font-size: 0.78rem;
-  font-weight: 500;
+  font-size: var(--pt-font-size-xs);
+  line-height: 1.2;
 }
 .pt-focus__chip[aria-pressed="true"] .pt-focus__count {
   background: color-mix(in srgb, var(--pt-mode-reinforcement) 18%, var(--pt-bg-elevated));
@@ -1450,7 +1372,7 @@ table tbody td:nth-child(2) a:hover { color: var(--pt-accent); }
 /* Layout from .pt-row-between, label from .pt-eyebrow; baseline alignment is
    what this one adds, so the link sits on the heading's baseline. */
 .pt-journal__header { align-items: baseline; gap: var(--pt-space-2); }
-.pt-journal__header a { font-size: 0.78rem; white-space: nowrap; }
+.pt-journal__header a { font-size: var(--pt-font-size-xs); white-space: nowrap; }
 .pt-journal__day {
   background: var(--pt-bg-elevated);
   border: 1px solid var(--pt-border);
@@ -1464,14 +1386,8 @@ table tbody td:nth-child(2) a:hover { color: var(--pt-accent); }
   gap: var(--pt-space-2);
   margin-bottom: var(--pt-space-2);
 }
-.pt-journal__day-header h3 { margin: 0; font-size: 0.88rem; color: var(--pt-text); }
-.pt-journal__day-header small { color: var(--pt-text-muted); font-variant-numeric: tabular-nums; font-size: 0.78rem; }
-.pt-journal__entries { display: flex; flex-direction: column; gap: var(--pt-space-2); }
-.pt-journal__entry { font-size: 0.82rem; line-height: 1.4; color: var(--pt-text); }
-.pt-journal__entry a { color: var(--pt-text); font-weight: 500; }
-.pt-journal__entry a:hover { color: var(--pt-accent); text-decoration: none; }
-.pt-journal__entry small { color: var(--pt-text-muted); display: block; font-size: 0.75rem; margin-top: 2px; }
-.pt-journal__entry--empty { color: var(--pt-text-subtle); font-style: italic; font-size: 0.82rem; }
+.pt-journal__day-header h3 { margin: 0; font-size: var(--pt-font-size-sm); color: var(--pt-text); }
+.pt-journal__day-header small { color: var(--pt-text-muted); font-variant-numeric: tabular-nums; font-size: var(--pt-font-size-xs); }
 
 
 /* =============================================================================
@@ -1480,7 +1396,7 @@ table tbody td:nth-child(2) a:hover { color: var(--pt-accent); }
 /* .pt-practice-page shares its shell with .pt-data-page (see there); the width
    it needs is the only thing of its own. .pt-row-between carries the toolbar
    layout, .pt-eyebrow the stat labels. */
-.pt-practice-toolbar h2 { font-size: 1.1rem; }
+.pt-practice-toolbar h2 { font-size: var(--pt-font-size-lg); }
 
 .pt-yearnav { display: inline-flex; align-items: center; gap: var(--pt-space-2); }
 .pt-yearnav__year { font-variant-numeric: tabular-nums; min-width: 4ch; text-align: center; }
@@ -1492,7 +1408,7 @@ table tbody td:nth-child(2) a:hover { color: var(--pt-accent); }
   gap: var(--pt-space-3) var(--pt-space-6);
   margin: 0;
 }
-.pt-stat dd { margin: 2px 0 0; font-size: 1.25rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+.pt-stat dd { margin: 2px 0 0; font-size: var(--pt-font-size-xl); font-weight: 600; font-variant-numeric: tabular-nums; }
 
 /* 53 columns don't fit a phone, so the grid scrolls inside its own box and the
    page never scrolls sideways. */
@@ -1516,7 +1432,7 @@ table tbody td:nth-child(2) a:hover { color: var(--pt-accent); }
   padding-inline-end: var(--pt-space-2);
 }
 .pt-calendar__weekdays span {
-  font-size: 0.68rem;
+  font-size: var(--pt-font-size-2xs);
   line-height: var(--pt-cal-cell);
   color: var(--pt-text-subtle);
   text-align: right;
@@ -1529,7 +1445,7 @@ table tbody td:nth-child(2) a:hover { color: var(--pt-accent); }
 .pt-calendar__months { display: flex; gap: var(--pt-cal-gap); height: 1rem; padding-inline-end: var(--pt-space-6); }
 .pt-calendar__month {
   flex: 0 0 var(--pt-cal-cell);
-  font-size: 0.68rem;
+  font-size: var(--pt-font-size-2xs);
   line-height: 1rem;
   color: var(--pt-text-subtle);
   white-space: nowrap;
@@ -1551,7 +1467,6 @@ table tbody td:nth-child(2) a:hover { color: var(--pt-accent); }
   border: 1px solid transparent;
   border-radius: 3px;
   background: var(--pt-cal-0);
-  cursor: pointer;
   transition: outline-color var(--pt-transition-fast);
 }
 .pt-calendar__day[data-level="1"] { background: var(--pt-cal-1); }
@@ -1571,7 +1486,7 @@ table tbody td:nth-child(2) a:hover { color: var(--pt-accent); }
   align-items: center;
   justify-content: flex-end;
   gap: var(--pt-cal-gap);
-  font-size: 0.72rem;
+  font-size: var(--pt-font-size-2xs);
   color: var(--pt-text-subtle);
 }
 .pt-calendar-legend > span:first-child { margin-right: var(--pt-space-1); }
@@ -1583,8 +1498,8 @@ table tbody td:nth-child(2) a:hover { color: var(--pt-accent); }
      normal scrolling document. */
   .pt-library-page { height: auto; overflow: visible; }
   .pt-library { grid-template-columns: 1fr; }
-  .pt-library__sidebar, .pt-library__main { overflow-y: visible; min-height: 0; }
-  .pt-library__main table thead { position: static; }
+  .pt-library__sidebar, .pt-library__main { overflow-y: visible; }
+  .pt-library__table thead { position: static; }
 }
 
 /* Phone layout for the library — the second of two stages, and deliberately a
@@ -1612,15 +1527,15 @@ table tbody td:nth-child(2) a:hover { color: var(--pt-accent); }
 
   /* The rows do their own layout below; these two only have to stop being a
      table box, or the cells would still be laid out in columns. */
-  .pt-library__main table,
-  .pt-library__main tbody { display: block; }
+  .pt-library__table,
+  .pt-library__table tbody { display: block; }
   /* The sort control in .pt-librarybar replaces them. */
-  .pt-library__main thead { display: none; }
+  .pt-library__table thead { display: none; }
 
   /* Title on its own line, then whatever of composer / status / practice time
      the score has, in source order. The cells that stay empty simply take no
      room, which is why this needs no separators between them. */
-  .pt-library__main tbody tr {
+  .pt-library__table tbody tr {
     display: flex;
     flex-wrap: wrap;
     align-items: baseline;
@@ -1631,12 +1546,12 @@ table tbody td:nth-child(2) a:hover { color: var(--pt-accent); }
     padding: var(--pt-space-3);
     border-top: 1px solid var(--pt-border);
   }
-  .pt-library__main tbody td { padding: 0; border: none; }
-  .pt-library__main tbody td:first-child { flex: 0 0 100%; }
+  .pt-library__table tbody td { padding: 0; border: none; }
+  .pt-library__table tbody td:first-child { flex: 0 0 100%; }
   /* Right-aligned and block-level in the table; neither survives the reflow. */
-  .pt-library__main .pt-row__time { text-align: left; }
-  .pt-library__main .pt-row__time small { display: inline; margin: 0; }
-  .pt-library__main .pt-row__time small::before { content: " · "; }
+  .pt-library__table .pt-row__time { text-align: left; }
+  .pt-library__table .pt-row__time small { display: inline; margin: 0; }
+  .pt-library__table .pt-row__time small::before { content: " · "; }
 }
 
 /* =============================================================================
@@ -1658,7 +1573,7 @@ table tbody td:nth-child(2) a:hover { color: var(--pt-accent); }
   display: none;
   place-content: center;
   min-height: 70vh;
-  font-size: 2rem;
+  font-size: var(--pt-font-size-4xl);
 }
 html[data-loading-score] .pt-score-loading { display: grid; }
 html[data-loading-score] .pt-onboarding { display: none; }
@@ -1678,7 +1593,7 @@ html[data-loading-score] .pt-onboarding { display: none; }
   background: var(--pt-surface-2);
 }
 .pt-onboarding h2 { margin-bottom: var(--pt-space-2); }
-.pt-onboarding p { color: var(--pt-text-muted); margin-bottom: var(--pt-space-4); }
+.pt-onboarding p { color: var(--pt-text-muted); }
 .pt-onboarding__cta { display: flex; flex-direction: column; gap: var(--pt-space-3); align-items: center; }
 .pt-onboarding__cta a, .pt-onboarding__cta label, .pt-onboarding__cta button {
   display: inline-flex; align-items: center; justify-content: center; gap: 6px;
@@ -1686,7 +1601,7 @@ html[data-loading-score] .pt-onboarding { display: none; }
   border-radius: var(--pt-radius-md);
   font-weight: 500;
   cursor: pointer;
-  font-size: 0.9rem;
+  font-size: var(--pt-font-size-sm);
   width: 100%;
   max-width: 280px;
   margin: 0;
@@ -1776,7 +1691,7 @@ dialog > article > header {
   gap: var(--pt-space-3);
 }
 dialog > article > header p { margin: 0; }
-dialog > article > header strong { font-size: 1.05rem; font-weight: 600; }
+dialog > article > header strong { font-weight: 600; }
 dialog > article > footer {
   padding: var(--pt-space-3) 0 0;
   margin: var(--pt-space-4) 0 0;
@@ -1787,10 +1702,15 @@ dialog > article > footer {
   flex-wrap: wrap;
   justify-content: flex-end;
 }
-dialog > article > footer button { margin: 0; }
+
+/* A footer inside the scrolling body is out of reach of the
+   dialog > article > footer rule (Modals, below), so its actions are laid out
+   here. At any depth, not just a direct child: such a footer often sits inside
+   the <form> it submits or the <div> an x-if branch wraps it in. */
+.pt-modal-body footer { display: flex; justify-content: flex-end; margin-top: var(--pt-space-4); }
 
 /* Feedback modal helper text + error banner (the form itself is unstyled). */
-.pt-feedback-intro { margin: 0 0 var(--pt-space-4); color: var(--pt-text-muted); }
+.pt-feedback-intro { color: var(--pt-text-muted); }
 .pt-feedback-privacy { display: block; margin-top: var(--pt-space-3); color: var(--pt-text-subtle); }
 /* The picture that goes with a report is shown, not merely promised: the
    checkbox above it is then an informed choice rather than a leap of faith. */
@@ -1812,18 +1732,16 @@ dialog > article > footer button { margin: 0; }
   border-radius: var(--pt-radius-sm);
   background: var(--pt-error-bg);
   color: var(--pt-error);
-  font-size: 0.9rem;
+  font-size: var(--pt-font-size-sm);
 }
 
 .pt-modal-stat {
   display: flex;
   align-items: baseline;
   gap: var(--pt-space-2);
-  font-size: 1.05rem;
   margin-bottom: var(--pt-space-2);
 }
-.pt-modal-stat strong { font-size: 1.4rem; font-weight: 700; }
-.pt-modal-stat--accent strong { color: var(--pt-accent); }
+.pt-modal-stat strong { font-size: var(--pt-font-size-2xl); font-weight: 700; }
 /* The strict accuracy: neutral by default, and coloured up — never down —
    as the figure improves, so a good run reads as one. */
 .pt-modal-stat--strict strong { color: var(--pt-text); }
@@ -1835,10 +1753,9 @@ dialog > article > footer button { margin: 0; }
    Use :first-of-type rather than :first-child because Alpine's
    <template x-for> sits inside <tbody> as the actual first child, which
    makes :first-child match nothing on the data rows. */
-.pt-playthrough-table { width: 100%; border: none; background: transparent; border-radius: 0; }
-.pt-playthrough-table tbody td { padding: 6px 8px; font-size: 0.9rem; border-top: 1px solid var(--pt-border); }
+.pt-playthrough-table { border-spacing: 0; }
+.pt-playthrough-table tbody td { padding: 6px 8px; font-size: var(--pt-font-size-sm); border-top: 1px solid var(--pt-border); }
 .pt-playthrough-table tbody tr:first-of-type td { border-top: none; }
-.pt-playthrough-table tbody tr:hover { background: transparent; }
 .pt-playthrough-table tbody tr.is-current { background: var(--pt-accent-soft); }
 .pt-playthrough-table tbody tr.is-current td:first-child strong { color: var(--pt-accent); }
 .pt-playthrough-table tbody td small { color: var(--pt-text-muted); }
@@ -1851,7 +1768,6 @@ dialog > article > footer button { margin: 0; }
 .pt-result-cols { display: flex; gap: var(--pt-space-6); align-items: flex-start; }
 .pt-result-cols > .pt-playthrough-scroll { flex: 0 0 auto; max-height: 50vh; overflow-y: auto; }
 .pt-result-cols > .pt-modal-section { flex: 1 1 0; min-width: 0; margin-top: 0; }
-.pt-result-cols > .pt-modal-section svg { width: 100%; height: auto; }
 @media (max-width: 700px) {
   .pt-result-cols { flex-direction: column; }
   .pt-result-cols > .pt-playthrough-scroll { max-height: 35vh; }
@@ -1859,9 +1775,10 @@ dialog > article > footer button { margin: 0; }
 }
 
 .pt-modal-section { margin-top: var(--pt-space-4); }
-.pt-modal-section h4 { color: var(--pt-text-muted); font-size: 0.85rem; letter-spacing: 0.01em; margin-bottom: var(--pt-space-2); font-weight: 600; }
+.pt-modal-section h4,
+.pt-changelog-entry h4 { color: var(--pt-text-muted); font-size: var(--pt-font-size-sm); letter-spacing: 0.01em; }
 
-.pt-modal-note { color: var(--pt-text-muted); margin-top: var(--pt-space-3); font-size: 0.9rem; }
+.pt-modal-note { color: var(--pt-text-muted); margin-top: var(--pt-space-3); font-size: var(--pt-font-size-sm); }
 .pt-modal-note--inline { margin-left: var(--pt-space-2); margin-top: 0; }
 .pt-modal-note--lead { margin-top: 0; }
 
@@ -1878,23 +1795,16 @@ dialog > article > footer button { margin: 0; }
 }
 .pt-changelog-entry { margin-top: var(--pt-space-4); }
 .pt-changelog-entry:first-of-type { margin-top: 0; }
-.pt-changelog-entry h4 {
-  color: var(--pt-text-muted);
-  font-size: 0.85rem;
-  letter-spacing: 0.01em;
-  margin-bottom: var(--pt-space-2);
-  font-weight: 600;
-}
 .pt-changelog-entry ul,
 .pt-criteria ul { margin: 0; padding-left: 1.1rem; }
 .pt-changelog-entry li { margin-bottom: var(--pt-space-2); }
 .pt-changelog-entry li:last-child,
 .pt-criteria li:last-child { margin-bottom: 0; }
 
-.pt-strict-breakdown { list-style: none; padding: 0; margin: var(--pt-space-3) 0; color: var(--pt-text-muted); font-size: 0.9rem; }
+.pt-strict-breakdown { list-style: none; padding: 0; margin: var(--pt-space-3) 0; color: var(--pt-text-muted); font-size: var(--pt-font-size-sm); }
 
 .pt-hot-measures { list-style: none; padding: 0; margin: 0; }
-.pt-hot-measures li { display: flex; justify-content: space-between; padding: 4px 0; font-size: 0.88rem; border-bottom: 1px solid var(--pt-border); }
+.pt-hot-measures li { display: flex; justify-content: space-between; padding: 4px 0; font-size: var(--pt-font-size-sm); border-bottom: 1px solid var(--pt-border); }
 .pt-hot-measures li small { color: var(--pt-text-muted); }
 
 .pt-history-day {
@@ -1902,13 +1812,13 @@ dialog > article > footer button { margin: 0; }
   border-bottom: 1px solid var(--pt-border);
 }
 .pt-history-day:last-child { border-bottom: none; }
-.pt-history-day__header { display: flex; justify-content: space-between; font-size: 0.9rem; }
+.pt-history-day__header { display: flex; justify-content: space-between; font-size: var(--pt-font-size-sm); }
 .pt-history-day__header strong { font-weight: 500; }
 .pt-history-day__header small { color: var(--pt-text-muted); font-variant-numeric: tabular-nums; }
-.pt-history-day__body small { color: var(--pt-text-muted); display: block; font-size: 0.78rem; margin-top: 2px; }
+.pt-history-day__body small { color: var(--pt-text-muted); display: block; font-size: var(--pt-font-size-xs); margin-top: 2px; }
 
 .pt-fingering-display {
-  font-size: 2rem;
+  font-size: var(--pt-font-size-4xl);
   font-weight: 600;
   text-align: center;
   letter-spacing: 0.1em;
@@ -1922,8 +1832,8 @@ dialog > article > footer button { margin: 0; }
 }
 .pt-fingering-pad { display: grid; grid-template-columns: repeat(6, 1fr); gap: var(--pt-space-2); }
 .pt-fingering-pad button {
-  margin: 0; padding: var(--pt-space-3);
-  font-size: 1.1rem;
+  padding: var(--pt-space-3);
+  font-size: var(--pt-font-size-lg);
   font-weight: 600;
   border-radius: var(--pt-radius-md);
 }
@@ -1935,7 +1845,7 @@ dialog > article > footer button { margin: 0; }
 /* Score page main: zero top padding so the score sits flush against the
    sticky bars (no gray strip showing through between modebar/context
    band and the white score area). */
-.pt-score-main { padding-top: 0 !important; }
+.pt-score-main { padding-top: 0; }
 
 #score {
   width: 100vw;
@@ -1996,7 +1906,7 @@ svg g.vf-notehead.wrong-note path { animation: pt-wrong-note-flash 700ms; }
   gap: var(--pt-space-3);
   height: var(--pt-keyhint-bar);
   margin-bottom: var(--pt-space-2);
-  font-size: 0.85rem;
+  font-size: var(--pt-font-size-sm);
   color: var(--pt-text-muted);
 }
 /* The notes owed, as chips in the colour their keys are lit, each hand's
@@ -2020,7 +1930,7 @@ svg g.vf-notehead.wrong-note path { animation: pt-wrong-note-flash 700ms; }
   color: var(--lit-ink);
   font-weight: 700;
 }
-.pt-keyhint__hand { color: var(--pt-text-subtle); font-size: 0.78rem; }
+.pt-keyhint__hand { color: var(--pt-text-subtle); font-size: var(--pt-font-size-xs); }
 .pt-keyhint__close { width: var(--pt-keyhint-bar); height: var(--pt-keyhint-bar); }
 /* A score spanning more keys than a phone is wide scrolls sideways inside the
    strip, never the page; keyboardHint.js keeps the lit keys in the middle.
@@ -2060,7 +1970,7 @@ svg g.vf-notehead.wrong-note path { animation: pt-wrong-note-flash 700ms; }
   background: linear-gradient(to bottom, var(--pt-key-shade), var(--pt-key-white) 16%, var(--pt-key-white) 80%, var(--pt-key-shade));
   box-shadow: inset -1px 0 0 var(--pt-border-strong), inset 0 -4px 0 var(--pt-key-lip);
   border-radius: 0 0 var(--pt-radius-sm) var(--pt-radius-sm);
-  font-size: 0.7rem;
+  font-size: var(--pt-font-size-2xs);
   line-height: 1;
 }
 .pt-keyhint__key.is-black {
@@ -2076,7 +1986,7 @@ svg g.vf-notehead.wrong-note path { animation: pt-wrong-note-flash 700ms; }
   box-shadow: var(--pt-key-shadow), inset 0 -3px 0 rgb(255 255 255 / var(--lip));
   color: var(--pt-text-inverse);
 }
-.pt-keyhint__c { color: var(--pt-text-subtle); font-size: 0.65rem; }
+.pt-keyhint__c { color: var(--pt-text-subtle); }
 .pt-keyhint__name { font-weight: 700; }
 /* A lit key glows from inside in its colour — blue for owed, green for right,
    red for wrong — rather than turning into a flat block, so it still reads as
@@ -2172,24 +2082,16 @@ img[id^="cursorImg"] { scroll-margin-top: var(--pt-sticky-offset, 100px); }
   .pt-topbar { flex-wrap: wrap; row-gap: var(--pt-space-2); }
   .pt-topbar__actions { margin-left: auto; }
   .pt-modebar { padding: var(--pt-space-2); }
-  .pt-segmented button { padding: 6px 10px; font-size: 0.82rem; }
-  .pt-topbar__title { font-size: 0.88rem; }
+  .pt-segmented button { padding: 6px 10px; font-size: var(--pt-font-size-xs); }
+  .pt-topbar__title { font-size: var(--pt-font-size-sm); }
   .pt-topbar__title small { display: none; }
-  .pt-context { font-size: 0.8rem; padding: 6px var(--pt-space-3); }
-  .pt-page-header { gap: var(--pt-space-2); }
-  .pt-page-header__actions { width: 100%; }
-  .pt-page-header__search { max-width: none; }
+  .pt-context { font-size: var(--pt-font-size-xs); padding: 6px var(--pt-space-3); }
 }
 
 /* =============================================================================
    Landing page (/) — pitch + onboarding shown to first-time visitors.
    ========================================================================== */
-/* The container's inline padding is zeroed from the 576px breakpoint up,
-   assuming the box is narrower than the viewport and centered (margin auto
-   supplies the gutters). Below 960px that assumption breaks — the container
-   is still full-width — so restore the padding explicitly, same as
-   .pt-library-page does. */
-.pt-landing { --pt-page-max: 960px; padding-inline: var(--pt-space-4); }
+.pt-landing { --pt-page-max: 960px; }
 
 .pt-landing__nav {
   display: flex;
@@ -2203,43 +2105,8 @@ img[id^="cursorImg"] { scroll-margin-top: var(--pt-sticky-offset, 100px); }
   align-items: center;
   gap: var(--pt-space-2);
   font-weight: 600;
-  color: var(--pt-text);
 }
 .pt-landing__brand img { width: 28px; height: 28px; }
-.pt-landing__nav a[role="button"] { margin: 0; }
-
-/* FR/EN language switch (shared across pages). width:auto + flex:none override
-   the base full-width [role="group"] button-group styling. */
-.pt-langswitch {
-  display: inline-flex;
-  width: auto;
-  flex: 0 0 auto;
-  /* Zero the [role="group"] margin-bottom — in the centred header row it
-     would shift the pill upward, breaking vertical alignment with the buttons. */
-  margin: 0;
-  border: 1px solid var(--pt-border);
-  border-radius: var(--pt-radius-pill);
-  overflow: hidden;
-  background: var(--pt-surface);
-}
-.pt-langswitch button {
-  margin: 0;
-  width: auto;
-  flex: 0 0 auto;
-  padding: 8px 14px;
-  font-size: 0.9rem;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  color: var(--pt-text-muted);
-  background: transparent;
-  border: none;
-  border-radius: 0;
-  cursor: pointer;
-}
-.pt-langswitch button[aria-pressed="true"] {
-  background: var(--pt-accent);
-  color: var(--pt-text-inverse);
-}
 
 .pt-hero {
   display: flex;
@@ -2258,19 +2125,18 @@ img[id^="cursorImg"] { scroll-margin-top: var(--pt-sticky-offset, 100px); }
   width: 100%;
 }
 .pt-hero h1 {
-  font-size: clamp(2rem, 1.2rem + 2.8vw, 3.1rem);
+  font-size: clamp(var(--pt-font-size-4xl), 1.2rem + 2.8vw, 3.1rem);
   line-height: 1.08;
   margin: 0;
   letter-spacing: -0.022em;
 }
 .pt-hero__lead {
-  font-size: 1.14rem;
+  font-size: var(--pt-font-size-lg);
   color: var(--pt-text-muted);
   margin: 0;
   max-width: 46ch;
 }
 .pt-section__cta { display: flex; justify-content: center; margin-top: var(--pt-space-8); }
-.pt-section__cta a[role="button"] { margin: 0; }
 .pt-section__store { text-align: center; margin: var(--pt-space-4) 0 0; color: var(--pt-text-muted); }
 .pt-hero__visual {
   display: block;
@@ -2285,7 +2151,6 @@ a.pt-hero__visual:hover {
   box-shadow: var(--pt-shadow-xl);
   transform: translateY(-2px);
 }
-.pt-hero__visual img,
 .pt-hero__visual video { display: block; width: 100%; height: auto; }
 
 .pt-section { padding-block: var(--pt-space-10); }
@@ -2293,10 +2158,21 @@ a.pt-hero__visual:hover {
 .pt-section__head h2 { margin-bottom: var(--pt-space-2); }
 .pt-section__head p { color: var(--pt-text-muted); margin: 0; }
 
+.pt-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: var(--pt-space-4);
+}
+
+/* Lift only in the browsable grid: elsewhere a card is a static section, and
+   highlighting it on hover reads as "clickable". */
+.pt-card-grid .pt-card:hover { border-color: var(--pt-border-strong); box-shadow: var(--pt-shadow-md); }
+
 .pt-feature { gap: var(--pt-space-3); }
-.pt-feature__icon { font-size: 1.6rem; line-height: 1; }
-.pt-feature h3 { font-size: 1rem; margin: 0; }
-.pt-feature p { font-size: 0.9rem; color: var(--pt-text-muted); margin: 0; }
+.pt-feature__icon { font-size: var(--pt-font-size-3xl); line-height: 1; }
+/* A feature and a step read the same: a heading, then a muted line. */
+:is(.pt-feature, .pt-step) h3 { margin: 0; }
+:is(.pt-feature, .pt-step) p { font-size: var(--pt-font-size-sm); color: var(--pt-text-muted); margin: 0; }
 
 .pt-steps {
   display: grid;
@@ -2315,23 +2191,9 @@ a.pt-hero__visual:hover {
   font-weight: 700;
 }
 .pt-step__num::before { content: counter(step); }
-.pt-step h3 { font-size: 1rem; margin: 0; }
-.pt-step p { font-size: 0.9rem; color: var(--pt-text-muted); margin: 0; }
-
-.pt-landing__footer {
-  text-align: center;
-  color: var(--pt-text-subtle);
-  font-size: 0.85rem;
-  padding-block: var(--pt-space-10) var(--pt-space-6);
-  border-top: 1px solid var(--pt-border);
-  margin-top: var(--pt-space-8);
-}
-/* Footer links sit on their own line under the tagline, wrapping to one line
-   each on a narrow screen rather than crowding it. */
-.pt-footer-links { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--pt-space-4); margin-top: var(--pt-space-2); }
 
 @media (max-width: 720px) {
-  .pt-hero { gap: var(--pt-space-6); padding-block: var(--pt-space-6) var(--pt-space-8); }
+  .pt-hero { padding-block: var(--pt-space-6) var(--pt-space-8); }
   .pt-hero__intro { grid-template-columns: 1fr; gap: var(--pt-space-4); }
   .pt-steps { grid-template-columns: 1fr; gap: var(--pt-space-4); }
 }
@@ -2346,6 +2208,10 @@ a.pt-hero__visual:hover {
    same failure one layer up. A utility does one thing and has to win it.
    ========================================================================== */
 @layer utilities {
+
+/* Hide x-cloak elements until Alpine boots, so nothing it is about to hide —
+   the popover, the modals, the controls a score brings — flashes on load. */
+[x-cloak] { display: none !important; }
 
 .pt-sr-only {
   position: absolute;

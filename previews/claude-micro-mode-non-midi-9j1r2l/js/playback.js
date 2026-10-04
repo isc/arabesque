@@ -1,4 +1,4 @@
-import { isTestEnv } from './utils.js'
+import { isTestEnv, scrollSystemIntoView } from './utils.js'
 import {
   tsToSeconds,
   buildMeasureStartTimes,
@@ -7,7 +7,7 @@ import {
   measureIndexAt,
   GRACE_NOTE_OFFSET_WN,
 } from './playbackTiming.js'
-import { scrollSystemIntoView } from './utils.js'
+import { BPM_DEFAULT } from './bpmStepper.js'
 
 // The three states the transport can be in. Paused is not stopped: the piece is
 // still on the stand at the bar it was held at.
@@ -163,7 +163,7 @@ function ensurePianoLoaded() {
 export function getBPM(osmdInstance) {
   const sm = osmdInstance.Sheet?.SourceMeasures?.[0]
   const tempo = sm?.TempoExpressions?.[0]?.InstantaneousTempo
-  if (!tempo) return sm?.TempoInBPM || 120
+  if (!tempo) return sm?.TempoInBPM || BPM_DEFAULT
   const beatUnitToQuarter = { whole: 4, half: 2, quarter: 1, eighth: 0.5, '16th': 0.25 }
   const ratio = beatUnitToQuarter[tempo.beatUnit] ?? 1
   if (tempo.dotted) return tempo.tempoInBpm * ratio * 1.5
@@ -172,18 +172,25 @@ export function getBPM(osmdInstance) {
 
 // Fixed ornament note duration (in whole-note fractions) for mordents.
 // Mordents have a conventional speed independent of the parent note's value.
-// Trills and turns are different: they span the full duration of the note.
+// Turns are different: they span the written note.
 const ORNAMENT_NOTE_DURATION_WN = 1 / 16
+
+// A trill's speed, the thirty-second notes an edition spells one out in. It
+// goes on at that pace for as long as its note sounds.
+const TRILL_NOTE_DURATION_WN = 1 / 32
 
 // Recalculate timings for ornaments and grace notes for audio playback.
 //
 // Ornaments: the note extractor uses ORNAMENT_NOTE_OFFSET=0.00001 between notes (for keyboard
 // matching order), which collapses them to the same instant for audio.
 // - Mordents: fixed duration per note (tempo-relative, not parent-note-relative)
-// - Turns/trills: evenly spread over the full parent note duration. A delayed turn
-//   instead holds the principal on the beat for _turnDelay (set by expandOrnamentNotes
-//   in noteExtraction.js) and plays the turn proper over the note's final stretch, so
+// - Turns: evenly spread over the written note. A delayed turn instead holds the
+//   principal on the beat for _turnDelay (set by expandOrnamentNotes in
+//   noteExtraction.js) and plays the turn proper over the note's final stretch, so
 //   audio and the keyboard matcher realize the delayed turn the same way.
+//   Mordents and turns ring their last note on for as long as the note sounds.
+// - Trills: alternate their two pitches at TRILL_NOTE_DURATION_WN for as long as
+//   the note sounds, ending on the one they began with.
 // - isTrillEnd sentinels: skipped (only used by the keyboard matching engine)
 //
 // Arpeggiated chords: each note is marked with its place in the roll (markArpeggioRolls).
@@ -242,9 +249,22 @@ export function expandOrnamentTimings(notes) {
 
   for (const [parentNote, groupNotes] of ornamentGroups) {
     const baseTs = groupNotes[0].timestamp
-    const isTrill = groupNotes[0].isTrillNote
     const isTurn = groupNotes[0].isTurnNote
     const turnDelay = groupNotes[0]._turnDelay ?? 0
+    // How long the decorated note sounds: its value, or the whole tie it starts
+    // -- where each tied note after the first strikes nothing, and a trilled one
+    // is only a sentinel, skipped above.
+    const { soundTs } = groupNotes[0]
+
+    if (groupNotes[0].isTrillNote) {
+      // The nearest odd count to the trill's speed, the written three at least.
+      const count = Math.max(groupNotes.length, 2 * Math.round((soundTs / TRILL_NOTE_DURATION_WN - 1) / 2) + 1)
+      const noteDuration = soundTs / count
+      for (let i = 0; i < count; i++) {
+        result.push({ ...groupNotes[i % 2], timestamp: baseTs + i * noteDuration, _ornamentDuration: noteDuration })
+      }
+      continue
+    }
 
     if (isTurn && turnDelay > 0) {
       // Delayed turn: hold the principal (groupNotes[0]) on the beat for turnDelay,
@@ -255,15 +275,16 @@ export function expandOrnamentTimings(notes) {
       for (let j = 1; j < groupNotes.length; j++) {
         result.push({ ...groupNotes[j], timestamp: baseTs + turnDelay + (j - 1) * turnNoteDuration, _ornamentDuration: turnNoteDuration })
       }
-      continue
+    } else {
+      const noteDuration = isTurn ? parentNote.Length.RealValue / groupNotes.length : ORNAMENT_NOTE_DURATION_WN
+      for (let i = 0; i < groupNotes.length; i++) {
+        result.push({ ...groupNotes[i], timestamp: baseTs + i * noteDuration, _ornamentDuration: noteDuration })
+      }
     }
 
-    const noteDuration = (isTrill || isTurn)
-      ? parentNote.Length.RealValue / groupNotes.length
-      : ORNAMENT_NOTE_DURATION_WN
-    for (let i = 0; i < groupNotes.length; i++) {
-      result.push({ ...groupNotes[i], timestamp: baseTs + i * noteDuration, _ornamentDuration: noteDuration })
-    }
+    // The group's last note, just pushed, rings on to the end of the sound.
+    const last = result.at(-1)
+    last._ornamentDuration = Math.max(last._ornamentDuration, baseTs + soundTs - last.timestamp)
   }
 
   result.sort((a, b) => a.timestamp - b.timestamp)
@@ -304,9 +325,6 @@ export function rollOffsetMs({ index, steps, shortestWn }, bpm) {
   return index * Math.min(ARPEGGIO_STEP_MS, room / steps)
 }
 
-// Fix two OSMD cursor issues that can't be solved with CSS alone:
-// - PicoCSS `img { height: auto }` collapses the 1px-tall cursor image
-// - OSMD's adjustToBackgroundColor() resets z-index to -1 via inline style
 // Schedule cursor.next() advances on the given timeline. Returns the timeout
 // IDs so the caller can register them with its own teardown list. The cursor
 // starts visible at the first position; subsequent ticks advance it.
@@ -346,6 +364,10 @@ export function scheduleCursorAdvances(cursor, cursorTimes, { centerOnCursor = f
   }, t))
 }
 
+// Pins what would otherwise undo OSMD's cursor image, inline because CSS alone
+// cannot: its height, which OSMD writes only as an attribute that any
+// `img { height: auto }` rule collapses (the stylesheet once had one), and its
+// z-index, which OSMD's adjustToBackgroundColor() resets to -1 inline.
 function syncCursorStyle(cursor) {
   const el = cursor.cursorElement
   if (!el) return
@@ -492,7 +514,7 @@ function startPlayback(allNotes, osmdInstance, startMeasureIndex = 0) {
         startMs = Math.max(0, mainMs - n._graceOffset * durationMs)
       } else {
         startMs = tsToSeconds(measureOffset + n.timestamp, bpm) * 1000
-        durationMs = tsToSeconds(n._ornamentDuration ?? n.note.Length.RealValue, bpm) * 1000
+        durationMs = tsToSeconds(n._ornamentDuration ?? n.soundTs, bpm) * 1000
         if (n._roll) {
           const offset = rollOffsetMs(n._roll, bpm)
           startMs += offset

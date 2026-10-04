@@ -7,10 +7,12 @@
 // and the streaks stay honest across a year boundary, which a per-year read
 // could not do.
 import { initStorage } from './storage.js'
-import { initPracticeTracker, localDayKey, practiceStreaks, practiceYearStats } from './practiceTracker.js'
+import { initPracticeTracker } from './practiceTracker.js'
+import { practiceStreaks, practiceYearStats } from './practiceJournal.js'
+import { localDayKey } from './days.js'
 import { initAutoSync } from './autoSync.js'
 import { onDayChange } from './dayRollover.js'
-import { formatDuration, formatVerboseDate, scorePageUrl } from './utils.js'
+import { formatDuration, formatVerboseDate } from './utils.js'
 import { journalEntryHelpers } from './journalEntries.js'
 import { t, locale } from './i18n.js'
 
@@ -20,10 +22,10 @@ import { t, locale } from './i18n.js'
 // would repaint every ordinary half-hour as pale.
 const LEVEL_THRESHOLDS_MS = [10, 30, 60].map((minutes) => minutes * 60 * 1000)
 
-// Every band, "nothing" included — what the legend draws, and the one place
-// that says how many there are. styles.css supplies a colour per level.
-export const LEVELS = LEVEL_THRESHOLDS_MS.map((_, index) => index + 1)
-LEVELS.unshift(0)
+// Every level a day can be painted in, "nothing" included: what the legend
+// draws, counted up to levelFor's darkest so that it ends on the colour of a
+// long day. styles.css supplies a colour per level.
+export const LEVELS = Array.from({ length: levelFor(Infinity) + 1 }, (_, level) => level)
 
 const MONTH_FORMATTER = new Intl.DateTimeFormat(locale(), { month: 'short' })
 
@@ -57,10 +59,9 @@ export function practiceApp() {
   // All-time and therefore independent of the displayed year: computed once
   // per read rather than on every year switch.
   let streaks = { current: 0, longest: 0 }
-  // Day panels already opened, by day key. Each miss costs a full pass over the
-  // sessions store (getDailyLog has no index on startedAt to lean on), and
-  // clicking around the grid is the whole point of the panel. Dropped whenever
-  // the underlying data is re-read.
+  // Day panels already opened, by day key: clicking around the grid is the
+  // whole point of the panel, and each miss reads the day's sessions and the
+  // aggregates of their scores. Dropped whenever the underlying data is re-read.
   let dayEntries = new Map()
 
   return {
@@ -102,6 +103,14 @@ export function practiceApp() {
       // syncs down arrives on the branch above — so the grid is redrawn from
       // the history already in memory rather than read again.
       onDayChange(() => this.redraw())
+
+      // Reached again through history.back() — the top C key, or a day's
+      // score and back — the page can come out of the back/forward cache as it
+      // stood before the practice, init() never running again. Read the
+      // history again, as the library does.
+      window.addEventListener('pageshow', (event) => {
+        if (event.persisted) this.reload()
+      })
     },
 
     async reload() {
@@ -214,8 +223,7 @@ export function practiceApp() {
       return this.selected ? formatVerboseDate(this.selected.date) : ''
     },
 
-    formatDuration,
-    scorePageUrl,
+    // formatDuration among them, which the page's own markup calls too.
     ...journalEntryHelpers,
   }
 }

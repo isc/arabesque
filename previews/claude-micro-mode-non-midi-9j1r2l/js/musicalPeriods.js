@@ -1,6 +1,8 @@
 // Map of composer → musical period for the library filter.
 // Keep keyed by the exact `composer` string used in scores.json — the lookup
-// is by equality, no normalization or alias resolution.
+// is by equality, no normalization or alias resolution. A composer missing
+// here belongs to no period, so no period filter shows their pieces:
+// test/js/catalog.test.js fails on any composer of the catalog left out.
 const COMPOSER_PERIODS = {
   'J.S. Bach':          'baroque',
   'C.P.E. Bach':        'baroque',
@@ -10,6 +12,7 @@ const COMPOSER_PERIODS = {
   'Mozart':             'classique',
   'Beethoven':          'classique',
   'Schubert':           'romantique',
+  'Burgmüller':         'romantique',
   'Hanon':              'romantique',
   'Chopin':             'romantique',
   'Schumann':           'romantique',
@@ -24,7 +27,7 @@ const COMPOSER_PERIODS = {
   'Leontovych':         'moderne',
   'Luo Ni':             'contemporain',
   'Paul de Senneville': 'contemporain',
-  'Traditional':        'traditionnel',
+  'Traditionnel':       'traditionnel',
 }
 
 import { t } from './i18n.js'
