@@ -3,7 +3,6 @@
 // (its history), and the calendar's squares, with what a year of them adds up
 // to and the streaks they make. Pure: sessions in, rows out; the tracker reads
 // the sessions and the names of their scores (practiceTracker.js).
-import { TWO_HANDS } from './hands.js'
 import { localDayKey, shiftDayKey, sessionDay } from './days.js'
 import { computeSessionDuration, getFullPlaythroughs, getLastMeasureEndTime, playedInFull } from './practiceTime.js'
 
@@ -57,7 +56,9 @@ function addSession(entry, session) {
 
 // The tail both groupings share: the sets they filled become sorted arrays,
 // and their sessions become the runs through the whole score they hold.
-// `timesPlayedInFull` stays what it says — the two-handed ones.
+// `timesPlayedInFull` counts by playedInFull, as the calendar and the statuses
+// do — a run from before runs were timed included, which has no place in
+// `fullPlaythroughs`.
 // The sessions themselves stay behind: nothing on screen reads them, and the
 // entries are held in the pages' reactive state.
 function withPlaythroughs({ sessions, ...entry }) {
@@ -67,7 +68,7 @@ function withPlaythroughs({ sessions, ...entry }) {
     measuresWorked: Array.from(entry.measuresWorked).sort((a, b) => a - b),
     measuresReinforced: Array.from(entry.measuresReinforced).sort((a, b) => a - b),
     fullPlaythroughs,
-    timesPlayedInFull: fullPlaythroughs.filter((pt) => pt.hands === TWO_HANDS).length,
+    timesPlayedInFull: sessions.filter(playedInFull).length,
   }
 }
 
