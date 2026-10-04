@@ -42,8 +42,12 @@ export function computeRms(buffer) {
   return Math.sqrt(sum / buffer.length)
 }
 
-// Below this loudness a frame is silence, whatever pitch it seems to carry.
-export const MIN_RMS = 0.01
+// Below this loudness a frame is silence, whatever pitch it seems to carry —
+// a floor for a dead-quiet input, not a judgement of what a note sounds
+// like: how loud a piano reaches the page depends on the microphone, its
+// distance and the room far more than on the player. The tracker below judges
+// loudness against the room's own noise instead.
+export const MIN_RMS = 0.0002
 
 // Turns a per-frame stream of { midi, rms } observations into debounced
 // Note On / Note Off events. A note fires after minOnFrames consecutive
@@ -51,6 +55,13 @@ export const MIN_RMS = 0.01
 // offFrames frames where that pitch is no longer heard (decay, damper, or
 // another note taking over). Monophonic: confirming a new note releases the
 // previous one.
+//
+// A pitch counts only if it stands noiseMargin times above the room's
+// background: the quietest the input has been lately, read as the lowest
+// level seen, drifting up by floorRise per frame so a room getting noisier is
+// caught up with in a few seconds. A fixed threshold was tried first, and cut
+// whole notes or let none through depending on the device. Hum and a fan's
+// whine are steady, so they become the floor rather than notes.
 //
 // The same key struck again never changes the pitch — the new note takes over
 // from the old one's decay without a gap — so it is told apart by loudness
@@ -65,9 +76,12 @@ export function createNoteTracker({
   minOnFrames = 2,
   offFrames = 3,
   minRms = MIN_RMS,
+  noiseMargin = 2,
+  floorRise = 1.01,
   reattackFrames = 3,
   reattackRatio = 2,
 } = {}) {
+  let noiseFloor = Infinity
   let activeNote = null
   let candidate = null
   let candidateCount = 0
@@ -90,7 +104,12 @@ export function createNoteTracker({
   }
 
   function push({ midi, rms }) {
-    const heard = rms >= minRms && midi != null ? midi : null
+    const loudEnough = rms >= noiseFloor * noiseMargin
+    // Digital silence — a microphone still waking up, a device that gates
+    // its own noise — is the quietest room there is, not a floor of zero
+    // that no rise could ever lift.
+    noiseFloor = Math.min(Math.max(rms, minRms), noiseFloor * floorRise)
+    const heard = loudEnough && midi != null ? midi : null
 
     if (heard !== null && heard === activeNote) {
       if (recentRms.length === reattackFrames && rms >= Math.min(...recentRms) * reattackRatio) {

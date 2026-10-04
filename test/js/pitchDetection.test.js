@@ -102,17 +102,20 @@ describe('computeRms', () => {
 })
 
 describe('createNoteTracker', () => {
-  function trackerWithLog(options = {}) {
+  const QUIET_ROOM = 0.001
+  const LOUD = 0.1
+
+  // The tracker judges loudness against the room, so it first hears one.
+  function trackerWithLog(options = {}, room = QUIET_ROOM) {
     const events = []
     const tracker = createNoteTracker({
       onNoteOn: (midi) => events.push(['on', midi]),
       onNoteOff: (midi) => events.push(['off', midi]),
       ...options,
     })
+    tracker.push({ midi: null, rms: room })
     return { tracker, events }
   }
-
-  const LOUD = 0.1
 
   it('fires note-on only after minOnFrames consistent frames', () => {
     const { tracker, events } = trackerWithLog({ minOnFrames: 2 })
@@ -166,10 +169,35 @@ describe('createNoteTracker', () => {
   })
 
   it('treats frames below minRms as silence even when a pitch is reported', () => {
-    const { tracker, events } = trackerWithLog({ minOnFrames: 2, minRms: 0.01 })
+    const { tracker, events } = trackerWithLog({ minOnFrames: 2, minRms: 0.01 }, 0)
     tracker.push({ midi: 60, rms: 0.001 })
     tracker.push({ midi: 60, rms: 0.001 })
     expect(events).toEqual([])
+  })
+
+  // What a fixed threshold got wrong: a far or insensitive microphone brings
+  // the whole piano in quietly, and it is still the loudest thing in the room.
+  it('hears a quiet note in a quieter room', () => {
+    const { tracker, events } = trackerWithLog({ minOnFrames: 2 }, 0.0003)
+    tracker.push({ midi: 60, rms: 0.004 })
+    tracker.push({ midi: 60, rms: 0.004 })
+    expect(events).toEqual([['on', 60]])
+  })
+
+  it('hears a note out of digital silence (an input that gates its own noise)', () => {
+    const { tracker, events } = trackerWithLog({ minOnFrames: 2 }, 0)
+    tracker.push({ midi: 60, rms: 0.004 })
+    tracker.push({ midi: 60, rms: 0.004 })
+    expect(events).toEqual([['on', 60]])
+  })
+
+  it('takes a steady pitched hum for the room, not for a note', () => {
+    const { tracker, events } = trackerWithLog({ minOnFrames: 2 }, 0.01)
+    for (const rms of [0.01, 0.012, 0.009, 0.011, 0.01, 0.012]) tracker.push({ midi: 43, rms })
+    expect(events).toEqual([])
+    tracker.push({ midi: 60, rms: 0.05 })
+    tracker.push({ midi: 60, rms: 0.05 })
+    expect(events).toEqual([['on', 60]])
   })
 
   it('flush releases the active note', () => {
