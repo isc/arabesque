@@ -30,6 +30,24 @@ class DataTest < CapybaraTestBase
     assert_includes exported_data['fingerings'], imported_data['fingerings'].first
   end
 
+  # The iOS app has nowhere to put a download: the page hands it the file
+  # through its saveFile handler, and says nothing itself — the app's share
+  # sheet is what the player sees. A recording handler stands in for the app.
+  def test_in_the_ios_app_the_backup_goes_to_the_app_to_offer
+    page.driver.browser.page.command('Page.addScriptToEvaluateOnNewDocument', source: <<~JS)
+      window.webkit = { messageHandlers: { saveFile: { postMessage: (file) => { window.__savedFile = file } } } }
+      window.alert = (message) => { window.__alerted = message }
+    JS
+    visit '/data.html'
+    click_button '📤 Exporter sauvegarde'
+
+    file = wait_until('the backup handed to the app') { page.evaluate_script('window.__savedFile') }
+    assert_match(/\Aarabesque-backup-\d{4}-\d{2}-\d{2}\.json\z/, file['name'])
+    assert JSON.parse(file['contents'])['exportDate'], 'the backup itself, as text'
+    assert_nil page.evaluate_script('window.__alerted')
+    assert_empty Dir.glob(File.join(DOWNLOAD_DIR, '*'))
+  end
+
   # A piece left mid-way is closed by the next page to open, through the
   # tracker's init. This page used to open storage alone, which left the
   # session just played open: missing from the export, and from "Synchroniser

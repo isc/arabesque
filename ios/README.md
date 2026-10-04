@@ -40,6 +40,10 @@ MIDI device ──CoreMIDI──▶ MIDIBridge.swift ──evaluateJavaScript─
   last one as `window.__pianoTrainerMIDI.pairBluetooth()`, and its presence is
   how the page knows it is in the wrapper — the user agent cannot say, an iPad
   claiming to be a Macintosh.
+- JS → native: `webkit.messageHandlers.saveFile` carries `{name, contents}`, a
+  file the page made for the player to keep (the backup on the data page). A
+  download link has nowhere to go in a WKWebView, so the app writes the file to
+  its temporary directory and offers it through the share sheet.
 
 The shim keeps port object identity stable across updates because `midi.js`
 compares ports with `===` in its `onstatechange` auto-reconnect logic. Its

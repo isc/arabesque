@@ -70,6 +70,9 @@ final class ViewController: UIViewController {
         WKUserScript(source: shim, injectionTime: .atDocumentStart, forMainFrameOnly: true))
     }
     contentController.add(WeakScriptMessageHandler(self), name: "midiBridge")
+    // A file the page makes for the player to keep — a backup — which a
+    // download link cannot give here (see offerFile).
+    contentController.add(WeakScriptMessageHandler(self), name: "saveFile")
 
     let configuration = WKWebViewConfiguration()
     // The other half of the WKAppBoundDomains opt-in in project.yml. Declaring
@@ -294,9 +297,19 @@ extension ViewController: MIDIBridgeDelegate {
 
 extension ViewController: WKScriptMessageHandler {
   func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
-    guard message.name == "midiBridge",
-      let body = message.body as? [String: Any] else { return }
+    guard let body = message.body as? [String: Any] else { return }
+    switch message.name {
+    case "midiBridge":
+      handleMIDIMessage(body)
+    case "saveFile":
+      guard let name = body["name"] as? String, let contents = body["contents"] as? String else { return }
+      offerFile(named: name, contents: contents)
+    default:
+      break
+    }
+  }
 
+  private func handleMIDIMessage(_ body: [String: Any]) {
     switch body["type"] as? String {
     case "ready":
       pushPorts()
@@ -309,6 +322,36 @@ extension ViewController: WKScriptMessageHandler {
     default:
       break
     }
+  }
+}
+
+// MARK: - Files the page makes
+
+extension ViewController {
+  /// A WKWebView has nowhere to put a download: a link to the file goes to
+  /// decidePolicyFor below, which hands Safari a blob: URL it cannot open. So
+  /// the page sends the file itself, as text, and it is offered through the
+  /// share sheet — Save to Files, AirDrop, Mail — from the temporary directory,
+  /// left once the sheet is.
+  fileprivate func offerFile(named name: String, contents: String) {
+    // The last path component only: a name is a name, never a path.
+    let url = FileManager.default.temporaryDirectory.appendingPathComponent((name as NSString).lastPathComponent)
+    do {
+      try contents.write(to: url, atomically: true, encoding: .utf8)
+    } catch {
+      print("Arabesque: could not write \(name) — \(error.localizedDescription)")
+      return
+    }
+    let sheet = UIActivityViewController(activityItems: [url], applicationActivities: nil)
+    sheet.completionWithItemsHandler = { _, _, _, _ in _ = try? FileManager.default.removeItem(at: url) }
+    // On iPad the sheet is a popover, which UIKit refuses with nothing to point
+    // at: anchored to the middle of the screen, with no arrow.
+    if let popover = sheet.popoverPresentationController {
+      popover.sourceView = view
+      popover.sourceRect = CGRect(x: view.bounds.midX, y: view.bounds.midY, width: 0, height: 0)
+      popover.permittedArrowDirections = []
+    }
+    present(sheet, animated: true)
   }
 }
 
