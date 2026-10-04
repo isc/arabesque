@@ -10,6 +10,12 @@
 
 import { PitchDetector } from '../vendor/pitchy.4.1.0.bundle.min.js'
 
+// The analysis window and how often it is read. 4096 samples ≈ 93 ms at
+// 44.1 kHz — long enough to resolve the lowest piano strings, short enough
+// to keep note-on latency playable.
+export const FFT_SIZE = 4096
+export const FRAME_MS = 40
+
 // One detector per buffer size (it preallocates FFT scratch space).
 const detectors = new Map()
 
@@ -22,14 +28,20 @@ const detectors = new Map()
 // and staying below C8 keeps a stray high detection from ever hitting the
 // app's C8 navigate-back key.
 export function detectPitch(buffer, sampleRate, { minFreq = 27.5, maxFreq = 2200, minClarity = 0.9 } = {}) {
+  const [frequency, clarity] = readPitch(buffer, sampleRate)
+  if (clarity < minClarity || frequency < minFreq || frequency > maxFreq) return null
+  return frequency
+}
+
+// MPM's raw answer, [frequency, clarity], before any threshold — what the
+// replay of a capture shows for a note it missed.
+export function readPitch(buffer, sampleRate) {
   let detector = detectors.get(buffer.length)
   if (!detector) {
     detector = PitchDetector.forFloat32Array(buffer.length)
     detectors.set(buffer.length, detector)
   }
-  const [frequency, clarity] = detector.findPitch(buffer, sampleRate)
-  if (clarity < minClarity || frequency < minFreq || frequency > maxFreq) return null
-  return frequency
+  return detector.findPitch(buffer, sampleRate)
 }
 
 export function freqToMidi(frequency) {
@@ -48,6 +60,16 @@ export function computeRms(buffer) {
 // distance and the room far more than on the player. The tracker below judges
 // loudness against the room's own noise instead.
 export const MIN_RMS = 0.0002
+
+// One frame's reading: how loud, and which key if any. The live loop
+// (micInput.js) and the replay of a capture (scripts/mic-captures.mjs) both
+// go through here, so a capture is judged by the very code that listens.
+export function readFrame(samples, sampleRate) {
+  const rms = computeRms(samples)
+  // Most frames are silence between notes: no pitch to look for there.
+  const frequency = rms < MIN_RMS ? null : detectPitch(samples, sampleRate)
+  return { rms, midi: frequency === null ? null : freqToMidi(frequency) }
+}
 
 // Turns a per-frame stream of { midi, rms } observations into debounced
 // Note On / Note Off events. A note fires after minOnFrames consecutive

@@ -5,16 +5,11 @@
 // callback — the path a keyboard's own messages take — so validation,
 // training and strict mode all work unchanged.
 
-import { detectPitch, freqToMidi, computeRms, createNoteTracker, MIN_RMS } from './pitchDetection.js'
+import { readFrame, freqToMidi, createNoteTracker, FFT_SIZE, FRAME_MS } from './pitchDetection.js'
 import { NOTE_ON, NOTE_OFF } from './midi.js'
 import { lastClick } from './metronomeClick.js'
 import { recordError } from './errorLog.js'
 import { t } from './i18n.js'
-
-// 4096 samples ≈ 93 ms at 44.1 kHz — long enough to resolve the lowest
-// piano strings, short enough to keep note-on latency playable.
-const FFT_SIZE = 4096
-const FRAME_MS = 40
 
 // How long after a metronome click its pitch is taken for the click rather
 // than the piano: the click itself (60 ms), the analysis window it lingers in,
@@ -23,6 +18,13 @@ const CLICK_ECHO_MS = 250
 
 // Nothing downstream reads velocity; a Note On only needs it above zero.
 const VELOCITY = 64
+
+// Voice-call processing (echo cancellation & co) eats piano partials — ask
+// for the raw signal. Shared with the capture page (dev/micCapture.js), which
+// must record what this hears.
+export const MIC_CONSTRAINTS = {
+  audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
+}
 
 let audioContext = null
 let mediaStream = null
@@ -44,11 +46,7 @@ export async function start({ onMessage, onEnded, isPageSounding }) {
   }
 
   try {
-    // Voice-call processing (echo cancellation & co) eats piano partials —
-    // ask for the raw signal.
-    mediaStream = await navigator.mediaDevices.getUserMedia({
-      audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
-    })
+    mediaStream = await navigator.mediaDevices.getUserMedia(MIC_CONSTRAINTS)
   } catch (e) {
     // A refusal is the player's answer; anything else (no microphone, one
     // held by another app) is worth hearing about.
@@ -81,10 +79,7 @@ export async function start({ onMessage, onEnded, isPageSounding }) {
     // the player is holding.
     if (isPageSounding()) return
     analyser.getFloatTimeDomainData(samples)
-    const rms = computeRms(samples)
-    // Most frames are silence between notes: no pitch to look for there.
-    const frequency = rms < MIN_RMS ? null : detectPitch(samples, audioContext.sampleRate)
-    const midi = frequency === null ? null : freqToMidi(frequency)
+    const { rms, midi } = readFrame(samples, audioContext.sampleRate)
     if (isClickEcho(midi)) return
     tracker.push({ midi, rms })
   }, FRAME_MS)
