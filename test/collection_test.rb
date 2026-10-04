@@ -5,7 +5,6 @@ require_relative 'test_helper'
 # score page, and per-part fingerprints for MIDI search.
 class CollectionTest < CapybaraTestBase
   def setup
-    page.driver.set_cookie('test-env', 'true')
     visit '/library.html'
     assert_selector 'tbody tr', minimum: 1
   end
@@ -19,21 +18,21 @@ class CollectionTest < CapybaraTestBase
   def test_collection_opens_first_part_and_navigates_between_parts
     click_link 'Le Pianiste virtuose (1re partie)'
     assert_current_path %r{/score\.html\?url=.*Ex_01}
-    assert_selector '#score[data-render-complete]'
+    wait_for_score_render
 
     select 'Exercice 3', from: 'Choisir un exercice'
     assert_current_path %r{Ex_03}
-    assert_selector '#score[data-render-complete]'
+    wait_for_score_render
 
     click_button 'Exercice suivant'
     assert_current_path %r{Ex_04}
-    assert_selector '#score[data-render-complete]'
+    wait_for_score_render
     assert_selector '.pt-topbar__title', text: 'Le Pianiste virtuose (1re partie)'
   end
 
   def test_first_part_disables_previous_button
     click_link 'Le Pianiste virtuose (1re partie)'
-    assert_selector '#score[data-render-complete]'
+    wait_for_score_render
     assert_selector 'button[aria-label="Exercice précédent"]:disabled'
   end
 

@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 
 // The window installPrompt.js listens on and dispatches to (the suite runs in
 // node). Fresh per test, because the module latches state at import time and
@@ -41,7 +41,6 @@ function browserOffer() {
 }
 
 describe('the install offer', () => {
-  beforeEach(() => vi.unstubAllGlobals())
 
   it('is not available until the browser makes one', async () => {
     const { module } = await loadModule()

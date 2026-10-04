@@ -6,13 +6,37 @@
 // — several wrong keys tried for it, or a long wait over it — and goes away
 // again once the notes are coming promptly and clean for a good stretch, the
 // way a teacher's hand leaves the keyboard. The ✕ puts it away for the rest of
-// the visit.
+// the day, for the profile that closed it: a child playing with the strip
+// instead of listening to the teacher closes it once, not at every score
+// (feedback 4d8a81b9).
 //
 // hintStep is the whole of that decision, kept pure so it can be tested
 // without a clock or a page; initKeyboardHint wires it to a timer, the engine
 // and the DOM.
 import { noteName, spelledNote, handOfNote, cLabel } from './noteExtraction.js'
 import { t } from './i18n.js'
+import { localDayKey } from './days.js'
+import { scopedKey } from './profiles.js'
+
+// The day the ✕ was last clicked, per profile.
+const DISMISSED_KEY = scopedKey('arabesque:keyhint-dismissed')
+const today = () => localDayKey(new Date())
+
+function dismissedToday() {
+  try {
+    return localStorage.getItem(DISMISSED_KEY) === today()
+  } catch {
+    return false
+  }
+}
+
+function rememberDismissed() {
+  try {
+    localStorage.setItem(DISMISSED_KEY, today())
+  } catch {
+    /* storage refused: the ✕ holds for this page only */
+  }
+}
 
 // Wrong keys tried for the same note before it is shown.
 export const HINT_WRONG_NOTES = 3
@@ -30,7 +54,7 @@ const TICK_MS = 250
 
 export function initialHint() {
   return {
-    // Which note is owed (see musicxml's expectedGroup), and since when.
+    // Which note is owed (see musicxml's owedGroup), and since when.
     key: null,
     since: 0,
     wrongs: 0,
@@ -99,7 +123,7 @@ export function hintStep(state, event) {
 }
 
 const A0 = 21
-const C8 = 108
+export const C8 = 108
 const MIDDLE_C = 60
 const BLACK_PITCH_CLASSES = new Set([1, 3, 6, 8, 10])
 const isBlackKey = (midi) => BLACK_PITCH_CLASSES.has(midi % 12)
@@ -145,8 +169,8 @@ function caption(notes) {
     .filter((group) => group.notes.length)
 }
 
-export function initKeyboardHint({ expectedGroup, eligible, onVisibleChange, onCaptionChange, now = () => performance.now() }) {
-  let state = initialHint()
+export function initKeyboardHint({ owedGroup, eligible, onVisibleChange, onCaptionChange, now = () => performance.now() }) {
+  let state = { ...initialHint(), dismissed: dismissedToday() }
   // While the keyboard is up, the page follows the player at TICK_MS, so the
   // lit keys move with the cursor however it moved (the beat that ends a
   // measure, a click on another bar). While it is down, a single timer waits
@@ -181,7 +205,7 @@ export function initKeyboardHint({ expectedGroup, eligible, onVisibleChange, onC
   }
 
   function tick() {
-    const group = expectedGroup()
+    const group = owedGroup()
     const asked = eligible()
     dispatch({ type: 'tick', key: group?.key ?? null, now: now(), eligible: asked })
     // Up but out of sight (strict mode, listening): nothing to draw.
@@ -300,6 +324,7 @@ export function initKeyboardHint({ expectedGroup, eligible, onVisibleChange, onC
       if (state.visible) tick()
     },
     dismiss() {
+      rememberDismissed()
       clearTimeout(waiting)
       dispatch({ type: 'dismiss' })
     },

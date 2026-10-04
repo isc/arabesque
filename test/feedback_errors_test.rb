@@ -6,11 +6,8 @@ require_relative 'test_helper'
 # the real events reach it, that it outlives the page they happened on, and that
 # the report sent from another page picks it up.
 class FeedbackErrorsTest < CapybaraTestBase
-  def setup
-    page.driver.set_cookie('test-env', 'true')
-  end
-
   def test_errors_from_the_page_before_travel_with_a_report_sent_from_the_library
+    allow_page_errors(/TypeError: boom/, /RangeError: lost promise/)
     visit '/practice.html'
     # Through a script element, so they are the page's own: an error thrown
     # from the driver's evaluation would be reported on no script at all.
@@ -20,8 +17,8 @@ class FeedbackErrorsTest < CapybaraTestBase
       document.head.append(script)
     JS
     # The rejection is reported from a task of its own, after the throw.
-    Timeout.timeout(Capybara.default_max_wait_time) do
-      sleep 0.02 until recorded_messages.include?('RangeError: lost promise')
+    wait_until('the rejection to be recorded', interval: 0.02) do
+      recorded_error_messages.include?('RangeError: lost promise')
     end
 
     visit '/library.html'
@@ -36,13 +33,5 @@ class FeedbackErrorsTest < CapybaraTestBase
     assert_equal 1, thrown['count']
     refute_empty thrown['stack']
     assert_equal 'unhandled rejection', errors.fetch('RangeError: lost promise')['where']
-  end
-
-  private
-
-  def recorded_messages
-    page.evaluate_script(<<~JS)
-      JSON.parse(sessionStorage.getItem('arabesque:recent-errors') ?? '[]').map((error) => error.message)
-    JS
   end
 end

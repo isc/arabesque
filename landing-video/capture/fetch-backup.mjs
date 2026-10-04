@@ -10,8 +10,8 @@
 // (~/.supabase/access-token or $SUPABASE_ACCESS_TOKEN).
 //
 // Without --email, the account with the most sessions on that profile is used.
-// Aggregates are left out: Supabase does not store them, and build-assets.mjs
-// rebuilds them from the sessions after the import, the way sync does.
+// Aggregates are left out: Supabase does not store them, and the app's import
+// rebuilds them from the sessions, the way sync does.
 import fs from 'fs'
 import { parseArgs } from 'node:util'
 import { die, query, quote } from '../../scripts/lib/supabase.mjs'

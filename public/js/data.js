@@ -8,7 +8,8 @@
 // every profile on it included.
 import { initStorage } from './storage.js'
 import { initPracticeTracker } from './practiceTracker.js'
-import { lastSyncAt } from './sync.js'
+import { localDayKey } from './days.js'
+import { lastSyncAt, importBackup as importBackupFile } from './sync.js'
 import { initAutoSync, requestSync } from './autoSync.js'
 import { deleteCurrentUser } from './account.js'
 import { t, locale } from './i18n.js'
@@ -29,10 +30,13 @@ import {
 // The file name of a backup carries the profile it came from — except the
 // main profile's, which keeps the name it always had.
 function backupSlug(profile) {
-  if (profile.id === MAIN_PROFILE_ID) return ''
+  // None when a sync learnt this page's profile was removed on another device:
+  // its practice is still here, and saving it is still worth a file.
+  if (!profile || profile.id === MAIN_PROFILE_ID) return ''
   const slug = profile.name
     .toLowerCase()
     .normalize('NFD')
+    .replace(/\p{M}/gu, '') // the accents NFD took apart: "Léa" is lea, not le-a
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-|-$/g, '')
   return slug ? `${slug}-` : ''
@@ -127,17 +131,23 @@ export function dataApp() {
     deleteError: '',
 
     async init() {
-      await storage.init()
-      try {
-        const mod = await import('./supabaseClient.js')
+      // Fetched from its CDN while the practice data opens, which it does not
+      // need. Caught at once, or a failure would also be logged as unhandled.
+      const client = import('./supabaseClient.js').catch((err) => {
+        recordError(err, 'Supabase client could not be loaded')
+        return null
+      })
+      // The tracker's init, not storage's alone: it also closes the session a
+      // score page left behind mid-piece, which is what "Synchroniser
+      // maintenant" and the export would otherwise both leave out.
+      await practiceTracker.init()
+      const mod = await client
+      if (mod) {
         supabase = mod.supabase
         pendingSignIn = mod.pendingSignIn
         setPendingSignIn = mod.setPendingSignIn
-        this.cloudConfigured = !!supabase
-      } catch (err) {
-        recordError(err, 'Supabase client could not be loaded')
-        this.cloudConfigured = false
       }
+      this.cloudConfigured = !!supabase
       if (supabase) {
         const { data } = await supabase.auth.getSession()
         this.setSession(data.session)
@@ -289,11 +299,21 @@ export function dataApp() {
     async exportBackup() {
       try {
         const backupData = await storage.exportBackup()
-        const blob = new Blob([JSON.stringify(backupData, null, 2)], { type: 'application/json' })
-        const url = URL.createObjectURL(blob)
+        const json = JSON.stringify(backupData, null, 2)
+        const name = `arabesque-backup-${backupSlug(this.currentProfile)}${localDayKey(new Date())}.json`
+        // The iOS app has nowhere to put a download: the link went to Safari,
+        // which could not open it, and the success message below was all the
+        // player got. There the app takes the file, and its share sheet — Save
+        // to Files, AirDrop, Mail — is what the player sees.
+        const saveFile = window.webkit?.messageHandlers?.saveFile
+        if (saveFile) {
+          saveFile.postMessage({ name, contents: json })
+          return
+        }
+        const url = URL.createObjectURL(new Blob([json], { type: 'application/json' }))
         const a = document.createElement('a')
         a.href = url
-        a.download = `arabesque-backup-${backupSlug(this.currentProfile)}${new Date().toISOString().split('T')[0]}.json`
+        a.download = name
         document.body.appendChild(a)
         a.click()
         document.body.removeChild(a)
@@ -309,17 +329,8 @@ export function dataApp() {
       const file = event.target.files[0]
       if (!file) return
       try {
-        const backupData = JSON.parse(await file.text())
-        const result = await storage.importBackup(backupData)
-        if (result.success) {
-          alert(
-            t('library.importOk', {
-              sessions: result.importedSessions,
-              aggregates: result.importedAggregates,
-              fingerings: result.importedFingerings,
-            })
-          )
-        }
+        const result = await importBackupFile({ storage, practiceTracker }, JSON.parse(await file.text()))
+        alert(t('library.importOk', { sessions: result.importedSessions, fingerings: result.importedFingerings }))
       } catch (error) {
         recordError(error, 'Backup could not be imported')
         alert(t('library.importError', { error: error.message }))

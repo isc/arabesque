@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { boxesByProximity } from '../../public/js/fingeringEditor.js'
 
-// Noteheads as the browser measures them: about 12 x 10 CSS px each. `at`
+// Noteheads as the browser measures them: about 12 x 10 CSS px each. `head`
 // places one by its centre, the way a score engraves them.
 const head = (cx, cy) => ({ left: cx - 6, right: cx + 6, top: cy - 5, bottom: cy + 5 })
 const SLOP = 12

@@ -8,7 +8,7 @@ require 'json'
 # The precedence rules themselves are pinned in test/js/feedbackEmail.test.js.
 class FeedbackFormTest < CapybaraTestBase
   EMAIL_FIELD = 'E-mail (facultatif)'.freeze
-  AUTH_KEY = 'sb-mtihhulokbhhvkomlmmk-auth-token'.freeze
+  AUTH_KEY = js_constant('supabaseConfig.js', 'AUTH_STORAGE_KEY')
 
   # Signed in for sync, as far as a page can tell without loading
   # @supabase/supabase-js: the session the client persists, minus the fields
@@ -16,13 +16,12 @@ class FeedbackFormTest < CapybaraTestBase
   # blocks the CDN it comes from, and says why this session would not survive
   # it.
   SIGN_IN = <<~JS.freeze
-    localStorage.setItem(#{AUTH_KEY.inspect}, JSON.stringify({
+    localStorage.setItem(#{AUTH_KEY}, JSON.stringify({
       access_token: 'x', user: { email: 'player@example.com' },
     }))
   JS
 
   def setup
-    page.driver.set_cookie('test-env', 'true')
     visit '/library.html'
     capture_submissions
   end

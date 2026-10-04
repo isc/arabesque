@@ -24,7 +24,6 @@ class PwaInstallTest < CapybaraTestBase
   INSTALL_ENTRY = '📲 Installer l’application'.freeze
 
   def setup
-    page.driver.set_cookie('test-env', 'true')
     visit '/library.html'
   end
 

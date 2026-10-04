@@ -14,21 +14,15 @@
     <script type="module" src="js/swRegister.js"></script>
     <script type="module">
       import { practiceApp } from './js/practice.js'
-      import { initAlpineI18n } from './js/i18n.js'
+      import { startAlpine } from './js/alpineBoot.js'
       import { mountJournalEntries } from './js/journalEntries.js'
-      window.practiceApp = practiceApp
-      // Inject the shared journal entry line before Alpine boots.
-      mountJournalEntries()
-      initAlpineI18n()
-      const alpine = document.createElement('script')
-      alpine.src = 'vendor/alpinejs.3.14.9.min.js'
-      document.head.appendChild(alpine)
+      startAlpine({ practiceApp }, [mountJournalEntries])
     </script>
   </head>
   <body>
     <main class="container pt-practice-page">
       <div class="pt-page-header">
-        <a href="library.html" class="pt-topbar__back" data-i18n="practice.back">← Bibliothèque</a>
+        <a href="library.html" class="pt-back" data-i18n="practice.back">← Bibliothèque</a>
         <h1 x-text="$t('practice.heading')">Assiduité</h1>
       </div>
 
@@ -45,7 +39,7 @@
         <!-- Year totals. Streaks are all-time by design (see buildStats). -->
         <dl class="pt-statrow" x-show="ready" x-cloak>
           <div class="pt-stat">
-            <dt class="pt-eyebrow" x-text="$t('practice.statDays')">Jours de pratique</dt>
+            <dt class="pt-eyebrow" x-text="$t('practice.statDays')">Jours joués</dt>
             <dd x-text="stats.days"></dd>
           </div>
           <div class="pt-stat">

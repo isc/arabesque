@@ -4,12 +4,14 @@
 // Only sessions are written; the app then recomputes its own aggregates from
 // them, so the statuses on screen are whatever the real rules make of this
 // history rather than values written by hand. Those rules are STATUS_THRESHOLDS
-// in practiceTracker.js, applied by computeScoreStatus(); this file logs them at
+// in aggregates.js, applied by computeScoreStatus(); this file logs them at
 // seed time rather than restating them, so a capture run always shows the bar
 // the profiles below are being matched against.
 import { initStorage } from './js/storage.js'
-import { initPracticeTracker, STATUS_THRESHOLDS } from './js/practiceTracker.js'
-import { fetchCatalogMeta } from './js/sync.js'
+import { initPracticeTracker } from './js/practiceTracker.js'
+import { STATUS_THRESHOLDS } from './js/aggregates.js'
+import { importBackup } from './js/sync.js'
+import { LANG_KEY } from './js/i18n.js'
 
 const FLAG = 'arabesque:demo-seeded'
 
@@ -121,24 +123,19 @@ function buildSessions() {
 async function seedPracticeHistory() {
   const storage = initStorage()
   await storage.init()
-  await storage.importBackup({
-    exportDate: new Date().toISOString(),
-    sessions: buildSessions(),
-    aggregates: [],
-    fingerings: [],
-  })
-  const tracker = initPracticeTracker(storage)
+  await importBackup(
+    { storage, practiceTracker: initPracticeTracker(storage) },
+    { exportDate: new Date().toISOString(), sessions: buildSessions(), aggregates: [], fingerings: [] },
+  )
   console.log('[demo] status thresholds in force:', STATUS_THRESHOLDS)
-  const meta = await fetchCatalogMeta()
-  await tracker.rebuildAggregates((scoreId) => meta[scoreId] ?? null)
   localStorage.setItem(FLAG, '1')
   localStorage.setItem('arabesque:returning', '1')
 }
 
 // The listing's primary locale is fr-FR, so the screenshots are too. Set before
 // anything reads it, and reload once if the app already picked another.
-if (localStorage.getItem('arabesque:lang') !== 'fr') {
-  localStorage.setItem('arabesque:lang', 'fr')
+if (localStorage.getItem(LANG_KEY) !== 'fr') {
+  localStorage.setItem(LANG_KEY, 'fr')
   location.reload()
 }
 

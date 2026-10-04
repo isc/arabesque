@@ -1,22 +1,17 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import 'fake-indexeddb/auto'
-import {
-  initPracticeTracker,
-  computePlaythroughDuration,
-  computeSessionDuration,
-  MIN_PRACTICE_MS_FOR_STATUS,
-  AGGREGATES_VERSION,
-  measuresToReinforce,
-  hasHotSpots,
-} from '../../public/js/practiceTracker.js'
-import { playthroughHands, playthroughGroups } from '../../public/js/hands.js'
+import { initPracticeTracker, PENDING_SESSION_KEY, STRANDED_REPAIR_KEY } from '../../public/js/practiceTracker.js'
+import { MIN_PRACTICE_MS_FOR_STATUS, AGGREGATES_VERSION } from '../../public/js/aggregates.js'
+import { playthroughHands, playthroughGroups, TWO_HANDS } from '../../public/js/hands.js'
 import { initStorage } from '../../public/js/storage.js'
+import { installLocalStorage } from './support/browserGlobals.js'
 
 describe('practiceTracker', () => {
   let tracker
   let storage
 
   const BASE = new Date('2026-06-10T10:00:00.000Z').getTime()
+  const DAY_MS = 24 * 60 * 60 * 1000
 
   // The tracker times every attempt off the wall clock, so the suite runs on a
   // frozen one: nothing moves unless a test moves it, and a duration is then
@@ -30,10 +25,14 @@ describe('practiceTracker', () => {
     vi.setSystemTime(clock)
   }
 
+  // A localStorage of its own for every test, in place before init() reads the
+  // snapshot a page left there: one installed later would hand each test the
+  // last one's, stranded-repair marker and all.
   beforeEach(async () => {
     vi.useFakeTimers({ toFake: ['Date'] })
     clock = BASE
     vi.setSystemTime(clock)
+    installLocalStorage()
     indexedDB = new IDBFactory()
     storage = initStorage()
     tracker = initPracticeTracker(storage)
@@ -48,7 +47,7 @@ describe('practiceTracker', () => {
     it('saves session to storage on end', async () => {
       tracker.startSession('/scores/test.xml', 'Test', 'Composer', 'training')
       tracker.startMeasureAttempt(0)
-      tracker.endMeasureAttempt(true)
+      tracker.endMeasureAttempt()
       const savedSession = await tracker.endSession()
 
       const retrieved = await storage.getSession(savedSession.id)
@@ -66,19 +65,32 @@ describe('practiceTracker', () => {
     it('toggleMode preserves metadata and saves previous session', async () => {
       tracker.startSession('/scores/test.xml', 'Test Score', 'Test Composer', 'free')
       tracker.startMeasureAttempt(0)
-      tracker.endMeasureAttempt(true)
+      tracker.endMeasureAttempt()
 
-      const newSession = await tracker.toggleMode('training')
+      expect(await tracker.toggleMode('training')).toBe(true)
 
+      const newSession = tracker.getCurrentSession()
       expect(newSession.scoreId).toBe('/scores/test.xml')
       expect(newSession.mode).toBe('training')
 
-      // Metadata is stored in aggregates, not in session
+      // The session filed on the way named its score's row.
       const stats = await tracker.getScoreStats('/scores/test.xml')
       expect(stats.totalSessions).toBe(1)
       expect(stats.scoreTitle).toBe('Test Score')
       expect(stats.composer).toBe('Test Composer')
     })
+  })
+
+  // A session nothing was played in changes hands: nothing to file, nothing
+  // to sync.
+  it('toggleMode files nothing for a session with nothing played in it', async () => {
+    tracker.startSession('/scores/test.xml', 'Test Score', 'Test Composer', 'free')
+    const session = tracker.getCurrentSession()
+
+    expect(await tracker.toggleMode('strict')).toBe(false)
+
+    expect(tracker.getCurrentSession()).toBe(session)
+    expect(session.mode).toBe('strict')
   })
 
   describe('measure attempts', () => {
@@ -98,13 +110,13 @@ describe('practiceTracker', () => {
 
     it('groups attempts by measure index', async () => {
       tracker.startMeasureAttempt(0)
-      tracker.endMeasureAttempt(true)
+      tracker.endMeasureAttempt()
 
       tracker.startMeasureAttempt(1)
-      tracker.endMeasureAttempt(true)
+      tracker.endMeasureAttempt()
 
       tracker.startMeasureAttempt(0)
-      tracker.endMeasureAttempt(false)
+      tracker.endMeasureAttempt()
 
       const session = await tracker.endSession()
       const measure0 = session.measures.find((m) => m.sourceMeasureIndex === 0)
@@ -229,14 +241,14 @@ describe('practiceTracker', () => {
       // First session
       tracker.startSession('/scores/test.xml', 'Test', 'Composer', 'training')
       tracker.startMeasureAttempt(0)
-      tracker.endMeasureAttempt(true)
+      tracker.endMeasureAttempt()
       await tracker.endSession()
 
       // Second session with errors
       tracker.startSession('/scores/test.xml', 'Test', 'Composer', 'training')
       tracker.startMeasureAttempt(0)
       tracker.recordWrongNote()
-      tracker.endMeasureAttempt(false)
+      tracker.endMeasureAttempt()
       await tracker.endSession()
 
       const stats = await tracker.getScoreStats('/scores/test.xml')
@@ -254,12 +266,12 @@ describe('practiceTracker', () => {
       // Measure 0: 3 clean attempts (enough for perfectionnement)
       for (let i = 0; i < 3; i++) {
         tracker.startMeasureAttempt(0)
-        tracker.endMeasureAttempt(true)
+        tracker.endMeasureAttempt()
       }
 
       // Measure 1: 1 clean attempt (not enough)
       tracker.startMeasureAttempt(1)
-      tracker.endMeasureAttempt(true)
+      tracker.endMeasureAttempt()
 
       tracker.markScoreCompleted()
       await tracker.endSession()
@@ -287,28 +299,10 @@ describe('practiceTracker', () => {
     it('progresses to repertoire once every measure has 10+ clean attempts, 3+ days, and 10+ completions', async () => {
       // 10 sessions × 1 clean attempt/measure = 10 cleanAttempts per measure
       // 10 markScoreCompleted = 10 timesCompleted
-      // First 3 sessions land on distinct days to satisfy practiceDays >= 3
-      const days = ['2026-01-01', '2026-01-02', '2026-01-03', ...Array(7).fill('2026-01-04')]
-
-      for (const day of days) {
-        tracker.startSession('/scores/test.xml', 'Test', 'Composer', 'free')
-
-        for (const m of [0, 1]) {
-          tracker.startMeasureAttempt(m)
-          tracker.endMeasureAttempt(true)
-        }
-
-        tracker.markScoreCompleted()
-        const session = await tracker.endSession()
-
-        session.startedAt = `${day}T10:00:00.000Z`
-        await storage.saveSession(session)
-
-        const agg = await storage.getAggregate('/scores/test.xml')
-        if (agg && !agg.practiceDays.includes(day)) {
-          agg.practiceDays.push(day)
-          await storage.saveAggregate(agg)
-        }
+      // The first 3 a day apart, for the 3 practice days the tracker counts.
+      for (let session = 0; session < 10; session++) {
+        if (session === 1 || session === 2) advanceClock(DAY_MS)
+        await playSession('/scores/test.xml', [0, 1], 'free', true)
       }
 
       const stats = await tracker.getScoreStats('/scores/test.xml')
@@ -355,7 +349,7 @@ describe('practiceTracker', () => {
       for (const m of [0, 1]) {
         for (let i = 0; i < 10; i++) {
           tracker.startMeasureAttempt(m)
-          tracker.endMeasureAttempt(true)
+          tracker.endMeasureAttempt()
         }
       }
 
@@ -492,7 +486,7 @@ describe('practiceTracker', () => {
       advanceClock(20_000)
       tracker.setActiveHands(RIGHT)
       advanceClock(20_000)
-      await tracker.endMeasureAttempt(true)
+      await tracker.endMeasureAttempt()
       await playMeasure(1, 40_000, RIGHT)
       tracker.markScoreCompleted()
       await tracker.endSession()
@@ -507,7 +501,7 @@ describe('practiceTracker', () => {
       tracker.startMeasureAttempt(1, false, RIGHT)
       tracker.setActiveHands(BOTH)
       advanceClock(40_000)
-      await tracker.endMeasureAttempt(true)
+      await tracker.endMeasureAttempt()
       tracker.markScoreCompleted()
       await tracker.endSession()
 
@@ -517,109 +511,6 @@ describe('practiceTracker', () => {
   })
 
   describe('measures to reinforce', () => {
-    // Sessions as the ranking takes them: oldest first, one entry per measure.
-    const session = (measures) => ({
-      measures: Object.entries(measures).map(([index, attempts]) => ({
-        sourceMeasureIndex: Number(index),
-        attempts: attempts.map(([wrongNotes, durationMs = 100]) => ({
-          wrongNotes,
-          durationMs,
-          clean: wrongNotes === 0,
-        })),
-      })),
-    })
-
-    it('returns nothing without sessions', () => {
-      expect(measuresToReinforce([])).toEqual([])
-    })
-
-    it('excludes measures played without a fumble', () => {
-      const result = measuresToReinforce([session({ 0: [[0]], 1: [[2]] })])
-      expect(result.map((m) => m.sourceMeasureIndex)).toEqual([1])
-    })
-
-    it('drops a measure once it has been played cleanly three times in a row', () => {
-      const fumbled = [session({ 0: [[2]] })]
-      expect(measuresToReinforce([...fumbled, session({ 0: [[0], [0]] })])).toHaveLength(1)
-      expect(measuresToReinforce([...fumbled, session({ 0: [[0], [0], [0]] })])).toEqual([])
-    })
-
-    it('sorts by wrong notes, then by duration', () => {
-      const result = measuresToReinforce([
-        session({ 0: [[2, 100]], 1: [[3, 100]], 2: [[2, 300]] }),
-      ])
-      expect(result.map((m) => m.sourceMeasureIndex)).toEqual([1, 2, 0])
-    })
-
-    it('sums wrong notes across sessions and keeps the last duration', () => {
-      const result = measuresToReinforce([
-        session({ 0: [[1, 100]] }),
-        session({ 0: [[2, 300]] }),
-      ])
-      expect(result[0]).toMatchObject({ wrongNotes: 3, durationMs: 300 })
-    })
-
-    it('respects the limit', () => {
-      const result = measuresToReinforce([session({ 0: [[3]], 1: [[2]], 2: [[1]] })], { limit: 2 })
-      expect(result.map((m) => m.sourceMeasureIndex)).toEqual([0, 1])
-    })
-
-    describe('per hand selection', () => {
-      // One measure's attempts, each [wrongNotes, hands].
-      const played = (attempts) => ({
-        measures: [{
-          sourceMeasureIndex: 0,
-          attempts: attempts.map(([wrongNotes, hands]) => ({ wrongNotes, clean: wrongNotes === 0, hands })),
-        }],
-      })
-
-      it('offers a bar fumbled with one hand only for that hand', () => {
-        const sessions = [played([[2, 'left']])]
-        expect(measuresToReinforce(sessions, { hands: 'left' })).toHaveLength(1)
-        expect(measuresToReinforce(sessions, { hands: 'right' })).toEqual([])
-        expect(measuresToReinforce(sessions, { hands: 'both' })).toEqual([])
-      })
-
-      it('reads an attempt recorded before hands were tracked as two-handed', () => {
-        const sessions = [played([[2, undefined]])]
-        expect(measuresToReinforce(sessions, { hands: 'both' })).toHaveLength(1)
-        expect(measuresToReinforce(sessions, { hands: 'right' })).toEqual([])
-      })
-
-      it('does not retire a two-hand fumble on clean one-hand passes', () => {
-        const sessions = [played([[2, 'both'], [0, 'right'], [0, 'right'], [0, 'right']])]
-        expect(measuresToReinforce(sessions, { hands: 'both' })).toHaveLength(1)
-        expect(measuresToReinforce(sessions, { hands: 'right' })).toEqual([])
-      })
-
-      it('ignores bars played with neither hand ticked', () => {
-        expect(measuresToReinforce([played([[2, 'none']])])).toEqual([])
-      })
-
-      it('answers for every selection when none is asked about', () => {
-        const sessions = [played([[2, 'left'], [0, 'both'], [0, 'both'], [0, 'both']])]
-        expect(measuresToReinforce(sessions, { hands: 'both' })).toEqual([])
-        expect(measuresToReinforce(sessions).map((m) => m.hands)).toEqual(['left'])
-      })
-    })
-
-    it('flags a measure whose error rate stops falling, and ranks it first', () => {
-      const stagnating = { 0: [[1]] } // fumbled in every session
-      const improving = { 1: [[4]] } // heavier, but on the mend below
-      const result = measuresToReinforce([
-        session({ ...stagnating, ...improving }),
-        session({ ...stagnating, 1: [[1], [0]] }),
-        session({ ...stagnating, 1: [[0]] }),
-      ])
-      expect(result.map((m) => m.sourceMeasureIndex)).toEqual([0, 1])
-      expect(result.map((m) => m.stagnant)).toEqual([true, false])
-    })
-
-    it('needs three sessions before calling a measure stagnant', () => {
-      const twoSessions = [session({ 0: [[1]] }), session({ 0: [[1]] })]
-      expect(measuresToReinforce(twoSessions)[0].stagnant).toBe(false)
-    })
-
     it('suggests measures from the session under way, before any playthrough', async () => {
       tracker.startSession('/scores/test.xml', 'Test', 'Composer', 'free')
       tracker.startMeasureAttempt(3)
@@ -642,6 +533,20 @@ describe('practiceTracker', () => {
       expect(result.map((m) => m.sourceMeasureIndex)).toEqual([2])
     })
 
+    // The end of a piece asks for the ranking of its runs, then for the bars to
+    // reinforce: one read of the score's history serves both.
+    it('shares its read of the history with the ranking of the runs', async () => {
+      await playSession('/scores/test.xml', [0, 1], 'free', true)
+      tracker.startSession('/scores/test.xml', 'Test', 'Composer', 'free')
+      const read = vi.spyOn(storage, 'getSessions')
+
+      const [run] = await tracker.getAllPlaythroughs('/scores/test.xml')
+      await tracker.getMeasuresToReinforce('/scores/test.xml')
+
+      expect(run).toMatchObject({ hands: TWO_HANDS, wrongNotes: 0 })
+      expect(read).toHaveBeenCalledOnce()
+    })
+
     it('ignores other scores', async () => {
       tracker.startSession('/scores/other.xml', 'Other', 'Composer', 'free')
       tracker.startMeasureAttempt(0)
@@ -662,75 +567,35 @@ describe('practiceTracker', () => {
       const left = await tracker.getMeasuresToReinforce('/scores/test.xml', 'left')
       expect(left.map((m) => m.sourceMeasureIndex)).toEqual([1])
     })
-
-    // The library's 🎯 chip: a bar reinforcement would offer that also stands
-    // out from the rest of the piece.
-    describe('hot spots', () => {
-      const clean = [[0], [0], [0]]
-
-      it('finds a bar fumbled far more often than the rest of the piece', () => {
-        expect(hasHotSpots([session({ 0: clean, 1: clean, 2: [[1], [1], [0]] })])).toBe(true)
-      })
-
-      it('finds none in a piece fumbled evenly, though reinforcement has bars to offer', () => {
-        const even = [session({ 0: [[1], [0], [1]], 1: [[1], [1], [0]], 2: [[0], [1], [1]] })]
-        expect(measuresToReinforce(even)).not.toEqual([])
-        expect(hasHotSpots(even)).toBe(false)
-      })
-
-      it('needs more than one unlucky attempt', () => {
-        expect(hasHotSpots([session({ 0: [[0]], 1: [[0]], 2: [[1]] })])).toBe(false)
-        expect(hasHotSpots([session({ 0: clean, 1: clean, 2: [[1], [1], [1]] })])).toBe(true)
-      })
-
-      it('lets a bar go once it has been played cleanly three times in a row', () => {
-        const steady = [[0], [0], [0], [0], [0], [0]]
-        expect(hasHotSpots([session({ 0: steady, 1: [[1], [1], [0], [0]] })])).toBe(true)
-        expect(hasHotSpots([session({ 0: steady, 1: [[1], [1], [0], [0], [0]] })])).toBe(false)
-      })
-
-      it('finds none without sessions or without a fumble', () => {
-        expect(hasHotSpots([])).toBe(false)
-        expect(hasHotSpots([session({ 0: clean })])).toBe(false)
-      })
-
-      it('asks of both hands unless told otherwise', () => {
-        const attempts = (wrongNotes, hands) => wrongNotes.map((w) => ({ wrongNotes: w, clean: w === 0, hands }))
-        const sessions = [{
-          measures: [
-            { sourceMeasureIndex: 0, attempts: [...attempts([0, 0, 0], 'both'), ...attempts([0, 0, 0], 'left')] },
-            { sourceMeasureIndex: 1, attempts: [...attempts([0, 0, 0], 'both'), ...attempts([1, 1, 1], 'left')] },
-          ],
-        }]
-        expect(hasHotSpots(sessions)).toBe(false)
-        expect(hasHotSpots(sessions, 'left')).toBe(true)
-      })
-    })
   })
 
   describe('sessions interrupted by a page teardown', () => {
-    // The tracker reaches for localStorage only through the stash; the suite
-    // runs in node, so it needs one.
-    beforeEach(() => {
-      const store = new Map()
-      globalThis.localStorage = {
-        getItem: (k) => store.get(k) ?? null,
-        setItem: (k, v) => store.set(k, String(v)),
-        removeItem: (k) => store.delete(k),
-      }
-    })
-
     // What a page teardown looks like: measures played and saved incrementally,
     // then the snapshot, then endSession() never getting to commit.
     async function interruptedSession() {
       tracker.startSession('/scores/test.xml', 'Test', 'Composer', 'free', 4)
       tracker.startMeasureAttempt(0)
-      await tracker.endMeasureAttempt(true)
+      await tracker.endMeasureAttempt()
       await storage.saveSession(tracker.getCurrentSession())
       const id = tracker.getCurrentSession().id
       tracker.stashPendingSession()
       return id
     }
+
+    // A row counted by older rules can lack what the fold counts on — the
+    // practice days, before there were any. Folding the snapshot into it
+    // ahead of the rebuild threw, and took init() down with it.
+    it('rebuilds an outdated row before crediting the session to it', async () => {
+      await interruptedSession()
+      const { practiceDays, ...row } = await storage.getAggregate('/scores/test.xml')
+      await storage.saveAggregate({ ...row, rulesVersion: AGGREGATES_VERSION - 1 })
+
+      await initPracticeTracker(storage).init()
+
+      const agg = await storage.getAggregate('/scores/test.xml')
+      expect(agg).toMatchObject({ rulesVersion: AGGREGATES_VERSION, totalSessions: 1, scoreTitle: 'Test' })
+      expect(agg.practiceDays).toHaveLength(1)
+    })
 
     it('closes and credits the session on the next load', async () => {
       const id = await interruptedSession()
@@ -751,11 +616,11 @@ describe('practiceTracker', () => {
 
     it('does not credit twice when the session did commit after all', async () => {
       await interruptedSession()
-      const stash = localStorage.getItem('arabesque:pending-session')
+      const stash = localStorage.getItem(PENDING_SESSION_KEY)
       // endSession() won the race, then the page died before it could clear the
       // stash — so the snapshot is still there on the next load.
       await tracker.endSession()
-      localStorage.setItem('arabesque:pending-session', stash)
+      localStorage.setItem(PENDING_SESSION_KEY, stash)
       const before = await storage.getAggregate('/scores/test.xml')
       expect(before.totalSessions).toBe(1)
 
@@ -778,24 +643,27 @@ describe('practiceTracker', () => {
 
     it('keeps a snapshot when a different session ends', async () => {
       await interruptedSession()
-      const stash = localStorage.getItem('arabesque:pending-session')
+      const stash = localStorage.getItem(PENDING_SESSION_KEY)
 
       // Another session runs to a clean close — a new score opened on the same
       // page, say. It must not consume the stranded one's snapshot.
       tracker.startSession('/scores/other.xml', 'Other', 'Composer', 'free', 4)
       tracker.startMeasureAttempt(0)
-      await tracker.endMeasureAttempt(true)
+      await tracker.endMeasureAttempt()
       await tracker.endSession()
 
-      expect(localStorage.getItem('arabesque:pending-session')).toBe(stash)
+      expect(localStorage.getItem(PENDING_SESSION_KEY)).toBe(stash)
 
       await initPracticeTracker(storage).init()
       expect((await storage.getAggregate('/scores/test.xml')).totalSessions).toBe(1)
     })
 
     // A session stranded long ago, as left behind by a version with no
-    // snapshots: measures played and saved, endedAt never stamped.
+    // snapshots: measures played and saved, endedAt never stamped — on a
+    // device the one-off repair has not run on yet. (The suite's own init()
+    // ran it, on a store with nothing to repair.)
     async function strandedSession(id, hoursAgo = 24) {
+      localStorage.removeItem(STRANDED_REPAIR_KEY)
       const started = new Date(Date.now() - hoursAgo * 3600e3)
       await storage.saveSession({
         id, scoreId: '/scores/old.xml', mode: 'free', totalMeasures: 4,
@@ -827,7 +695,7 @@ describe('practiceTracker', () => {
       // A second load with the marker in place, and a third with it removed:
       // the endedAt filter is what makes the repair safe to re-run.
       await initPracticeTracker(storage).init()
-      localStorage.removeItem('arabesque:stranded-sessions-closed')
+      localStorage.removeItem(STRANDED_REPAIR_KEY)
       await initPracticeTracker(storage).init()
 
       const again = await storage.getAggregate('/scores/old.xml')
@@ -857,10 +725,25 @@ describe('practiceTracker', () => {
   })
 
   describe('daily log', () => {
+    // Runs were first timed on 21 January 2026: a session completed before
+    // that carries no playthroughStartedAt.
+    it('counts a run from before runs were timed as played in full, as the calendar does', async () => {
+      tracker.startSession('/scores/test.xml', 'Test', 'Composer', 'free', 1)
+      tracker.startMeasureAttempt(0)
+      await tracker.endMeasureAttempt()
+      tracker.markScoreCompleted()
+      const { playthroughStartedAt, ...untimed } = await tracker.endSession()
+      await storage.saveSession(untimed)
+
+      const [entry] = await tracker.getDailyLog(new Date())
+      expect(entry.timesPlayedInFull).toBe(1)
+      expect([...(await tracker.getPracticeCalendar()).values()][0].timesPlayedInFull).toBe(1)
+    })
+
     it('returns practiced scores for today', async () => {
       tracker.startSession('/scores/test.xml', 'Test', 'Composer', 'training')
       tracker.startMeasureAttempt(0)
-      tracker.endMeasureAttempt(true)
+      tracker.endMeasureAttempt()
       await tracker.endSession()
 
       const log = await tracker.getDailyLog(new Date())
@@ -870,11 +753,11 @@ describe('practiceTracker', () => {
       expect(log[0].measuresWorked).toContain(0)
     })
 
-    it('getDailyLogs matches per-day reads, in a single pass over the store', async () => {
-      tracker.startSession('/scores/test.xml', 'Test', 'Composer', 'training')
-      tracker.startMeasureAttempt(0)
-      tracker.endMeasureAttempt(true)
-      await tracker.endSession()
+    it('getDailyLogs matches per-day reads, in one read of just the days asked for', async () => {
+      advanceClock(-3 * DAY_MS)
+      await playSession('/scores/test.xml', [0]) // three days back: not a day asked for below
+      advanceClock(3 * DAY_MS)
+      await playSession('/scores/test.xml', [0])
 
       const today = new Date()
       const yesterday = new Date()
@@ -883,20 +766,34 @@ describe('practiceTracker', () => {
 
       const perDay = [await tracker.getDailyLog(today), await tracker.getDailyLog(yesterday)]
 
-      let reads = 0
-      const getSessions = storage.getSessions.bind(storage)
-      storage.getSessions = (...args) => {
-        reads++
-        return getSessions(...args)
-      }
+      const read = vi.spyOn(storage, 'getSessionsStartedBetween')
       const batched = await tracker.getDailyLogs(dates)
-      storage.getSessions = getSessions
 
       expect(batched).toEqual(perDay)
       expect(batched[0]).toHaveLength(1)
       expect(batched[1]).toHaveLength(0)
-      // The journal asks for a fortnight; that must stay one read, not fourteen.
-      expect(reads).toBe(1)
+      // The journal asks for a fortnight: one read, not fourteen — and of
+      // those days' sessions, not the whole history.
+      expect(read).toHaveBeenCalledTimes(1)
+      expect(await read.mock.results[0].value).toHaveLength(1)
+    })
+
+    // Sessions are stored under the name the file gives itself, which disagrees
+    // with the catalog's on a quarter of it: the journal names a listed score
+    // as the library does, and any other by what was stored.
+    it('names a score the catalog lists as the catalog does', async () => {
+      vi.stubGlobal('fetch', async () => ({
+        json: async () => ({ baseUrl: 'scores/', scores: [{ title: 'Swan Lake', composer: 'Tchaikovsky', file: 'catalogued.xml' }] }),
+      }))
+      await playSession('scores/catalogued.xml', [0])
+      await playSession('/scores/uploaded.xml', [0])
+
+      const [log] = await tracker.getDailyLogs([new Date()])
+
+      expect(log.map((entry) => [entry.scoreId, entry.scoreTitle, entry.composer])).toEqual(expect.arrayContaining([
+        ['scores/catalogued.xml', 'Swan Lake', 'Tchaikovsky'],
+        ['/scores/uploaded.xml', 'Test', 'Composer'],
+      ]))
     })
 
     it('counts timesPlayedInFull across multiple sessions', async () => {
@@ -925,11 +822,11 @@ describe('practiceTracker', () => {
 
       // Only play 3 of 5 measures
       tracker.startMeasureAttempt(0)
-      tracker.endMeasureAttempt(true)
+      tracker.endMeasureAttempt()
       tracker.startMeasureAttempt(1)
-      tracker.endMeasureAttempt(true)
+      tracker.endMeasureAttempt()
       tracker.startMeasureAttempt(2)
-      tracker.endMeasureAttempt(true)
+      tracker.endMeasureAttempt()
 
       await tracker.endSession()
 
@@ -1046,9 +943,22 @@ describe('practiceTracker', () => {
     })
   })
 
+  // Half past midnight in Paris is still the day before in UTC, and a session
+  // played then belongs to the morning it was played in (days.js).
+  it('files a session under the player’s own day, in its history and its practice days', async () => {
+    vi.stubEnv('TZ', 'Europe/Paris')
+    clock = new Date('2026-06-09T22:30:00.000Z').getTime()
+    vi.setSystemTime(clock)
+    await playSession('/scores/test.xml', [0])
+
+    const [day] = await tracker.getScoreHistory('/scores/test.xml')
+    expect(day.date).toBe('2026-06-10')
+    expect((await tracker.getScoreStats('/scores/test.xml')).practiceDays).toEqual(['2026-06-10'])
+  })
+
   describe('getScoreHistory', () => {
     it('returns history for specific score only, with correct data', async () => {
-      await playSession('/scores/test1.xml', [0, 1], 'training', 2, true)
+      await playSession('/scores/test1.xml', [0, 1], 'training', true)
       await playSession('/scores/test2.xml', [0])
 
       const history = await tracker.getScoreHistory('/scores/test1.xml')
@@ -1109,158 +1019,14 @@ describe('practiceTracker', () => {
     })
   })
 
-  // Lay out {dur, gapBefore} segments on a timeline starting at BASE: the cursor
-  // advances by each gap, then by each measure duration. Both duration functions
-  // now share one normalization, so their fixtures share one builder.
-  function buildMeasures(segments) {
-    let cursor = BASE
-    const measures = segments.map(({ dur, gapBefore = 0 }, i) => {
-      cursor += gapBefore
-      const startedAt = new Date(cursor).toISOString()
-      cursor += dur
-      return { sourceMeasureIndex: i, attempts: [{ startedAt, durationMs: dur, clean: true }] }
-    })
-    return { measures, endedAt: cursor }
-  }
-
-  describe('computePlaythroughDuration (interruption normalization)', () => {
-    // completedAt sits right after the last measure.
-    function buildPlaythrough(segments) {
-      const { measures, endedAt } = buildMeasures(segments)
-      return {
-        playthroughStartedAt: new Date(BASE).toISOString(),
-        completedAt: new Date(endedAt).toISOString(),
-        measures,
-      }
-    }
-
-    it('leaves an uninterrupted playthrough unchanged (equals wall-clock)', () => {
-      const session = buildPlaythrough([
-        { dur: 5000 },
-        { dur: 5000, gapBefore: 1000 },
-        { dur: 5000, gapBefore: 1000 },
-        { dur: 5000, gapBefore: 1000 },
-        { dur: 5000, gapBefore: 1000 },
-      ])
-      // 5×5000 measures + 4×1000 gaps = 29000
-      expect(computePlaythroughDuration(session)).toBe(29000)
-    })
-
-    it('does not penalize slow-but-continuous playing', () => {
-      // Slow measures (12s) and slowish-but-normal gaps (3s): nothing clamped.
-      const session = buildPlaythrough([
-        { dur: 12000 },
-        { dur: 12000, gapBefore: 3000 },
-        { dur: 12000, gapBefore: 3000 },
-        { dur: 12000, gapBefore: 3000 },
-      ])
-      const raw =
-        new Date(session.completedAt).getTime() -
-        new Date(session.playthroughStartedAt).getTime()
-      expect(computePlaythroughDuration(session)).toBe(raw)
-    })
-
-    it('clamps an interruption that lands inside a measure', () => {
-      // Measure 2 ballooned to 200s (interrupted mid-measure before completing).
-      const session = buildPlaythrough([
-        { dur: 5000 },
-        { dur: 5000, gapBefore: 1000 },
-        { dur: 200000, gapBefore: 1000 },
-        { dur: 5000, gapBefore: 1000 },
-        { dur: 5000, gapBefore: 1000 },
-      ])
-      // Aberrant measure → longest normal measure (5000). Same as uninterrupted.
-      expect(computePlaythroughDuration(session)).toBe(29000)
-    })
-
-    it('clamps an interruption that lands between two measures', () => {
-      // A 5-minute pause before measure 3 (phone call after finishing measure 2).
-      const session = buildPlaythrough([
-        { dur: 5000 },
-        { dur: 5000, gapBefore: 1000 },
-        { dur: 5000, gapBefore: 1000 },
-        { dur: 5000, gapBefore: 300000 },
-        { dur: 5000, gapBefore: 1000 },
-      ])
-      // Aberrant gap → median normal gap (1000). Same as uninterrupted.
-      expect(computePlaythroughDuration(session)).toBe(29000)
-    })
-
-    it('falls back to raw duration when attempts lack timing', () => {
-      const session = {
-        playthroughStartedAt: new Date(BASE).toISOString(),
-        completedAt: new Date(BASE + 42000).toISOString(),
-        measures: [{ sourceMeasureIndex: 0, attempts: [{ clean: true }] }],
-      }
-      expect(computePlaythroughDuration(session)).toBe(42000)
-    })
-  })
-
-  describe('computeSessionDuration (practice time credited to a session)', () => {
-    // A session has no playthrough window: the duration comes from the attempts.
-    function buildSession(segments) {
-      return { startedAt: new Date(BASE).toISOString(), measures: buildMeasures(segments).measures }
-    }
-
-    it('spans first attempt to last when nothing is aberrant', () => {
-      const session = buildSession([
-        { dur: 5000 },
-        { dur: 5000, gapBefore: 1000 },
-        { dur: 5000, gapBefore: 1000 },
-        { dur: 5000, gapBefore: 1000 },
-      ])
-      // 4×5000 + 3×1000 = 23000, i.e. the raw span.
-      expect(computeSessionDuration(session)).toBe(23000)
-    })
-
-    it('is zero without any attempt', () => {
-      expect(computeSessionDuration({ measures: [] })).toBe(0)
-      expect(computeSessionDuration({})).toBe(0)
-    })
-
-    it('discounts a score left open mid-measure', () => {
-      // The real case behind this: one attempt ran 79 minutes on measure 0
-      // while the score sat open, and the journal credited the whole of it —
-      // ten minutes of practice reported as 1h33.
-      const session = buildSession([
-        { dur: 5000 },
-        { dur: 4736000, gapBefore: 1000 }, // walked away
-        { dur: 5000, gapBefore: 1000 },
-        { dur: 5000, gapBefore: 1000 },
-      ])
-      // The marathon attempt is replaced by the longest normal measure (5000),
-      // leaving the same 23000 as an uninterrupted session.
-      expect(computeSessionDuration(session)).toBe(23000)
-    })
-
-    it('discounts a pause taken between two measures', () => {
-      const session = buildSession([
-        { dur: 5000 },
-        { dur: 5000, gapBefore: 1000 },
-        { dur: 5000, gapBefore: 3_600_000 }, // walked away
-        { dur: 5000, gapBefore: 1000 },
-      ])
-      expect(computeSessionDuration(session)).toBe(23000)
-    })
-
-    it('does not penalize slow-but-continuous practice', () => {
-      const session = buildSession([
-        { dur: 12000 },
-        { dur: 12000, gapBefore: 3000 },
-        { dur: 12000, gapBefore: 3000 },
-      ])
-      expect(computeSessionDuration(session)).toBe(42000)
-    })
-  })
-
   async function playMeasure(measureIndex, delayMs = 0, activeHands = undefined) {
     tracker.startMeasureAttempt(measureIndex, measureIndex === 0, activeHands)
     advanceClock(delayMs)
-    await tracker.endMeasureAttempt(true)
+    await tracker.endMeasureAttempt()
   }
 
-  async function playSession(scoreId, measures, mode = 'training', totalMeasures = null, markComplete = false) {
-    tracker.startSession(scoreId, 'Test', 'Composer', mode, totalMeasures)
+  async function playSession(scoreId, measures, mode = 'training', markComplete = false) {
+    tracker.startSession(scoreId, 'Test', 'Composer', mode)
     for (const m of measures) {
       await playMeasure(m)
     }
@@ -1269,29 +1035,43 @@ describe('practiceTracker', () => {
   }
 
   // Cloud sync replays every stored session to rebuild the aggregates, and
-  // sessions do not carry a title — so what the rebuild is given is what the
-  // practice journal shows afterwards.
+  // sessions stored before #371 carry no title — so what the rebuild is given
+  // is what the practice journal shows afterwards.
   describe('rebuildAggregates', () => {
-    it('renames a score the catalog knows', async () => {
-      await playSession('scores/test.xml', [0])
+    // What a sync's pull does: store the sessions it brought, then rebuild.
+    it('lets the runs that arrived into the ranking', async () => {
+      await playSession('/scores/test.xml', [0, 1], 'free', true)
+      const [played] = await storage.getSessions('/scores/test.xml')
+      expect(await tracker.getAllPlaythroughs('/scores/test.xml')).toHaveLength(1)
 
-      await tracker.rebuildAggregates(() => ({ title: 'Consolation', composer: 'Burgmüller' }))
+      await storage.saveSession({ ...played, id: 'from-another-device' })
+      await tracker.rebuildAggregates()
 
-      const stats = await tracker.getScoreStats('scores/test.xml')
-      expect(stats.scoreTitle).toBe('Consolation')
-      expect(stats.composer).toBe('Burgmüller')
+      expect(await tracker.getAllPlaythroughs('/scores/test.xml')).toHaveLength(2)
+    })
+
+    // A score the catalog does not know, played before sessions carried their
+    // own name: an untitled row already here must not hide a name the caller
+    // brings (an imported backup's).
+    it('falls back on the names it is given, past an untitled row', async () => {
+      await playSession('/scores/own.xml', [0])
+      const [session] = await storage.getSessions('/scores/own.xml')
+      await storage.saveSession({ ...session, scoreTitle: undefined, composer: undefined })
+      await storage.saveAggregate({ scoreId: '/scores/own.xml', scoreTitle: null })
+
+      await tracker.rebuildAggregates(new Map([['/scores/own.xml', { title: 'Gymnopédie', composer: 'Satie' }]]))
+
+      expect((await storage.getAggregate('/scores/own.xml')).scoreTitle).toBe('Gymnopédie')
     })
 
     it('keeps the title of a score the catalog has never heard of', async () => {
       await playSession('scores/burgmuller-consolation.mxl', [0])
 
       // The sync runs on a later page load, the library's — no score open, so
-      // nothing for the rebuild to borrow a title from. `null` is what a
-      // device whose cached catalog predates the score answers, and what an
-      // uploaded file answers for good.
+      // nothing for the rebuild to borrow a title from.
       const later = initPracticeTracker(storage)
       await later.init()
-      await later.rebuildAggregates(() => null)
+      await later.rebuildAggregates()
 
       const stats = await later.getScoreStats('scores/burgmuller-consolation.mxl')
       expect(stats.scoreTitle).toBe('Test')
@@ -1312,7 +1092,7 @@ describe('practiceTracker', () => {
         measures: [{ sourceMeasureIndex: 0, attempts: [{ startedAt: '2026-06-09T10:00:00.000Z', durationMs: 1000, clean: true }] }],
       })
 
-      await tracker.rebuildAggregates(() => null)
+      await tracker.rebuildAggregates()
 
       const stats = await tracker.getScoreStats('scores/burgmuller-ballade.mxl')
       expect(stats.scoreTitle).toBe('Ballade Op. 100 No. 15')
@@ -1325,27 +1105,10 @@ describe('practiceTracker', () => {
       // one score while the rebuild walks every other score's sessions.
       tracker.startSession('scores/open-right-now.xml', 'Open Right Now', 'Somebody', 'free')
 
-      await tracker.rebuildAggregates(() => null)
+      await tracker.rebuildAggregates()
 
       const stats = await tracker.getScoreStats('scores/played-yesterday.xml')
       expect(stats.scoreTitle).toBe('Test')
-    })
-  })
-
-  describe('getAllScores', () => {
-    it('returns all practiced scores', async () => {
-      tracker.startSession('/scores/test1.xml', 'Test 1', 'Composer', 'training')
-      tracker.startMeasureAttempt(0)
-      tracker.endMeasureAttempt(true)
-      await tracker.endSession()
-
-      tracker.startSession('/scores/test2.xml', 'Test 2', 'Composer', 'training')
-      tracker.startMeasureAttempt(0)
-      tracker.endMeasureAttempt(true)
-      await tracker.endSession()
-
-      const allScores = await tracker.getAllScores()
-      expect(allScores).toHaveLength(2)
     })
   })
 })

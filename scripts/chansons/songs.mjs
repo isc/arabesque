@@ -1,6 +1,7 @@
 // The twelve songs that close Sophie Allerme's "Méthode de piano pour les
-// 4-7 ans" (pp. 58-61), then "Trompette et tambour" and "Sur le chemin de
-// l'école" from earlier in the same book, all transcribed note for note: same keys, same registers, same hand
+// 4-7 ans" (pp. 58-61), then "Trompette et tambour", "Sur le chemin de
+// l'école" and "C'est la bagarre" from earlier in the same book, all
+// transcribed note for note: same keys, same registers, same hand
 // positions, same fingerings. The tunes are all traditional and in the public
 // domain; the bass here is the one-note kind there is only one way to write.
 //
@@ -17,14 +18,16 @@
 // tracks practice by the measure — but the signature is not shown (showTime).
 //
 // One string per staff, measures separated by `|`, events by spaces:
-//   E4q   a pitch (C4 = middle C, F#4 for a sharp) and a value:
+//   E4q   a pitch (C4 = middle C, F#4 for a sharp, Fn4 for a printed
+//         natural) and a value:
 //         w whole, h half, q quarter, e eighth; a trailing `.` dots it.
 //         Two eighths filling a beat come out beamed; grouping cannot be
 //         asked for per song.
 //   -3    a fingering, appended to the note
-//   F#4+A4q   a chord
+//   F#4+A4q   a chord; F3+F#3q-43 fingers each of its notes in turn
 //   r     a hidden rest of any value (rq, rh, rw); R alone: the whole measure
 //   @5/4  at the start of a measure: this measure's time signature
+//   *f    a dynamic (f, p, mf…) printed at the event that follows
 //
 // rhWords and lhWords sing that staff: same `|` measures, syllables separated
 // by spaces, landing on the measure's notes in order (a rest is not sung, and
@@ -173,5 +176,14 @@ export const SONGS = [
     lh: 'G3q-5 B3q D4q D4q | D4q C4q B3h | R | R | G3q-5 B3q D4q D4q | D4q C4q B3h | R | R | A3q-4 B3q C4q C4q | B3q A3q B3q B3q | R | R | G3q B3q D4q D4q | D4q C4q B3h | R | R | G3q-5 B3q D4q rq | R | R | R',
     rhWords: "| | je chan- te | Sol Fa Sol | | | en chan- tant | Sol Fa Sol | | | Sol Fa Sol | Sol Fa Sol | | | je chan- te | Sol Fa Sol | sou- | cis s'en- volent | Sol Fa Sol | Sol Fa Sol",
     lhWords: "sur le che- min | de l'é- cole, | | | et tous mes sou- | cis s'en- volent, | | | la mu- si- que | c'est ma- gi- que, | | | sur le che- min | de l'é- cole, | | | et tous mes | | |",
+  },
+  {
+    slug: 'c-est-la-bagarre',
+    title: "C'est la bagarre",
+    time: '4/4',
+    showTime: true,
+    rh: '*f G4q-3 G4q F#4h-2 | R | *f G4q G4e G4e F#4h | R | *f G4q-3 A4q A4q G4q | Fn4w | rq *f E4q-1 Fn4q-2 F#4q-3 | G4w-4 | rq *f G4q-4 F#4q-3 Fn4q-2 | E4w-1',
+    lh: 'R | *p G3q-2 G3q F#3h-3 | R | *p G3q G3e G3e F#3h | R | rq *p G3q-4 A3q-3 B3q-2 | C4w-1 | rq *p E3q-4 Fn3q-3 F#3q-2 | G3h-1 A3q-3 B3q | C4q F3+F#3q-43 F3+F#3h',
+    rhWords: "Tiens un dièse | | en- cor' un dièse | | mais voi- là l'bé- | carre | c'est bien trop | tard | c'est la ba- | garre",
   },
 ]

@@ -1,10 +1,6 @@
 require_relative 'test_helper'
 
 class ScoreLoadingTest < CapybaraTestBase
-  def setup
-    page.driver.set_cookie('test-env', 'true')
-  end
-
   def test_score_that_cannot_be_fetched_says_so_instead_of_spinning
     # A score that never arrives used to leave the page loading for good.
     visit '/score.html?url=scores/does-not-exist.mxl'
@@ -24,5 +20,83 @@ class ScoreLoadingTest < CapybaraTestBase
 
     assert_selector '.pt-onboarding', text: 'Impossible de charger la partition'
     assert_no_selector '[aria-busy="true"]'
+  end
+
+  # A page left while it was still creating the database went into the
+  # back/forward cache with the creation half done, and the score opened next
+  # waited behind it for good (DataTest leaves data.html that way, and failed
+  # one CI run in thirty). The creation is held open here, so the page is
+  # always left mid-way.
+  def test_a_page_left_while_creating_the_database_does_not_hold_up_the_next
+    page.driver.browser.page.command('Page.addScriptToEvaluateOnNewDocument', source: <<~JS)
+      if (location.pathname === '/data.html') {
+        const open = IDBFactory.prototype.open
+        IDBFactory.prototype.open = function (...args) {
+          const request = open.apply(this, args)
+          request.addEventListener('upgradeneeded', () => {
+            const store = request.result.createObjectStore('held-open')
+            const hold = () => { store.get(0).onsuccess = hold }
+            hold()
+            window.__upgrading = true
+          })
+          return request
+        }
+      }
+    JS
+    visit '/data.html'
+    wait_until('data.html to start creating the database') { page.evaluate_script('window.__upgrading') }
+
+    open_two_measures
+  end
+
+  # A sheet OSMD cannot read is reported with OSMD's own error. It used to be
+  # swallowed, and the page carried on without a score until reading its tempo
+  # threw: that TypeError was what raised the error card, and all a feedback
+  # report carried.
+  def test_a_score_that_cannot_be_read_is_reported_with_its_own_error
+    visit '/score.html?url=/test-fixtures/not-a-score.xml'
+
+    assert_selector '.pt-onboarding', text: 'Impossible de charger la partition'
+    assert_no_selector '[aria-busy="true"]'
+    assert recorded_error_messages.any?, 'the error is kept for a feedback report'
+    assert_empty recorded_error_messages.grep(/TypeError/)
+  end
+
+  # A score the catalog lists goes by the catalog's name, in the page's bar and
+  # at the head of the sheet: the one the library and the journal show. It went
+  # by its file's own, which disagrees with the catalog on most of it. This file
+  # credits Pyotr Ilyich Tchaikovsky.
+  def test_a_listed_score_goes_by_the_catalog_name
+    visit '/score.html?url=scores/Swan_Lake.mxl'
+    wait_for_score_render
+
+    assert_selector '.pt-topbar__title span', exact_text: 'Swan Lake'
+    assert_selector '.pt-topbar__title small', exact_text: 'Tchaikovsky'
+    assert_equal 'Swan Lake — Tchaikovsky · Arabesque', page.title
+    assert_selector '#score svg text', exact_text: 'Tchaikovsky'
+    assert_no_selector '#score svg text', text: 'Pyotr Ilyich'
+  end
+
+  # The head of the sheet carries the catalog's subtitle, and none of what only
+  # the file said: this one put Satie's full name where OSMD draws a lyricist.
+  def test_the_head_of_the_sheet_says_only_what_the_catalog_does
+    visit '/score.html?url=scores/Gymnopdie_No._1__Satie.mxl'
+    wait_for_score_render
+
+    assert_selector '#score svg text', exact_text: 'from Trois Gymnopédies'
+    assert_selector '#score svg text', exact_text: 'Erik Satie'
+    assert_no_selector '#score svg text', text: 'Éric Alfred Leslie Satie'
+  end
+
+  # A file that is not a score is refused with a word, and the page stays as
+  # it was. It used to go on laying out a score that never came, and threw.
+  def test_a_file_that_is_not_a_score_is_refused_and_nothing_else
+    visit '/score.html'
+    message = accept_alert { attach_score('not-a-score.xml') }
+    assert_equal 'Ce fichier ne semble pas être un fichier MusicXML valide', message
+
+    # A score afterwards: whatever the refused file set off has run by then.
+    load_score('two-measures.xml', 2)
+    assert_empty recorded_error_messages
   end
 end

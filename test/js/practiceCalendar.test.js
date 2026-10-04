@@ -1,13 +1,10 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import 'fake-indexeddb/auto'
-import {
-  initPracticeTracker,
-  practiceStreaks,
-  practiceYearStats,
-  shiftDayKey,
-} from '../../public/js/practiceTracker.js'
+import { initPracticeTracker } from '../../public/js/practiceTracker.js'
+import { practiceStreaks, practiceYearStats } from '../../public/js/practiceJournal.js'
+import { shiftDayKey } from '../../public/js/days.js'
 import { initStorage } from '../../public/js/storage.js'
-import { levelFor } from '../../public/js/practice.js'
+import { LEVELS, levelFor } from '../../public/js/practice.js'
 
 // A session whose measures make `minutes` of continuous playing on `date`.
 function sessionOn(date, minutes, { id = date, scoreId = '/scores/a.xml', completed = false } = {}) {
@@ -154,19 +151,25 @@ describe('practice calendar', () => {
   })
 
   describe('levelFor', () => {
+    const minutes = (n) => n * 60 * 1000
+
     it('leaves a day with no practice at level 0', () => {
       expect(levelFor(0)).toBe(0)
       expect(levelFor(undefined)).toBe(0)
     })
 
     it('deepens with the time played', () => {
-      const minutes = (n) => n * 60 * 1000
       expect(levelFor(minutes(5))).toBe(1)
       expect(levelFor(minutes(10))).toBe(2)
       expect(levelFor(minutes(29))).toBe(2)
       expect(levelFor(minutes(30))).toBe(3)
       expect(levelFor(minutes(60))).toBe(4)
       expect(levelFor(minutes(300))).toBe(4)
+    })
+
+    it('has the legend show every level a day can be painted in', () => {
+      const painted = [0, 5, 10, 29, 30, 60, 300].map((n) => levelFor(minutes(n)))
+      expect(LEVELS).toEqual([...new Set(painted)])
     })
   })
 })

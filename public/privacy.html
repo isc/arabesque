@@ -17,10 +17,10 @@
   <body>
     <main class="container pt-prose">
       <div class="pt-page-header">
-        <a href="library.html" class="pt-topbar__back" data-i18n="privacy.back">← Bibliothèque</a>
+        <a href="library.html" class="pt-back" data-i18n="privacy.back">← Bibliothèque</a>
         <h1 data-i18n="privacy.heading">Confidentialité</h1>
       </div>
-      <p class="pt-hint" data-i18n="privacy.updated">Dernière mise à jour : 24 août 2026.</p>
+      <p class="pt-hint" data-i18n="privacy.updated">Dernière mise à jour : 27 septembre 2026.</p>
 
       <h2 data-i18n="privacy.summaryTitle">En bref</h2>
       <p data-i18n="privacy.summaryBody">
@@ -32,19 +32,19 @@
 
       <h2 data-i18n="privacy.localTitle">Ce qui reste sur votre appareil</h2>
       <p data-i18n="privacy.localBody">
-        Vos séances de travail, vos doigtés et vos préférences (langue, morceaux vus)
-        sont écrits dans le stockage local du navigateur. Ils ne quittent pas
-        l'appareil de leur propre initiative, et vider les données du site les efface
-        définitivement. La page Données permet de les exporter dans un fichier.
+        Vos séances de travail, vos doigtés, vos profils et vos préférences (langue,
+        morceaux vus) sont écrits dans le stockage local du navigateur. Ils ne quittent
+        pas l'appareil de leur propre initiative, et vider les données du site les
+        efface définitivement. La page Données permet de les exporter dans un fichier.
       </p>
 
       <h2 data-i18n="privacy.accountTitle">Le compte, si vous en créez un</h2>
       <p data-i18n="privacy.accountBody">
-        Se connecter sert à retrouver sa pratique d'un appareil à l'autre. Cela
-        demande une adresse e-mail, à laquelle est envoyé un code de connexion :
-        il n'y a pas de mot de passe. Une fois connecté, vos séances et
-        vos doigtés sont copiés sur le serveur pour être redescendus sur vos autres
-        appareils. Aucune autre donnée n'est associée au compte.
+        Se connecter sert à retrouver sa pratique d'un appareil à l'autre. Cela demande
+        une adresse e-mail, à laquelle est envoyé un code de connexion : il n'y a pas de
+        mot de passe. Une fois connecté, vos séances, vos doigtés et vos profils (le nom
+        et l'avatar de chacun) sont copiés sur le serveur pour être redescendus sur vos
+        autres appareils. Aucune autre donnée n'est associée au compte.
       </p>
       <p data-i18n="privacy.accountDelete">
         Vous pouvez supprimer votre compte depuis la page Données. Le compte et
@@ -56,10 +56,12 @@
       <p data-i18n="privacy.feedbackBody">
         Le formulaire d'avis transmet votre message, la catégorie choisie, et un
         contexte technique destiné à reproduire les problèmes : version de l'app,
-        navigateur, taille d'écran, langue, les erreurs techniques rencontrées par
-        l'app dans l'heure, et selon la page, le titre du morceau ouvert ou vos
-        totaux de pratique. L'adresse e-mail est facultative et ne sert
-        qu'à vous répondre. Un avis n'est jamais rattaché à un compte.
+        navigateur, taille d'écran, langue, les erreurs techniques rencontrées par l'app
+        dans l'heure, et selon la page, le titre du morceau ouvert ou vos totaux de
+        pratique. Il joint aussi une image de l'écran tel que vous le voyiez, la fenêtre
+        d'avis en moins : elle est montrée dans le formulaire avant l'envoi, et une case
+        permet de la retirer. L'adresse e-mail est facultative et ne sert qu'à vous
+        répondre. Un avis n'est jamais rattaché à un compte.
       </p>
 
       <h2 data-i18n="privacy.neverTitle">Ce qu'Arabesque ne fait pas</h2>
@@ -76,9 +78,10 @@
         Le site est hébergé par GitHub Pages, qui journalise les requêtes comme tout
         serveur web. Les comptes et les données synchronisées sont chez Supabase, sur
         des serveurs situés en Irlande (Union européenne). Les avis y sont également
-        stockés, et notifiés par e-mail via Resend. La page Données charge la
-        bibliothèque de connexion depuis le CDN esm.sh, qui voit donc votre adresse
-        IP lors de cette requête.
+        stockés, et notifiés par e-mail via Resend. La bibliothèque de connexion est
+        chargée depuis le CDN esm.sh, qui voit donc votre adresse IP lors de cette
+        requête : sur la page Données, et sur les autres pages de l'app une fois
+        connecté.
       </p>
 
       <h2 data-i18n="privacy.retentionTitle">Durées de conservation</h2>
@@ -109,7 +112,7 @@
         « Nouveautés ».
       </p>
 
-      <footer class="pt-landing__footer">
+      <footer class="pt-footer">
         <a href="support.html" data-i18n="common.support">Assistance</a>
       </footer>
     </main>

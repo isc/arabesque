@@ -14,18 +14,14 @@
     <script type="module" src="js/swRegister.js"></script>
     <script type="module">
       import { dataApp } from './js/data.js'
-      import { initAlpineI18n } from './js/i18n.js'
-      window.dataApp = dataApp
-      initAlpineI18n()
-      const alpine = document.createElement('script')
-      alpine.src = 'vendor/alpinejs.3.14.9.min.js'
-      document.head.appendChild(alpine)
+      import { startAlpine } from './js/alpineBoot.js'
+      startAlpine({ dataApp })
     </script>
   </head>
   <body>
     <main class="container pt-data-page">
       <div class="pt-page-header">
-        <a href="library.html" class="pt-topbar__back" data-i18n="data.back">← Bibliothèque</a>
+        <a href="library.html" class="pt-back" data-i18n="data.back">← Bibliothèque</a>
         <h1 x-text="$t('data.heading')">Données</h1>
       </div>
 
@@ -99,7 +95,7 @@
               <!-- Email sent: waiting for the code it carries. -->
               <template x-if="codeSent">
                 <div class="pt-stack">
-                  <p class="pt-sync-ok" x-text="$t('data.codeSent')">E-mail envoyé !</p>
+                  <p class="pt-sync-ok" x-text="$t('data.codeSent')">E-mail envoyé ! Vérifiez votre boîte mail (et les spams).</p>
                   <form @submit.prevent="verifyOtp()" class="pt-account-form">
                     <input
                       type="text"
@@ -126,7 +122,7 @@
                     :placeholder="$t('data.emailPlaceholder')"
                     :aria-label="$t('data.emailLabel')"
                   />
-                  <button type="submit" :aria-busy="authStatus === 'sending'" :disabled="!email.trim() || authStatus === 'sending'" x-text="$t('data.sendCode')">Recevoir un code</button>
+                  <button type="submit" :aria-busy="authStatus === 'sending'" :disabled="!email.trim() || authStatus === 'sending'" x-text="$t('data.sendCode')">Recevoir un code de connexion</button>
                 </form>
               </template>
               <!-- Shown on any authError: a rejected code keeps the status on
@@ -196,7 +192,7 @@
       <!-- This page is where someone comes to think about their data, so it is
            where the two pages explaining it belong; the ⚙️ menu that carries
            them elsewhere is not mounted here. -->
-      <footer class="pt-landing__footer">
+      <footer class="pt-footer">
         <span class="pt-footer-links">
           <a href="privacy.html" data-i18n="common.privacy">Confidentialité</a>
           <a href="support.html" data-i18n="common.support">Assistance</a>

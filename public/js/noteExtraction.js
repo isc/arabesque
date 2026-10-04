@@ -1,4 +1,3 @@
-import { NOTE_NAMES } from './midi.js'
 import { barCounter, fingeringKey, legacyFingeringKey, nextNoteIndex } from './fingeringKeys.js'
 import { t } from './i18n.js'
 import { withHands } from './utils.js'
@@ -99,13 +98,11 @@ const ACCIDENTAL_SIGNS = {
   [AccidentalEnum.DOUBLEFLAT]: '𝄫',
 }
 
-// Names a note for the player, in their language: "sol♯4", "C4". Unlike the
-// noteName each note already carries — a MIDI name, always sharps and always
-// ASCII, which the matcher and the logs go by — this is the note as the score
-// spells it, so the B flat of an invention stays "si♭" instead of turning into
-// the "la♯" the staff never says. The octave is what separates the candidates
-// when the doubt is real: a broken chord passing the same letter through two
-// registers.
+// Names a note for the player, in their language: "sol♯4", "C4". This is the
+// note as the score spells it, not as its MIDI number would name it: the B flat
+// of an invention stays "si♭" instead of turning into the "la♯" the staff never
+// says. The octave is what separates the candidates when the doubt is real: a
+// broken chord passing the same letter through two registers.
 //
 // The hand follows, in the vocabulary and with the separator runs are already
 // captioned with (utils' withHands). It is the hand the notation gives the
@@ -240,6 +237,13 @@ const trilledTies = new WeakMap()
 
 const ORNAMENT_NOTE_OFFSET = 0.00001
 
+// A tie is one sound: from any of its notes it goes on to the end of the last,
+// across every bar line on the way. A note's own Length stops at its own.
+export function soundFrom(note) {
+  const tied = note.NoteTie?.Notes ?? [note]
+  return tied.slice(Math.max(0, tied.indexOf(note))).reduce((sum, n) => sum + n.Length.RealValue, 0)
+}
+
 // A trill sentinel: where free play accepts the trill's two pitches, over the
 // span the note it stands on sounds in its measure (trillFrom-trillUntil, the
 // matcher's isTrillStillSounding). Its own timestamp is offset past the note's
@@ -306,21 +310,19 @@ export function expandOrnamentNotes(measureNotes, fifths = 0) {
     // again; the turn proper still is, and falls due when the held principal
     // gives way to it.
     const tied = delayed && noteData.isTieContinuation
-    // The note being decorated ends where its sound does: at the end of the
-    // tie it starts, if it starts one.
     const tie = noteData.note?.NoteTie
     const startsTie = tie && !noteData.isTieContinuation
     const ornamentAsk = {
       sequence: tied ? sequence.slice(1) : sequence,
       delayTs: tied ? turnDelay : 0,
-      holdTs: startsTie ? tie.Duration.RealValue : parentDurationWN,
+      // The note being decorated ends where its sound does: at the end of the
+      // tie it starts, if it starts one.
+      holdTs: noteData.soundTs,
       alternating: flag === 'isTrillNote',
     }
 
     for (let i = 0; i < sequence.length; i++) {
       const midiNumber = sequence[i]
-      const noteNameStd = NOTE_NAMES[midiNumber % 12]
-      const octaveStd = octaveOfMidi(midiNumber)
 
       // Delayed turn: the principal (i === 0) stays on the beat (offset 0) and the
       // turn proper is pushed out by turnDelay. Otherwise notes follow immediately.
@@ -331,7 +333,6 @@ export function expandOrnamentNotes(measureNotes, fifths = 0) {
       expandedNotes.push({
         ...noteData,
         midiNumber,
-        noteName: `${noteNameStd}${octaveStd}`,
         timestamp: noteData.timestamp + ornamentOffset,
         // An ornament re-articulates, so its notes must NOT inherit the parent's
         // tie-continuation flag -- that would suppress their note-on in audio
@@ -362,25 +363,6 @@ export function expandOrnamentNotes(measureNotes, fifths = 0) {
   return expandedNotes
 }
 
-// Repetition instruction types from OSMD
-const RepetitionType = {
-  StartLine: 0,
-  ForwardJump: 1,
-  BackJumpLine: 2,
-  Ending: 3,
-  DaCapo: 4,
-  DalSegno: 5,
-  Fine: 6,
-  ToCoda: 7,
-  DalSegnoAlFine: 8,
-  DaCapoAlFine: 9,
-  DalSegnoAlCoda: 10,
-  DaCapoAlCoda: 11,
-  Coda: 12,
-  Segno: 13,
-  None: 14,
-}
-
 // The score's bars, in order: the run of OSMD's SourceMeasures each is made of
 // -- one, but for a bar the file writes as two (see barCounter) -- with where
 // each of them starts in the bar, and how long the whole bar lasts, both in
@@ -404,73 +386,36 @@ function barsOf(sourceMeasures) {
   return bars
 }
 
-// Build the playback sequence considering repeats and endings (voltas):
-// the index of each bar played, in playing order.
+// The bars in playing order — the index of each bar played, in the order it
+// is played — as OSMD's own iterator walks the sheet: repeats, endings of any
+// length, D.C., D.S., Coda and Fine, the way the cursor on screen follows
+// them. This used to be worked out here from the repetition marks, alongside
+// the iterator rather than from it, and the two parted ways on five scores of
+// the library: a four-bar first ending replayed from its second bar, a D.S.
+// al Coda and two D.C. never taken — the player asked for bars the cursor had
+// left, or the cursor running on past the end of the note model.
 //
-// A bar is entered through its first measure and left through its last, so a
-// repeat sign or an ending written between the two halves of a split bar is
-// not honoured: the halves are one bar, played through.
-function buildPlaybackSequence(bars) {
+// The iterator walks OSMD's SourceMeasures, and a bar is a run of them (see
+// barsOf): a bar is played once more each time the walk reaches it from
+// another bar, or jumps back within it. A repeat sign between the two halves
+// of a split bar would be the one thing this cannot say — a pass over half a
+// bar — and no score splits a bar there.
+function playbackSequence(osmdInstance, bars) {
+  const barOf = new Map()
+  bars.forEach(({ measures }, index) => measures.forEach(({ measure }) => barOf.set(measure, index)))
   const sequence = []
-  let currentPass = 1 // Track which repetition pass we're on (1 = first, 2 = second, etc.)
-  let repeatStartIndex = 0 // Where to jump back to on BackJumpLine
-  let i = 0
-
-  while (i < bars.length) {
-    const { measures } = bars[i]
-    const firstInstructions = measures[0].measure.FirstRepetitionInstructions || []
-    const lastInstructions = measures.at(-1).measure.LastRepetitionInstructions || []
-
-    // Check for StartLine at the beginning of this measure
-    const hasStartLine = firstInstructions.some((ri) => ri.type === RepetitionType.StartLine)
-    if (hasStartLine) {
-      // Check before updating repeatStartIndex: are we returning from a backward jump?
-      const isReturningToRepeatStart = currentPass === 2 && i === repeatStartIndex
-      repeatStartIndex = i
-      // Only reset pass if we're starting a new repeat section (not coming back from a jump)
-      if (!isReturningToRepeatStart) {
-        currentPass = 1
-      }
-    }
-
-    // Check if this measure is an ending (volta)
-    const endingInstruction = firstInstructions.find((ri) => ri.type === RepetitionType.Ending)
-    const endingIndices = endingInstruction?.endingIndices || []
-
-    // Only include this measure if:
-    // 1. It's not an ending (no volta bracket), OR
-    // 2. It's an ending that matches the current pass
-    const shouldIncludeMeasure = endingIndices.length === 0 || endingIndices.includes(currentPass)
-
-    if (shouldIncludeMeasure) sequence.push(i)
-
-    // Check for BackJumpLine at the end of this measure
-    const hasBackJump = lastInstructions.some((ri) => ri.type === RepetitionType.BackJumpLine)
-
-    if (hasBackJump && currentPass === 1) {
-      // Jump back to repeat start for second pass
-      currentPass = 2
-      i = repeatStartIndex
-      continue
-    }
-
-    // After completing pass 2 of a section, reset for next potential repeat section
-    if (currentPass === 2 && endingIndices.includes(2)) {
-      currentPass = 1
-      repeatStartIndex = i + 1
-    }
-
-    i++
+  const iterator = osmdInstance.Sheet.MusicPartManager.getIterator()
+  let previousBar = -1
+  let previousTimestamp = -1
+  while (!iterator.EndReached) {
+    const bar = barOf.get(iterator.CurrentMeasure)
+    const timestamp = iterator.CurrentSourceTimestamp.RealValue
+    if (bar !== previousBar || timestamp < previousTimestamp) sequence.push(bar)
+    previousBar = bar
+    previousTimestamp = timestamp
+    iterator.moveToNext()
   }
-
   return sequence
-}
-
-function pitchToMidiFromSourceNote(pitch) {
-  const midiNote = pitch.halfTone + 12
-  const noteNameStd = NOTE_NAMES[midiNote % 12]
-  const octaveStd = octaveOfMidi(midiNote)
-  return { noteName: `${noteNameStd}${octaveStd}`, midiNote: midiNote }
 }
 
 // Grace notes are played one after the other, off their main note: just before
@@ -523,10 +468,11 @@ function extractNotesFromBars(bars) {
   // for the one load per score that rewrites a record still holding the old
   // names -- see migrateLegacyFingerings. Several notes to one old key is the
   // whole point: that ambiguity is what the current scheme fixes. Built here
-  // because this is the only walk that knows the old rule, and the old rule was
-  // "count the notes this walk keeps" rather than "count the notes the measure
-  // has". Delete it, and legacyNoteCounters below, when no stored record can
-  // hold one any more.
+  // because the old rule was this walk's own — "count the notes this walk
+  // keeps" rather than "count the notes the measure has" — and only
+  // scripts/import-fingerings.mjs copies it, for records exported before #350.
+  // Delete it, legacyNoteCounters below and that copy when no stored record
+  // can hold an old key any more.
   const legacyKeyMap = new Map()
   let currentFifths = 0
 
@@ -591,7 +537,6 @@ function extractNotesFromBars(bars) {
               // hidden copy would double the ornament -- the player would have to play it twice, and the hidden
               // noteheads would only appear once validated. The player plays what they see, never hidden notes.
               if (!note.pitch || note.IsCueNote || note.PrintObject === false) continue
-              const noteInfo = pitchToMidiFromSourceNote(note.pitch)
               // Check if this note is a tie continuation (not the start of the tie)
               const isTieContinuation = note.NoteTie && note.NoteTie.StartNote !== note
               const key = fingeringKey(barIndex, staffIndex, voiceIndex, noteIndex)
@@ -606,25 +551,25 @@ function extractNotesFromBars(bars) {
               measureNotes.push({
                 note,
                 voiceEntry,
-                midiNumber: noteInfo.midiNote,
-                noteName: noteInfo.noteName,
+                // OSMD counts half tones from the C an octave below MIDI's.
+                midiNumber: note.pitch.halfTone + 12,
                 timestamp: start + voiceEntry.timestamp.realValue,
-                measureIndex: barIndex,
                 active: false,
                 played: false,
                 isTieContinuation,
+                // How long its sound lasts from here: what playback holds it for,
+                // and what an ornament on it has to fill.
+                soundTs: soundFrom(note),
                 isGrace: voiceEntry.isGrace === true,
                 isAfterGrace: voiceEntry.GraceAfterMainNote === true,
                 // Index of the notehead within the chord (for targeting individual noteheads in SVG)
                 noteheadIndex,
-                noteheadCount: voiceEntry.notes.filter((n) => n.pitch).length,
                 // The staff, and on a middle staff the stem: what handOfNote reads
                 staffIndex,
                 innerStaff,
                 stemUp: (note.StemDirectionXml ?? voiceEntry.StemDirectionXml) === StemDirectionEnum.Up,
                 // Key for fingering storage
                 fingeringKey: key,
-                voiceIndex,
               })
             }
           }
@@ -829,25 +774,25 @@ export function extractNotesFromScore(osmdInstance) {
   }
 
   const bars = barsOf(osmdInstance.Sheet.SourceMeasures)
-
-  // Build the playback sequence (handles repeats and endings)
-  const playbackSequence = buildPlaybackSequence(bars)
-
   const { notesByMeasure, pedalEventsByMeasure, cursorStopsByMeasure, legacyKeyMap } = extractNotesFromBars(bars)
 
-  // Build allNotes array following the playback sequence
   const allNotes = []
-  playbackSequence.forEach((barIndex, playbackIndex) => {
+  playbackSequence(osmdInstance, bars).forEach((barIndex, playbackIndex) => {
     const sourceNotes = notesByMeasure.get(barIndex)
     if (!sourceNotes || sourceNotes.length === 0) return
+
+    // A timestamp is the bar's index plus a position in it: moved to this
+    // occurrence's index, every one a note carries keeps its place in the bar,
+    // grace note adjustments included.
+    const rebase = (timestamp) => playbackIndex + (timestamp - barIndex)
 
     // Create a copy of the notes for this playback position
     // Each occurrence in the sequence needs independent played/active state
     const measureNotes = sourceNotes.map((noteData) => ({
       ...noteData,
-      // Update timestamp to use playback index, preserving grace note adjustments
-      // The offset within measure includes grace note timing adjustments
-      timestamp: playbackIndex + (noteData.timestamp - noteData.measureIndex),
+      timestamp: rebase(noteData.timestamp),
+      // The matcher compares these with the timestamps above.
+      ...(noteData.isTrillEnd && { trillFrom: rebase(noteData.trillFrom), trillUntil: rebase(noteData.trillUntil) }),
       // Keep reference to source measure for SVG highlighting
       sourceMeasureIndex: barIndex,
       // Reset state for this occurrence
@@ -858,7 +803,7 @@ export function extractNotesFromScore(osmdInstance) {
     const sourcePedalEvents = pedalEventsByMeasure.get(barIndex)
     const pedalEvents = sourcePedalEvents?.map((event) => ({
       type: event.type,
-      timestamp: playbackIndex + (event.timestamp - barIndex),
+      timestamp: rebase(event.timestamp),
     }))
 
     allNotes.push({

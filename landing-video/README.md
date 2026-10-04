@@ -1,7 +1,7 @@
 # Landing hero video
 
 Build pipeline for the animated product video on the landing page
-(`public/video/hero.mp4`). The video is a [HyperFrames](https://github.com/heygen-com/hyperframes)
+(`public/video/hero.{fr,en}.mp4`, one per language). The video is a [HyperFrames](https://github.com/heygen-com/hyperframes)
 composition (HTML/CSS/GSAP → MP4) whose scenes are **real screenshots of the
 app**, captured with Playwright while driving the app's own MIDI engine.
 
@@ -21,7 +21,7 @@ landing-video/
     index.html         the HyperFrames composition (6 scenes + GSAP timeline)
     design.md          brand/design system (colours, type, motion)
     assets/            generated screenshots (gitignored)
-  encode.sh            newest render → public/video/hero.mp4 + poster
+  encode.sh            newest render → public/video/hero.<lang>.mp4 + poster
 ```
 
 ## Prerequisites

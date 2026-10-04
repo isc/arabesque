@@ -36,10 +36,11 @@ import { recordError } from './errorLog.js'
 const XHTML_NS = 'http://www.w3.org/1999/xhtml'
 const SVG_NS = 'http://www.w3.org/2000/svg'
 
-// Roughly 300 kB of base64 — the ceiling `screenshot` is checked against in
-// supabase/feedback.sql, with room to spare for the rest of the row. Quality is
-// walked down until the picture fits; one that still will not fit is dropped.
-const MAX_CHARS = 300_000
+// Roughly 300 kB of base64, under the ceiling supabase/feedback.sql checks
+// `screenshot` against, with room to spare for the rest of the row
+// (screenshot.test.js holds the two together). Quality is walked down until
+// the picture fits; one that still will not fit is dropped.
+export const MAX_CHARS = 300_000
 const QUALITIES = [0.8, 0.6, 0.4]
 
 // The long edge of the output. A phone at 3× would otherwise send a 1170×2532

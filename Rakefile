@@ -26,13 +26,25 @@ end
 module TestSharding
   module_function
 
-  # "Class#method" for every test, in file order.
+  # "Class#method" for every test, in file order, each under the class it is
+  # defined in: read off the file's first class, a second class in a file would
+  # lend its tests a name no filter matches, and they would never run.
   def ids
     TEST_FILES.flat_map do |file|
-      source = File.read(file)
-      klass = source[/^class\s+([\w:]+)/, 1]
-      source.scan(/^\s*def\s+(test_\w+)/).flatten.map { |name| "#{klass}##{name}" }
+      klass = nil
+      File.foreach(file).filter_map do |line|
+        klass = Regexp.last_match(1) if line =~ /^class\s+([\w:]+)/
+        "#{klass}##{Regexp.last_match(1)}" if line =~ /^\s*def\s+(test_\w+)/
+      end
     end
+  end
+
+  # A split run has to run exactly the tests it listed: fewer, and one was
+  # silently dropped — a test the listing above misread.
+  def check_count(runs, listed)
+    return if runs == listed
+
+    abort "#{listed} tests listed, #{runs} run: the listing and Minitest disagree (see TestSharding.ids)"
   end
 
   # Dealt round-robin over the flat list: files are grouped by class, so
@@ -79,23 +91,24 @@ module TestSharding
 end
 
 namespace :test do
-  desc 'Run the suite across several processes (TEST_WORKERS=n, default: cores)'
+  desc 'Run the suite across several processes (TEST_WORKERS=n, default: min(cores, 8))'
   task :parallel do
     ids = TestSharding.ids
     abort 'No tests found' if ids.empty?
 
-    # Eight, or fewer on a small machine. The wall clock stops improving at
-    # eight workers on both machines measured, whatever their core count:
+    # Eight, or fewer on a small machine. At 66 tests the wall clock stopped
+    # improving at eight on both machines measured, whatever their core count:
     #
     #   16-core Linux — 4: 21.7s, 8: 14.9s, 12: 15.2s, 16: 14.9s / 19.1s + an
     #                   error, 24: 15.7s
     #   8-core Mac    — 4: 42.8s, 8: 29.3s (7 runs), 12: 30.4s
     #
-    # Past that the limit isn't the CPU: with ~66 tests, eight workers already
-    # leave a handful of tests each, so the slowest single test sets the floor
-    # and more processes can only add contention. Sixteen still loses a test to
-    # timing now and then, as it did before the playback libraries were
-    # vendored (#250) — oversubscribing was never only about the network.
+    # Re-measured at 184 tests on the Linux box, in the Docker container of
+    # scripts/test-in-docker.sh: 8: 43.8–48.3s, 12: 41.2–42.8s, 16: 46.8–47.6s.
+    # Twelve buys a few seconds now, sixteen still nothing: past that the limit
+    # isn't the CPU but the browsers contending for it, and every extra process
+    # is one more chance to lose a test to timing — sixteen did now and then,
+    # before the playback libraries were vendored (#250) and after.
     #
     # Halving the cores, which this used to do, happens to land on eight on the
     # 16-core box and left a third of the time on the table on an 8-core Mac,
@@ -145,6 +158,7 @@ namespace :test do
     puts TestSharding.summarise(totals, elapsed, workers)
 
     abort 'Suite failed' if failed || (totals[:failures] + totals[:errors]).positive?
+    TestSharding.check_count(totals[:runs], ids.size)
   end
 
   desc 'Run one slice of the suite (SHARD_INDEX=i SHARD_COUNT=n) — one machine per slice'
@@ -157,7 +171,21 @@ namespace :test do
     abort "Shard #{index} is empty" if shard.empty?
 
     puts "Shard #{index + 1}/#{count}: #{shard.size} tests"
-    exit(system(*TestSharding.command(shard)) ? 0 : 1)
+    # Echoed as it comes — Minitest's progress dots included, which no newline
+    # follows until the run ends — and kept for the tally.
+    $stdout.sync = true
+    output = +''
+    IO.popen(TestSharding.command(shard), err: %i[child out]) do |io|
+      loop do
+        chunk = io.readpartial(4096)
+        $stdout.print chunk
+        output << chunk
+      end
+    rescue EOFError
+      nil
+    end
+    abort 'Shard failed' unless $?.success?
+    TestSharding.check_count(TestSharding.tally(output)&.fetch(:runs), shard.size)
   end
 end
 

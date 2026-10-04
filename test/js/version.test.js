@@ -1,10 +1,12 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { readFileSync, readdirSync } from 'node:fs'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { installSessionStorage } from './support/browserGlobals.js'
+import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { APP_VERSION, checkAppVersion } from '../../public/js/version.js'
+import { htmlPages, VERSION_SCRIPT } from '../../scripts/stamp-version.mjs'
 
 const PUBLIC_DIR = join(import.meta.dirname, '..', '..', 'public')
-const pages = readdirSync(PUBLIC_DIR).filter((name) => name.endsWith('.html'))
+const pages = htmlPages()
 
 // A document whose <meta name="app-version"> holds `content`, and nothing else
 // the check reads.
@@ -12,27 +14,13 @@ const stampedPage = (content) => ({
   querySelector: () => (content === null ? null : { getAttribute: () => content }),
 })
 
-// The node test environment has no Web Storage; the check only ever reads and
-// writes one key.
-const fakeSessionStorage = () => {
-  const store = new Map()
-  return {
-    getItem: (key) => store.get(key) ?? null,
-    setItem: (key, value) => store.set(key, value),
-  }
-}
-
 describe('checkAppVersion', () => {
   let reload
 
   beforeEach(() => {
     reload = vi.fn()
     vi.stubGlobal('location', { reload, pathname: '/library.html' })
-    vi.stubGlobal('sessionStorage', fakeSessionStorage())
-  })
-
-  afterEach(() => {
-    vi.unstubAllGlobals()
+    installSessionStorage()
   })
 
   const check = (pageVersion) => {
@@ -87,6 +75,6 @@ describe('the version stamp', () => {
   it.each(pages)('is carried by %s, which loads the check', (page) => {
     const html = readFileSync(join(PUBLIC_DIR, page), 'utf8')
     expect(html).toContain(`<meta name="app-version" content="${APP_VERSION}" />`)
-    expect(html).toContain('<script type="module" src="js/version.js"></script>')
+    expect(html).toContain(VERSION_SCRIPT)
   })
 })

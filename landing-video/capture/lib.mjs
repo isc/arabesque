@@ -3,6 +3,7 @@
 import { chromium } from 'playwright'
 import { fileURLToPath } from 'url'
 import path from 'path'
+import { MOCK_DEVICE_NAME } from '../../public/js/midi_mock.js'
 
 export const ROOT = path.dirname(fileURLToPath(import.meta.url))
 export const ASSETS = path.resolve(ROOT, '../composition/assets')
@@ -51,7 +52,7 @@ export async function launch({ record = false, now = null } = {}) {
   // DejaVu, which reads nothing like the app on an Apple device. And name the
   // mock keyboard the way a real one would be named — the test hook's own label
   // is not something a visitor should read.
-  await ctx.addInitScript(() => {
+  await ctx.addInitScript((mockName) => {
     const style = () => {
       const el = document.createElement('style')
       el.textContent = ':root { --pt-font-ui: Inter, ui-sans-serif, system-ui, sans-serif; }'
@@ -63,13 +64,13 @@ export async function launch({ record = false, now = null } = {}) {
       const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT)
       while (walker.nextNode()) {
         const n = walker.currentNode
-        if (n.nodeValue.includes('Mock MIDI Keyboard')) n.nodeValue = n.nodeValue.replace('Mock MIDI Keyboard', 'Digital Piano')
+        if (n.nodeValue.includes(mockName)) n.nodeValue = n.nodeValue.replace(mockName, 'Digital Piano')
       }
     }
     new MutationObserver((records) => {
       for (const r of records) rename(r.target.nodeType === Node.TEXT_NODE ? r.target.parentNode : r.target)
     }).observe(document, { subtree: true, childList: true, characterData: true })
-  })
+  }, MOCK_DEVICE_NAME)
   // Expose one mock-MIDI helper to page context so the feedback and training
   // captures share the same dispatch/timing instead of duplicating it.
   await ctx.addInitScript(() => {

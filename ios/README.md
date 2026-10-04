@@ -40,6 +40,10 @@ MIDI device ──CoreMIDI──▶ MIDIBridge.swift ──evaluateJavaScript─
   last one as `window.__pianoTrainerMIDI.pairBluetooth()`, and its presence is
   how the page knows it is in the wrapper — the user agent cannot say, an iPad
   claiming to be a Macintosh.
+- JS → native: `webkit.messageHandlers.saveFile` carries `{name, contents}`, a
+  file the page made for the player to keep (the backup on the data page). A
+  download link has nowhere to go in a WKWebView, so the app writes the file to
+  its temporary directory and offers it through the share sheet.
 
 The shim keeps port object identity stable across updates because `midi.js`
 compares ports with `===` in its `onstatechange` auto-reconnect logic. Its
@@ -131,9 +135,9 @@ into a restricted mode: injected scripts, style sheets, cookie manipulation and
 message handlers are all denied, and only the `limitsNavigationsToAppBoundDomains`
 flag gives them back — for the listed domains alone. Both halves matter here,
 because both bridges *are* injected scripts (`webmidi-shim.js`,
-`wakelock-shim.js`) plus message handlers (`midiBridge`, `wakeLock`): with the
-key declared and the flag missing, the app would launch, show the web app, and
-quietly accept no MIDI at all.
+`wakelock-shim.js`), and MIDI also needs a message handler (`midiBridge`; the
+wake lock is polled instead): with the key declared and the flag missing, the
+app would launch, show the web app, and quietly accept no MIDI at all.
 
 Consequences worth knowing:
 
@@ -214,11 +218,7 @@ que sur ses propres appareils.
 5. **Archiver** : destination *Any iOS Device*, puis *Product → Archive*, puis
    *Distribute App → TestFlight & App Store*.
 
-Ce qui n'est **pas** fait : l'envoi automatisé depuis la CI. Il suppose une clé
-d'API App Store Connect et un certificat de distribution importés dans le
-trousseau du runner — un chantier à part, qui ne vaut le coup qu'une fois les
-envois devenus fréquents. Pour les premiers builds, l'archive depuis Xcode est
-plus courte.
+C'est le chemin à la main ; la CI sait aussi le faire, ci-dessous.
 
 ### Envoi automatisé (workflow `TestFlight`)
 

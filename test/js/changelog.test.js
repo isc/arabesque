@@ -147,9 +147,9 @@ describe('the changelog the app imports', () => {
   })
 })
 
-// CHANGELOG's bullets, one string per item, `**` dropped. Normally `fold`
-// writes them from fragments that already passed the cap, but the file is
-// hand-edited often enough — this change included — to be worth its own gate.
+// CHANGELOG's bullets, one string per item, `**` dropped. `fold` writes them
+// from fragments that already passed the cap; this holds what is already in
+// the file to it too, entries from before the cap existed included.
 const changelogBullets = (md) => {
   const items = []
   for (const line of md.split('\n')) {
@@ -237,6 +237,12 @@ describe('folding into CHANGELOG', () => {
   it('adds to a date already at the top rather than repeating its heading', () => {
     expect(foldIntoMarkdown('2026-09-05\n\n- **Vieux.**\n', [entry('2026-09-05', 'Neuf.')])).toBe(
       '2026-09-05\n\n- **Neuf.**\n\n- **Vieux.**\n',
+    )
+  })
+
+  it('writes an item as it is, dollar signs included', () => {
+    expect(foldIntoMarkdown('2026-09-05\n\n- **Vieux.**\n', [entry('2026-09-05', "Coûte 5 $' ici.")])).toBe(
+      "2026-09-05\n\n- **Coûte 5 $' ici.**\n\n- **Vieux.**\n",
     )
   })
 

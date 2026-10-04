@@ -3,8 +3,8 @@
 // The app is hosted statically on GitHub Pages, so there is no server to
 // receive feedback. Instead the browser POSTs straight to Supabase's PostgREST
 // API, exactly like Tablito. A Postgres trigger then emails each new row via
-// Resend — see `supabase/feedback.sql` for the table, RLS and trigger DDL you
-// apply by hand on a fresh, piano-trainer-only Supabase project.
+// Resend — see `supabase/feedback.sql` for the table, RLS and trigger DDL,
+// applied by hand to the app's own Supabase project (the one sync uses too).
 //
 // The Supabase URL + publishable key live in supabaseConfig.js (safe to expose;
 // RLS guards writes). If they're ever blanked, `feedbackEnabled` is false and
@@ -32,7 +32,7 @@ const APP_VERSION = BUILD === 'dev' ? (CHANGELOG[0]?.date ?? 'unknown') : BUILD
 // So the account stays the source of truth, and changing it changes the
 // default, while a report deliberately sent anonymously stays anonymous: an
 // emptied field is remembered as an empty string, which is an answer.
-const REMEMBERED_EMAIL_KEY = `${KEY_PREFIX}feedback-email`
+export const REMEMBERED_EMAIL_KEY = `${KEY_PREFIX}feedback-email`
 
 export function defaultFeedbackEmail() {
   try {
@@ -56,7 +56,8 @@ function rememberFeedbackEmail(address) {
 // Non-identifying environment captured with every submission, so a bug report
 // carries the context to reproduce it. No personal data, no stored identifiers.
 // The errors the app ran into lately ride along (errorLog.js), and are left
-// out when there were none.
+// out when there were none. The form lists what goes (feedback.privacy), and
+// so does the privacy policy (privacy.feedbackBody): both follow this.
 export function buildBaseContext() {
   const errors = recentErrors()
   return {
@@ -73,7 +74,8 @@ export function buildBaseContext() {
 
 // POST one feedback row. Throws on a non-2xx response so the caller can show an
 // error state; the Supabase trigger handles the email asynchronously.
-// `screenshot` is a data URL of the score the reporter was looking at, or null.
+// `screenshot` is a data URL of the screen the reporter was looking at (see
+// screenshot.js), or null.
 // It rides in its own column rather than in `context` so the listing query can
 // leave the big value on disk — see supabase/feedback.sql.
 export async function submitFeedback({ message, email, category, context, screenshot = null }) {

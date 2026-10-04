@@ -8,12 +8,14 @@ require_relative 'test_helper'
 # two-measures.xml is one whole note per bar (C4 then D4), which makes a
 # traversal of the passage exactly two keypresses.
 class TrainingPassageTest < CapybaraTestBase
-  def setup
-    page.driver.set_cookie('test-env', 'true')
-  end
-
   def test_a_picked_passage_is_drilled_as_one_and_says_so
     open_two_measures
+    # A free run first: the drill's result must not show its ranking (below).
+    play_notes(%w[C4 D4])
+    assert_selector 'dialog[open] tr.is-current'
+    find('dialog[open] button[aria-label="Close"]').click
+    assert_no_selector 'dialog[open]'
+
     enter_training_mode
     pick_passage(1, 2)
 
@@ -33,10 +35,13 @@ class TrainingPassageTest < CapybaraTestBase
     wait_for_training_cursor(2)
     play_note('D4')
     assert_text 'Vous avez enchaîné les mesures 1 à 2 3× sans erreur.'
+    # The ranking is the free runs' own. A drill used to show the last one's,
+    # "maintenant" beside a time that was not the drill's.
+    assert_no_selector 'dialog[open] .pt-playthrough-table'
   end
 
   def test_a_wrong_note_in_the_second_measure_spoils_the_whole_passage
-    open_two_measures
+    upload_two_measures
     enter_training_mode
     pick_passage(1, 2)
 
@@ -57,8 +62,7 @@ class TrainingPassageTest < CapybaraTestBase
   # measures the app offers to reinforce would follow the passage rather than
   # the playing.
   def test_each_measure_of_a_passage_is_filed_on_its_own_merits
-    visit '/score.html?url=/test-fixtures/two-measures.xml'
-    wait_for_score_render(2)
+    open_two_measures
     enter_training_mode
     pick_passage(1, 2)
 
@@ -94,8 +98,31 @@ class TrainingPassageTest < CapybaraTestBase
     assert_selector 'svg circle.repeat-indicator.filled', count: 1
   end
 
+  # A step further into a passage clears only the bar it lands on, so back at
+  # the top of a repeat the passage's other bars stay lit, and a redraw keeps
+  # them so: it paints back what training left, not what free play would
+  # have. (repeat-endings.xml is played C4 D4 E4, then C4 D4 again and F4.)
+  def test_a_redraw_keeps_a_passage_lit_through_a_repeat
+    visit '/score.html'
+    load_score('repeat-endings.xml', 4)
+    enter_training_mode
+    pick_passage(1, 4)
+
+    play_note('C4')
+    wait_for_training_cursor(2)
+    play_note('D4')
+    wait_for_training_cursor(3)
+    play_note('E4')
+    assert_selector 'svg g.vf-notehead.played-note', count: 2
+
+    relayout_score
+
+    assert_selector 'svg g.vf-notehead.played-note', count: 2
+    assert_no_selector 'svg g.vf-measure[id="1"] g.vf-notehead.played-note'
+  end
+
   def test_turning_the_passage_off_puts_the_work_back_on_one_measure
-    open_two_measures
+    upload_two_measures
     enter_training_mode
     pick_passage(1, 2)
     assert_selector 'svg rect.measure-click-area.training-range', count: 2
@@ -108,36 +135,23 @@ class TrainingPassageTest < CapybaraTestBase
     assert_selector 'svg rect.measure-click-area.selected', count: 1
   end
 
+  # While the piece is being listened to, a bar clicked moves the listening
+  # (see barClickOwner). The band stops asking for one, as the strict band
+  # does, and says where the passage stands instead.
+  def test_the_band_asks_for_a_bar_only_while_the_click_picks_the_passage
+    upload_two_measures
+    enter_training_mode
+    arm_passage(1)
+
+    listen_then_pause
+    assert_text 'Départ à la mesure 1.'
+    assert_no_text 'cliquez sur la dernière mesure du passage'
+
+    click_on '⏹ Stop'
+    assert_text 'Départ à la mesure 1 — cliquez sur la dernière mesure du passage.'
+  end
+
   private
-
-  # Uploaded rather than opened by URL: only the test that reads the journal
-  # back needs a score id.
-  def open_two_measures
-    visit '/score.html'
-    load_score('two-measures.xml', 2)
-  end
-
-  def enter_training_mode
-    click_on 'Mode Entraînement'
-    assert_text 'Mode Entraînement Actif'
-    assert_selector 'svg rect.measure-click-area.selected'
-  end
-
-  # The gesture: 🔁, then the first bar of the passage and its last.
-  def pick_passage(first, last)
-    click_on '🔁 Boucle'
-    assert_text 'Cliquez sur la première puis la dernière mesure du passage à travailler.'
-    click_measure(first)
-    assert_text 'cliquez sur la dernière mesure du passage'
-    click_measure(last)
-  end
-
-  # The cursor moves a beat after the measure is finished (the engine pauses so
-  # the dot can be seen filling), so the next note has to wait for it — playing
-  # into a measure the cursor has not reached yet would count as a wrong note.
-  def wait_for_training_cursor(measure_number)
-    assert_selector %(svg rect.measure-click-area.selected[data-measure-index="#{measure_number - 1}"])
-  end
 
   def play_passage
     play_note('C4')

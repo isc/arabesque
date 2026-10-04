@@ -1,4 +1,4 @@
-// English strings. Keys mirror fr.js exactly. See js/i18n.js.
+// English strings. Keys mirror fr.js exactly (test/js/locales.test.js). See js/i18n.js.
 export default {
   common: {
     openLibrary: 'Open the library',
@@ -59,14 +59,14 @@ export default {
   },
   // What the current filter selects, shown under the filtered library list.
   // The numbers come from the constants the rules themselves judge by:
-  // STATUS_THRESHOLDS, the reinforcement window, the hot-spot thresholds
-  // (HOT_SPOT_*) and the practice floor
-  // (practiceTracker.js), and STALE_DAYS (library.js).
+  // STATUS_THRESHOLDS and the practice floor (aggregates.js), the
+  // reinforcement window and the hot-spot thresholds (HOT_SPOT_*,
+  // reinforcement.js), and STALE_DAYS (library.js).
   criteria: {
     filterHeading: 'What {filter} selects',
     reinforceHotSpot: 'A bar fumbled at least {factor} times as often as the piece on average, over its last {n} sessions',
     reinforceAttempts: 'Attempted at least {n} times',
-    reinforceClean: 'And not yet played cleanly {n} attempts in a row',
+    reinforceClean: 'And not yet played cleanly {n} attempts in a row, nor completed in training',
     stalePractised: 'Practised for at least {n} min in total',
     staleSilent: 'And not opened again for more than {n} days',
     heading: 'To reach {status}',
@@ -140,7 +140,7 @@ export default {
     exercises: '{n} exercises',
     timesPlayed: 'Played {n}×',
     timesPlayedOneHand: '{n}× one hand',
-    importOk: '✅ Backup imported successfully!\n\n{sessions} session(s) imported\n{aggregates} aggregate(s) imported\n{fingerings} fingering(s) imported',
+    importOk: '✅ Backup imported successfully!\n\n{sessions} session(s) imported\n{fingerings} fingering(s) imported',
     importError: '❌ Import failed: {error}',
     exportOk: '✅ Backup exported successfully!',
     exportError: '❌ Export failed: {error}',
@@ -161,7 +161,7 @@ export default {
     emailHint: 'Only if you’d like a reply.',
     screenshotLabel: 'Attach a picture of the screen',
     screenshotAlt: 'Preview of the attached picture',
-    privacy: 'Your message is sent with technical context (app version, browser, screen size, and — depending on the page — the open score or your practice totals) to help me reproduce issues. Nothing else, and never tied to an account.',
+    privacy: 'Your message is sent with technical context (app version, browser, screen size, language, errors the app ran into in the past hour, and — depending on the page — the open score or your practice totals) to help me reproduce issues, along with the picture of the screen if its box is ticked. Nothing else, and never tied to an account.',
     send: 'Send',
     thanks: 'Thanks, got it! 🙏',
     error: 'Sending failed.',
@@ -269,7 +269,7 @@ export default {
     playbackPausedAt: 'Paused at bar {n} — click a bar to resume elsewhere.',
     countIn: 'Count-in',
     strictHint: 'Click a bar to start playback from that point.',
-    strictStartAt: 'Starting at bar {n}.',
+    startAt: 'Starting at bar {n}.',
     loopBtn: '🔁 Loop',
     loopTitle: 'Replay the passage in a loop, the tempo moving from run to run',
     trainerModeAria: 'Tempo progression',
@@ -383,6 +383,7 @@ export default {
   errors: {
     webMidiUnsupported: 'Web MIDI API not supported by this browser',
     invalidChoice: 'Invalid choice',
+    chooseMidiDevice: 'Several MIDI devices found:\n{devices}\n\nEnter the number (1-{count}):',
     midiConnection: 'MIDI connection error: {message}',
     invalidMusicXml: 'This file does not appear to be a valid MusicXML file',
     musicXmlLoad: 'Error loading the MusicXML file',
@@ -443,16 +444,16 @@ export default {
     pageTitle: 'Arabesque · Privacy',
     heading: 'Privacy',
     back: '← Library',
-    updated: 'Last updated: 24 August 2026.',
+    updated: 'Last updated: 27 September 2026.',
     summaryTitle: 'In short',
     summaryBody:
       'Arabesque runs in your browser and keeps your practice data on your device. Nothing goes anywhere else unless you ask for it — by creating an account to sync your devices, or by sending feedback. There are no ads, no trackers, and nothing is ever sold.',
     localTitle: 'What stays on your device',
     localBody:
-      'Your practice sessions, your fingerings and your preferences (language, scores seen) are written to the browser’s local storage. They never leave the device on their own, and clearing the site’s data erases them for good. The Data page can export them to a file.',
+      'Your practice sessions, your fingerings, your profiles and your preferences (language, scores seen) are written to the browser’s local storage. They never leave the device on their own, and clearing the site’s data erases them for good. The Data page can export them to a file.',
     accountTitle: 'The account, if you create one',
     accountBody:
-      'Signing in is what lets your practice follow you from one device to the next. It asks for an email address, which receives a sign-in code: there is no password. Once signed in, your sessions and fingerings are copied to the server so they can come back down on your other devices. Nothing else is attached to the account.',
+      'Signing in is what lets your practice follow you from one device to the next. It asks for an email address, which receives a sign-in code: there is no password. Once signed in, your sessions, your fingerings and your profiles (each one’s name and avatar) are copied to the server so they can come back down on your other devices. Nothing else is attached to the account.',
     accountDelete:
       'You can delete your account from the Data page. The account and everything synced under it are erased from the servers there and then, without having to ask anyone.',
     feedbackTitle: 'The feedback you send',
@@ -463,7 +464,7 @@ export default {
       'No advertising, no analytics, no third-party trackers, no advertising cookies, no profiling. Your data is not sold, rented or shared for commercial purposes. The microphone and camera are never used; the MIDI keyboard only tells the app which notes you play, and that stream never leaves your device.',
     hostingTitle: 'Hosting and processors',
     hostingBody:
-      'The site is hosted on GitHub Pages, which logs requests as any web server does. Accounts and synced data live on Supabase, on servers located in Ireland (European Union). Feedback is stored there too, and notified by email through Resend. The Data page loads the sign-in library from the esm.sh CDN, which therefore sees your IP address for that request.',
+      'The site is hosted on GitHub Pages, which logs requests as any web server does. Accounts and synced data live on Supabase, on servers located in Ireland (European Union). Feedback is stored there too, and notified by email through Resend. The sign-in library is loaded from the esm.sh CDN, which therefore sees your IP address for that request: on the Data page, and on the app’s other pages once you are signed in.',
     retentionTitle: 'How long things are kept',
     retentionBody:
       'Synced data is kept for as long as the account exists, and goes with it. Feedback is kept long enough to handle the request and to keep track of what was fixed.',
@@ -488,7 +489,7 @@ export default {
     keyboardBody:
       'Arabesque listens to the keyboard through Web MIDI, over USB or Bluetooth. On a computer that needs a browser which supports it: Chrome, Edge or Opera. Safari and Firefox do not implement it, and the app says so rather than staying silent.',
     keyboardIos:
-      'On iPhone and iPad no browser has Web MIDI: the Arabesque app is what bridges to the keyboard. Over USB, plug it in and that is all; over Bluetooth, tap the antenna button in the bottom-right corner to open the system pairing sheet, since pairing on iOS is per-app.',
+      'On iPhone and iPad no browser has Web MIDI: the Arabesque app is what bridges to the keyboard. Over USB, plug it in and that is all; over Bluetooth, tap “Connect MIDI keyboard” (at the top of a score, or in the ⚙️ menu) to open the system pairing sheet, since pairing on iOS is per-app.',
     noteTitle: 'The keyboard is not detected',
     noteBody:
       'Check that no other software is holding it: a MIDI keyboard cannot always be shared between two applications. A keyboard plugged in after the page opened is picked up on its own, but reloading the page settles most of the remaining cases. On a computer, the MIDI permission can be asked of the browser again if it was once refused.',
@@ -497,6 +498,6 @@ export default {
       'It all happens on the Data page: export your history to a file, import it on another device, sign in to let syncing take care of it, and delete your account. What the app keeps and what it sends is set out in the privacy policy.',
     scoresTitle: 'The scores',
     scoresBody:
-      'The library holds public-domain works only. You can also open your own MusicXML files (.xml, .mxl) by dropping them on the score page — they stay on your device. Something wrong in a score, or a work missing? The feedback form, category "Score".',
+      'The library holds public-domain works only. You can also open your own MusicXML files (.xml, .mxl) by dropping them on the score page — they stay on your device. Something wrong in a score, or a work missing? The feedback form, category "Score request".',
   },
 }

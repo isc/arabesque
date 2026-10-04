@@ -5,18 +5,13 @@ require_relative 'test_helper'
 # training_passage_test.rb.
 class TrainingModeTest < CapybaraTestBase
   def setup
-    page.driver.set_cookie('test-env', 'true')
     visit '/score.html'
   end
 
   def test_training_mode_repeats_same_measure
     load_score('simple-score.xml', 4)
 
-    click_on 'Mode Entraînement'
-    assert_text 'Mode Entraînement Actif'
-
-    # Verify measure rectangles are present in training mode
-    assert_selector 'svg rect.measure-click-area.selected'
+    enter_training_mode
 
     # Recorded rather than sampled: the highlighting is transient, and polling
     # for it mid-replay misses whatever happens between two polls.
@@ -46,8 +41,7 @@ class TrainingModeTest < CapybaraTestBase
   def test_training_mode_requires_clean_repetitions
     load_score('simple-score.xml', 4)
 
-    click_on 'Mode Entraînement'
-    assert_text 'Mode Entraînement Actif'
+    enter_training_mode
 
     replay_cassette('simple-score-with-mistakes')
 
@@ -63,8 +57,7 @@ class TrainingModeTest < CapybaraTestBase
   def test_a_wrong_note_is_shown_and_reddens_the_repetition_under_way
     load_score('simple-score.xml', 4)
 
-    click_on 'Mode Entraînement'
-    assert_text 'Mode Entraînement Actif'
+    enter_training_mode
 
     # A dot only fills on a flawless repetition, and nothing used to say a
     # mistake had happened: the dots simply stopped filling.
@@ -82,16 +75,11 @@ class TrainingModeTest < CapybaraTestBase
   def test_training_mode_allows_jumping_to_specific_measure
     load_score('schumann-melodie.xml', 256)
 
-    click_on 'Mode Entraînement'
-
-    # Measure 1 should be highlighted by default
-    initial_rect_x = page.find('svg rect.measure-click-area.selected')['x'].to_f
+    enter_training_mode
+    wait_for_training_cursor(1)
 
     click_measure(2)
-
-    # Verify the highlight moved to measure 2
-    new_rect_x = page.find('svg rect.measure-click-area.selected')['x'].to_f
-    assert new_rect_x != initial_rect_x, "Highlight should have moved"
+    wait_for_training_cursor(2)
 
     # Play first notes of measure 2 (A4 = MIDI 69, F4 = MIDI 65 - polyphonic)
     replay_cassette('melodie-measure-2-first-note')

@@ -54,9 +54,10 @@ export function initAutoSync(
   if (signedInOnThisDevice()) onIdle(() => import('./supabaseClient.js').catch(() => {}))
 }
 
-// Time since the last sync *attempt*, in-memory or persisted by a previous page
-// (the throttle has to survive navigation: library → score → library would
-// otherwise sync three times over).
+// Time since the last sync: attempted on this page, or completed on a previous
+// one (the throttle has to survive navigation: library → score → library would
+// otherwise sync three times over). Only a sync that went through is persisted,
+// so a page opened offline tries again at once.
 function msSinceLastSync() {
   const persisted = Date.parse(lastSyncAt() ?? '')
   return Date.now() - Math.max(lastAttemptAt, Number.isNaN(persisted) ? 0 : persisted)

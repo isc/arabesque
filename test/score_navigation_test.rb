@@ -7,8 +7,22 @@ require_relative 'test_helper'
 # F4 under volta 2 — so it is played C4 D4 E4 C4 D4 F4.
 class ScoreNavigationTest < CapybaraTestBase
   def setup
-    page.driver.set_cookie('test-env', 'true')
     visit '/score.html'
+  end
+
+  # A first ending two bars long, then a D.C. al Fine: the notes asked for are
+  # the bars the cursor visits, in the order OSMD walks the sheet. That order
+  # used to be worked out apart from it, and here asked for the ending's second
+  # bar again on the way back through, and never took the D.C.
+  #
+  # da-capo-al-fine.xml is one note a bar, C4 to A4: bars 3-5 repeated, the
+  # ending 4-5 played the first time only, then from the top to the Fine at 2.
+  def test_a_long_first_ending_and_a_da_capo_al_fine
+    load_score('da-capo-al-fine.xml', 6)
+
+    play_notes(%w[C4 D4 E4 F4 G4 E4 A4 C4 D4])
+
+    assert_text 'Partition terminée'
   end
 
   def test_repeat_endings_playback_sequence
@@ -45,11 +59,27 @@ class ScoreNavigationTest < CapybaraTestBase
     assert_selector 'svg g.vf-notehead.played-note', count: 3  # E4 + C4 + D4
 
     # Second pass: F4 (measure 4, volta 2) - skips volta 1
-    play_note('F4')
-    assert_selector 'svg g.vf-notehead.played-note', count: 4  # All notes green
+    on_the_last_note do
+      play_note('F4')
+      assert_selector 'svg g.vf-notehead.played-note', count: 4  # All notes green
+    end
 
     # Score should be completed after playing the correct sequence
     assert_text 'Partition terminée'
+  end
+
+  # A redraw paints back what free play left on the score: back at the top of
+  # the repeat, the bars about to be played again stay cleared. It used to
+  # work the marks out again from the note model, and showed the first pass.
+  def test_a_redraw_keeps_the_bars_the_repeat_cleared
+    load_score('repeat-endings.xml', 4)
+    play_notes(%w[C4 D4 E4])
+    assert_selector 'svg g.vf-notehead.played-note', count: 1
+
+    relayout_score
+
+    assert_selector 'svg g.vf-notehead.played-note', count: 1
+    assert_selector 'svg g.vf-measure[id="3"] g.vf-notehead.played-note'
   end
 
   def test_free_play_allows_clicking_measure_to_reposition
@@ -109,8 +139,10 @@ class ScoreNavigationTest < CapybaraTestBase
     # Straight to the second ending. Only that measure has been played since
     # the restart, so the score is not finished.
     click_measure(4)
-    play_note("F4")
-    assert_selector 'svg g.vf-notehead.played-note', count: 1
+    on_the_last_note do
+      play_note("F4")
+      assert_selector 'svg g.vf-notehead.played-note', count: 1
+    end
     assert_no_text 'Partition terminée'
   end
 

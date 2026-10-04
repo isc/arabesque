@@ -19,13 +19,13 @@ bundle exec rake test:parallel > tmp/test-output.txt 2>&1; cat tmp/test-output.t
 summary; `rake test` still runs everything serially in one process, which is
 what you want when debugging a single test.
 
-It defaults to `min(cores, 8)` (`TEST_WORKERS=n` to override). Eight is where
-the wall clock stops improving on both machines measured — 16-core Linux and
-8-core Mac — because with ~66 tests, eight workers already leave a handful
-each and the slowest single test sets the floor. Going wider buys nothing and
-still loses a test to timing now and then. For the same reason CI does not run
-workers inside a runner; it uses `rake test:shard` (`SHARD_INDEX`/`SHARD_COUNT`)
-to give each slice a runner of its own.
+It defaults to `min(cores, 8)` (`TEST_WORKERS=n` to override). Measured on the
+16-core Linux machine with 184 tests, eight workers take 44–48s, twelve 41–43s,
+sixteen 47–48s (the Rakefile has the runs): past eight the browsers contend for
+the machine, so going wider buys little or nothing and still loses a test to
+timing now and then. Eight is also all the 8-core Mac has. For the same reason
+CI does not run workers inside a runner; it uses `rake test:shard`
+(`SHARD_INDEX`/`SHARD_COUNT`) to give each slice a runner of its own.
 
 A single-file run skips the browser warm-up that CI and `test:parallel` still
 do at the end of `test/test_helper.rb` — about 1s of a 6s run. If the *first*
@@ -59,7 +59,9 @@ Two that got through on one green run, both worth recognising again:
   wall clock. It passed whenever the CDP pause command landed late enough for
   the 0ms timer to slip through, which on an idle machine is most of the time.
   `advance_clock` after the click is the fix; `advance_clock(1)` is not enough,
-  the helper's own tolerance satisfies it before the budget lands.
+  the helper's own tolerance satisfies it before the budget lands. Alpine's
+  `$nextTick` resolves from a `setTimeout` too, so the same goes for anything
+  the app does after one.
 - A test planted a `localStorage` session and read it back three interactions
   later. `visit` returns at the load event, but the page keeps initialising —
   and half a second in, supabase-js claimed its key and deleted a session it
@@ -72,6 +74,13 @@ Both passed alone and failed under load, which is the signature: if a test only
 ever fails on CI, suspect a race with something the page does after `visit`,
 not the runner being slow.
 
+A browser test also fails on any JavaScript error its pages threw and nothing
+caught — the `uncaught` and `unhandled rejection` entries of the app's own
+error log (`public/js/errorLog.js`), read in `after_teardown`. A thrown error
+reaches no assertion by itself: an empty list reads the same as one never
+drawn. A test that throws on purpose names what it allows with
+`allow_page_errors(/…/)`.
+
 PR titles and descriptions must be in English.
 
 ## Branch previews
@@ -82,7 +91,19 @@ name with anything but letters, digits and `-` turned into `-`), refreshed on
 each push and removed when the PR closes; `.github/workflows/preview.yml`
 posts the link as a sticky comment. Production and previews are both served
 from the `gh-pages` branch — `deploy-pages.yml` publishes `public/` at its
-root, previews go under `previews/`. A preview is on the same origin as
+root, previews go under `previews/`, and `preview-cleanup.yml` removes a
+preview when its PR closes.
+
+**Every workflow that writes to `gh-pages` joins the concurrency group
+`gh-pages` with `queue: max`** (so `cancel-in-progress: false`). Without the
+queue, GitHub keeps one run waiting per group and cancels it, silently, when
+another arrives: a merge starts the deploy and the preview's cleanup in the
+same second, and the deploy was the one lost — twice on 2026-09-30, a fix
+staying offline until the next merge. The queue also keeps the writes one at
+a time, which peaceiris needs (it does not retry a rejected push). GitHub
+orders the queue only on a best-effort basis, so the deploy publishes the
+head of main when it runs, never the commit of its event, and it goes green
+only once `arabesque.app/.deploy-sha` says that commit is online. A preview is on the same origin as
 production, so it reads and writes the same IndexedDB and localStorage: runs
 played on a preview land in the real practice journal.
 
@@ -90,12 +111,23 @@ played on a preview land in the real practice journal.
 
 **IMPORTANT:** After adding or removing a score (editing `public/data/scores.json`
 and the file in `public/scores/`), regenerate the fingerprints so the score is
-findable by playing its opening notes on the MIDI keyboard:
+findable by playing its opening notes on the MIDI keyboard, and record its bar
+count (a score removed takes `--accept <file>`, see below):
 ```bash
-ruby scripts/generate_fingerprints.rb
+node scripts/generate-fingerprints.mjs
+node scripts/bar-counts.mjs
 ```
 `public/data/fingerprints.json` must stay in sync with the catalog: one
 fingerprint per score file, including each part of a collection.
+`test/js/fingerprints.test.js` fails when it is not what the generator makes
+of the scores as they are, and the generator writes nothing when a score cannot
+be read or opens with fewer notes than the library needs to find it.
+
+The catalog names a listed piece everywhere, the head of the sheet included:
+the score page puts the entry's title and short composer, and its optional
+`subtitle` and `arranger` (drawn "Arr. …" at the top left), over whatever the
+file says of itself (`nameSheet` in `public/js/musicxml.js`). So a file's own
+header never shows, and a correction goes in `scores.json`, not in the file.
 
 Correcting a score in place — a wrong trill, a measure re-engraved — does reach
 devices that already opened the piece: the service worker serves `/scores/` from
@@ -111,6 +143,13 @@ The one exception is splitting a bar so a system can break inside it: write the
 second half as `<measure number="N" implicit="yes">`, N being the bar it
 completes, and both halves stay one bar — same index, note count running on —
 so nothing re-points (`barCounter` in `public/js/fingeringKeys.js`).
+
+`test/js/barCounts.test.js` holds every score to the bar count recorded in
+`test/js/bar-counts.json`, counted that same way. `node scripts/bar-counts.mjs`
+records a new score, and refuses a recorded one whose count changed or whose
+file was renamed or removed — practice history is filed by file name — unless
+it is named with `--accept <file>`: the moment to weigh what the change
+re-points, not a formality to get the test green.
 
 A catalog entry with `parts: [{title, file}]` instead of `file` is a
 **collection** (e.g. the Hanon exercises): one library row, a part navigator on
@@ -256,7 +295,8 @@ node scripts/apply-auth-config.mjs --apply  # push supabase/auth.md
 `test/js/authConfig.test.js` guards the file's invariants offline (no token, so
 it runs in CI): the template carries a code and never a link, the settings table
 names exactly what the applier sends, and the sender matches `feedback.sql`.
-`auth.md` also lists the four ways sign-in email has broken silently.
+`auth.md` also lists the ways sign-in email has broken silently, cheapest to
+check first.
 
 ## Playwright Browser Testing
 
@@ -283,12 +323,11 @@ refs, then `click`/`fill`/`eval` against them.
 ## App Store screenshots and review video
 
 `scripts/demo/capture.sh` regenerates the whole screenshot set from real
-simulators — run it after any UI change the listing shows. `scripts/demo/record.sh`
-records a walkthrough off a simulator. Both seed a practice history and play a
-piece through the mock MIDI input, and both work on a throwaway copy of
+simulators — run it after any UI change the listing shows. It seeds a practice
+history and plays a piece through the mock MIDI input, on a throwaway copy of
 `public/` — no demo hook ever ships.
 
-The video App Review watches is neither: Apple requires a **filmed** one,
+The video App Review watches is not generated: Apple requires a **filmed** one,
 showing a physical device and the MIDI keyboard pairing and playing together.
 It is committed at `public/video/review-demo.mp4`, and the review notes in
 `scripts/appstore/listing_fr.py` link to it — replacing that file replaces the
@@ -338,7 +377,8 @@ travel with it — a manifest without a worker is not installable:
 
 `test/js/swShell.test.js` asserts that the set of pages carrying the manifest is
 exactly the set registering the worker, and that the theme colour matches the
-manifest's. The precache list is generated from
+manifest's. It lists every page as one of the app's or one of the others, so a
+new page goes into one of its two lists. The precache list is generated from
 `public/` by the same deploy step, so a new file is covered without being
 listed anywhere; add a new top-level directory to `SHELL_SKIP` in
 `scripts/stamp-version.mjs` if it must stay out.
@@ -358,3 +398,7 @@ committed.
   Pico CSS used to supply), then the application's own `.pt-*` components.
   Reach for an existing token or component before adding CSS, and put anything
   generic enough to be reused in the base layer rather than in a page rule.
+  The components layer opens on the pieces several pages share — a small
+  bordered control in a row of others is a `.pt-chip` — and each page's own
+  rules follow under its banner. A font size is one of the `--pt-font-size-*`
+  steps, never a new rem.

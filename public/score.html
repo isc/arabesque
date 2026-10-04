@@ -51,32 +51,19 @@
          the first paint and the fetch of the module graph below. Deferred
          classic scripts still run in document order, before the module. -->
     <script defer src="vendor/jszip.3.10.1.min.js"></script>
-    <script defer src="vendor/opensheetmusicdisplay.2.1.3.min.js"></script>
+    <script defer src="vendor/opensheetmusicdisplay.2.2.0.min.js"></script>
     <script type="module">
-      // Register the Alpine root component before Alpine boots, then load Alpine.
-      // Loading Alpine from inside this module (rather than a sibling `defer`
-      // script) guarantees `midiApp` exists before Alpine evaluates `x-data`,
-      // even when app.js's import graph is slow to resolve (it pulls in the
-      // vendored Tone bundle). Otherwise Alpine can win the race and every
-      // expression throws "<name> is not defined".
       import { midiApp } from './js/app.js'
-      import { initAlpineI18n } from './js/i18n.js'
+      import { startAlpine } from './js/alpineBoot.js'
       import { mountHeaderMenu } from './js/headerMenu.js'
-      window.midiApp = midiApp
-      // Inject the shared ⚙️ menu + modals before Alpine boots and before the
-      // FR/EN switch is wired by initAlpineI18n.
-      mountHeaderMenu()
-      // Translate static chrome, wire the FR/EN switch, and expose $t to templates.
-      initAlpineI18n()
-      const alpine = document.createElement('script')
-      alpine.src = 'vendor/alpinejs.3.14.9.min.js'
-      document.head.appendChild(alpine)
+      import { mountBpmFields } from './js/bpmField.js'
+      startAlpine({ midiApp }, [mountHeaderMenu, mountBpmFields])
     </script>
   </head>
   <body @keydown.escape.window="handleEscape()">
     <div class="pt-stickybars">
     <header class="pt-topbar">
-      <a href="library.html" class="pt-topbar__back" data-i18n="score.back">&larr; Bibliothèque</a>
+      <a href="library.html" class="pt-back" data-i18n="score.back">← Bibliothèque</a>
       <div class="pt-topbar__title" x-show="osmdInstance" x-cloak>
         <span x-text="collection ? collection.title : (scoreTitle || $t('score.titleFallback'))"></span>
         <small x-show="scoreComposer" x-text="scoreComposer"></small>
@@ -85,7 +72,7 @@
       <!-- Part navigator, shown when the score belongs to a collection -->
       <div class="pt-part-nav" x-show="collection && osmdInstance" x-cloak>
         <button
-          class="pt-topbar__pill"
+          class="pt-chip"
           :disabled="collectionIndex <= 0"
           @click="gotoPart(collectionIndex - 1)"
           :aria-label="$t('score.prevExercise')"
@@ -96,7 +83,7 @@
           </template>
         </select>
         <button
-          class="pt-topbar__pill"
+          class="pt-chip"
           :disabled="collectionIndex >= (collection?.parts.length ?? 0) - 1"
           @click="gotoPart(collectionIndex + 1)"
           :aria-label="$t('score.nextExercise')"
@@ -104,11 +91,11 @@
       </div>
       <div class="pt-topbar__actions">
         <!-- MIDI status / connect -->
-        <span class="pt-midi-status" x-show="bluetoothConnected" x-cloak :title="$t('score.midiConnected')">
+        <span class="pt-chip pt-midi-status" x-show="bluetoothConnected" x-cloak :title="$t('score.midiConnected')">
           🎹 <span x-text="midiDeviceName || $t('score.midiKeyboard')"></span>
         </span>
         <button
-          class="pt-midi-status is-disconnected"
+          class="pt-chip pt-midi-status is-disconnected"
           x-show="!bluetoothConnected"
           x-cloak
           @click="connectMIDI"
@@ -117,7 +104,7 @@
 
         <!-- Mic mode (non MIDI) — hidden once a MIDI keyboard is connected -->
         <button
-          class="pt-midi-status"
+          class="pt-chip pt-midi-status"
           :class="{ 'is-disconnected': !micActive }"
           x-show="micActive || !bluetoothConnected"
           x-cloak
@@ -128,7 +115,7 @@
 
         <!-- History (only for library scores) -->
         <button
-          class="pt-topbar__pill"
+          class="pt-chip"
           x-show="!!scoreUrl"
           x-cloak
           @click="openScoreHistory"
@@ -173,19 +160,19 @@
            Short label, the words in full for assistive tech and hover. -->
       <div class="pt-hands">
         <label class="pt-hands__option" :title="$t('score.rightHand')">
-          <input type="checkbox" x-model="rightHandActive" @change="updateActiveHands" :disabled="isStrictPlaying" :aria-label="$t('score.rightHand')" />
+          <input type="checkbox" x-model="rightHandActive" @change="updateActiveHands('right')" :disabled="isStrictPlaying" :aria-label="$t('score.rightHand')" />
           <span x-text="$t('hands.right')">MD</span>
         </label>
         <label class="pt-hands__option" :title="$t('score.leftHand')">
-          <input type="checkbox" x-model="leftHandActive" @change="updateActiveHands" :disabled="isStrictPlaying" :aria-label="$t('score.leftHand')" />
+          <input type="checkbox" x-model="leftHandActive" @change="updateActiveHands('left')" :disabled="isStrictPlaying" :aria-label="$t('score.leftHand')" />
           <span x-text="$t('hands.left')">MG</span>
         </label>
       </div>
 
       <a
         href="#"
-        class="pt-reinforce-badge"
-        x-show="measuresToReinforce.length > 0 && !trainingMode && !isStrictPlaying"
+        class="pt-chip pt-reinforce-badge"
+        x-show="measuresToReinforce.length > 0 && currentMode !== 'training' && !isStrictPlaying"
         @click.prevent="startReinforcementMode()"
         x-text="reinforceLabel()"
         :aria-label="reinforceLabel('handsFull')"
@@ -194,7 +181,7 @@
       <div class="pt-modebar__spacer"></div>
 
       <button
-        class="pt-action-button"
+        class="pt-chip pt-action-button"
         :class="{ 'is-active': isListening }"
         @click="togglePlayback"
         x-text="isListening ? $t('score.stop') : $t('score.listen')"
@@ -203,7 +190,7 @@
     <!-- Strict band: the mode's controls and what it says about the run.
          Sticky with the bars above, so ⏸ stays within reach while the run
          scrolls the score. -->
-    <div class="pt-context pt-context--strict" x-show="currentMode === 'strict' && !!osmdInstance" x-cloak>
+    <div class="pt-context pt-context--strict" x-show="mode === 'strict' && !!osmdInstance" x-cloak>
       <!-- Everything strict mode is driven with lives here, next to what it
            says about the run, so the modebar above stays the same in every
            mode. -->
@@ -216,54 +203,18 @@
           x-text="isStrictPlaying ? $t('score.pauseBtn') : $t('score.startBtn')"
         ></button>
         <!-- The tempo is typed with a keyboard and pressed with a thumb: the
-             −/+ buttons step it by a notch, and hold to keep stepping. A div
-             rather than a label around the lot, since a label hands its clicks
-             to the first control it holds — which would now be a button. -->
-        <div class="pt-bpm-field">
-          <button
-            type="button"
-            class="pt-band-button pt-bpm-field__step"
-            :disabled="isStrictPlaying"
-            :aria-label="$t('score.tempoDown')"
-            @click="stepBpmField('strictBpm', -1)"
-            @pointerdown="startBpmHold('strictBpm', -1)"
-            @pointerup="endBpmHold('strictBpm')"
-            @pointerleave="endBpmHold('strictBpm')"
-            @pointercancel="endBpmHold('strictBpm')"
-          >−</button>
-          <label class="pt-sr-only" for="strict-bpm" x-text="$t('score.tempoBpm')">Tempo en BPM</label>
-          <input
-            id="strict-bpm"
-            type="number"
-            :min="bpmMin"
-            :max="bpmMax"
-            :step="bpmStep"
-            x-model.number="strictBpm"
-            :disabled="isStrictPlaying"
-            :aria-label="$t('score.tempoBpm')"
-          />
-          <span class="pt-bpm-field__suffix" x-text="$t('score.bpm')">BPM</span>
-          <button
-            type="button"
-            class="pt-band-button pt-bpm-field__step"
-            :disabled="isStrictPlaying"
-            :aria-label="$t('score.tempoUp')"
-            @click="stepBpmField('strictBpm', 1)"
-            @pointerdown="startBpmHold('strictBpm', 1)"
-            @pointerup="endBpmHold('strictBpm')"
-            @pointerleave="endBpmHold('strictBpm')"
-            @pointercancel="endBpmHold('strictBpm')"
-          >+</button>
-        </div>
+             −/+ buttons step it by a notch, and hold to keep stepping. The
+             field is built by bpmField.js, the same in both bands. -->
+        <div data-bpm-field="strictBpm"></div>
         <button
           class="pt-band-button"
-          :aria-pressed="loopEnabled"
+          :aria-pressed="strictPassage.loop"
           :title="$t('score.loopTitle')"
           @click="toggleLoop"
           x-text="$t('score.loopBtn')"
         >🔁 Boucle</button>
         <select
-          x-show="loopEnabled"
+          x-show="strictPassage.loop"
           class="pt-band-select"
           x-model="trainerMode"
           :disabled="isStrictPlaying"
@@ -301,39 +252,7 @@
           :aria-label="isPlaying ? $t('score.pause') : $t('score.resume')"
           x-text="isPlaying ? $t('score.pauseBtn') : $t('score.resumeBtn')"
         ></button>
-        <div class="pt-bpm-field">
-          <button
-            type="button"
-            class="pt-band-button pt-bpm-field__step"
-            :aria-label="$t('score.playbackTempoDown')"
-            @click="stepBpmField('playbackBpm', -1)"
-            @pointerdown="startBpmHold('playbackBpm', -1)"
-            @pointerup="endBpmHold('playbackBpm')"
-            @pointerleave="endBpmHold('playbackBpm')"
-            @pointercancel="endBpmHold('playbackBpm')"
-          >−</button>
-          <label class="pt-sr-only" for="playback-bpm" x-text="$t('score.playbackTempoBpm')">Tempo de lecture en BPM</label>
-          <input
-            id="playback-bpm"
-            type="number"
-            :min="bpmMin"
-            :max="bpmMax"
-            :step="bpmStep"
-            x-model.number.debounce.400ms="playbackBpm"
-            :aria-label="$t('score.playbackTempoBpm')"
-          />
-          <span class="pt-bpm-field__suffix" x-text="$t('score.bpm')">BPM</span>
-          <button
-            type="button"
-            class="pt-band-button pt-bpm-field__step"
-            :aria-label="$t('score.playbackTempoUp')"
-            @click="stepBpmField('playbackBpm', 1)"
-            @pointerdown="startBpmHold('playbackBpm', 1)"
-            @pointerup="endBpmHold('playbackBpm')"
-            @pointerleave="endBpmHold('playbackBpm')"
-            @pointercancel="endBpmHold('playbackBpm')"
-          >+</button>
-        </div>
+        <div data-bpm-field="playbackBpm"></div>
       </div>
       <span class="pt-context__row" x-text="playbackBandText()">Cliquez sur une mesure pour écouter à partir de là.</span>
     </div>
@@ -341,12 +260,12 @@
 
     <!-- Training band: the same shape as the strict one — its controls, then
          what the mode has to say — so 🔁 picks a passage in both the same way. -->
-    <div class="pt-context pt-context--training" x-show="currentMode === 'training' && !reinforcementMode && !!osmdInstance" x-cloak>
+    <div class="pt-context pt-context--training" x-show="mode === 'training' && !!osmdInstance" x-cloak>
       <strong x-text="$t('score.trainingBand')">🎯 Entraînement</strong>
       <div class="pt-band-controls">
         <button
           class="pt-band-button"
-          :aria-pressed="trainingLoop"
+          :aria-pressed="trainingPassage.loop"
           :title="$t('score.trainingLoopTitle')"
           @click="toggleTrainingLoop"
           x-text="$t('score.loopBtn')"
@@ -412,10 +331,10 @@
         </header>
 
         <div class="pt-modal-body">
-          <!-- Free / Training: playthrough rankings + evolution chart -->
-          <template x-if="resultMode === 'free' || resultMode === 'training'">
+          <!-- Free: where the run went wrong, its ranking + evolution chart -->
+          <template x-if="resultMode === 'free'">
             <div>
-              <p x-show="resultMode === 'free' && wrongMeasuresText" class="pt-modal-note pt-modal-note--lead" x-text="wrongMeasuresText"></p>
+              <p x-show="resultWrongMeasures" class="pt-modal-note pt-modal-note--lead" x-text="resultWrongMeasures"></p>
               <div class="pt-result-cols">
                 <div class="pt-playthrough-scroll" x-show="previousPlaythroughs.length > 0">
                   <table class="pt-playthrough-table">
@@ -433,21 +352,20 @@
                     </tbody>
                   </table>
                 </div>
-                <template x-if="playthroughChartSvg(previousPlaythroughs)">
+                <template x-if="resultChart">
                   <div class="pt-modal-section">
                     <h4 x-text="$t('score.playtimeEvolution')">Évolution du temps de jeu</h4>
-                    <div x-html="playthroughChartSvg(previousPlaythroughs)"></div>
+                    <div x-html="resultChart"></div>
                   </div>
                 </template>
               </div>
-              <p
-                x-show="resultMode === 'training'"
-                class="pt-modal-note"
-                x-text="trainingDoneText()"
-              >
-                Vous avez complété toutes les mesures du morceau.
-              </p>
             </div>
+          </template>
+
+          <!-- Training: what came out clean. No ranking: a drill is not a
+               playthrough, and previousPlaythroughs holds the last free run's. -->
+          <template x-if="resultMode === 'training'">
+            <p class="pt-modal-note" x-text="resultTrainingText">Vous avez complété toutes les mesures du morceau.</p>
           </template>
 
           <!-- Strict: accuracy + breakdown -->
@@ -500,10 +418,10 @@
         </div>
 
         <footer>
-          <button class="pt-action-button" x-show="!!scoreUrl" @click="closeResultModal(); openScoreHistory()" x-text="$t('score.history')">📜 Historique</button>
-          <button class="pt-action-button" @click="closeResultModal()" x-text="$t('score.close')">Fermer</button>
+          <button class="pt-chip pt-action-button" x-show="!!scoreUrl" @click="closeResultModal(); openScoreHistory()" x-text="$t('score.history')">📜 Historique</button>
+          <button class="pt-chip pt-action-button" @click="closeResultModal()" x-text="$t('score.close')">Fermer</button>
           <button
-            class="pt-action-button is-primary"
+            class="pt-chip pt-action-button is-primary"
             x-show="resultMode !== 'reinforcement' && measuresToReinforce.length > 0"
             @click="closeResultModal(); startReinforcementMode()"
             x-text="reinforceLabel()"
@@ -530,9 +448,9 @@
           <p class="pt-modal-note" x-text="$t('score.noHistory')">Aucun historique pour cette partition.</p>
         </template>
 
-        <template x-for="chart in playthroughCharts" :key="chart.key">
+        <template x-for="chart in historyCharts" :key="chart.key">
           <div class="pt-modal-section">
-            <h4 x-text="chartTitle(chart)">Évolution du temps de jeu</h4>
+            <h4 x-text="chart.title">Évolution du temps de jeu</h4>
             <div x-html="chart.svg"></div>
           </div>
         </template>
@@ -565,8 +483,8 @@
                 <div class="pt-history-day__body">
                   <small x-show="day.fullPlaythroughs.length === 0 && day.measuresWorked.length > 0" x-text="$tn('score.measuresPlayed', day.measuresWorked.length)"></small>
                   <small x-show="day.measuresReinforced.length > 0" x-text="$tn('score.measuresReinforced', day.measuresReinforced.length)"></small>
-                  <template x-for="group in playthroughGroups(day.fullPlaythroughs)" :key="group.key">
-                    <small x-text="formatPlaythroughs(group)"></small>
+                  <template x-for="line in day.runLines" :key="line.key">
+                    <small x-text="line.text"></small>
                   </template>
                 </div>
               </div>
@@ -588,9 +506,9 @@
           <a href="https://caniuse.com/?search=web%20midi" data-i18n="score.otherBrowser">un autre navigateur</a>
           <span data-i18n="score.noMidiBrowsers">(Chrome, Edge ou Opera).</span>
         </p>
-        <p x-text="$t('score.micHelpAlt')">Piano acoustique ou pas de MIDI ? Essayez le mode micro (bêta) : l'application écoute votre piano via le microphone et valide les notes jouées, une note à la fois.</p>
+        <p x-text="$t('score.micHelpAlt')">Piano acoustique ou pas de MIDI ? Essayez le mode micro (bêta) : l'application écoute votre piano via le microphone et valide les notes jouées, une note à la fois (les accords ne sont pas encore reconnus).</p>
         <footer>
-          <button class="pt-action-button" @click="noMidiModal.close(); toggleMic()" x-text="$t('score.midiHelpTryMic')">🎤 Essayer le mode micro (bêta)</button>
+          <button class="pt-chip pt-action-button" @click="noMidiModal.close(); toggleMic()" x-text="$t('score.midiHelpTryMic')">🎤 Essayer le mode micro (bêta)</button>
         </footer>
       </article>
     </dialog>
@@ -611,10 +529,10 @@
           <template x-for="finger in [1, 2, 3, 4, 5]" :key="finger">
             <button @click="appendFinger(finger)" x-text="finger"></button>
           </template>
-          <button class="pt-action-button" @click="removeFingering()">×</button>
+          <button class="pt-chip pt-action-button" @click="removeFingering()">×</button>
         </div>
         <footer>
-          <button class="pt-action-button is-primary" @click="validateFingering()" x-text="$t('score.fingeringValidate')">✓ Valider</button>
+          <button class="pt-chip pt-action-button is-primary" @click="validateFingering()" x-text="$t('score.fingeringValidate')">✓ Valider</button>
         </footer>
       </article>
     </dialog>
@@ -670,11 +588,11 @@
           </div>
         </template>
 
-        <p x-text="$t('score.micHelpAlt')">Piano acoustique ou pas de MIDI ? Essayez le mode micro (bêta) : l'application écoute votre piano via le microphone et valide les notes jouées, une note à la fois.</p>
+        <p x-text="$t('score.micHelpAlt')">Piano acoustique ou pas de MIDI ? Essayez le mode micro (bêta) : l'application écoute votre piano via le microphone et valide les notes jouées, une note à la fois (les accords ne sont pas encore reconnus).</p>
 
         <footer>
-          <button class="pt-action-button" @click="showMidiHelpModal = false; toggleMic()" x-text="$t('score.midiHelpTryMic')">🎤 Essayer le mode micro (bêta)</button>
-          <button class="pt-action-button is-primary" @click="showMidiHelpModal = false; connectMIDI()" x-text="$t('score.midiHelpRetry')">Réessayer la connexion</button>
+          <button class="pt-chip pt-action-button" @click="showMidiHelpModal = false; toggleMic()" x-text="$t('score.midiHelpTryMic')">🎤 Essayer le mode micro (bêta)</button>
+          <button class="pt-chip pt-action-button is-primary" @click="showMidiHelpModal = false; connectMIDI()" x-text="$t('score.midiHelpRetry')">Réessayer la connexion</button>
         </footer>
       </article>
     </dialog>

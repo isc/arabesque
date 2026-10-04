@@ -2,7 +2,6 @@ require_relative 'test_helper'
 
 class LibraryFiltersTest < CapybaraTestBase
   def setup
-    page.driver.set_cookie('test-env', 'true')
     visit '/library.html'
     inject_aggregates
     visit '/library.html'
@@ -54,20 +53,12 @@ class LibraryFiltersTest < CapybaraTestBase
     assert_current_path %r{\?.*status=dechiffrage}
 
     titles = all('tbody tr td:first-child').map(&:text)
-    assert_includes titles, 'Nocturne No. 20 in C# Minor'
+    assert_includes titles, 'Nocturne No. 20 in C♯ Minor'
     assert_includes titles, 'Prelude Op. 28 No. 4 in E Minor'
     refute_includes titles, 'Waltz in A Minor'
     # Half a minute of playing is under the practice floor, so the Ballade has
-    # no status at all — not even the rung its stored aggregate still claims.
+    # no status at all.
     refute_includes titles, 'Ballade No. 1 in G minor Op. 23'
-  end
-
-  # A piece opened, tried for half a minute and left behind is not being
-  # sight-read, and wears no badge — including one graded before the floor
-  # existed, which the library re-grades on its way to the screen.
-  def test_barely_practised_score_wears_no_status_badge
-    assert_selector 'tbody .pt-pill--dechiffrage', count: 3
-    find('tbody tr', text: 'Ballade No. 1 in G minor Op. 23').assert_no_selector '.pt-pill'
   end
 
   def test_filters_persist_via_url_params
@@ -88,11 +79,7 @@ class LibraryFiltersTest < CapybaraTestBase
     select 'Romantique', from: 'Filtrer par période musicale', match: :first
     assert_current_path %r{\?.*period=romantique}
 
-    composers = all('tbody tr td:nth-child(2)').map(&:text).uniq
-    refute_empty composers
-    composers.each do |c|
-      refute_match(/Bach|Mozart|Debussy|Traditional/, c, "Expected only Romantic composers, got #{c}")
-    end
+    assert_equal ['romantique'], shown_periods.uniq
   end
 
   def test_period_filter_persists_via_url_param
@@ -104,11 +91,10 @@ class LibraryFiltersTest < CapybaraTestBase
     assert_selector 'tbody tr', minimum: 1
     assert_no_selector 'tbody tr td:nth-child(2)', text: /Mozart|Debussy|Chopin/
 
-    composers = all('tbody tr td:nth-child(2)').map(&:text).uniq
-    composers.each { |c| assert_match(/Bach|Pachelbel|Petzold|Handel/, c) }
+    assert_equal ['baroque'], shown_periods.uniq
   end
 
-  # The numbers asserted here are STATUS_THRESHOLDS (practiceTracker.js), which
+  # The numbers asserted here are STATUS_THRESHOLDS (aggregates.js), which
   # is also what computeScoreStatus() grades by — if the rules move, this test
   # is where the two are checked to have moved together.
   def test_status_filter_spells_out_what_the_next_status_takes
@@ -229,7 +215,7 @@ class LibraryFiltersTest < CapybaraTestBase
     chip.click
 
     titles = all('tbody tr td:first-child').map(&:text)
-    assert_includes titles, 'Nocturne No. 20 in C# Minor'
+    assert_includes titles, 'Nocturne No. 20 in C♯ Minor'
     refute_includes titles, 'Prelude Op. 28 No. 4 in E Minor'
 
     # And the page says what the chip selects, which is what nobody could tell
@@ -263,7 +249,7 @@ class LibraryFiltersTest < CapybaraTestBase
     chip.click
 
     titles = all('tbody tr td:first-child').map(&:text)
-    assert_includes titles, 'Nocturne No. 20 in C# Minor'
+    assert_includes titles, 'Nocturne No. 20 in C♯ Minor'
     refute_includes titles, 'Prelude Op. 28 No. 4 in E Minor'
   end
 
@@ -273,7 +259,7 @@ class LibraryFiltersTest < CapybaraTestBase
   # on, one either side of it, and both left silent.
   def test_the_stale_chip_passes_over_pieces_that_never_cleared_the_practice_floor
     floors = {
-      # Half a minute short of a minute: no badge, and now no reminder either.
+      # A millisecond short of a minute: no badge, and now no reminder either.
       BALLADE => MIN_PRACTICE_MS - 1,
       # Exactly the floor is enough — hasMinimumPractice is `>=`, and the chip
       # has to agree with the badge on the very millisecond it appears.
@@ -306,10 +292,10 @@ class LibraryFiltersTest < CapybaraTestBase
     titles = all('tbody tr td:first-child').map(&:text)
     assert_includes titles, 'Prelude Op. 28 No. 4 in E Minor'
     refute_includes titles, 'Ballade No. 1 in G minor Op. 23'
-    refute_includes titles, 'Nocturne No. 20 in C# Minor'
+    refute_includes titles, 'Nocturne No. 20 in C♯ Minor'
 
     # And the card says the half the label never could: the floor. The numbers
-    # are MIN_PRACTICE_MS_FOR_STATUS and STALE_DAYS (library.js/practiceTracker.js).
+    # are MIN_PRACTICE_MS_FOR_STATUS and STALE_DAYS (aggregates.js/library.js).
     criteria = find('.pt-criteria')
     assert_match(/PAS JOUÉ DEPUIS/i, criteria.text)
     assert_match(/au moins 1 min en tout/, criteria.text)
@@ -352,9 +338,7 @@ class LibraryFiltersTest < CapybaraTestBase
     wake_the_library
     # The reopen is the last thing the redraw waits on: what it does with the
     # failure is promise callbacks, all run before this test's next script.
-    Timeout.timeout(Capybara.default_max_wait_time) do
-      sleep 0.02 until page.evaluate_script('window.__reopened')
-    end
+    wait_until('the library to reopen its database', interval: 0.02) { page.evaluate_script('window.__reopened') }
 
     assert_selector 'tbody .pt-pill--dechiffrage', count: 3
     assert_selector 'tbody .pt-pill--repertoire', count: 1
@@ -370,6 +354,17 @@ class LibraryFiltersTest < CapybaraTestBase
 
   private
 
+  # The period of each composer the table shows, as the library files them
+  # (musicalPeriods.js): a list of names written here would have to follow
+  # every score the catalog gains.
+  def shown_periods
+    composers = all('tbody tr td:nth-child(2)').map(&:text).uniq
+    page.evaluate_async_script(<<~JS, composers)
+      const [composers, done] = arguments;
+      import('/js/musicalPeriods.js').then(({ getPeriodForComposer }) => done(composers.map(getPeriodForComposer)));
+    JS
+  end
+
   # The redraw the app runs on waking up the next day (dayRollover.js), pulled
   # through the one trigger a test can fire without a day going by: a restore
   # from the back/forward cache calls the same refreshPracticeViews().
@@ -377,15 +372,15 @@ class LibraryFiltersTest < CapybaraTestBase
     page.execute_script("window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true }))")
   end
 
-  # practiceTracker.js's MIN_PRACTICE_MS_FOR_STATUS, the floor under every status.
-  MIN_PRACTICE_MS = 60_000
+  # The floor under every status.
+  MIN_PRACTICE_MS = Integer(js_constant('aggregates.js', 'MIN_PRACTICE_MS_FOR_STATUS'))
   BALLADE = 'scores/Chopin_-_Ballade_no._1_in_G_minor_Op._23.mxl'
   PRELUDE = 'scores/Prlude_No._4_in_E_Minor_Op._28_-_Frdric_Chopin.mxl'
   NOCTURNE_20 = 'scores/Nocturne_No._20_in_C_sharp_Minor.mxl'
   AIR = 'scores/J._S._Bach_-_Air_on_the_G_String_Piano_arrangement.mxl'
 
   # Attempts at one bar, oldest first, true for a fumble — sized to clear or
-  # miss practiceTracker.js's hasHotSpots.
+  # miss reinforcement.js's hasHotSpots.
   HOT_SPOT = [true, true, true].freeze
   CLEAN = [false, false, false].freeze
   SHAKY = [true, false, true].freeze
@@ -451,13 +446,13 @@ class LibraryFiltersTest < CapybaraTestBase
         totalPracticeTimeMs: 3_600_000,
         practiceDays: ['2026-03-08', '2026-03-09', '2026-03-10'],
       },
-      # Half a minute of playing, and a status stored before the practice floor
-      # existed: the library grades it again on the way to the screen.
+      # Half a minute of playing: under the practice floor, so no status —
+      # what the tracker stores for it (practiceTracker.test.js).
       {
         scoreId: 'scores/Chopin_-_Ballade_no._1_in_G_minor_Op._23.mxl',
         scoreTitle: 'Ballade No. 1 in G minor Op. 23',
         composer: 'Chopin',
-        status: 'dechiffrage',
+        status: nil,
         lastPlayedAt: '2026-03-16T10:00:00.000Z',
         totalPracticeTimeMs: 30_000,
         practiceDays: ['2026-03-16'],
@@ -476,7 +471,7 @@ class LibraryFiltersTest < CapybaraTestBase
       },
       {
         scoreId: 'scores/Nocturne_No._20_in_C_sharp_Minor.mxl',
-        scoreTitle: 'Nocturne No. 20 in C# Minor',
+        scoreTitle: 'Nocturne No. 20 in C♯ Minor',
         composer: 'Chopin',
         status: 'dechiffrage',
         lastPlayedAt: '2026-03-15T10:00:00.000Z',

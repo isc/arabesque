@@ -1,23 +1,16 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { readFileSync, readdirSync } from 'node:fs'
+import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { installSessionStorage } from './support/browserGlobals.js'
+import { RECENT_ERRORS_KEY } from '../../public/js/errorLog.js'
+import { htmlPages } from '../../scripts/stamp-version.mjs'
 
 // The buffer of recent errors a feedback report carries (public/js/errorLog.js).
 // The suite runs in node, so each test gets a fresh module — a page load — over
 // a sessionStorage and a location of its own.
 
 const PUBLIC_DIR = join(import.meta.dirname, '..', '..', 'public')
-const pages = readdirSync(PUBLIC_DIR).filter((name) => name.endsWith('.html'))
-const STORAGE_KEY = 'arabesque:recent-errors'
-
-const fakeSessionStorage = () => {
-  const store = new Map()
-  return {
-    getItem: (key) => store.get(key) ?? null,
-    setItem: (key, value) => store.set(key, String(value)),
-    removeItem: (key) => store.delete(key),
-  }
-}
+const pages = htmlPages()
 
 // A page being loaded at `path`: the module evaluated afresh, the way every
 // page load evaluates it, with a window to install its listeners on.
@@ -50,13 +43,11 @@ describe('errorLog', () => {
   beforeEach(() => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-09-24T20:00:00Z'))
-    storage = fakeSessionStorage()
-    vi.stubGlobal('sessionStorage', storage)
+    storage = installSessionStorage()
   })
 
   afterEach(() => {
     vi.useRealTimers()
-    vi.unstubAllGlobals()
   })
 
   it('keeps what an error says, where it was thrown from, and on which page', async () => {
@@ -212,7 +203,7 @@ describe('errorLog', () => {
   })
 
   it('shrugs off a stored value it cannot read', async () => {
-    storage.setItem(STORAGE_KEY, 'not json')
+    storage.setItem(RECENT_ERRORS_KEY, 'not json')
     const { recordError, recentErrors } = await loadPage()
     expect(recentErrors()).toEqual([])
     recordError(new Error('fresh'), 'x')
@@ -221,8 +212,7 @@ describe('errorLog', () => {
 })
 
 describe('the feedback context', () => {
-  beforeEach(() => vi.stubGlobal('sessionStorage', fakeSessionStorage()))
-  afterEach(() => vi.unstubAllGlobals())
+  beforeEach(() => installSessionStorage())
 
   it('carries the recent errors, and no key at all when there are none', async () => {
     const { recordError } = await loadPage()

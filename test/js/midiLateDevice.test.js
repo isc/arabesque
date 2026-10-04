@@ -40,7 +40,7 @@ describe('connectMIDI with no device at page load', () => {
 
     const midi = await freshMidi()
     const played = []
-    midi.setCallbacks({ onNotePlayed: (_, note) => played.push(note) })
+    midi.setCallbacks({ onNotePlayed: (note) => played.push(note) })
 
     const result = await midi.connectMIDI({ silent: true, autoSelectFirst: true })
     expect(result).toEqual({ status: 'no_devices' })

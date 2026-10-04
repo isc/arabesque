@@ -7,6 +7,8 @@
 // diatonic path (NATURAL: +2 above, -1 below), so no real pitch or key data is
 // needed. Pass `accidental: ACCIDENTAL.NONE` and a `pitch` to take that path.
 
+import { soundFrom } from '../../../public/js/noteExtraction.js'
+
 // OSMD's AccidentalEnum, the values the extractor compares against.
 export const ACCIDENTAL = { NONE: 2, NATURAL: 3 }
 
@@ -21,18 +23,22 @@ export const ORNAMENT = {
   INVERTED_MORDENT: 6,
 }
 
+// `length` is the note's written value and `tiedInto` the values of the notes
+// a tie it starts runs on into, in whole notes as OSMD gives them.
 export function noteWithOrnament(
   ornamentType,
-  { tied = false, midiNumber = 72, noteheadIndex = 0, accidental = ACCIDENTAL.NATURAL, pitch, staffIndex = 0 } = {},
+  { tied = false, midiNumber = 72, noteheadIndex = 0, accidental = ACCIDENTAL.NATURAL, pitch, staffIndex = 0, length = 0.5, tiedInto = [] } = {},
 ) {
+  const note = { pitch, Length: { RealValue: length } }
+  if (tiedInto.length) note.NoteTie = { Notes: [note, ...tiedInto.map((value) => ({ Length: { RealValue: value } }))] }
   return {
     midiNumber,
     timestamp: 1.5,
-    measureIndex: 1,
     staffIndex,
     isTieContinuation: tied,
     noteheadIndex,
-    note: { pitch, Length: { RealValue: 0.5 } },
+    note,
+    soundTs: soundFrom(note),
     voiceEntry: {
       OrnamentContainer: { GetOrnament: ornamentType, AccidentalAbove: accidental, AccidentalBelow: accidental },
     },

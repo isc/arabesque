@@ -14,16 +14,16 @@ import { KEY_PREFIX } from './legacyKeys.js'
 const DICTS = { fr, en }
 const SUPPORTED = ['fr', 'en']
 const FALLBACK = 'en'
-const STORAGE_KEY = `${KEY_PREFIX}lang`
+export const LANG_KEY = `${KEY_PREFIX}lang`
 
 function detectLang() {
   try {
-    const stored = localStorage.getItem(STORAGE_KEY)
+    const stored = localStorage.getItem(LANG_KEY)
     if (stored && SUPPORTED.includes(stored)) return stored
   } catch {
     /* localStorage unavailable */
   }
-  // `navigator` is absent in the node test environment (and Node < 21), so guard it.
+  // `navigator` is absent under Node < 21, where the unit tests may run.
   const navLang = typeof navigator !== 'undefined' ? navigator.language || '' : ''
   const nav = navLang.slice(0, 2).toLowerCase()
   return SUPPORTED.includes(nav) ? nav : FALLBACK
@@ -44,7 +44,7 @@ export function locale() {
 function setLang(next) {
   if (!SUPPORTED.includes(next) || next === lang) return
   try {
-    localStorage.setItem(STORAGE_KEY, next)
+    localStorage.setItem(LANG_KEY, next)
   } catch {
     /* ignore: language just won't persist */
   }
@@ -105,16 +105,5 @@ export function initI18n() {
       e.preventDefault()
       setLang(el.getAttribute('data-set-lang'))
     })
-  })
-}
-
-// One-call setup for Alpine pages: translate static chrome + wire the switch
-// (initI18n), then expose $t to templates. Registered on alpine:init so the
-// magic exists before Alpine evaluates any expression.
-export function initAlpineI18n() {
-  initI18n()
-  document.addEventListener('alpine:init', () => {
-    window.Alpine.magic('t', () => (key, params) => t(key, params))
-    window.Alpine.magic('tn', () => (key, n, params) => tn(key, n, params))
   })
 }

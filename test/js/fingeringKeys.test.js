@@ -6,6 +6,7 @@ import {
   isLegacyFingeringKey,
   legacyFingeringKey,
   migrateLegacyFingerings,
+  migrateFingeringRecord,
   nextNoteIndex,
 } from '../../public/js/fingeringKeys.js'
 
@@ -121,6 +122,27 @@ describe('fileNumbering', () => {
 // The mapping a score hands the migration: what each of its notes is called
 // now, under the name it used to be called.
 const map = (entries) => new Map(entries)
+
+// sync.js merges a record against the version its last sync left, so that
+// version has to be in the same names as the record.
+describe('migrateFingeringRecord', () => {
+  const legacy = map([['1:0:0:2', ['m0:0:0:2']], ['1:0:0:3', ['m0:0:0:3']]])
+
+  it('translates the version the last sync left along with the record', () => {
+    const record = { scoreUrl: 's', fingerings: { '1:0:0:2': 4 }, updatedAt: 5, synced: { fingerings: { '1:0:0:2': 4, '1:0:0:3': 1 }, updatedAt: 5 } }
+    expect(migrateFingeringRecord(record, legacy).record).toEqual({
+      scoreUrl: 's',
+      fingerings: { 'm0:0:0:2': 4 },
+      updatedAt: 5,
+      synced: { fingerings: { 'm0:0:0:2': 4, 'm0:0:0:3': 1 }, updatedAt: 5 },
+    })
+  })
+
+  it('leaves a record that never synced without a version to translate', () => {
+    const { record } = migrateFingeringRecord({ scoreUrl: 's', fingerings: { '1:0:0:2': 4 } }, legacy)
+    expect(record).toEqual({ scoreUrl: 's', fingerings: { 'm0:0:0:2': 4 } })
+  })
+})
 
 describe('migrateLegacyFingerings', () => {
   it('leaves a record already in the current scheme alone', () => {

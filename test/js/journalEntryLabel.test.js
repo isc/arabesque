@@ -17,7 +17,7 @@ describe('entryLabel', () => {
       .toBe("L'Harmonie des anges")
   })
 
-  // The locale under node is the fallback one, so this is the English string.
+  // The suite runs in English (support/setup.js), so this is the English string.
   it('falls back to "untitled" for a score with no name at all', () => {
     expect(entryLabel({ scoreTitle: null, composer: null })).toBe('Untitled')
   })

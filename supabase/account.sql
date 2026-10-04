@@ -42,7 +42,7 @@ begin
   end if;
 
   -- auth.uid() reads the caller's own JWT, so this can only ever delete the
-  -- caller. Cascades through training_sessions and user_fingerings.
+  -- caller. Cascades through training_sessions, user_fingerings and profiles.
   delete from auth.users where id = uid;
 end;
 $$;

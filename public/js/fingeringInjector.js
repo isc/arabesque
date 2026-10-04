@@ -48,28 +48,24 @@ export function injectFingerings(xmlString, fingerings) {
   return doc
 }
 
-function getOrCreateChild(doc, parent, tagName) {
+// `before`: the tags the child has to come ahead of, if the parent holds any;
+// otherwise it goes last.
+function getOrCreateChild(doc, parent, tagName, before = []) {
   let child = parent.querySelector(tagName)
   if (!child) {
     child = doc.createElement(tagName)
-    parent.appendChild(child)
+    parent.insertBefore(child, [...parent.children].find((sibling) => before.includes(sibling.tagName)) ?? null)
   }
   return child
 }
 
-function injectFingeringIntoNote(doc, note, finger) {
-  // Find or create <notations> (insert after <type> per MusicXML element order)
-  let notations = note.querySelector('notations')
-  if (!notations) {
-    notations = doc.createElement('notations')
-    const typeEl = note.querySelector('type')
-    if (typeEl?.nextSibling) {
-      note.insertBefore(notations, typeEl.nextSibling)
-    } else {
-      note.appendChild(notations)
-    }
-  }
+// What a <note> may hold after its <notations>, in MusicXML's element order;
+// everything else it holds comes before them. A new <notations> goes in front of
+// the first of these, or last. scripts/import-fingerings.mjs places it the same.
+export const AFTER_NOTATIONS = ['lyric', 'play', 'listen']
 
+function injectFingeringIntoNote(doc, note, finger) {
+  const notations = getOrCreateChild(doc, note, 'notations', AFTER_NOTATIONS)
   const technical = getOrCreateChild(doc, notations, 'technical')
   // Remove all existing fingerings (e.g. turn ornaments can have multiple)
   for (const f of [...technical.querySelectorAll('fingering')]) f.remove()

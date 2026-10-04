@@ -1,6 +1,6 @@
 // Pure matching logic for strict-tempo playthrough — no DOM, no audio, no
-// timers. Kept separate from strictPlaythrough.js so it can be unit-tested
-// without dragging in the playback chain (and its esm.sh @tonejs/piano import).
+// timers. Kept separate from strictPlaythrough.js, which drives the cursor, the
+// metronome and the clock, so the rules can be unit-tested on their own.
 
 // Three states, not four: whether a settled event was in tempo is the verdict
 // it already carries as `classification`, and nothing reads it off the status.
@@ -120,6 +120,16 @@ export function faultAbsorbingEvent(events, midiNumber, now) {
     if (event.sequence.includes(midiNumber)) return event
   }
   return null
+}
+
+// Whether a strike no event took costs a wrong note: always, but for more of
+// an ornament that has already answered for itself. The ornament is marked
+// here, on the first strike it claims.
+export function chargesStrayStrike(events, midiNumber, now) {
+  const ornament = faultAbsorbingEvent(events, midiNumber, now)
+  if (ornament?.faulted) return false
+  if (ornament) ornament.faulted = true
+  return true
 }
 
 // Whether the run lets `midiNumber` through at `now` as a grace note. A grace

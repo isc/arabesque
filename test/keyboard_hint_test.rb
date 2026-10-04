@@ -7,16 +7,11 @@ require_relative 'test_helper'
 # two-measures.xml is one whole note per bar, C4 then D4, right hand.
 class KeyboardHintTest < CapybaraTestBase
   def setup
-    page.driver.set_cookie('test-env', 'true')
     # The strip fades in, and under a parked clock that fade can sit at its
     # first frame — opacity 0, which Capybara takes for not visible. Reduced
     # motion drops it: the strip is there the moment x-show reveals it.
-    emulate_media([{ name: 'prefers-reduced-motion', value: 'reduce' }])
-  end
-
-  def teardown
-    emulate_media([])
-    super
+    page.driver.browser.page.command('Emulation.setEmulatedMedia',
+                                     features: [{ name: 'prefers-reduced-motion', value: 'reduce' }])
   end
 
   def test_wrong_keys_for_a_note_bring_the_keyboard_up_with_that_note_lit
@@ -58,12 +53,24 @@ class KeyboardHintTest < CapybaraTestBase
     assert_equal '61', on_top
   end
 
+  # A trill goes on for as long as it is kept up, and the note after it is what
+  # moves on: the keyboard used to light the trill's own note, which a press
+  # only prolongs. trill-ornament.xml is A♭4 trilled with B♭4, then E♭5.
+  def test_after_a_trill_it_lights_the_note_that_moves_on
+    visit '/score.html?url=/test-fixtures/trill-ornament.xml'
+    wait_for_score_render(2)
+    play_notes(%w[Ab4 Bb4 Ab4])
+
+    3.times { play_note('C4') }
+
+    assert_selector '.pt-keyhint__key.is-owed[data-midi="75"]'
+  end
+
   # Training replays the measure a beat after its last note: the keyboard
   # follows the cursor back to the note owed again, with no key pressed.
   def test_it_follows_the_cursor_through_a_training_repetition
     open_two_measures
-    click_on 'Mode Entraînement'
-    assert_text 'Mode Entraînement Actif'
+    enter_training_mode
     3.times { play_note('G4') }
     assert_selector '.pt-keyhint__key.is-owed[data-midi="60"]'
 
@@ -87,7 +94,9 @@ class KeyboardHintTest < CapybaraTestBase
     end
   end
 
-  def test_the_cross_puts_it_away_for_the_visit
+  # For the rest of the day, however many scores are opened (feedback
+  # 4d8a81b9): a child closes it once, not at every piece.
+  def test_the_cross_puts_it_away_for_the_day
     open_two_measures
     3.times { play_note('G4') }
     assert_selector '.pt-keyhint'
@@ -99,6 +108,14 @@ class KeyboardHintTest < CapybaraTestBase
     play_note('C4')
     3.times { play_note('G4') }
     assert_no_selector '.pt-keyhint'
+
+    open_two_measures
+    with_clock_control do
+      3.times { play_note('G4') }
+      # Alpine reveals from a timer of its own.
+      advance_clock(100)
+      assert_keyboard_down
+    end
   end
 
   # Feedback b7682019: the last note played, the cursor goes back to the top
@@ -128,16 +145,12 @@ class KeyboardHintTest < CapybaraTestBase
   # the keyboard has had that key: it must not count it as the next go begun.
   def test_it_does_not_come_up_over_a_finished_passage
     open_two_measures
-    click_on 'Mode Entraînement'
-    assert_text 'Mode Entraînement Actif'
-    click_on '🔁 Boucle'
-    click_measure(1)
-    assert_text 'cliquez sur la dernière mesure du passage'
-    click_measure(2)
+    enter_training_mode
+    pick_passage(1, 2)
     assert_text 'Mesures 1 à 2'
     3.times do
       play_note('C4')
-      assert_selector 'svg rect.measure-click-area.selected[data-measure-index="1"]'
+      wait_for_training_cursor(2)
       play_note('D4')
       assert_back_at_the_top
     end
@@ -177,20 +190,11 @@ class KeyboardHintTest < CapybaraTestBase
 
   private
 
-  def open_two_measures
-    visit '/score.html?url=/test-fixtures/two-measures.xml'
-    wait_for_score_render(2)
-  end
-
   # The beat after the last note, which takes the cursor back to the top.
   # Waited for before the clock is parked: parked ahead of it, a 20 s advance
   # was seen not to reach the wait the keyboard counts from there.
   def assert_back_at_the_top
     assert_no_selector 'svg g.vf-notehead.played-note'
-  end
-
-  def emulate_media(features)
-    page.driver.browser.page.command('Emulation.setEmulatedMedia', features: features)
   end
 
   # Down the way x-show puts it, rather than merely not visible: a strip

@@ -25,7 +25,7 @@ const PUBLIC_DIR = join(import.meta.dirname, '..', 'public')
 // A page needs both halves: the stamp to compare against, and the module that
 // compares it. Stamping one without the other would ship a page that cannot
 // notice it is stale.
-const VERSION_SCRIPT = '<script type="module" src="js/version.js"></script>'
+export const VERSION_SCRIPT = '<script type="module" src="js/version.js"></script>'
 
 // Generated rather than hand-listed: a file added to public/ and left out would
 // be the one thing missing offline, and nothing would say so.
@@ -60,6 +60,18 @@ export function shellAssets() {
   return [...ENTRY_URLS, ...files]
 }
 
+// Every page the app ships: the HTML at the top of public/. Each is stamped
+// here, and the tests hold each to the markers a page carries (CLAUDE.md, "New
+// HTML pages").
+export function htmlPages() {
+  return readdirSync(PUBLIC_DIR).filter((name) => name.endsWith('.html'))
+}
+
+// The line of public/sw.js listing the assets to precache, as a deploy writes
+// it. The tests stamp a worker the same way.
+export const SW_SHELL = /^const SHELL = \[[^\]]*\]$/m
+export const shellLine = (shell) => `const SHELL = ${JSON.stringify(shell)}`
+
 function stamp(version) {
   replaceOnce(
     join(PUBLIC_DIR, 'js', 'version.js'),
@@ -67,7 +79,7 @@ function stamp(version) {
     `export const APP_VERSION = '${version}'`,
   )
 
-  const pages = readdirSync(PUBLIC_DIR).filter((name) => name.endsWith('.html'))
+  const pages = htmlPages()
   for (const page of pages) {
     const path = join(PUBLIC_DIR, page)
     replaceOnce(
@@ -86,7 +98,7 @@ function stamp(version) {
   const shell = version === 'dev' ? [] : shellAssets()
   const sw = join(PUBLIC_DIR, 'sw.js')
   replaceOnce(sw, /^const VERSION = '[^']*'$/m, `const VERSION = '${version}'`)
-  replaceOnce(sw, /^const SHELL = \[[^\]]*\]$/m, `const SHELL = ${JSON.stringify(shell)}`)
+  replaceOnce(sw, SW_SHELL, shellLine(shell))
 
   console.log(`Stamped ${version} into js/version.js, ${pages.length} pages and sw.js (${shell.length} assets).`)
 }

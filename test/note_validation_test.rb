@@ -5,7 +5,6 @@ require_relative 'test_helper'
 # struck again.
 class NoteValidationTest < CapybaraTestBase
   def setup
-    page.driver.set_cookie('test-env', 'true')
     visit '/score.html'
   end
 
@@ -60,8 +59,7 @@ class NoteValidationTest < CapybaraTestBase
   def test_polyphonic_duplicate_notes_validation
     load_score('schumann-melodie.xml', 256)
 
-    click_on 'Mode Entraînement'
-    assert_text 'Mode Entraînement Actif'
+    enter_training_mode
 
     # Measure 8 contains polyphonic notes with duplicate stems
     click_measure(8)
@@ -85,8 +83,10 @@ class NoteValidationTest < CapybaraTestBase
     assert_selector 'svg g.vf-notehead.played-note', count: 1
 
     # While holding G4, play F4 - both G4 tie-continuation and F4 should validate together
-    simulate_midi_input("ON F4")
-    assert_selector 'svg g.vf-notehead.played-note', count: 3
+    on_the_last_note do
+      simulate_midi_input("ON F4")
+      assert_selector 'svg g.vf-notehead.played-note', count: 3
+    end
 
     # Now release both notes
     simulate_midi_input("OFF G4")
@@ -111,9 +111,8 @@ class NoteValidationTest < CapybaraTestBase
     # Regression test: OSMD interprets rests with display-step/display-octave as notes with pitch.
     # This caused a phantom G5 note to appear in measure 5 of Kinderscenen, breaking note order.
     visit '/score.html?url=/scores/Schumann_Kinderszenen_No_1.mxl'
-    assert_selector 'svg g.vf-stavenote', minimum: 100
-
-    click_on 'Mode Entraînement'
+    wait_for_score_render
+    enter_training_mode
     click_measure(5)
 
     replay_cassette('bug-des-pays-lointains')

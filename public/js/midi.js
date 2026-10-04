@@ -1,10 +1,10 @@
 import { isTestEnv } from './utils.js'
-import mockMIDI from './midi_mock.js'
+import mockMIDI, { MOCK_DEVICE_NAME } from './midi_mock.js'
 import { t } from './i18n.js'
 import { recordError } from './errorLog.js'
 
-const NOTE_ON = 144
-const NOTE_OFF = 128
+export const NOTE_ON = 144
+export const NOTE_OFF = 128
 const NOTE_NAMES = 'C C# D D# E F F# G G# A A# B'.split(' ')
 
 // Two console.log per MIDI event, unconditionally. Cheap with DevTools shut, not
@@ -44,7 +44,6 @@ export function initMidi() {
     // Mic mode's way in: the notes it hears arrive as the messages a keyboard
     // would have sent (micInput.js).
     parseMidiMessage,
-    noteName,
     setCallbacks,
     state,
   }
@@ -101,11 +100,8 @@ async function connectMIDI(options = {}) {
       selectMIDIInput(inputs[0])
     } else {
       // Show selection dialog
-      const inputNames = inputs.map((input, i) => `${i + 1}. ${input.name || 'Périphérique inconnu'}`).join('\n')
-      const choice = prompt(
-        `Plusieurs périphériques MIDI trouvés:\n${inputNames}\n\nEntrez le numéro (1-${inputs.length}):`,
-        '1',
-      )
+      const devices = inputs.map((input, i) => `${i + 1}. ${input.name || t('score.midiKeyboard')}`).join('\n')
+      const choice = prompt(t('errors.chooseMidiDevice', { devices, count: inputs.length }), '1')
 
       if (choice) {
         const index = parseInt(choice, 10) - 1
@@ -181,7 +177,7 @@ async function connectMIDIMock() {
   mockMIDI.connect((data) => {
     parseMidiMessage(data)
   })
-  setConnectedInput({ name: 'Mock MIDI Keyboard' })
+  setConnectedInput({ name: MOCK_DEVICE_NAME })
 }
 
 // Parse standard MIDI messages (from Web MIDI API)
@@ -195,25 +191,17 @@ function parseMidiMessage(data) {
   const statusType = status & 0xf0
 
   if (statusType === NOTE_ON && velocity > 0 && note < 128) {
-    const noteNameStr = noteName(note)
-    if (callbacks.onNotePlayed) {
-      callbacks.onNotePlayed(noteNameStr, note)
-    }
-    if (LOG_NOTES) console.log('Note ON detected:', noteNameStr)
+    callbacks.onNotePlayed?.(note)
+    if (LOG_NOTES) console.log('Note ON detected:', noteName(note))
   }
   if (statusType === NOTE_OFF || (statusType === NOTE_ON && velocity === 0)) {
-    const noteNameStr = noteName(note)
-    if (callbacks.onNoteReleased) {
-      callbacks.onNoteReleased(noteNameStr, note)
-    }
-    if (LOG_NOTES) console.log('Note OFF detected:', noteNameStr)
+    callbacks.onNoteReleased?.(note)
+    if (LOG_NOTES) console.log('Note OFF detected:', noteName(note))
   }
 }
 
-// Convert MIDI note number to name
+// A MIDI note number as the log names it: "C#4".
 function noteName(n) {
   const octave = Math.floor(n / 12) - 1
   return NOTE_NAMES[n % 12] + octave
 }
-
-export { NOTE_ON, NOTE_OFF, NOTE_NAMES, noteName }

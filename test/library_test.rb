@@ -2,7 +2,6 @@ require_relative 'test_helper'
 
 class LibraryTest < CapybaraTestBase
   def setup
-    page.driver.set_cookie('test-env', 'true')
     visit '/library.html'
   end
 
@@ -34,13 +33,12 @@ class LibraryTest < CapybaraTestBase
   end
 
   def test_clicking_score_navigates_to_score_page
-    page.driver.set_cookie('test-env', 'true')
     fill_in 'Rechercher une partition', with: 'Carol of the Bells'
     click_link 'Carol of the Bells', match: :first
 
     assert_current_path %r{/score\.html\?url=}
     assert_text 'Bibliothèque' # Back link
-    assert_selector 'svg g.vf-stavenote', minimum: 1
+    wait_for_score_render
 
     # History button should be visible for URL-loaded scores
     click_on 'Historique'
@@ -123,10 +121,4 @@ class LibraryTest < CapybaraTestBase
     fill_in 'Rechercher une partition', with: 'INV Bach'
     assert_selector 'tbody tr', count: 4
   end
-
-  private
-
-  # The changelog, feedback, data-page link and language controls now live
-  # behind the ⚙️ header menu; open it before interacting with those items.
-  # (Backup import/export moved to the data page — see data_test.rb.)
 end

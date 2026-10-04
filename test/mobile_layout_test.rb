@@ -11,15 +11,6 @@ class MobileLayoutTest < CapybaraTestBase
   # "Historique" pill, and it is the one that pushed ⚙️ off the right edge.
   SCORE_URL = 'scores/Waltz_in_A_MinorChopin.mxl'.freeze
 
-  def setup
-    @original_size = page.current_window.size
-    page.driver.set_cookie('test-env', 'true')
-  end
-
-  def teardown
-    page.current_window.resize_to(*@original_size)
-  end
-
   # A page wider than the viewport is the failure mode this whole breakpoint
   # exists to prevent: it takes the sticky chrome sideways with it, so buttons
   # sit off-screen and every vertical scroll drifts horizontally.
@@ -55,7 +46,7 @@ class MobileLayoutTest < CapybaraTestBase
     page.current_window.resize_to(*PHONE)
     visit "/score.html?url=#{SCORE_URL}"
     wait_for_score_render
-    assert_selector '.pt-topbar__pill', text: 'Historique'
+    assert_selector '.pt-topbar__actions .pt-chip', text: 'Historique'
 
     right = page.evaluate_script(<<~JS)
       document.querySelector('.pt-topbar__actions').getBoundingClientRect().right
@@ -73,19 +64,10 @@ class MobileLayoutTest < CapybaraTestBase
 
     page.current_window.resize_to(*PHONE)
     # The relayout is driven by our own resize handler, not OSMD's autoResize.
-    assert_selector 'svg text', wait: 5
-    narrow = nil
-    Timeout.timeout(Capybara.default_max_wait_time) do
-      loop do
-        narrow = title_font_size
-        break if narrow && narrow < wide
-
-        sleep 0.1
-      end
+    wait_until("the engraved title to shrink from #{wide}px on a #{PHONE.first}px screen", interval: 0.1) do
+      narrow = title_font_size
+      narrow && narrow < wide
     end
-
-    assert_operator narrow, :<, wide,
-                    "engraved title stayed at #{wide}px on a #{PHONE.first}px screen"
   end
 
   # The filters cost a whole phone screen before any content, so they start

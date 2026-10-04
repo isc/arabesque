@@ -7,12 +7,18 @@ on:
 
 permissions:
   contents: write
+  # For the last step, which asks Pages for a build again if none went live.
+  pages: write
 
-# One writer to gh-pages at a time: this deploy and the branch previews all
-# push to the same branch, and two of them at once would race.
+# One writer to gh-pages at a time: this deploy, the branch previews and their
+# cleanup all push to the same branch, and two of them at once would race.
+# `queue: max`: without it GitHub keeps one run waiting per group and cancels
+# it, silently, when another arrives — and a merge starts this deploy and the
+# preview's cleanup in the same second (see CLAUDE.md, "Branch previews").
 concurrency:
   group: gh-pages
   cancel-in-progress: false
+  queue: max
 
 # peaceiris/actions-gh-pages@v4 still declares Node.js 20; opting in to Node
 # 24 now, ahead of GitHub making it the default, as Tablito does.
@@ -23,23 +29,30 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
+      # The head of main when the run starts, not the commit of its event: a
+      # re-run of an old deploy, or a queue let out of order, cannot put an
+      # older version back online.
       - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Commit to publish
+        run: echo "DEPLOY_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
 
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
 
-      # Entries added since the last fold live one per file in changelog.d/,
-      # so that concurrent pull requests do not fight over the top of
-      # public/js/changelog.js. This assembles them into the file the app
-      # imports, on the checkout, never committed back — scripts/changelog.mjs.
-      - name: Assemble the changelog
-        run: node scripts/changelog.mjs build
+      # The changelog assembled and the pages stamped with this build: the
+      # same script builds the branch previews (preview.yml).
+      - name: Build the site
+        run: scripts/build-site.sh "$DEPLOY_SHA"
 
-      # Keeps each page's HTML and its JS recognisably one build: see
-      # public/js/version.js.
-      - name: Stamp the build version
-        run: node scripts/stamp-version.mjs "${GITHUB_SHA::12}"
+      # The commit published, read back by the last step. Written after the
+      # build, so it stays out of the worker's precache list (as preview.yml's
+      # .preview-sha).
+      - name: Write deployment marker
+        run: echo "$DEPLOY_SHA" > public/.deploy-sha
 
       # public/ goes to the ROOT of the gh-pages branch, which Pages serves.
       # `keep_files` preserves the sibling previews/ directory the preview
@@ -54,4 +67,34 @@ jobs:
           publish_branch: gh-pages
           keep_files: true
           cname: arabesque.app
-          commit_message: 'deploy: main @ ${{ github.sha }}'
+          commit_message: 'deploy: main @ ${{ env.DEPLOY_SHA }}'
+
+      # The push does not put the site online: pages-build-deployment does
+      # (GitHub's own), and it can fail on its own, leaving the site on the old
+      # build behind a green deploy. So wait for arabesque.app to serve this
+      # commit, ask Pages for a build once more if it does not, then fail: a
+      # green deploy means online. Ten minutes a wait — some healthy Pages
+      # builds take over five — and every curl bounded, since a hung one would
+      # hold up the whole queue.
+      - name: Wait for arabesque.app to serve this commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          wait_live() {
+            for i in $(seq 1 120); do
+              actual=$(curl -fsSL --max-time 10 https://arabesque.app/.deploy-sha 2>/dev/null | tr -d '[:space:]' || true)
+              if [ "$actual" = "$DEPLOY_SHA" ]; then
+                echo "Live with $DEPLOY_SHA after ${i}×5s"
+                return 0
+              fi
+              echo "Attempt $i/120: got '$actual', want '$DEPLOY_SHA'"
+              sleep 5
+            done
+            return 1
+          }
+          wait_live && exit 0
+          echo "::warning::arabesque.app does not serve $DEPLOY_SHA after 10 min: asking Pages for a build again"
+          gh api -X POST "repos/$GITHUB_REPOSITORY/pages/builds" --silent || true
+          wait_live && exit 0
+          echo "::error::arabesque.app still does not serve $DEPLOY_SHA: see the pages-build-deployment runs"
+          exit 1

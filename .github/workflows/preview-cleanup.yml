@@ -8,31 +8,51 @@ permissions:
   contents: write
   pull-requests: write
 
+# Same group as deploy-pages.yml and preview.yml, queued: see there.
 concurrency:
   group: gh-pages
   cancel-in-progress: false
+  queue: max
 
 jobs:
   delete-preview:
     runs-on: ubuntu-latest
     steps:
+      # The rule preview.yml published by, from the base branch: gh-pages,
+      # checked out below, carries no scripts.
+      - name: Checkout the slug script
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.base.ref }}
+          path: tools
+          sparse-checkout: scripts
+
+      # Through env, never pasted into the script: the branch name is the
+      # pull request author's to choose.
       - name: Compute preview slug
         id: slug
+        # On a line of its own: inside the echo, a failing script would leave
+        # the slug empty, and the step below remove previews/ whole.
         run: |
-          raw='${{ github.head_ref }}'
-          slug=$(echo "$raw" | tr -c 'a-zA-Z0-9-' '-' | tr -s '-' | sed 's/^-\|-$//g')
+          slug=$(tools/scripts/preview-slug.sh "$BRANCH")
           echo "slug=$slug" >> "$GITHUB_OUTPUT"
+        env:
+          BRANCH: ${{ github.head_ref }}
 
       - name: Checkout gh-pages
         uses: actions/checkout@v4
         with:
           ref: gh-pages
+          path: site
           fetch-depth: 1
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Remove preview directory
+        working-directory: site
+        env:
+          SLUG: ${{ steps.slug.outputs.slug }}
         run: |
-          dir="previews/${{ steps.slug.outputs.slug }}"
+          dir="previews/${SLUG:?}"
           if [ -d "$dir" ]; then
             git config user.name 'github-actions[bot]'
             git config user.email 'github-actions[bot]@users.noreply.github.com'

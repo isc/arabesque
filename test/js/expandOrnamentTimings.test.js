@@ -1,51 +1,54 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect } from 'vitest'
+import { expandOrnamentNotes } from '../../public/js/noteExtraction.js'
+import { expandOrnamentTimings, rollOffsetMs } from '../../public/js/playback.js'
+import { noteWithOrnament, ORNAMENT } from './support/ornamentedNote.js'
 
-// playback.js pulls in @tonejs/piano, which is loaded from a CDN in the browser and
-// has no node package. Stub it so the pure timing helper can be imported under vitest.
-vi.mock('@tonejs/piano', () => ({ Piano: class {} }))
-
-const { expandOrnamentTimings, rollOffsetMs } = await import('../../public/js/playback.js')
-
-// Build the expanded turn notes the keyboard matcher (expandOrnamentNotes) feeds to
-// audio playback: all share one parent note object, the principal sits on the beat,
-// and the turn proper carries _turnDelay (whole-note fraction the principal is held).
-function turnNotes({ baseTs = 0, parentDuration, turnDelay, count }) {
-  const parent = { Length: { RealValue: parentDuration } }
-  const OFFSET = 0.00001
-  return Array.from({ length: count }, (_, i) => ({
-    note: parent,
-    isTurnNote: true,
-    _turnDelay: turnDelay,
-    // Mirror the matcher: principal at baseTs, turn proper offset by turnDelay.
-    timestamp: turnDelay > 0 && i > 0
-      ? baseTs + turnDelay + (i - 1) * OFFSET
-      : baseTs + i * OFFSET,
-  }))
+// What audio playback is handed for one ornamented note — the extractor's own
+// expansion — timed.
+function realized(ornament, options) {
+  return expandOrnamentTimings(expandOrnamentNotes([noteWithOrnament(ornament, options)]))
 }
+
+// When each note sounds and for how long, from the note's beat (noteWithOrnament
+// puts it at 1.5), in whole notes.
+const timed = (ornament, options) => realized(ornament, options).map((n) => [n.timestamp - 1.5, n._ornamentDuration])
 
 describe('expandOrnamentTimings', () => {
   it('spreads an on-beat turn evenly over the full note', () => {
-    const result = expandOrnamentTimings(turnNotes({ parentDuration: 0.25, turnDelay: 0, count: 4 }))
-    expect(result.map((n) => n.timestamp)).toEqual([0, 0.0625, 0.125, 0.1875])
-    expect(result.every((n) => n._ornamentDuration === 0.0625)).toBe(true)
+    expect(timed(ORNAMENT.TURN, { length: 0.25 })).toEqual([[0, 0.0625], [0.0625, 0.0625], [0.125, 0.0625], [0.1875, 0.0625]])
   })
 
+  // A quarter note: the principal is held 3/16 on the beat, and the turn
+  // proper fills the last 1/16, ending exactly at the note's end.
   it('holds the principal then plays a delayed turn over the note\'s final stretch', () => {
-    // Quarter note, turn delayed by 3/16 so the turn proper fills the last 1/16.
-    const result = expandOrnamentTimings(turnNotes({ parentDuration: 0.25, turnDelay: 0.1875, count: 5 }))
+    const turn = 0.0625 / 4
+    expect(timed(ORNAMENT.DELAYED_TURN, { length: 0.25 })).toEqual([
+      [0, 0.1875], [0.1875, turn], [0.1875 + turn, turn], [0.1875 + 2 * turn, turn], [0.1875 + 3 * turn, turn],
+    ])
+  })
 
-    // Principal sounds on the beat, held until the turn starts.
-    expect(result[0].timestamp).toBe(0)
-    expect(result[0]._ornamentDuration).toBe(0.1875)
+  // A trill goes on for as long as its note sounds, at thirty-second notes,
+  // and ends on the note it began with: here a whole note tied into a half,
+  // over the bar line, where the tied half is only a sentinel. It used to
+  // play the three notes it is written as over the first note, then nothing.
+  it('trills for the whole of a note tied over the bar line', () => {
+    const trill = realized(ORNAMENT.TRILL, { length: 1, tiedInto: [0.5] })
+    expect(trill.map((n) => n.midiNumber)).toEqual(Array.from({ length: 49 }, (_, i) => (i % 2 ? 74 : 72)))
+    const last = trill.at(-1)
+    expect(last.timestamp + last._ornamentDuration).toBeCloseTo(1.5 + 1.5, 10)
+  })
 
-    // The four turn notes share the remaining 1/16, evenly.
-    const turnDur = 0.0625 / 4
-    expect(result.slice(1).every((n) => n._ornamentDuration === turnDur)).toBe(true)
-    expect(result[1].timestamp).toBe(0.1875)
+  it('keeps the three notes a trill is written as on a short note', () => {
+    expect(realized(ORNAMENT.TRILL, { length: 0.0625 }).map((n) => n.midiNumber)).toEqual([72, 74, 72])
+  })
 
-    // The turn ends exactly at the note's end (no overrun, no gap).
-    const last = result[result.length - 1]
-    expect(last.timestamp + last._ornamentDuration).toBeCloseTo(0.25, 10)
+  it('holds a mordent\'s last note to the end of the note', () => {
+    expect(timed(ORNAMENT.MORDENT, { length: 0.5 })).toEqual([[0, 0.0625], [0.0625, 0.0625], [0.125, 0.375]])
+  })
+
+  it('rings a delayed turn\'s last note on through the tie', () => {
+    const [at, duration] = timed(ORNAMENT.DELAYED_TURN, { length: 0.25, tiedInto: [0.5] }).at(-1)
+    expect(at + duration).toBeCloseTo(0.75, 10)
   })
 
   it('passes non-ornament notes through untouched', () => {

@@ -1,4 +1,5 @@
-// Shared header chrome — the ⚙️ menu and its modals, identical on every page.
+// Shared header chrome — the ⚙️ menu and its modals, identical on the two pages
+// that carry them.
 //
 // Both the library (libraryApp) and the score page (midiApp) get the exact same
 // menu (load a score, what's new, feedback, a link to the data page, language)
@@ -15,6 +16,7 @@
 // non-identifying context merged into a report (practice stats on the library,
 // current score on the score page).
 import { CHANGELOG } from './changelog.js'
+import { startOfLocalDay } from './days.js'
 import { feedbackEnabled, buildBaseContext, submitFeedback, defaultFeedbackEmail } from './feedback.js'
 import { getLang, locale } from './i18n.js'
 import { INSTALL_AVAILABLE_EVENT, installAvailable, promptInstall } from './installPrompt.js'
@@ -44,6 +46,17 @@ export function headerMenu() {
     },
     closeMenu() {
       this.menuOpen = false
+    },
+
+    // Escape, on either page: the menu first, then a modal it opened, one a
+    // press. Says whether it closed anything, so that a page hands the key on
+    // to its own modals only when it did not.
+    closeMenuLayer() {
+      if (this.menuOpen) this.closeMenu()
+      else if (this.showChangelogModal) this.showChangelogModal = false
+      else if (this.showFeedbackModal) this.closeFeedback()
+      else return false
+      return true
     },
 
     // --- Install (Android / desktop Chrome) ---
@@ -86,8 +99,7 @@ export function headerMenu() {
     },
 
     formatChangelogDate(iso) {
-      const [y, m, d] = iso.split('-').map(Number)
-      return CHANGELOG_DATE_FORMATTER.format(new Date(y, m - 1, d))
+      return CHANGELOG_DATE_FORMATTER.format(startOfLocalDay(iso))
     },
 
     // Entries carry their items per language ({ fr: [...], en: [...] }),
@@ -116,8 +128,8 @@ export function headerMenu() {
       this.feedbackShotWanted = true
       this.menuOpen = false
       this.showFeedbackModal = true
-      // Loaded and run only here: every page carries this menu, and next to
-      // none of them ever opens the form. Nothing waits on the result — null,
+      // Loaded and run only here: both pages carry this menu, and next to no
+      // visit ever opens the form. Nothing waits on the result — null,
       // from a capture that failed or a browser that could not make one, simply
       // means the form offers no picture and the report goes as words alone.
       const { captureViewport } = await import('./screenshot.js')
@@ -222,7 +234,7 @@ const MODALS_HTML = `
     <div class="pt-modal-body">
     <template x-if="feedbackStatus === 'sent'">
       <div>
-        <p x-text="$t('feedback.thanks')">Merci, c'est bien reçu !</p>
+        <p x-text="$t('feedback.thanks')">Merci, c’est bien reçu ! 🙏</p>
         <footer>
           <button type="button" @click="closeFeedback()" x-text="$t('common.close')">Fermer</button>
         </footer>
@@ -235,9 +247,9 @@ const MODALS_HTML = `
           <span x-text="$t('feedback.categoryLabel')">Type</span>
           <select x-model="feedback.category" :disabled="feedbackStatus === 'sending'">
             <option value="" x-text="$t('feedback.categoryNone')">—</option>
-            <option value="bug" x-text="$t('feedback.categoryBug')">Bug</option>
-            <option value="idea" x-text="$t('feedback.categoryIdea')">Idée</option>
-            <option value="score" x-text="$t('feedback.categoryScore')">Partition</option>
+            <option value="bug" x-text="$t('feedback.categoryBug')">🐞 Bug</option>
+            <option value="idea" x-text="$t('feedback.categoryIdea')">💡 Idée</option>
+            <option value="score" x-text="$t('feedback.categoryScore')">🎼 Partition souhaitée</option>
             <option value="other" x-text="$t('feedback.categoryOther')">Autre</option>
           </select>
         </label>
@@ -254,7 +266,7 @@ const MODALS_HTML = `
           <div class="pt-feedback-shot">
             <label>
               <input type="checkbox" x-model="feedbackShotWanted" :disabled="feedbackStatus === 'sending'" />
-              <span x-text="$t('feedback.screenshotLabel')">Joindre l'image de la partition affichée</span>
+              <span x-text="$t('feedback.screenshotLabel')">Joindre l’image de l’écran</span>
             </label>
             <img class="pt-feedback-shot__preview" x-show="feedbackShotWanted" :src="feedbackShot" :alt="$t('feedback.screenshotAlt')" />
           </div>
@@ -273,8 +285,8 @@ const MODALS_HTML = `
   </article>
 </dialog>`
 
-// Inject the shared chrome. Must run BEFORE Alpine boots (so it processes the
-// x-* bindings) and before initAlpineI18n() (so the FR/EN buttons get wired).
+// Inject the shared chrome, as one of the mounts startAlpine() runs first
+// (alpineBoot.js): Alpine has to find its bindings, and i18n its FR/EN buttons.
 export function mountHeaderMenu() {
   const slot = document.querySelector('[data-menu-slot]')
   if (slot) slot.outerHTML = TRIGGER_HTML

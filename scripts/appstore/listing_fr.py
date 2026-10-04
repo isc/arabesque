@@ -77,9 +77,9 @@ PRIVACY_URL = "https://arabesque.app/privacy.html"
 # Shown to TestFlight testers as "what to test", and required before Apple will
 # take a build into external beta review. 4000 max.
 BETA_WHATS_NEW = """\
-Branchez un clavier MIDI (USB ou Bluetooth, via le bouton antenne en bas à \
-droite), ouvrez une partition et jouez : les notes se colorent selon qu'elles \
-sont réussies, manquées ou anticipées.
+Ouvrez une partition, connectez un clavier MIDI (en USB, ou en Bluetooth via \
+« Connecter clavier MIDI » en haut de la page) et jouez : les notes se colorent \
+selon qu'elles sont réussies, manquées ou anticipées.
 
 Ce qui mérite un retour : la connexion du clavier, la justesse du suivi note à \
 note, la lisibilité de la partition sur votre appareil, et l'historique de \
@@ -92,8 +92,8 @@ review devices do not have one. Demonstration video:
 https://arabesque.app/video/review-demo.mp4
 
 WHAT THE VIDEO SHOWS (37s, unedited, single take)
-Filmed with a second camera: a physical iPad running the current build, on the \
-music desk of the piano it is paired with — an upright with a Bluetooth MIDI \
+Filmed with a second camera: a physical iPad running the app, on the music \
+desk of the piano it is paired with — an upright with a Bluetooth MIDI \
 transmitter (AURES2UP). Both the iPad and the keyboard are in frame throughout.
 
 0:00 the app is launched from the iPad home screen
@@ -114,8 +114,8 @@ the Data page (sign-in, sync, account deletion).
 WHY IT IS A WEB VIEW
 The app is a native shell around the developer's web app, but it is not a \
 wrapper for its own sake: iOS has no Web MIDI API in any browser, so the native \
-side bridges CoreMIDI to the page (MIDIBridge.swift), and the antenna button in \
-the bottom-right corner opens the system Bluetooth MIDI pairing sheet \
+side bridges CoreMIDI to the page (MIDIBridge.swift), and "Connecter clavier \
+MIDI" opens the system Bluetooth MIDI pairing sheet \
 (CABTMIDICentralViewController), which is per-app on iOS. Without the native \
 app there is no way to use a MIDI keyboard with this on iPhone or iPad.
 

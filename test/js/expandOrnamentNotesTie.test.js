@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { expandOrnamentNotes } from '../../public/js/noteExtraction.js'
+import { expandOrnamentNotes, soundFrom } from '../../public/js/noteExtraction.js'
 import { ORNAMENT, noteWithOrnament } from './support/ornamentedNote.js'
 
 // An ornament re-articulates, so its expanded notes must NOT inherit the parent
@@ -30,5 +30,22 @@ describe('expandOrnamentNotes tie handling', () => {
     const expanded = expandOrnamentNotes([noteWithOrnament(ORNAMENT.TURN, { tied: true })])
     expect(expanded).toHaveLength(4)
     expect(expanded.every((n) => n.isTieContinuation === false)).toBe(true)
+  })
+})
+
+// A tie is one sound, which playback holds and an ornament fills: from any of
+// its notes, to the end of the last.
+describe('soundFrom', () => {
+  const value = (RealValue) => ({ Length: { RealValue } })
+
+  it('is a note\'s own value when it is tied to nothing', () => {
+    expect(soundFrom(value(0.25))).toBe(0.25)
+  })
+
+  it('runs from each note of a tie to the end of it', () => {
+    const notes = [value(1), value(0.5), value(0.25)]
+    const tie = { Notes: notes }
+    for (const note of notes) note.NoteTie = tie
+    expect(notes.map(soundFrom)).toEqual([1.75, 0.75, 0.25])
   })
 })

@@ -17,10 +17,9 @@ const FLAT = 1
 const NONE = 2
 const NATURAL = 3
 
-// The node test environment has no navigator.language, so i18n falls back to
-// English and these are the C-D-E letters. The French do-ré-mi half of the same
-// table is exercised in the browser, where the app runs in French — see
-// test/fingering_annotation_test.rb.
+// The suite runs in English (support/setup.js), so these are the C-D-E
+// letters. The French do-ré-mi half of the same table is exercised in the
+// browser, where the app runs in French — see test/fingering_annotation_test.rb.
 describe('noteLabel', () => {
   it('names a plain note with its octave', () => {
     expect(noteLabel(noteData(0, NONE, 60))).toBe('C4 · RH')
