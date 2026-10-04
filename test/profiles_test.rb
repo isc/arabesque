@@ -17,20 +17,20 @@ class ProfilesTest < CapybaraTestBase
     assert_no_selector '.pt-profile-chip'
 
     visit '/data.html'
-    fill_in 'Prénom', with: 'Charlie'
+    fill_in 'Prénom', with: 'Léa'
     click_button 'Ajouter un profil'
-    assert_field 'Nom', with: 'Charlie'
+    assert_field 'Nom', with: 'Léa'
 
     # The chooser: a tile per profile, the one picked becomes current.
     visit '/library.html'
     find('.pt-profile-chip', text: 'Moi').click
-    within('dialog[open]') { click_button 'Charlie' }
-    assert_selector '.pt-profile-chip', text: 'Charlie'
+    within('dialog[open]') { click_button 'Léa' }
+    assert_selector '.pt-profile-chip', text: 'Léa'
 
-    # Charlie starts from nothing.
+    # Léa starts from nothing, in a file named after her, accent folded.
     visit '/data.html'
     accept_alert { click_button '📤 Exporter sauvegarde' }
-    exported = wait_for_download('arabesque-backup-charlie-*.json')
+    exported = wait_for_download('arabesque-backup-lea-2*.json')
     assert_empty JSON.parse(File.read(exported))['sessions']
 
     # Back on the first profile, the history is where it was.
@@ -40,11 +40,11 @@ class ProfilesTest < CapybaraTestBase
     assert_equal JSON.parse(File.read(FIXTURE))['sessions'].length,
                  JSON.parse(File.read(exported))['sessions'].length
 
-    # Deleting Charlie, with a warning first.
+    # Deleting Léa, with a warning first.
     click_button 'Supprimer'
-    assert_text 'Tout ce que Charlie a joué sera effacé'
-    click_button 'Oui, supprimer Charlie'
-    assert_no_field 'Nom', with: 'Charlie'
+    assert_text 'Tout ce que Léa a joué sera effacé'
+    click_button 'Oui, supprimer Léa'
+    assert_no_field 'Nom', with: 'Léa'
 
     visit '/library.html'
     assert_text 'Bibliothèque'

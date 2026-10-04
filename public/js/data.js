@@ -36,6 +36,7 @@ function backupSlug(profile) {
   const slug = profile.name
     .toLowerCase()
     .normalize('NFD')
+    .replace(/\p{M}/gu, '') // the accents NFD took apart: "Léa" is lea, not le-a
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-|-$/g, '')
   return slug ? `${slug}-` : ''

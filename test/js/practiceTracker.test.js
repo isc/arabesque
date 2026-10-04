@@ -725,6 +725,21 @@ describe('practiceTracker', () => {
   })
 
   describe('daily log', () => {
+    // Runs were first timed on 21 January 2026: a session completed before
+    // that carries no playthroughStartedAt.
+    it('counts a run from before runs were timed as played in full, as the calendar does', async () => {
+      tracker.startSession('/scores/test.xml', 'Test', 'Composer', 'free', 1)
+      tracker.startMeasureAttempt(0)
+      await tracker.endMeasureAttempt()
+      tracker.markScoreCompleted()
+      const { playthroughStartedAt, ...untimed } = await tracker.endSession()
+      await storage.saveSession(untimed)
+
+      const [entry] = await tracker.getDailyLog(new Date())
+      expect(entry.timesPlayedInFull).toBe(1)
+      expect([...(await tracker.getPracticeCalendar()).values()][0].timesPlayedInFull).toBe(1)
+    })
+
     it('returns practiced scores for today', async () => {
       tracker.startSession('/scores/test.xml', 'Test', 'Composer', 'training')
       tracker.startMeasureAttempt(0)

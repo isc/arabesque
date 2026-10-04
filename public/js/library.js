@@ -97,8 +97,8 @@ export function libraryApp() {
 
     // --- Profiles ---
     // Who is playing, shown as the chip in the header and changed from the
-    // chooser it opens. Read once: the current profile cannot change within a
-    // page, switching navigates.
+    // chooser it opens. Switching navigates, so only a sync changes it within a
+    // page: a rename made on another device (onSynced below).
     profiles: listProfiles(),
     currentProfile: currentProfile(),
     profileName,
@@ -240,7 +240,11 @@ export function libraryApp() {
         syncOnOpen: true,
         onSynced: (summary) => {
           if (summary.pulled) this.refreshPracticeViews()
-          if (summary.profilesChanged) this.profiles = listProfiles()
+          if (summary.profilesChanged) {
+            this.profiles = listProfiles()
+            // Removed on another device, it keeps the name it had here.
+            this.currentProfile = currentProfile() ?? this.currentProfile
+          }
         },
       })
     },
