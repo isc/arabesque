@@ -532,7 +532,7 @@ function slurIsAbove(graphicalSlur) {
 }
 
 // Another stopgap for OSMD 2.2.0, until a release carries the upstream fix,
-// https://github.com/opensheetmusicdisplay/opensheetmusicdisplay/pull/XXXX. OSMD shapes a slur
+// https://github.com/opensheetmusicdisplay/opensheetmusicdisplay/pull/1803. OSMD shapes a slur
 // from what lies between its first and last notes, without them, and only keeps the tangents at its
 // ends above that, not the curve, which runs under its tangents: a slur ended in the fingering of its
 // own last note, and could graze one next to its start (feedback b244b633, Träumerei bars 3-4).
