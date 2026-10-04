@@ -299,11 +299,21 @@ export function dataApp() {
     async exportBackup() {
       try {
         const backupData = await storage.exportBackup()
-        const blob = new Blob([JSON.stringify(backupData, null, 2)], { type: 'application/json' })
-        const url = URL.createObjectURL(blob)
+        const json = JSON.stringify(backupData, null, 2)
+        const name = `arabesque-backup-${backupSlug(this.currentProfile)}${localDayKey(new Date())}.json`
+        // The iOS app has nowhere to put a download: the link went to Safari,
+        // which could not open it, and the success message below was all the
+        // player got. There the app takes the file, and its share sheet — Save
+        // to Files, AirDrop, Mail — is what the player sees.
+        const saveFile = window.webkit?.messageHandlers?.saveFile
+        if (saveFile) {
+          saveFile.postMessage({ name, contents: json })
+          return
+        }
+        const url = URL.createObjectURL(new Blob([json], { type: 'application/json' }))
         const a = document.createElement('a')
         a.href = url
-        a.download = `arabesque-backup-${backupSlug(this.currentProfile)}${localDayKey(new Date())}.json`
+        a.download = name
         document.body.appendChild(a)
         a.click()
         document.body.removeChild(a)
