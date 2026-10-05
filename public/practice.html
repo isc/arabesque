@@ -15,15 +15,19 @@
     <script type="module">
       import { practiceApp } from './js/practice.js'
       import { startAlpine } from './js/alpineBoot.js'
+      import { mountHeaderMenu } from './js/headerMenu.js'
       import { mountJournalEntries } from './js/journalEntries.js'
-      startAlpine({ practiceApp }, [mountJournalEntries])
+      startAlpine({ practiceApp }, [mountHeaderMenu, mountJournalEntries])
     </script>
   </head>
   <body>
-    <main class="container pt-practice-page">
+    <main class="container pt-practice-page" @keydown.escape.window="closeMenuLayer()">
       <div class="pt-page-header">
         <a href="library.html" class="pt-back" data-i18n="practice.back">← Bibliothèque</a>
         <h1 x-text="$t('practice.heading')">Assiduité</h1>
+        <div class="pt-page-header__actions">
+          <div data-menu-slot></div>
+        </div>
       </div>
 
       <article class="pt-card pt-stack">

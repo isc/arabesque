@@ -14,6 +14,7 @@ import { initAutoSync } from './autoSync.js'
 import { onDayChange } from './dayRollover.js'
 import { formatDuration, formatVerboseDate } from './utils.js'
 import { journalEntryHelpers } from './journalEntries.js'
+import { headerMenu } from './headerMenu.js'
 import { t, locale } from './i18n.js'
 
 // Colour bands for a day's square, in minutes of practice. Fixed rather than
@@ -65,6 +66,7 @@ export function practiceApp() {
   let dayEntries = new Map()
 
   return {
+    ...headerMenu(),
     ready: false,
     year: new Date().getFullYear(),
     // The bounds of the year arrows: this year, back to the first with data.

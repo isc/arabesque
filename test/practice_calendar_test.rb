@@ -20,6 +20,28 @@ class PracticeCalendarTest < CapybaraTestBase
     assert_selector '.pt-calendar__day[data-level]', minimum: 364
   end
 
+  # Each month's name sits over the first column it starts. A label wider than
+  # a column used to widen that column's slot, so every month drifted further
+  # right than the one before — December by more than a month's worth of weeks.
+  def test_month_labels_sit_over_their_own_column
+    assert_selector '.pt-calendar__month', text: /\S/, minimum: 12
+    offsets = evaluate_script(<<~JS)
+      (() => {
+        const weeks = document.querySelectorAll('.pt-calendar__week')
+        return [...document.querySelectorAll('.pt-calendar__month')]
+          .map((label, index) => label.textContent.trim() &&
+            Math.round(label.getBoundingClientRect().left - weeks[index].getBoundingClientRect().left))
+          .filter((offset) => offset !== '')
+      })()
+    JS
+    assert_equal [0] * 12, offsets
+  end
+
+  def test_the_menu_offers_feedback
+    find('.pt-changelog-btn').click
+    assert_button '💬 Avis'
+  end
+
   def test_stats_summarise_the_year
     show_practice_year
     # Three separate days, 5 + 20 + 45 minutes, none of them consecutive.

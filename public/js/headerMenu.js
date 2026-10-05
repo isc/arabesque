@@ -1,12 +1,12 @@
-// Shared header chrome — the ⚙️ menu and its modals, identical on the two pages
-// that carry them.
+// Shared header chrome — the ⚙️ menu and its modals, identical on every page
+// that carries it.
 //
-// Both the library (libraryApp) and the score page (midiApp) get the exact same
-// menu (load a score, what's new, feedback, a link to the data page, language)
-// and the same changelog + feedback modals. To keep a single source of truth
+// The library (libraryApp), the score page (midiApp) and the practice calendar
+// (practiceApp) get the exact same menu (load a score, what's new, feedback, a
+// link to the data page, language) and the same changelog + feedback modals. To keep a single source of truth
 // without a build step or HTML-include mechanism, the markup lives here as
 // strings and is injected by mountHeaderMenu() before Alpine boots; the Alpine
-// state + methods come from the headerMenu() mixin both components spread in.
+// state + methods come from the headerMenu() mixin each component spreads in.
 //
 // NOTE: markup-as-strings is a deliberate departure from this project's
 // markup-in-HTML convention, forced by the no-build-step constraint. If a
