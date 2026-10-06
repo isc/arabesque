@@ -14,6 +14,7 @@ import { initAutoSync, requestSync } from './autoSync.js'
 import { deleteCurrentUser } from './account.js'
 import { t, locale } from './i18n.js'
 import { recordError } from './errorLog.js'
+import { headerMenu } from './headerMenu.js'
 import {
   AVATARS,
   MAIN_PROFILE_ID,
@@ -52,6 +53,8 @@ export function dataApp() {
   let setPendingSignIn = () => {}
 
   return {
+    ...headerMenu(),
+
     // --- Profiles ---
     profiles: listProfiles(),
     currentProfileId: currentProfileId(),
