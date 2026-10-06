@@ -8,7 +8,7 @@
 // could not do.
 import { initStorage } from './storage.js'
 import { initPracticeTracker } from './practiceTracker.js'
-import { practiceStreaks, practiceYearStats } from './practiceJournal.js'
+import { LEVELS, levelFor, practiceStreaks, practiceYearStats } from './practiceJournal.js'
 import { localDayKey } from './days.js'
 import { initAutoSync } from './autoSync.js'
 import { onDayChange } from './dayRollover.js'
@@ -17,32 +17,12 @@ import { journalEntryHelpers } from './journalEntries.js'
 import { headerMenu } from './headerMenu.js'
 import { t, locale } from './i18n.js'
 
-// Colour bands for a day's square, in minutes of practice. Fixed rather than
-// relative to the year's own maximum: the grid is there to say whether a day
-// was a real practice day, and a scale stretched to fit one marathon Sunday
-// would repaint every ordinary half-hour as pale.
-const LEVEL_THRESHOLDS_MS = [10, 30, 60].map((minutes) => minutes * 60 * 1000)
-
-// Every level a day can be painted in, "nothing" included: what the legend
-// draws, counted up to levelFor's darkest so that it ends on the colour of a
-// long day. styles.css supplies a colour per level.
-export const LEVELS = Array.from({ length: levelFor(Infinity) + 1 }, (_, level) => level)
-
 const MONTH_FORMATTER = new Intl.DateTimeFormat(locale(), { month: 'short' })
 
 // Rows 0..6 are Monday..Sunday — the columns run Monday-first, as every
 // European calendar prints them. Only every other row is labelled: seven
 // labels on a 12px rhythm would collide.
 const WEEKDAY_LABEL_ROWS = [0, 2, 4]
-
-export function levelFor(practiceTimeMs) {
-  if (!practiceTimeMs) return 0
-  let level = 1
-  for (const limit of LEVEL_THRESHOLDS_MS) {
-    if (practiceTimeMs >= limit) level += 1
-  }
-  return level
-}
 
 // The Monday on or before `date`.
 function mondayOnOrBefore(date) {

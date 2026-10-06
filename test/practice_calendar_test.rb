@@ -28,17 +28,17 @@ class PracticeCalendarTest < CapybaraTestBase
     offsets = evaluate_script(<<~JS)
       (() => {
         const weeks = document.querySelectorAll('.pt-calendar__week')
-        return [...document.querySelectorAll('.pt-calendar__month')]
-          .map((label, index) => label.textContent.trim() &&
-            Math.round(label.getBoundingClientRect().left - weeks[index].getBoundingClientRect().left))
-          .filter((offset) => offset !== '')
+        return [...document.querySelectorAll('.pt-calendar__month')].flatMap((label, index) =>
+          label.textContent.trim()
+            ? [Math.round(label.getBoundingClientRect().left - weeks[index].getBoundingClientRect().left)]
+            : [])
       })()
     JS
     assert_equal [0] * 12, offsets
   end
 
   def test_the_menu_offers_feedback
-    find('.pt-changelog-btn').click
+    open_menu
     assert_button '💬 Avis'
   end
 

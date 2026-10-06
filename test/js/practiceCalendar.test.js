@@ -1,14 +1,9 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { describe, it, expect, beforeEach } from 'vitest'
 import 'fake-indexeddb/auto'
 import { initPracticeTracker } from '../../public/js/practiceTracker.js'
-import { practiceStreaks, practiceYearStats } from '../../public/js/practiceJournal.js'
+import { LEVELS, levelFor, practiceStreaks, practiceYearStats } from '../../public/js/practiceJournal.js'
 import { shiftDayKey } from '../../public/js/days.js'
 import { initStorage } from '../../public/js/storage.js'
-
-// practice.js carries the ⚙️ menu, whose installPrompt.js listens on window as
-// it loads.
-vi.stubGlobal('window', new EventTarget())
-const { LEVELS, levelFor } = await import('../../public/js/practice.js')
 
 // A session whose measures make `minutes` of continuous playing on `date`.
 function sessionOn(date, minutes, { id = date, scoreId = '/scores/a.xml', completed = false } = {}) {

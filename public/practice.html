@@ -15,9 +15,8 @@
     <script type="module">
       import { practiceApp } from './js/practice.js'
       import { startAlpine } from './js/alpineBoot.js'
-      import { mountHeaderMenu } from './js/headerMenu.js'
       import { mountJournalEntries } from './js/journalEntries.js'
-      startAlpine({ practiceApp }, [mountHeaderMenu, mountJournalEntries])
+      startAlpine({ practiceApp }, [mountJournalEntries])
     </script>
   </head>
   <body>

@@ -15,9 +15,8 @@
     <script type="module">
       import { libraryApp } from './js/library.js'
       import { startAlpine } from './js/alpineBoot.js'
-      import { mountHeaderMenu } from './js/headerMenu.js'
       import { mountJournalEntries } from './js/journalEntries.js'
-      startAlpine({ libraryApp }, [mountHeaderMenu, mountJournalEntries])
+      startAlpine({ libraryApp }, [mountJournalEntries])
     </script>
   </head>
   <body>
@@ -242,7 +241,7 @@
         </div>
       </div>
       <!-- The ⚙️ menu + changelog/feedback modals are injected by
-           mountHeaderMenu() (js/headerMenu.js), shared with the score page. -->
+           mountHeaderMenu() (js/headerMenu.js), shared by every app page. -->
 
       <!-- Who is playing, opened by the chip in the header above. Only the
            library has it: switching lands here anyway. -->
