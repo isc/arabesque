@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="app-version" content="24f1d5c46b27" />
+    <meta name="app-version" content="9bc79ee9ee35" />
     <title data-i18n="data.pageTitle">Arabesque · Données</title>
     <link rel="icon" href="favicon.svg" type="image/svg+xml" />
     <link rel="manifest" href="manifest.webmanifest" />
@@ -19,10 +19,13 @@
     </script>
   </head>
   <body>
-    <main class="container pt-data-page">
+    <main class="container pt-data-page" @keydown.escape.window="closeMenuLayer()">
       <div class="pt-page-header">
         <a href="library.html" class="pt-back" data-i18n="data.back">← Bibliothèque</a>
         <h1 x-text="$t('data.heading')">Données</h1>
+        <div class="pt-page-header__actions">
+          <div data-menu-slot></div>
+        </div>
       </div>
 
       <!-- Profiles: who the data on this device belongs to -->
@@ -189,9 +192,9 @@
         </div>
       </article>
 
-      <!-- This page is where someone comes to think about their data, so it is
-           where the two pages explaining it belong; the ⚙️ menu that carries
-           them elsewhere is not mounted here. -->
+      <!-- This page is where someone comes to think about their data, so the
+           two pages explaining it are in plain sight here, not only in the
+           ⚙️ menu. -->
       <footer class="pt-footer">
         <span class="pt-footer-links">
           <a href="privacy.html" data-i18n="common.privacy">Confidentialité</a>

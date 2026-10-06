@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="app-version" content="24f1d5c46b27" />
+    <meta name="app-version" content="9bc79ee9ee35" />
     <title data-i18n="library.pageTitle">Arabesque · Bibliothèque</title>
     <link rel="icon" href="favicon.svg" type="image/svg+xml" />
     <link rel="manifest" href="manifest.webmanifest" />
@@ -15,9 +15,8 @@
     <script type="module">
       import { libraryApp } from './js/library.js'
       import { startAlpine } from './js/alpineBoot.js'
-      import { mountHeaderMenu } from './js/headerMenu.js'
       import { mountJournalEntries } from './js/journalEntries.js'
-      startAlpine({ libraryApp }, [mountHeaderMenu, mountJournalEntries])
+      startAlpine({ libraryApp }, [mountJournalEntries])
     </script>
   </head>
   <body>
@@ -242,7 +241,7 @@
         </div>
       </div>
       <!-- The ⚙️ menu + changelog/feedback modals are injected by
-           mountHeaderMenu() (js/headerMenu.js), shared with the score page. -->
+           mountHeaderMenu() (js/headerMenu.js), shared by every app page. -->
 
       <!-- Who is playing, opened by the chip in the header above. Only the
            library has it: switching lands here anyway. -->

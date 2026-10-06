@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="app-version" content="24f1d5c46b27" />
+    <meta name="app-version" content="9bc79ee9ee35" />
     <title data-i18n="practice.pageTitle">Arabesque · Assiduité</title>
     <link rel="icon" href="favicon.svg" type="image/svg+xml" />
     <link rel="manifest" href="manifest.webmanifest" />
@@ -20,10 +20,13 @@
     </script>
   </head>
   <body>
-    <main class="container pt-practice-page">
+    <main class="container pt-practice-page" @keydown.escape.window="closeMenuLayer()">
       <div class="pt-page-header">
         <a href="library.html" class="pt-back" data-i18n="practice.back">← Bibliothèque</a>
         <h1 x-text="$t('practice.heading')">Assiduité</h1>
+        <div class="pt-page-header__actions">
+          <div data-menu-slot></div>
+        </div>
       </div>
 
       <article class="pt-card pt-stack">
