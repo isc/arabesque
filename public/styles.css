@@ -541,7 +541,7 @@ a:hover { text-decoration: underline; }
   flex-wrap: wrap;
 }
 .pt-page-header h1 { margin: 0; flex-shrink: 0; }
-.pt-page-header__actions { margin-left: auto; display: flex; gap: var(--pt-space-2); align-items: center; }
+.pt-page-header__actions { margin-left: auto; display: flex; gap: var(--pt-space-2); align-items: center; justify-content: flex-end; }
 .pt-page-header__search {
   position: relative;
   flex: 1 1 320px;
@@ -1445,6 +1445,9 @@ a:hover { text-decoration: underline; }
 .pt-calendar__months { display: flex; gap: var(--pt-cal-gap); height: 1rem; padding-inline-end: var(--pt-space-6); }
 .pt-calendar__month {
   flex: 0 0 var(--pt-cal-cell);
+  /* A flex item will not shrink below its text by default: each label would
+     widen its column and push every later month a few days to the right. */
+  min-width: 0;
   font-size: var(--pt-font-size-2xs);
   line-height: 1rem;
   color: var(--pt-text-subtle);
