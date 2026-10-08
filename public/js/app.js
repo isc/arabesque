@@ -1143,6 +1143,7 @@ export function midiApp() {
       musicxml.setActiveHands(this.activeHands)
       strictPlaythrough.setActiveHands(this.activeHands)
       practiceTracker.setActiveHands(this.activeHands)
+      playback.setHands(this.activeHands)
       this.refreshReinforcementSuggestions()
     },
 
