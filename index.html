@@ -3,13 +3,29 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="app-version" content="9bc79ee9ee35" />
+    <meta name="app-version" content="ef0e9b0f14a1" />
     <title data-i18n="landing.pageTitle">Arabesque · Apprenez le piano avec un retour en temps réel</title>
     <meta
       name="description"
       data-i18n-content="landing.metaDescription"
       content="Connectez votre clavier MIDI, ouvrez une partition et jouez : Arabesque colore les notes en temps réel, suit votre pratique et vous aide à progresser sur un répertoire classique."
     />
+    <!-- Link previews (WhatsApp, iMessage, Slack…): their crawlers run no
+         JavaScript, so they read the French markup as served, and need an
+         absolute image URL. -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Arabesque" />
+    <meta property="og:url" content="https://arabesque.app/" />
+    <meta property="og:locale" content="fr_FR" />
+    <meta property="og:title" content="Arabesque · Apprenez le piano avec un retour en temps réel" />
+    <meta
+      property="og:description"
+      content="Connectez votre clavier MIDI, ouvrez une partition et jouez : Arabesque colore les notes en temps réel et suit votre pratique."
+    />
+    <meta property="og:image" content="https://arabesque.app/img/hero-poster.fr.jpg" />
+    <meta property="og:image:width" content="1280" />
+    <meta property="og:image:height" content="720" />
+    <meta name="twitter:card" content="summary_large_image" />
     <link rel="icon" href="favicon.svg" type="image/svg+xml" />
     <!-- Returning visitors (anyone who has already opened the library) skip the
          pitch and land straight in the app. The marker is set by library.js.
