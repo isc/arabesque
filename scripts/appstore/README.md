@@ -53,6 +53,18 @@ be a user of the App Store Connect account. That is not something to hand to
 someone who only wants to try the app — and on an individual membership there is
 no one to add anyway.
 
+## Certificates left by TestFlight builds
+
+```bash
+python3 scripts/appstore/revoke_ci_certificates.py --dry-run
+```
+
+Each TestFlight build has the API make a development certificate for its runner,
+and the runner leaves with the private key; the workflow revokes the earlier
+ones before it archives, so Apple's cap on certificates is never reached
+(`ios/README.md` has the story). Run by hand, it lists — or without `--dry-run`
+revokes — the ones a build left.
+
 ## Credentials
 
 Nothing here is committed. The client reads:

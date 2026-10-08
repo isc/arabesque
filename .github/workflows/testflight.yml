@@ -11,6 +11,13 @@ on:
         required: false
         type: string
 
+# One build at a time: each revokes the certificates the others made, one
+# still signing included.
+concurrency:
+  group: testflight
+  cancel-in-progress: false
+  queue: max
+
 jobs:
   upload:
     # macos-26, not macos-15: Apple rejects uploads built with anything older
@@ -49,6 +56,18 @@ jobs:
           mkdir -p ~/.appstoreconnect/private_keys
           printf '%s' "$PRIVATE_KEY" > ~/.appstoreconnect/private_keys/AuthKey_${KEY_ID}.p8
           chmod 600 ~/.appstoreconnect/private_keys/AuthKey_${KEY_ID}.p8
+
+      # The archive is signed with a development certificate the API makes for
+      # this runner, and its private key leaves with the runner: each build
+      # left one, until Apple's cap refused the next ("Your account has reached
+      # the maximum number of certificates"). Revoked first, so there is room.
+      - name: Revoke the certificates earlier builds left
+        env:
+          ASC_ISSUER_ID: ${{ secrets.APPSTORE_ISSUER_ID }}
+        run: |
+          python3 -m venv "$RUNNER_TEMP/asc"
+          "$RUNNER_TEMP/asc/bin/pip" install --quiet cryptography
+          "$RUNNER_TEMP/asc/bin/python" scripts/appstore/revoke_ci_certificates.py
 
       - run: brew install xcodegen
       - run: xcodegen generate
