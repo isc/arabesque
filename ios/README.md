@@ -262,9 +262,14 @@ antérieur à iOS 26, et `macos-15` s'arrête à Xcode 16.4 / SDK 18.5. Le messa
 d'erreur est explicite (`This app was built with the iOS 18.5 SDK`) mais
 n'arrive qu'à la toute fin, après l'archive et l'export.
 
-⚠️ La signature à la volée crée un **certificat de distribution**, et Apple en
-limite le nombre à trois par compte — les révoquer depuis le portail si le quota
-est atteint.
+⚠️ La signature à la volée crée à chaque build un **certificat de
+développement** (« Created via API »), dont la clé privée part avec le runner,
+et Apple plafonne leur nombre : le 2026-10-04, le build suivant onze d'entre eux
+a échoué sur `Your account has reached the maximum number of certificates`. Le
+workflow révoque désormais ceux des builds précédents avant d'archiver
+(`scripts/appstore/revoke_ci_certificates.py`, `--dry-run` pour les lister à la
+main) ; il ne touche ni aux certificats faits par Xcode sur un Mac, ni à ceux de
+distribution.
 
 **Éprouvé le 2026-08-11**, au troisième essai : le build 3 est passé en `VALID`
 et s'installe. Les deux échecs précédents sont désormais couverts par la
