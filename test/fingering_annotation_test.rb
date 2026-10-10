@@ -5,10 +5,13 @@ class FingeringAnnotationTest < CapybaraTestBase
   PICKUP_SCORE_URL = '/test-fixtures/pickup-measure-score.xml'
   CHORD_SCORE_URL = '/test-fixtures/chord.xml'
   TWO_VOICE_SCORE_URL = '/test-fixtures/two-voice-fingerings.xml'
-  CHOPIN_WALTZ_URL = 'scores/Waltz_in_A_MinorChopin.mxl'
   BEAMED_MORDENT_URL = '/test-fixtures/fingering-over-beamed-mordent.xml'
   BEAMED_SLUR_URL = '/test-fixtures/slur-over-beamed-fingering.xml'
   SLURS_OVER_FINGERINGS_URL = '/test-fixtures/slurs-over-fingerings.xml'
+  GRACE_SHARP_URL = '/test-fixtures/grace-note-sharp.xml'
+  # A grace note is drawn inside the modifiers of the note it leads to, and its
+  # own modifiers hold its accidental and its fingering.
+  GRACE_MODIFIERS = 'svg .vf-modifiers .vf-modifiers'
 
   # Every head of a chord opens the pad on its own note. The pad used to say
   # nothing about which one, so on a dense score the player could not tell
@@ -64,14 +67,30 @@ class FingeringAnnotationTest < CapybaraTestBase
     assert_fingering '31'
   end
 
-  def test_add_fingering_to_grace_note_appears_immediately
-    visit "/score.html?url=#{CHOPIN_WALTZ_URL}"
+  # VexFlow draws a grace note's fingering as part of the note, left of the head
+  # and clear of its accidental. One entered in the pad used to be written in by
+  # hand at a fixed distance from the head -- over the sharp -- and dropped by the
+  # next redraw, until a reload drew it where it belongs (feedback f719c816).
+  def test_a_grace_note_fingering_clears_its_sharp_and_outlives_a_redraw
+    visit "/score.html?url=#{GRACE_SHARP_URL}"
     wait_for_score_render
 
-    # The grace note in measure 13 (SVG group #12)
-    enter_fingering(first('[id="12"] .vf-modifiers .vf-notehead'), 3)
+    enter_fingering(grace_notehead, 2)
+    assert_grace_fingering_clears_its_sharp '2'
 
-    assert_equal '3', first('[id="12"] .vf-modifiers text').text
+    # Another note's first fingering redraws the whole score
+    enter_fingering(0, 1)
+    assert_grace_fingering_clears_its_sharp '2'
+
+    enter_fingering(grace_notehead, 4)
+    assert_grace_fingering_clears_its_sharp '4'
+
+    clear_fingering(grace_notehead)
+    assert_no_selector "#{GRACE_MODIFIERS} text"
+
+    visit "/score.html?url=#{GRACE_SHARP_URL}"
+    wait_for_score_render
+    assert_no_selector "#{GRACE_MODIFIERS} text"
   end
 
   def test_adding_fingering_does_not_break_note_validation
@@ -247,6 +266,25 @@ class FingeringAnnotationTest < CapybaraTestBase
 
   def assert_fingering(text)
     assert_selector 'svg g.vf-text', text: text
+  end
+
+  def grace_notehead
+    find('svg .vf-modifiers .vf-notehead')
+  end
+
+  # The grace note's fingering reads `text` and starts right of its sharp, the
+  # one path among the grace note's own modifiers.
+  def assert_grace_fingering_clears_its_sharp(text)
+    assert_selector "#{GRACE_MODIFIERS} text", exact_text: text
+    gap = page.evaluate_script(<<~JS)
+      (() => {
+        const modifiers = document.querySelector('#{GRACE_MODIFIERS}')
+        const sharp = modifiers.querySelector('path').getBoundingClientRect()
+        const finger = modifiers.querySelector('text').getBoundingClientRect()
+        return finger.left - sharp.right
+      })()
+    JS
+    assert_operator gap, :>=, 0
   end
 
   # The score's only slur starts above the tip of its first note's stem, which

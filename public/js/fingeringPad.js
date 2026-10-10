@@ -67,13 +67,10 @@ export function fingeringPad({ storage, fingeringEditor }) {
     async selectFingering(finger) {
       await storage.setFingering(this.scoreUrl, this.selectedNoteKey, finger)
 
-      // Try to update SVG directly if fingering already exists (instant update)
-      if (!fingeringEditor.updateFingeringSVG(this.selectedNoteKey, finger)) {
-        // No existing SVG: inject into OSMD's data model and do a light re-render
-        // (skips XML fetch/parse/load — just layout recalc + SVG redraw)
-        fingeringEditor.addFingeringToDataModel(this.selectedNoteKey, finger)
-        this.rerenderScore()
-      }
+      fingeringEditor.setFingeringInDataModel(this.selectedNoteKey, finger)
+      // Rewrite the label in place when the note has one, or redraw (which skips
+      // the XML fetch/parse/load)
+      if (!fingeringEditor.updateFingeringSVG(this.selectedNoteKey, finger)) this.rerenderScore()
       this.closeFingeringModal()
     },
 
