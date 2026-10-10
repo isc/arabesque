@@ -65,6 +65,17 @@ ones before it archives, so Apple's cap on certificates is never reached
 (`ios/README.md` has the story). Run by hand, it lists — or without `--dry-run`
 revokes — the ones a build left.
 
+## The version a TestFlight build goes out as
+
+```bash
+python3 scripts/appstore/next_version.py
+```
+
+What the TestFlight workflow builds when it is not given a version: the one in
+`ios/project.yml` while nothing that high has been approved, else the minor
+version after the highest approved. An approved version takes no more builds,
+and Apple only says so at the upload.
+
 ## Credentials
 
 Nothing here is committed. The client reads:

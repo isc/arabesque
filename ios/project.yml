@@ -71,8 +71,9 @@ targets:
         # in Xcode, which it otherwise does on every regeneration.
         DEVELOPMENT_TEAM: HGPUW9Q6BQ
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
-        # Version shown to users; bump by hand for a release. Once a version is
-        # approved, TestFlight takes no more builds of it (ios/README.md).
+        # Version shown to users, as a floor: once it is approved, the
+        # TestFlight workflow moves on to the next minor version by itself
+        # (scripts/appstore/next_version.py). Raise it by hand for a bigger step.
         MARKETING_VERSION: '1.1'
         # Build number: must be unique for every upload to App Store Connect.
         CURRENT_PROJECT_VERSION: '1'

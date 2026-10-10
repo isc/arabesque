@@ -254,14 +254,17 @@ n'importe quelle app distribuée. Le committer évite en prime que
 `xcodegen generate` efface l'équipe choisie dans Xcode à chaque régénération.
 
 Le numéro de build vient de `github.run_number`, donc il est unique sans état à
-maintenir. La version affichée aux testeurs se passe en paramètre du workflow,
-ou reste celle de `project.yml`.
+maintenir.
 
-Une version approuvée ferme son « train » : 1.0 étant en vente, TestFlight
-refuse tout nouveau build 1.0 (`Invalid Pre-Release Train. The train version
-'1.0' is closed for new build submissions`), et seulement au moment de l'envoi,
-après l'archive. Il faut alors monter `MARKETING_VERSION` dans `project.yml`
-(1.1 depuis le 2026-10-09).
+La version, elle, est choisie par le workflow. Une version approuvée ferme son
+« train » : 1.0 étant en vente, TestFlight refusait tout nouveau build 1.0
+(`Invalid Pre-Release Train. The train version '1.0' is closed for new build
+submissions`), et seulement au moment de l'envoi, après l'archive. Le workflow
+lit donc d'abord les versions côté Apple (`scripts/appstore/next_version.py`) :
+celle de `project.yml` tant que rien d'aussi haut n'est approuvé, sinon la
+mineure suivant la plus haute approuvée — 1.1 en vente, le build suivant part en
+1.2. `project.yml` sert de plancher, à monter à la main pour un saut plus grand
+(2.0) ; une version saisie au lancement du workflow passe devant les deux.
 
 Le job tourne sur **`macos-26`** : Apple refuse tout envoi construit avec un SDK
 antérieur à iOS 26, et `macos-15` s'arrête à Xcode 16.4 / SDK 18.5. Le message
