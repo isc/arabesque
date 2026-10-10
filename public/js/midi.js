@@ -3,8 +3,8 @@ import mockMIDI, { MOCK_DEVICE_NAME } from './midi_mock.js'
 import { t } from './i18n.js'
 import { recordError } from './errorLog.js'
 
-const NOTE_ON = 144
-const NOTE_OFF = 128
+export const NOTE_ON = 144
+export const NOTE_OFF = 128
 const NOTE_NAMES = 'C C# D D# E F F# G G# A A# B'.split(' ')
 
 // Two console.log per MIDI event, unconditionally. Cheap with DevTools shut, not
@@ -41,6 +41,9 @@ let callbacks = {
 export function initMidi() {
   return {
     connectMIDI,
+    // Mic mode's way in: the notes it hears arrive as the messages a keyboard
+    // would have sent (micInput.js).
+    parseMidiMessage,
     setCallbacks,
     state,
   }
@@ -177,17 +180,21 @@ async function connectMIDIMock() {
   setConnectedInput({ name: MOCK_DEVICE_NAME })
 }
 
+// Note On: status 144-159 (0x90-0x9F), on any channel. One with velocity 0
+// is a Note Off by another name.
+export function isNoteOn([status, note, velocity]) {
+  return (status & 0xf0) === NOTE_ON && velocity > 0 && note < 128
+}
+
 // Parse standard MIDI messages (from Web MIDI API)
 function parseMidiMessage(data) {
-  const status = data[0]
   const note = data[1]
   const velocity = data[2]
 
-  // Note On: status 144-159 (0x90-0x9F)
   // Note Off: status 128-143 (0x80-0x8F)
-  const statusType = status & 0xf0
+  const statusType = data[0] & 0xf0
 
-  if (statusType === NOTE_ON && velocity > 0 && note < 128) {
+  if (isNoteOn(data)) {
     callbacks.onNotePlayed?.(note)
     if (LOG_NOTES) console.log('Note ON detected:', noteName(note))
   }
@@ -198,7 +205,7 @@ function parseMidiMessage(data) {
 }
 
 // A MIDI note number as the log names it: "C#4".
-function noteName(n) {
+export function noteName(n) {
   const octave = Math.floor(n / 12) - 1
   return NOTE_NAMES[n % 12] + octave
 }
