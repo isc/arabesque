@@ -626,7 +626,7 @@ export function midiApp() {
       if (!migrated) return
       await storage.putFingeringRecordsIfUnchanged([{ record: migrated.record, read: record.updatedAt ?? 0 }])
       for (const key of migrated.added) {
-        fingeringEditor.addFingeringToDataModel(key, migrated.record.fingerings[key])
+        fingeringEditor.setFingeringInDataModel(key, migrated.record.fingerings[key])
       }
       if (migrated.added.length) this.rerenderScore()
     },
@@ -1187,11 +1187,11 @@ export function midiApp() {
       this.paintStrictRange()
     },
 
-    // A full redraw: the note model is rebuilt from OSMD's sheet, which is how a
-    // fingering just injected into it reaches the page.
+    // A full redraw: OSMD's graphic and the note model are rebuilt from its
+    // sheet, which is how a fingering just set in it reaches the page.
     rerenderScore() {
       const scrollY = window.scrollY
-      musicxml.renderScore()
+      musicxml.renderScore({ rebuild: true })
       this.repaintScore()
       window.scrollTo(0, scrollY)
     },
