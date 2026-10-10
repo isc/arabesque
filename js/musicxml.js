@@ -442,6 +442,10 @@ function scaleTitleBlock() {
 // to. Either way the session is kept (see extractNotesFromScore) and the SVG
 // elements are new, so the caller repaints the marks (app.js does it in
 // repaintScore).
+// `rebuild: true` is for a change to the sheet itself, a fingering entered or
+// cleared: OSMD builds VexFlow's notes only with its graphic -- at load, or here
+// -- and a grace note's fingering is part of its VexFlow note. About 15% on a
+// render.
 // `afterDraw` runs between the draw and the indexing, and is how the initial
 // load gets the score on screen sooner: the fresh SVG is in the DOM once
 // render() returns, but nothing is painted until the task ends, and indexing is
@@ -450,8 +454,9 @@ function scaleTitleBlock() {
 // and an intermediate paint would only make it flicker. Keeping it a parameter
 // rather than exporting the two halves means no caller can leave a score drawn
 // but un-indexed (no score.allNotes, no measure click handlers).
-async function renderScore({ reextract = true, afterDraw = null } = {}) {
+async function renderScore({ reextract = true, rebuild = false, afterDraw = null } = {}) {
   if (!score.osmdInstance) return
+  if (rebuild) score.osmdInstance.updateGraphic()
   scaleTitleBlock()
   score.osmdInstance.render()
   fixUpInvisibleNotes()
