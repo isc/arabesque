@@ -86,6 +86,18 @@ note, la lisibilité de la partition sur votre appareil, et l'historique de \
 pratique.
 """
 
+# "What's new in this version" on the App Store, for the version under way:
+# what an update changes for someone who has the app. Rewrite it for each
+# release. 4000 max.
+WHATS_NEW = """\
+L'export de sauvegarde fonctionne enfin dans l'app : il ouvre le partage \
+d'iOS, pour enregistrer le fichier dans Fichiers ou l'envoyer par AirDrop ou \
+Mail.
+
+« Connecter clavier MIDI » ouvre directement le jumelage Bluetooth d'iOS, et la \
+fenêtre se referme d'elle-même dès que le clavier est connecté.
+"""
+
 REVIEW_NOTES = """\
 Arabesque needs a MIDI keyboard (USB or Bluetooth) for its core feature, and \
 review devices do not have one. Demonstration video:
@@ -132,6 +144,7 @@ if __name__ == "__main__":
         ("PROMOTIONAL_TEXT", PROMOTIONAL_TEXT, 170),
         ("DESCRIPTION", DESCRIPTION, 4000),
         ("BETA_WHATS_NEW", BETA_WHATS_NEW, 4000),
+        ("WHATS_NEW", WHATS_NEW, 4000),
         ("REVIEW_NOTES", REVIEW_NOTES, 4000),
     ]:
         flag = "OK " if len(value) <= limit else "OVER"
