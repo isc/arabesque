@@ -30,7 +30,7 @@ describe('passageText', () => {
   })
 
   it('says the training lines the same way, with what else they carry', () => {
-    expect(fr('score.trainingPassage', bars(5, 5), { times: 3 })).toBe('Mesure 5 seule : elle doit être jouée 3× sans erreur.')
+    expect(fr('score.trainingPassage', bars(5, 5), { times: 3 })).toBe('Mesure 5 seule : elle doit être jouée 3× sans erreur ni hésitation.')
     expect(en('score.trainingPassageDone', bars(5, 5), { times: 3 })).toBe('You played bar 5 3× without a mistake.')
     expect(fr('score.trainingPassageDone', bars(5, 8), { times: 3 })).toBe('Vous avez enchaîné les mesures 5 à 8 3× sans erreur.')
   })

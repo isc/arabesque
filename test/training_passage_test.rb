@@ -19,7 +19,7 @@ class TrainingPassageTest < CapybaraTestBase
     enter_training_mode
     pick_passage(1, 2)
 
-    assert_text 'Mesures 1 à 2 : le passage entier doit être joué 3× sans erreur.'
+    assert_text 'Mesures 1 à 2 : le passage entier doit être joué 3× sans erreur ni hésitation.'
     # The whole passage is shaded, the measure under the cursor more strongly.
     assert_selector 'svg rect.measure-click-area.training-range', count: 2
     assert_selector 'svg rect.measure-click-area.selected', count: 1
@@ -128,7 +128,7 @@ class TrainingPassageTest < CapybaraTestBase
     assert_selector 'svg rect.measure-click-area.training-range', count: 2
 
     click_on '🔁 Boucle'
-    assert_text 'Chaque mesure doit être jouée 3× sans erreur.'
+    assert_text 'Chaque mesure doit être jouée 3× sans erreur ni hésitation.'
     # Nothing is shaded once the passage is off: the work is back on the single
     # measure under the cursor, and `selected` is what says where that is.
     assert_no_selector 'svg rect.measure-click-area.training-range'

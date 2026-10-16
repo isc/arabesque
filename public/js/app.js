@@ -383,6 +383,7 @@ export function midiApp() {
           practiceTracker.endMeasureAttempt()
           this.refreshReinforcementSuggestions()
         },
+        onIntervalJudged: (verdict) => practiceTracker.recordSteadiness(verdict),
         onWrongNote: (midiNote) => {
           practiceTracker.recordWrongNote()
           keyHint.wrongNote(midiNote)
@@ -1075,8 +1076,12 @@ export function midiApp() {
       // strict run's verdict, the notes a free or training run played —
       // belongs to the run that lit it, and that run is over. The two halves
       // are cleared by their own module, the second as the engine takes up
-      // the new mode.
+      // the new mode. Where the last run hesitated is the exception: that is
+      // what training is about to work on, so those marks stay until the notes
+      // are played again — except under strict mode's verdict, which marks
+      // its off-tempo notes in the same colour.
       strictPlaythrough.clearMarks()
+      if (name === 'strict') musicxml.clearLateMarks()
       this.mode = name
       // Before the engine moves: a reinforcement starts its first measure at
       // once, and a measure started on the session being closed goes with it.
