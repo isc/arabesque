@@ -133,6 +133,26 @@ export function midiApp() {
     return Number.isFinite(stored) && stored > 0 ? stored : fallback
   }
 
+  // A browser without Web MIDI is told so once, then left alone: every score
+  // opened is a page load, and stepping through a collection's parts met the
+  // notice at each one. Per device rather than per profile — it is the
+  // browser that lacks the API. The connect button still brings it back.
+  const NO_MIDI_DISMISSED_KEY = 'arabesque:no-midi-dismissed'
+
+  function noMidiDismissed() {
+    try {
+      return localStorage.getItem(NO_MIDI_DISMISSED_KEY) === '1'
+    } catch {
+      return false
+    }
+  }
+
+  function rememberNoMidiDismissed() {
+    try {
+      localStorage.setItem(NO_MIDI_DISMISSED_KEY, '1')
+    } catch { /* storage unavailable: told again at the next score */ }
+  }
+
   return {
     ...headerMenu(),
     ...fingeringPad({ storage, fingeringEditor }),
@@ -228,6 +248,7 @@ export function midiApp() {
     historyCharts: [],
     measuresToReinforce: [],
     showMidiHelpModal: false,
+    showNoMidiModal: false,
 
     // Container width the score is currently laid out for, so a height-only
     // resize doesn't pay for a redraw (see handleViewportResize).
@@ -279,7 +300,10 @@ export function midiApp() {
       // MIDI handshake is nobody's prerequisite at all.
       const trackerReady = practiceTracker.init()
       midiReady = midi.connectMIDI({ silent: true, autoSelectFirst: true })
-        .then(() => this.syncMidiState())
+        .then((result) => {
+          this.syncMidiState()
+          if (result?.status === 'unsupported' && !noMidiDismissed()) this.showNoMidiModal = true
+        })
 
       this.wireKeyboard()
       this.wireScoreEngine()
@@ -457,11 +481,17 @@ export function midiApp() {
     async connectMIDI() {
       const result = await midi.connectMIDI()
       this.syncMidiState()
+      if (result?.status === 'unsupported') return (this.showNoMidiModal = true)
       // No keyboard found: say how to connect one. In the wrapper that is not
       // instructions but a system sheet (see midi.js).
       if (result?.status !== 'no_devices') return
       if (nativePairingAvailable()) openNativePairing()
       else this.showMidiHelpModal = true
+    },
+
+    closeNoMidiModal() {
+      this.showNoMidiModal = false
+      rememberNoMidiDismissed()
     },
 
     detectedOS() {
@@ -1100,8 +1130,7 @@ export function midiApp() {
       if (this.showResultModal) return this.closeResultModal()
       if (this.showHistoryModal) return (this.showHistoryModal = false)
       if (this.showMidiHelpModal) return (this.showMidiHelpModal = false)
-      const noMidi = document.getElementById('noMidiModal')
-      if (noMidi?.open) noMidi.close()
+      if (this.showNoMidiModal) this.closeNoMidiModal()
     },
 
     // Refreshed at every measure boundary, so the badge shows up as soon as a
