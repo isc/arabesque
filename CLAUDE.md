@@ -277,6 +277,24 @@ Each new feedback also emails ivan.schneider@hey.com, so there is nothing to pol
 `supabase/feedback.sql` is the canonical DDL — the project has no migration
 system, so a schema change is applied by hand **and** written there.
 
+## Mic-mode captures
+
+Mic mode is tuned against real takes, not guesses. `public/dev/mic-capture.html`
+(linked from nowhere, on every preview at `previews/<slug>/dev/mic-capture.html`)
+records, on one clock, the microphone, the MIDI of a keyboard that sounds
+through its own speakers — a digital or hybrid piano — and what mic mode heard
+live, into one WAV. Signed in, it lands in the private `mic-captures` bucket
+(`supabase/mic-captures.sql`); otherwise it downloads.
+
+```bash
+node scripts/mic-captures.mjs list          # takes in the bucket
+node scripts/mic-captures.mjs get           # fetch the latest and score it
+node scripts/mic-captures.mjs replay <wav>  # score a take on disk
+```
+
+The replay runs the page's own `readFrame` and `createNoteTracker`, so a
+change to detection can be measured on every take before anyone plays again.
+
 ## Supabase auth config
 
 `supabase/auth.md` is the canonical record of how the sign-in email is sent and
