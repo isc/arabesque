@@ -1103,6 +1103,7 @@ function runUnderway() {
 // note that was owed flashes.
 function handleWrongNote(measureData, expectedNote, midiNote) {
   spoilRepetition()
+  steadiness.fault()
   // A wrong note can be the first thing played in a measure, but not the
   // first of a run: with no attempt open the journal has nothing to count it in.
   if (!attempt.open && runUnderway()) startAttempt(measureData)
@@ -1386,12 +1387,13 @@ function registerAttack(measureData, group) {
   applySteadiness(verdicts)
 }
 
-// A hole marks the notes that came late and, in training, spoils the
-// repetition the way a wrong note does. Joins and holes go to the journal.
+// A hole marks the notes that came late — the ones struck, not a tie held
+// through it — and, in training, spoils the repetition the way a wrong note
+// does. Joins and holes go to the journal.
 function applySteadiness(verdicts) {
   for (const { ref, ratio, hole, entry } of verdicts) {
     if (hole) {
-      for (const noteData of ref.notes) setMark(noteData, LATE, true)
+      for (const noteData of ref.notes) if (!noteData.isTieContinuation) setMark(noteData, LATE, true)
       spoilRepetition()
     }
     if (hole || entry) callbacks.onIntervalJudged?.({ sourceMeasureIndex: ref.sourceMeasureIndex, ratio, hole, entry })

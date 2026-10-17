@@ -73,6 +73,23 @@ class SteadinessTest < CapybaraTestBase
     assert_no_selector 'svg g.vf-notehead.late-note'
   end
 
+  # A late group can hold a tie the player never let go of: only the note
+  # struck over it came late. (held-tie-under-quavers.xml: quavers C5 up to
+  # C6 over a C4 tied from beat 1 into beat 3.)
+  def test_a_tie_held_through_a_hole_is_not_marked_late
+    visit '/score.html?url=/test-fixtures/held-tie-under-quavers.xml'
+    wait_for_score_render(10)
+
+    with_clock_control do
+      simulate_midi_input('ON C4')
+      play_evenly(%w[C5 D5 E5 F5])
+      play_evenly(%w[G5 A5 B5 C6], first_after: HESITATION)
+      simulate_midi_input('OFF C4')
+    end
+    # G5 came late; the C4 held under it did not.
+    assert_selector 'svg g.vf-notehead.late-note', count: 1
+  end
+
   private
 
   def open_steady_quavers
