@@ -1,7 +1,9 @@
 // Which bars of a score need work: the ones reinforcement mode offers on the
 // score page, and the hot spots that earn a piece the library's 🎯 chip. Both
 // are read off the score's most recent sessions, each hand selection apart —
-// bars fumbled there and not played cleanly since. Pure: sessions in, bars
+// bars fumbled there and not played cleanly since, a bar played with the
+// right notes and a hole in it being fumbled as much as one with a wrong note
+// (steadiness.js): the drill does not fill its dot either. Pure: sessions in, bars
 // out; the tracker hands over one score's sessions (practiceTracker.js), the
 // library every score's.
 import { TWO_HANDS, NO_HANDS, attemptHands } from './hands.js'
@@ -42,7 +44,7 @@ export function measuresToReinforce(sessions, { hands, limit = 5 } = {}) {
     .sort(
       (a, b) =>
         Number(b.stagnant) - Number(a.stagnant) ||
-        b.wrongNotes - a.wrongNotes ||
+        b.wrongNotes + b.hesitations - (a.wrongNotes + a.hesitations) ||
         b.durationMs - a.durationMs
     )
     .slice(0, limit)
@@ -100,6 +102,7 @@ function* reinforceCandidates(sessions, hands) {
       attempts: attempts.length,
       fumbles: countFumbles(attempts),
       wrongNotes: attempts.reduce((sum, a) => sum + (a.wrongNotes || 0), 0),
+      hesitations: attempts.reduce((sum, a) => sum + (a.hesitations || 0), 0),
       durationMs: attempts[attempts.length - 1].durationMs || 0,
       stagnant: isStagnant(bySession),
     }
@@ -140,8 +143,11 @@ function measureHistories(sessions, hands) {
 
 // A wrong note always fails the attempt, but the matcher can fail one on its
 // own (a missed note ends the measure unclean without recording anything).
+// So does a hole, which `clean` leaves out — it keeps meaning no wrong note,
+// for the history and the statuses (aggregates.js) — and which attempts from
+// before hesitations were counted cannot have.
 function fumbled(attempt) {
-  return attempt.clean === false || (attempt.wrongNotes || 0) > 0
+  return attempt.clean === false || (attempt.wrongNotes || 0) > 0 || (attempt.hesitations || 0) > 0
 }
 
 function countFumbles(attempts) {
