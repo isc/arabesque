@@ -7,10 +7,11 @@ describe('measures to reinforce', () => {
     mode,
     measures: Object.entries(measures).map(([index, attempts]) => ({
       sourceMeasureIndex: Number(index),
-      attempts: attempts.map(([wrongNotes, durationMs = 100]) => ({
+      attempts: attempts.map(([wrongNotes, durationMs = 100, hesitations]) => ({
         wrongNotes,
         durationMs,
         clean: wrongNotes === 0,
+        ...(hesitations && { hesitations }),
       })),
     })),
   })
@@ -53,6 +54,24 @@ describe('measures to reinforce', () => {
     it('leaves a drill given up before its last clean repetition', () => {
       expect(measuresToReinforce([fumbled, session({ 0: [[0], [1], [0]] }, 'training')])).toHaveLength(1)
     })
+  })
+
+  // The right notes with a hole in them: the drill would not fill its dot.
+  it('offers a measure played with the right notes and a hesitation', () => {
+    const result = measuresToReinforce([session({ 0: [[0]], 1: [[0, 100, 1]] })])
+    expect(result.map((m) => m.sourceMeasureIndex)).toEqual([1])
+  })
+
+  it('does not retire a measure on passes with a hesitation in them', () => {
+    const fumbled = session({ 0: [[2]] })
+    expect(measuresToReinforce([fumbled, session({ 0: [[0, 100, 1], [0, 100, 1], [0, 100, 1]] })])).toHaveLength(1)
+    expect(measuresToReinforce([fumbled, session({ 0: [[0, 100, 1], [0], [0], [0]] }, 'training')])).toEqual([])
+    expect(measuresToReinforce([fumbled, session({ 0: [[0, 100, 1], [0], [0, 100, 2], [0]] }, 'training')])).toHaveLength(1)
+  })
+
+  it('ranks a hesitation with a wrong note', () => {
+    const result = measuresToReinforce([session({ 0: [[1, 100]], 1: [[1, 100, 2]], 2: [[0, 300, 1]] })])
+    expect(result.map((m) => m.sourceMeasureIndex)).toEqual([1, 2, 0])
   })
 
   it('sorts by wrong notes, then by duration', () => {
