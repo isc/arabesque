@@ -128,6 +128,17 @@ describe('createSteadiness', () => {
     expect(holes(play(attacks).verdicts)).toEqual([])
   })
 
+  it('leaves the time a wrong note cost to the wrong note', () => {
+    const attacks = semiquavers(16, { gaps: { 10: 1500 } })
+    const steadiness = createSteadiness()
+    const verdicts = attacks.flatMap((attack, i) => {
+      if (i === 10) steadiness.fault()
+      return steadiness.attack(attack)
+    })
+    expect(holes(verdicts)).toEqual([])
+    expect(verdicts.some((v) => v.ref === 10)).toBe(false)
+  })
+
   it('takes nothing for a join it cannot measure', () => {
     // Bar 2 skipped, the hand ticked resting through it.
     const attacks = [...semiquavers(16), ...semiquavers(16, { from: 32 }).map((a) => ({ ...a, at: a.at + 7000 }))]
@@ -137,8 +148,11 @@ describe('createSteadiness', () => {
 
   it('judges nothing of a traversal broken off, and starts the next afresh', () => {
     const steadiness = createSteadiness()
+    expect(steadiness.underway).toBe(false)
     play(semiquavers(5), steadiness)
+    expect(steadiness.underway).toBe(true)
     steadiness.discard()
+    expect(steadiness.underway).toBe(false)
     const restart = semiquavers(16).map((a) => ({ ...a, at: a.at + 60_000 }))
     const { verdicts } = play(restart, steadiness)
     expect(holes([...verdicts, ...steadiness.close()])).toEqual([])
