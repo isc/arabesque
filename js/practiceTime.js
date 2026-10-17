@@ -26,7 +26,7 @@ const INTERRUPTION_NORMALIZATION = {
   gapFactor: 4,
 }
 
-function median(values) {
+export function median(values) {
   if (values.length === 0) return 0
   const sorted = [...values].sort((a, b) => a - b)
   return sorted[Math.floor(sorted.length / 2)]

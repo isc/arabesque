@@ -7,12 +7,14 @@ import {
   firstPassIndexOf,
   svgNoteheadFor,
   carryOverNoteStates,
+  isOrnamentOrGrace,
 } from './noteExtraction.js'
 import { scrollSystemIntoView, isUnderStickyBars } from './utils.js'
 import { arrayBufferToXml, isMusicXml } from './mxlLoader.js'
 import { stripPlaybackTempoMarks } from './tempoMarks.js'
 import { recordError } from './errorLog.js'
 import { REINFORCEMENT_CLEAN_PASSES } from './reinforcement.js'
+import { createSteadiness } from './steadiness.js'
 
 // The score on the stand: the sheet OSMD holds, and the note model built from
 // it. Replaced as a sheet comes in (renderMusicXML) and as it is drawn
@@ -106,6 +108,18 @@ const attempt = {
   open: false,
 }
 
+// The pace of the traversal under way, its holes and joins (steadiness.js).
+// It lives and dies with training.clean: what starts a repetition's verdict
+// over starts this over too (startRepetition).
+const steadiness = createSteadiness()
+
+// A note that came after a hole. Unlike the played marks it outlives the
+// traversal that left it — the run is over, and where it stopped is what the
+// next one has to work on — and goes when the note is played again. Strict
+// mode, whose off-tempo notes have the same colour, puts it away
+// (clearLateMarks).
+const LATE = 'late-note'
+
 // Padding around measure notes for clickable area
 const MEASURE_CLICK_PADDING = 15
 
@@ -167,6 +181,9 @@ let callbacks = {
   onPlaythroughRestart: null,
   onReinforcementComplete: null,
   onBackToTop: null,
+  // A join between two bars, or a hole, judged (steadiness.js): `entry` and
+  // `hole` say which, `ratio` how long the interval was against the pace.
+  onIntervalJudged: null,
   // Return true from this callback to bypass the default jumpToMeasure
   // (strict mode uses it to set its start point instead).
   onMeasureClicked: null,
@@ -184,8 +201,10 @@ export function initMusicXML() {
     activateNote,
     deactivateNote,
     setCallbacks,
+    clearLateMarks,
     setActiveHands: (hands) => {
       activeHands = { ...activeHands, ...hands }
+      steadiness.discard()
       // The measure under way starts over with the new hands: a hand ticked
       // back would otherwise owe every note it missed since the downbeat, the
       // other hand's already green and unplayable again.
@@ -236,7 +255,7 @@ export function initMusicXML() {
     setTrainingMode: (enabled) => {
       training.on = enabled
       training.banked = 0
-      training.clean = true
+      startRepetition()
       resetProgress()
 
       if (enabled) {
@@ -337,11 +356,14 @@ function trainingPassage() {
 // Written apart from the engine because this is the whole of the rule: a single
 // measure is the passage of length one, so the behaviour training has always
 // had falls out of it rather than sitting beside it as a second case.
+// A traversal of a passage runs on while the measure next is still in it.
+export const staysInPassage = (next, last) => next <= last
+
 export function trainingStep({ next, first, last, bounded, banked, target, clean, measureCount }) {
   // Still inside the passage: the traversal carries on into the next measure
   // with the dots — and the wrong note two bars back — untouched. `next` is
   // always past `index`, so a one-measure passage never takes this branch.
-  if (next <= last) return { action: 'step', to: next, banked }
+  if (staysInPassage(next, last)) return { action: 'step', to: next, banked }
 
   // The traversal is over. `banked` is what the dots should show for it —
   // emptying them is the move's business, a pause later, so that the dot just
@@ -386,7 +408,7 @@ function atScoreStart() {
 // cursor is placed on the first measure the active hands play, which reads them.
 function resetPlaybackState() {
   training.banked = 0
-  training.clean = true
+  startRepetition()
   cursor.systemIndex = null
   heldMidiNotes.clear()
   playedSourceMeasures.clear()
@@ -570,7 +592,7 @@ function resetMeasureProgress({ keepRepeats = false, keepRepetition = false, not
   if (!notesCleared) resetNotesFromIndex(cursor.measureIndex, cursor.measureIndex)
 
   if (!keepRepeats) training.banked = 0
-  if (!keepRepetition) training.clean = true
+  if (!keepRepetition) startRepetition()
 
   startAttempt(measureData)
 }
@@ -1022,7 +1044,7 @@ function activateNote(midiNote) {
   // key of a tie from before rather than struck again.
   if (chord.every((n) => n.played || n.active || isHeldByTie(n, chord, heldMidiNotes))) {
     markTimestampGroupPlayed(chord)
-    handleNoteValidated(measureData, chord[0], chord.length)
+    handleNoteValidated(measureData, chord)
     // A held tie can fully cover a *later* timestamp (the tied pitch plus its
     // same-pitch unisons in other voices). No fresh keypress can trigger that
     // group, so cascade those validations here instead of stalling.
@@ -1048,7 +1070,7 @@ function throughTheTrill(measureData, activeNotes, sentinel, midiNote) {
   if (!nextAfterTrill) {
     if (!isTrillNote) return sentinel
     sentinel.played = true
-    handleNoteValidated(measureData, sentinel, 1)
+    handleNoteValidated(measureData, [sentinel])
     return null
   }
 
@@ -1078,16 +1100,27 @@ function runUnderway() {
 // discover at the bar line that it won't fill. The journal counts it, and the
 // note that was owed flashes.
 function handleWrongNote(measureData, expectedNote, midiNote) {
-  // Only the first wrong note of a repetition changes anything on the dots.
-  if (training.on && training.clean) {
-    training.clean = false
-    updateRepeatIndicators()
-  }
+  spoilRepetition()
   // A wrong note can be the first thing played in a measure, but not the
   // first of a run: with no attempt open the journal has nothing to count it in.
   if (!attempt.open && runUnderway()) startAttempt(measureData)
   callbacks.onWrongNote?.(midiNote)
   flashWrongNote(expectedNote)
+}
+
+// A repetition about to be played, or a run: its dot unspoiled, its pace not
+// yet measured.
+function startRepetition() {
+  training.clean = true
+  steadiness.discard()
+}
+
+// In training, the repetition under way can no longer fill its dot. Only the
+// first fault of a repetition changes anything on the dots.
+function spoilRepetition() {
+  if (!training.on || !training.clean) return
+  training.clean = false
+  updateRepeatIndicators()
 }
 
 // The notes a key answers light up as held: pressed, but not played until the
@@ -1110,6 +1143,7 @@ function markTimestampGroupPlayed(group) {
     const notehead = svgNotehead(noteData)
     // Turn notes without visual noteheads (noteheadIndex = -1) have no element
     setMark(noteData, 'active-note', false, notehead)
+    setMark(noteData, LATE, false, notehead)
     setMark(noteData, 'played-note', true, notehead)
     noteData.played = true
     noteData.active = false
@@ -1136,7 +1170,7 @@ function cascadeHeldTieValidations() {
     if (!group.every((n) => n.played || isHeldByTie(n, group, heldMidiNotes))) return
 
     markTimestampGroupPlayed(group)
-    handleNoteValidated(measureData, group[0], group.length)
+    handleNoteValidated(measureData, group, { struck: false })
   }
 }
 
@@ -1206,10 +1240,10 @@ function moveTrainingCursorTo(to, { keepRepeats = false, clearFrom = null } = {}
 }
 
 // A measure of the passage is over: bank it or move on, per trainingStep.
-function advanceTraining() {
+function advanceTraining(next) {
   const passage = trainingPassage()
   const { action, to, banked } = trainingStep({
-    next: nextPlayable(cursor.measureIndex + 1),
+    next,
     ...passage,
     banked: training.banked,
     target: targetRepeatCount,
@@ -1229,13 +1263,14 @@ function advanceTraining() {
   if (action === 'passageDone') callbacks.onTrainingComplete?.()
 
   // A step further into the passage leaves the measures behind it lit and the
-  // repetition's verdict standing. A finished traversal starts the passage over
-  // from a dark sheet; only a passage that is done rather than merely spoiled
-  // empties the dots.
-  const options = action === 'step'
-    ? { keepRepeats: true }
-    : { keepRepeats: action === 'restart', clearFrom: passage.first }
-  afterTheBeat(() => moveTrainingCursorTo(to, options))
+  // repetition's verdict standing, and goes on at once, as free play does: the
+  // player is already on the way into the next bar, and a key played there
+  // before the cursor arrived used to go nowhere — a gap at every join of a
+  // passage played at speed. A finished traversal holds the sheet a beat, so
+  // the dot can be seen, then starts the passage over from a dark sheet; only
+  // a passage that is done rather than merely spoiled empties the dots.
+  if (action === 'step') moveTrainingCursorTo(to, { keepRepeats: true })
+  else afterTheBeat(() => moveTrainingCursorTo(to, { keepRepeats: action === 'restart', clearFrom: passage.first }))
 }
 
 // Reinforcement drills a list of measures, one at a time and three clean
@@ -1266,11 +1301,10 @@ function advanceReinforcement() {
 
 // Free play walks on down the score, a measure at a time, and a run that
 // reaches its end is over.
-function advanceFreePlay(measureData) {
+function advanceFreePlay(measureData, next, goesOn) {
   playedSourceMeasures.add(measureData.sourceMeasureIndex)
-  const next = nextPlayable(cursor.measureIndex + 1)
 
-  if (next < score.allNotes.length) {
+  if (goesOn) {
     // Entering a repeat takes the marks off the bars about to be played again.
     const toReset = sourceMeasuresToResetOnEntry(score.allNotes, cursor.measureIndex, next, playedSourceMeasures)
     for (const sourceMeasureIndex of toReset) resetSourceMeasureVisualState(sourceMeasureIndex)
@@ -1292,26 +1326,74 @@ function advanceFreePlay(measureData) {
   backToTheTopAfterTheBeat()
 }
 
-// What validated notes do to their measure: the first to be played opens it,
-// and once the active hands owe nothing more in it, it is over — reported to
-// the journal, and the work moves on the way the mode does.
-function handleNoteValidated(measureData, noteData, validatedCount) {
+// What a validated group — the notes of the active hands at one timestamp —
+// does to its measure: the first to be played opens it, and once the active
+// hands owe nothing more in it, it is over — reported to the journal, and the
+// work moves on the way the mode does. A group a tie holds rather than a key
+// strikes (cascadeHeldTieValidations) is no attack: it says nothing of the
+// player's pace.
+function handleNoteValidated(measureData, group, { struck = true } = {}) {
   const playedCount = measureData.notes.filter((n) => n.played).length
-  if (playedCount === validatedCount) {
+  if (playedCount === group.length) {
     // The autoscroll follows the system the measure is played on.
-    cursor.systemIndex = getSystemIndexForNote(noteData.note)
+    cursor.systemIndex = getSystemIndexForNote(group[0].note)
     if (!attempt.open) startAttempt(measureData)
   }
+  // After the attempt is open, which a join into the measure is reported on.
+  if (struck) registerAttack(measureData, group)
 
   if (!measureData.notes.filter(isNoteActiveForHands).every((n) => n.played)) return
 
+  const next = nextPlayable(cursor.measureIndex + 1)
+  const goesOn = runsOn(next)
+  // What a finished traversal left pending is judged before the journal files
+  // the measure and the mode reads the verdict to bank its dot.
+  if (!goesOn) applySteadiness(steadiness.close())
   callbacks.onMeasureCompleted?.()
 
-  if (!training.on) advanceFreePlay(measureData)
+  if (!training.on) advanceFreePlay(measureData, next, goesOn)
   // Reinforcement drills its own list of measures one by one, so it banks a
   // dot per measure and moves down the list rather than over a passage.
   else if (reinforcement.on) advanceReinforcement()
-  else advanceTraining()
+  else advanceTraining(next)
+}
+
+// Whether the traversal under way runs on past the measure just finished,
+// into `next`: a run, down the score to its end; a training passage, to its
+// last bar — the bar itself unless one was picked; a reinforcement never,
+// since it drills its bars one at a time.
+function runsOn(next) {
+  if (!training.on) return next < score.allNotes.length
+  return !reinforcement.on && staysInPassage(next, trainingPassage().last)
+}
+
+// Hands the attack just completed to the steadiness count, and acts on what
+// that judged.
+function registerAttack(measureData, group) {
+  const [{ timestamp, note }] = group
+  const verdicts = steadiness.attack({
+    at: performance.now(),
+    measure: measureData.measureIndex,
+    position: timestamp - measureData.measureIndex,
+    measureDuration: measureData.duration,
+    tempo: note?.SourceMeasure?.TempoInBPM,
+    decorative: group.some(isOrnamentOrGrace),
+    fermata: group.some((n) => n.fermata),
+    ref: { notes: group, sourceMeasureIndex: measureData.sourceMeasureIndex },
+  })
+  applySteadiness(verdicts)
+}
+
+// A hole marks the notes that came late and, in training, spoils the
+// repetition the way a wrong note does. Joins and holes go to the journal.
+function applySteadiness(verdicts) {
+  for (const { ref, ratio, hole, entry } of verdicts) {
+    if (hole) {
+      for (const noteData of ref.notes) setMark(noteData, LATE, true)
+      spoilRepetition()
+    }
+    if (hole || entry) callbacks.onIntervalJudged?.({ sourceMeasureIndex: ref.sourceMeasureIndex, ratio, hole, entry })
+  }
 }
 
 function svgNote(note) {
@@ -1335,9 +1417,19 @@ function setMark(noteData, cls, on, notehead = svgNotehead(noteData)) {
   else noteMarks.delete(noteData.fingeringKey)
 }
 
+// Every mark but LATE, which goes its own way.
+const TRAVERSAL_MARKS = ['played-note', 'active-note', 'wrong-note']
+
 function clearMarks(noteData) {
-  svgNotehead(noteData)?.classList.remove('played-note', 'active-note', 'wrong-note')
-  if (noteData.noteheadIndex >= 0) noteMarks.delete(noteData.fingeringKey)
+  const notehead = svgNotehead(noteData)
+  for (const cls of TRAVERSAL_MARKS) setMark(noteData, cls, false, notehead)
+}
+
+function clearLateMarks() {
+  for (const [key, marks] of noteMarks) {
+    const noteData = score.noteDataByKey.get(key)
+    if (noteData && marks.has(LATE)) setMark(noteData, LATE, false)
+  }
 }
 
 // Puts the marks back on a score that has just been redrawn.
