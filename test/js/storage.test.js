@@ -95,10 +95,11 @@ describe('a backup', () => {
   })
 })
 
-// Moving to another device through a backup brings every store over, the
-// aggregates rebuilt from the sessions with the names the backup lends them. A
-// store the backup carries but importBackup does not read fails here, and
-// every store needs a record below, so a new one cannot slip past.
+// Moving to another device through a backup brings every store it carries
+// over, the aggregates rebuilt from the sessions with the names the backup
+// lends them. A store the backup carries but importBackup does not read fails
+// here, and every such store needs a record below, so a new one cannot slip
+// past.
 describe('a backup restored on another device', () => {
   // A record of each store, and the storage method that writes it.
   const records = {
@@ -110,14 +111,23 @@ describe('a backup restored on another device', () => {
   // A store is only created by the upgrade to a new version: one added without
   // DB_VERSION raised never reaches a device that already has the database,
   // and a backup there fails on it. The stores each version shipped with:
-  const STORES_BY_VERSION = { 3: ['aggregates', 'fingerings', 'sessions'] }
+  const STORES_BY_VERSION = { 4: ['aggregates', 'fingerings', 'noteLogs', 'sessions'] }
 
   it('raises the database version with every store added', () => {
     expect([...STORES].sort()).toEqual(STORES_BY_VERSION[DB_VERSION])
   })
 
-  it('has a record of every store to carry', () => {
-    expect(Object.keys(records).sort()).toEqual([...STORES].sort())
+  it('has a record of every store to carry', async () => {
+    const { storage } = await aDevice()
+    const { exportDate, ...stores } = await storage.exportBackup()
+    expect(Object.keys(records).sort()).toEqual(Object.keys(stores).sort())
+  })
+
+  // Raw material for the analysis, megabytes of it, kept a few weeks only.
+  it('leaves the note logs out', async () => {
+    const { storage } = await aDevice()
+    await storage.saveNoteLog(noteLog('s1:0'))
+    expect(await storage.exportBackup()).not.toHaveProperty('noteLogs')
   })
 
   it('brings every store back', async () => {
@@ -129,7 +139,27 @@ describe('a backup restored on another device', () => {
     await importBackup(elsewhere, backup)
     const restored = await elsewhere.storage.exportBackup()
 
-    for (const store of STORES) expect(restored[store], store).toMatchObject(backup[store])
+    for (const store of Object.keys(records)) expect(restored[store], store).toMatchObject(backup[store])
+  })
+})
+
+const noteLog = (id) => ({ id, sessionId: id.split(':')[0], startedAt: '2026-06-10T10:00:00.000Z', t: [0], e: 'd', p: [60], v: [64], n: [0], b: [0], keys: ['m1:0:0:0'] })
+
+describe('note logs', () => {
+  // A session's id opens on the epoch ms it started at (practiceTracker.js).
+  it('drops the segments of the sessions started before an instant', async () => {
+    const { storage } = await aDevice()
+    for (const id of ['1700000000000-old:0', '1700000000000-old:1', '1800000000000-new:0']) await storage.saveNoteLog(noteLog(id))
+
+    await storage.deleteNoteLogsBefore(1750000000000)
+    expect(await storage.getNoteLogIds()).toEqual(['1800000000000-new:0'])
+  })
+
+  it('adds a segment only where none is held under its id', async () => {
+    const { storage } = await aDevice()
+    await storage.saveNoteLog({ ...noteLog('s1:0'), e: 'du' })
+    await expect(storage.addNoteLog(noteLog('s1:0'))).rejects.toMatchObject({ name: 'ConstraintError' })
+    expect((await storage.getNoteLogsById(['s1:0']))[0].e).toBe('du')
   })
 })
 

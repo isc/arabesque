@@ -4,8 +4,9 @@ import { initFingeringEditor } from './fingeringEditor.js'
 import { fingeringPad } from './fingeringPad.js'
 import { initPracticeTracker } from './practiceTracker.js'
 import { TWO_HANDS, handsKey } from './hands.js'
-import { formatDuration, formatDate, applyStickyOffset, scorePageUrl, onForeground, withHands, passage, pickPassageMeasure, passageText } from './utils.js'
+import { formatDuration, formatDate, applyStickyOffset, scorePageUrl, onForeground, onBackground, onIdle, withHands, passage, pickPassageMeasure, passageText } from './utils.js'
 import { initStorage } from './storage.js'
+import { initNoteLog } from './noteLog.js'
 import { loadMxlAsXml } from './mxlLoader.js'
 import { injectFingerings } from './fingeringInjector.js'
 import { migrateFingeringRecord } from './fingeringKeys.js'
@@ -58,6 +59,7 @@ export function midiApp() {
   })
   const storage = initStorage()
   const practiceTracker = initPracticeTracker(storage)
+  const noteLog = initNoteLog({ storage, sessionId: () => practiceTracker.getCurrentSession()?.id })
   const playback = initPlayback(midi.state)
   const strictPlaythrough = initStrictPlaythrough()
   // The on-screen keyboard; built in init(), where the page's state it reads is.
@@ -89,11 +91,13 @@ export function midiApp() {
   // What was filed is worth pushing at once: runSync only takes sessions that
   // have ended, so a playthrough finished here would otherwise sit on this
   // device until the data page is opened. `sync: false` leaves it to a caller
-  // that syncs later (the tempo trainer, at the end of its loop).
+  // that syncs later (the tempo trainer, at the end of its loop). The notes
+  // played in the session go with it, written before it is closed.
   let sessionRolled = Promise.resolve()
   function rollSession(mode, { sync = true } = {}) {
     sessionRolled = sessionRolled
       .then(async () => {
+        await noteLog.flush()
         if ((await practiceTracker.toggleMode(mode)) && sync) triggerSync('session ended')
       })
       .catch((error) => recordError(error, 'Session could not be filed'))
@@ -347,7 +351,7 @@ export function midiApp() {
       const NAVIGATE_BACK_KEY = C8 // the highest piano key: the least jarring sound
 
       midi.setCallbacks({
-        onNotePlayed: (midiNote) => {
+        onNotePlayed: (midiNote, velocity) => {
           if (midiNote === NAVIGATE_BACK_KEY) {
             // Go back rather than to the library so its filters (stored in
             // the URL) that led here are preserved. Fall back to the library
@@ -366,16 +370,19 @@ export function midiApp() {
           // strict tab opened the free results and filed a free session.
           if (this.mode === 'strict') {
             strictPlaythrough.handleNoteOn(midiNote)
+            noteLog.keyDown(midiNote, velocity)
             return
           }
-          musicxml.activateNote(midiNote)
+          noteLog.keyDown(midiNote, velocity, musicxml.activateNote(midiNote))
           keyHint.keyDown(midiNote)
         },
         onNoteReleased: (midiNote) => {
+          noteLog.keyUp(midiNote)
           if (this.mode === 'strict') return
           musicxml.deactivateNote(midiNote)
           keyHint.keyUp(midiNote)
         },
+        onPedal: (value) => noteLog.pedal(value),
         // Without this the notes came through while the header still offered
         // to connect, and only pressing that button again refreshed it.
         onConnectionChange: () => this.syncMidiState(),
@@ -452,6 +459,9 @@ export function midiApp() {
       // that the next page load turns into a proper close.
       window.addEventListener('beforeunload', () => practiceTracker.endSession())
       window.addEventListener('pagehide', () => practiceTracker.stashPendingSession())
+      // The notes played since the last segment was written.
+      onBackground(() => noteLog.leave())
+      onIdle(() => noteLog.tidy())
       // Restored from the back/forward cache: the page was never destroyed and
       // the session is still live, so the snapshot must not be replayed.
       window.addEventListener('pageshow', (event) => {

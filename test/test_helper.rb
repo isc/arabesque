@@ -580,12 +580,14 @@ class CapybaraTestBase < Minitest::Test
   # Helper to simulate MIDI input events
   # Example: simulate_midi_input("ON C4") or simulate_midi_input("OFF C4")
   def simulate_midi_input(notation)
-    data_array = parse_midi_notation(notation)
+    send_midi(parse_midi_notation(notation))
+  end
+
+  # One raw MIDI message through the mock input, e.g. [176, 64, 127] for the
+  # sustain pedal down.
+  def send_midi(data)
     page.execute_script(<<~JS)
-      const event = new CustomEvent('mock-midi-input', {
-        detail: { data: #{data_array.to_json} }
-      });
-      window.dispatchEvent(event);
+      window.dispatchEvent(new CustomEvent('mock-midi-input', { detail: { data: #{data.to_json} } }));
     JS
   end
 

@@ -13,6 +13,9 @@
 --     immutable once ended; sync pushes ids the server lacks and pulls ids the
 --     client lacks. Aggregates are NOT stored here — they are recomputed locally
 --     from sessions after a pull.
+--   - session_notes: every key played in a session, a segment per row
+--     (public/js/noteLog.js has the format). Pushed once the session is on the
+--     server, never pulled: it is read by the analysis, not by another device.
 --   - user_fingerings: one row per (user, profile, score), stamped with
 --     updated_at (a JS epoch-ms value). A device sends or takes a row whole,
 --     and when both it and the server changed one since they last met, it
@@ -49,6 +52,29 @@ create index if not exists training_sessions_user_profile_ended
 alter table public.training_sessions enable row level security;
 drop policy if exists training_sessions_owner on public.training_sessions;
 create policy training_sessions_owner on public.training_sessions
+  for all to authenticated
+  using (user_id = auth.uid())
+  with check (user_id = auth.uid());
+
+create table if not exists public.session_notes (
+  user_id    uuid not null references auth.users (id) on delete cascade,
+  profile_id text not null default 'main',
+  id         text not null,          -- `<session id>:<segment number>`
+  session_id text not null,
+  started_at timestamptz,            -- the segment's first event
+  -- The segment's columns (noteLog.js). json rather than jsonb: nothing on
+  -- the server looks inside, and jsonb stores a small integer at about twice
+  -- the size of its text.
+  data       json not null,
+  created_at timestamptz not null default now(),
+  primary key (user_id, id)
+);
+create index if not exists session_notes_user_profile_session
+  on public.session_notes (user_id, profile_id, session_id);
+
+alter table public.session_notes enable row level security;
+drop policy if exists session_notes_owner on public.session_notes;
+create policy session_notes_owner on public.session_notes
   for all to authenticated
   using (user_id = auth.uid())
   with check (user_id = auth.uid());
@@ -102,6 +128,7 @@ set search_path = ''
 as $$
 begin
   delete from public.training_sessions where user_id = new.user_id and profile_id = new.id;
+  delete from public.session_notes where user_id = new.user_id and profile_id = new.id;
   delete from public.user_fingerings where user_id = new.user_id and profile_id = new.id;
   return new;
 end;

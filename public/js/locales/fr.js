@@ -441,7 +441,7 @@ export default {
       "Vos séances de travail, vos doigtés, vos profils et vos préférences (langue, morceaux vus) sont écrits dans le stockage local du navigateur. Ils ne quittent pas l'appareil de leur propre initiative, et vider les données du site les efface définitivement. La page Données permet de les exporter dans un fichier.",
     accountTitle: 'Le compte, si vous en créez un',
     accountBody:
-      "Se connecter sert à retrouver sa pratique d'un appareil à l'autre. Cela demande une adresse e-mail, à laquelle est envoyé un code de connexion : il n'y a pas de mot de passe. Une fois connecté, vos séances, vos doigtés et vos profils (le nom et l'avatar de chacun) sont copiés sur le serveur pour être redescendus sur vos autres appareils. Aucune autre donnée n'est associée au compte.",
+      "Se connecter sert à retrouver sa pratique d'un appareil à l'autre. Cela demande une adresse e-mail, à laquelle est envoyé un code de connexion : il n'y a pas de mot de passe. Une fois connecté, vos séances, vos doigtés et vos profils (le nom et l'avatar de chacun) sont copiés sur le serveur pour être redescendus sur vos autres appareils, ainsi que le détail des notes jouées pendant vos séances, conservé pour analyser votre pratique. Aucune autre donnée n'est associée au compte.",
     accountDelete:
       "Vous pouvez supprimer votre compte depuis la page Données. Le compte et toutes les données synchronisées sont alors effacés des serveurs, sans délai et sans avoir à le demander à qui que ce soit.",
     feedbackTitle: 'Les avis que vous envoyez',
