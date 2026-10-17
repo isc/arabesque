@@ -121,6 +121,10 @@ export function createSteadiness() {
 
   return {
     attack,
+    // Whether a traversal is under way: false until its first attack.
+    get underway() {
+      return previous !== null
+    },
     // The traversal is over: what it left pending is judged, and the next
     // attack starts a new one.
     close() {

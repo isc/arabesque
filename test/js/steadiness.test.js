@@ -137,8 +137,11 @@ describe('createSteadiness', () => {
 
   it('judges nothing of a traversal broken off, and starts the next afresh', () => {
     const steadiness = createSteadiness()
+    expect(steadiness.underway).toBe(false)
     play(semiquavers(5), steadiness)
+    expect(steadiness.underway).toBe(true)
     steadiness.discard()
+    expect(steadiness.underway).toBe(false)
     const restart = semiquavers(16).map((a) => ({ ...a, at: a.at + 60_000 }))
     const { verdicts } = play(restart, steadiness)
     expect(holes([...verdicts, ...steadiness.close()])).toEqual([])

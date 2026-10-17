@@ -1107,9 +1107,9 @@ export function midiApp() {
       // belongs to the run that lit it, and that run is over. The two halves
       // are cleared by their own module, the second as the engine takes up
       // the new mode. Where the last run hesitated is the exception: that is
-      // what training is about to work on, so those marks stay until the notes
-      // are played again — except under strict mode's verdict, which marks
-      // its off-tempo notes in the same colour.
+      // what training is about to work on, so those marks stay until the
+      // first note played there — except under strict mode's verdict, which
+      // marks its off-tempo notes in the same colour.
       strictPlaythrough.clearMarks()
       if (name === 'strict') musicxml.clearLateMarks()
       this.mode = name

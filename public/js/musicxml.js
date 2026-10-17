@@ -114,10 +114,12 @@ const attempt = {
 const steadiness = createSteadiness()
 
 // A note that came after a hole. Unlike the played marks it outlives the
-// traversal that left it — the run is over, and where it stopped is what the
-// next one has to work on — and goes when the note is played again. Strict
-// mode, whose off-tempo notes have the same colour, puts it away
-// (clearLateMarks).
+// traversal that left it, the run's end and the beat before a repetition
+// starts over included — where it stopped is what the player looks at before
+// going again — and goes, every one of them, with the first note of the next
+// traversal: left up through it, the marks of the last repetition ahead of
+// the player read as faults of the one under way. Strict mode, whose off-tempo
+// notes have the same colour, puts them away (clearLateMarks).
 const LATE = 'late-note'
 
 // Padding around measure notes for clickable area
@@ -1143,7 +1145,6 @@ function markTimestampGroupPlayed(group) {
     const notehead = svgNotehead(noteData)
     // Turn notes without visual noteheads (noteheadIndex = -1) have no element
     setMark(noteData, 'active-note', false, notehead)
-    setMark(noteData, LATE, false, notehead)
     setMark(noteData, 'played-note', true, notehead)
     noteData.played = true
     noteData.active = false
@@ -1370,6 +1371,7 @@ function runsOn(next) {
 // Hands the attack just completed to the steadiness count, and acts on what
 // that judged.
 function registerAttack(measureData, group) {
+  if (!steadiness.underway) clearLateMarks()
   const [{ timestamp, note }] = group
   const verdicts = steadiness.attack({
     at: performance.now(),

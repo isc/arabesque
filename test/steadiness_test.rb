@@ -35,8 +35,12 @@ class SteadinessTest < CapybaraTestBase
       assert_selector 'svg g.vf-notehead.late-note', count: 1
       assert_no_selector 'svg g.vf-notehead.played-note'
 
-      # ...until it is played again, on time, and the dot fills.
-      play_evenly(BAR_1 + BAR_2, first_after: 10)
+      # ...until the next repetition's first note: left up, it would read as
+      # a fault of the repetition under way, in a bar not yet reached.
+      play_evenly(BAR_1.take(1), first_after: 10)
+      assert_no_selector 'svg g.vf-notehead.late-note'
+
+      play_evenly(BAR_1.drop(1) + BAR_2)
       assert_no_selector 'svg g.vf-notehead.late-note'
       assert_selector 'svg circle.repeat-indicator.filled', count: 1
     end
