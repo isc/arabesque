@@ -1106,12 +1106,12 @@ export function midiApp() {
       // strict run's verdict, the notes a free or training run played —
       // belongs to the run that lit it, and that run is over. The two halves
       // are cleared by their own module, the second as the engine takes up
-      // the new mode. Where the last run hesitated is the exception: that is
-      // what training is about to work on, so those marks stay until the
-      // first note played there — except under strict mode's verdict, which
-      // marks its off-tempo notes in the same colour.
+      // the new mode. Where the last run went wrong or hesitated is the
+      // exception: that is what training is about to work on, so those marks
+      // stay until the first note played there — except under strict mode's
+      // verdict, which comes in the same colours.
       strictPlaythrough.clearMarks()
-      if (name === 'strict') musicxml.clearLateMarks()
+      if (name === 'strict') musicxml.clearVerdictMarks()
       this.mode = name
       // Before the engine moves: a reinforcement starts its first measure at
       // once, and a measure started on the session being closed goes with it.

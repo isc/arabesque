@@ -1862,6 +1862,9 @@ svg g.vf-notehead.played-note path { fill: var(--pt-note-played); }
    colour of strict mode's off-tempo notes, which say the same thing. Over the
    played colour, under a key held down now. */
 svg g.vf-notehead.late-note path { fill: var(--pt-note-offtempo); }
+/* A note a wrong key was played for, once the repetition or the run is over
+   (musicxml.js): the colour of strict mode's missed notes. Over a late one. */
+svg g.vf-notehead.fumbled-note path { fill: var(--pt-note-missed); }
 svg g.vf-notehead.active-note path { fill: var(--pt-note-active); }
 svg g.vf-notehead.expected-note path { fill: var(--pt-note-expected); }
 svg g.vf-notehead.offtempo-note path { fill: var(--pt-note-offtempo); }
