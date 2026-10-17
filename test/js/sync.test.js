@@ -16,10 +16,11 @@ const KEYS = {
   training_sessions: (r) => `${r.profile_id ?? MAIN}|${r.id}`,
   user_fingerings: (r) => `${r.profile_id ?? MAIN}|${r.score_url}`,
   profiles: (r) => r.id,
+  session_notes: (r) => r.id,
 }
 
 function makeFakeSupabase({ sessions = [], fingerings = [], profiles = [] } = {}) {
-  const tables = { training_sessions: new Map(), user_fingerings: new Map(), profiles: new Map() }
+  const tables = { training_sessions: new Map(), user_fingerings: new Map(), profiles: new Map(), session_notes: new Map() }
   const seed = (name, rows) => rows.forEach((r) => tables[name].set(KEYS[name]({ profile_id: MAIN, ...r }), { profile_id: MAIN, ...r }))
   seed('training_sessions', sessions)
   seed('user_fingerings', fingerings)
@@ -100,6 +101,27 @@ describe('runSync', () => {
     await openPage()
   })
 
+
+  // The notes played go up with their session, once it is on the server, and
+  // only once.
+  it('pushes the note logs of the sessions the server has', async () => {
+    await storage.saveSession(endedSession('a', '/s/1.xml'))
+    await storage.saveSession({ ...endedSession('live', '/s/1.xml'), endedAt: null })
+    const segment = (id) => ({ id, sessionId: id.split(':')[0], startedAt: '2026-01-01T10:00:00.000Z', keys: [], t: [0], e: 'x', p: [60], v: [64], n: [-1], b: [-1] })
+    for (const id of ['a:0', 'a:1', 'live:0']) await storage.saveNoteLog(segment(id))
+    const supabase = makeFakeSupabase()
+
+    const r = await runSync({ supabase, storage, practiceTracker })
+
+    expect(r.notesPushed).toBe(2)
+    const rows = supabase._rows('session_notes')
+    expect(rows.map((row) => row.id).sort()).toEqual(['a:0', 'a:1'])
+    expect(rows[0]).toMatchObject({ user_id: USER, profile_id: MAIN, session_id: 'a', started_at: '2026-01-01T10:00:00.000Z' })
+    expect(rows[0].data).toEqual({ keys: [], t: [0], e: 'x', p: [60], v: [64], n: [-1], b: [-1] })
+    // The live session's wait for its end; the others leave the device.
+    expect(await storage.getNoteLogIds()).toEqual(['live:0'])
+    expect((await runSync({ supabase, storage, practiceTracker })).notesPushed).toBe(0)
+  })
 
   it('pushes local-only ended sessions to the server', async () => {
     await storage.saveSession(endedSession('a', '/s/1.xml'))

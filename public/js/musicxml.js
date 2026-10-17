@@ -1023,32 +1023,36 @@ const awaitsKey = (noteData) => !noteData.played && !noteData.active
 // Note ON, in free play, training and reinforcement: what a key does to the
 // measure under the cursor. It carries a trill on or ends it, holds down a note
 // of the chord owed — which is played once all of it is down — or is a wrong
-// note.
+// note. Says which, for the note log (noteLog.js): the note it took, or for a
+// wrong key the note owed, with the playback index of its bar — or null when
+// it took no part in the score, nothing being owed or a trill taking it.
 function activateNote(midiNote) {
   // Held whatever it turns out to be: a tie continuation further on is
   // validated by the key already down (isHeldByTie).
   heldMidiNotes.add(midiNote)
 
   const measureData = measureUnderCursor()
-  if (!measureData) return
+  if (!measureData) return null
   const activeNotes = measureData.notes.filter(isNoteActiveForHands)
   let expectedNote = activeNotes.find(awaitsKey)
-  if (!expectedNote) return
+  if (!expectedNote) return null
 
   if (expectedNote.isTrillEnd) {
     expectedNote = throughTheTrill(measureData, activeNotes, expectedNote, midiNote)
-    if (!expectedNote) return
+    if (!expectedNote) return null
   }
 
   const chord = activeNotes.filter((n) => n.timestamp === expectedNote.timestamp)
   const pressed = chord.filter((n) => awaitsKey(n) && n.midiNumber === midiNote)
+  const { measureIndex } = measureData
   if (pressed.length === 0) {
     // A trill going on is not a wrong note, and advances nothing. It is judged
     // where the player is, not at the note due next, which may already lie
     // past the trill's end.
     const at = lastValidatedTimestamp(activeNotes, expectedNote.timestamp)
-    if (!isTrillStillSounding(activeNotes, midiNote, at)) handleWrongNote(measureData, expectedNote, midiNote)
-    return
+    if (isTrillStillSounding(activeNotes, midiNote, at)) return null
+    handleWrongNote(measureData, expectedNote, midiNote)
+    return { noteData: expectedNote, measureIndex, wrong: true }
   }
 
   holdDown(pressed)
@@ -1062,6 +1066,7 @@ function activateNote(midiNote) {
     // group, so cascade those validations here instead of stalling.
     cascadeHeldTieValidations()
   }
+  return { noteData: pressed[0], measureIndex, wrong: false }
 }
 
 // A trill owed next — its sentinel, isTrillEnd — takes either of its two
