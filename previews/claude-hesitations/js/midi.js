@@ -65,14 +65,14 @@ function setCallbacks(cbs) {
 async function connectMIDI(options = {}) {
   const { silent = false, autoSelectFirst = false } = options
 
+  // Safari and Firefox, left to the caller to tell the player about. The iOS
+  // wrapper never gets here, its shim being in place before any page script
+  // runs. Ahead of the mock so a test can take the API away and see what such
+  // a browser sees.
+  if (!navigator.requestMIDIAccess) return { status: 'unsupported' }
+
   if (isTestEnv()) {
     return connectMIDIMock()
-  }
-
-  if (!navigator.requestMIDIAccess) {
-    console.error('Web MIDI API non supportée')
-    if (!silent) alert(t('errors.webMidiUnsupported'))
-    return
   }
 
   try {

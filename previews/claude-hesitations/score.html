@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="app-version" content="ab242e8aded5" />
+    <meta name="app-version" content="167b847f86f2" />
     <title data-i18n="score.pageTitle">Arabesque</title>
     <link rel="icon" href="favicon.svg" type="image/svg+xml" />
     <link rel="manifest" href="manifest.webmanifest" />
@@ -483,11 +483,11 @@
     </dialog>
 
     <!-- No-MIDI fallback -->
-    <dialog id="noMidiModal" x-bind:open="!navigator.requestMIDIAccess">
+    <dialog id="noMidiModal" :open="showNoMidiModal">
       <article>
         <header>
           <p><strong data-i18n="score.noMidiTitle">Web MIDI non supporté</strong></p>
-          <button aria-label="Close" rel="prev" onclick="noMidiModal.close()"></button>
+          <button aria-label="Close" rel="prev" @click="closeNoMidiModal()"></button>
         </header>
         <p>
           <span data-i18n="score.noMidiBody">Votre navigateur ne supporte pas Web MIDI API. Essayez avec</span>
