@@ -63,6 +63,8 @@ export function writtenBetween(from, to) {
 export function createSteadiness() {
   // The last attack, which the next interval starts from.
   let previous = null
+  // Whether a wrong note was played since then (fault).
+  let faulted = false
   // The traversal's last WINDOW intervals since its last change of tempo.
   // Short of LIVE_MIN, none of them is judged yet; from there on, all are.
   let intervals = []
@@ -95,7 +97,9 @@ export function createSteadiness() {
   function attack(next) {
     const verdicts = []
     const from = previous
+    const afterFault = faulted
     previous = next
+    faulted = false
     if (!from) return verdicts
     // A new tempo marked in the score is a new pace to measure against: the
     // Presto of the C minor prelude, or the ritardando MuseScore writes into a
@@ -105,8 +109,10 @@ export function createSteadiness() {
       return verdicts
     }
     // Where the score itself lets go of the pace — an ornament's notes, a
-    // fermata — there is nothing to hold the player to.
-    if (from.decorative || next.decorative || from.fermata) return verdicts
+    // fermata — there is nothing to hold the player to. Nor where a wrong
+    // note was played: the time it took is that mistake's, already counted
+    // as one, and the note that came late after it is no hesitation.
+    if (from.decorative || next.decorative || from.fermata || afterFault) return verdicts
     const written = writtenBetween(from, next)
     if (written == null || written < MIN_WRITTEN) return verdicts
 
@@ -121,6 +127,11 @@ export function createSteadiness() {
 
   return {
     attack,
+    // A wrong note was played: the interval under way is no measure of the
+    // pace.
+    fault() {
+      faulted = true
+    },
     // Whether a traversal is under way: false until its first attack.
     get underway() {
       return previous !== null
@@ -131,12 +142,14 @@ export function createSteadiness() {
       const verdicts = []
       settle(verdicts)
       previous = null
+      faulted = false
       return verdicts
     },
     // The traversal was broken off — a bar clicked, a hand toggled, a mode
     // left: nothing is judged, and the next attack starts afresh.
     discard() {
       previous = null
+      faulted = false
       intervals = []
     },
   }
