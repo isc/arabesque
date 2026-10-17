@@ -73,6 +73,36 @@ class SteadinessTest < CapybaraTestBase
     assert_no_selector 'svg g.vf-notehead.late-note'
   end
 
+  # Where a wrong key was played shows red once the repetition is over, beside
+  # where it came late — and not before: until then, the right key turning the
+  # note green is how the player knows it was taken.
+  def test_a_note_fumbled_turns_red_once_the_repetition_is_over
+    open_steady_quavers
+    enter_training_mode
+    pick_passage(1, 2)
+
+    with_clock_control do
+      play_evenly(%w[C4 D4])
+      advance_clock(GAP)
+      play_note('G4') # E4 is owed
+      play_evenly(%w[E4], first_after: HESITATION)
+      assert_selector 'svg g.vf-notehead.played-note', count: 3
+      assert_no_selector 'svg g.vf-notehead.fumbled-note'
+
+      play_evenly(BAR_1.drop(3) + BAR_2)
+      assert_selector 'svg g.vf-notehead.fumbled-note', count: 1
+      # The time the mistake took is its own, no hesitation.
+      assert_no_selector 'svg g.vf-notehead.late-note'
+
+      # Up through the beat the passage starts over after, gone with the next
+      # repetition's first note.
+      advance_clock(300)
+      assert_selector 'svg g.vf-notehead.fumbled-note', count: 1
+      play_evenly(BAR_1.take(1), first_after: 10)
+      assert_no_selector 'svg g.vf-notehead.fumbled-note'
+    end
+  end
+
   # A late group can hold a tie the player never let go of: only the note
   # struck over it came late. (held-tie-under-quavers.xml: quavers C5 up to
   # C6 over a C4 tied from beat 1 into beat 3.)
