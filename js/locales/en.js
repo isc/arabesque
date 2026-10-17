@@ -444,7 +444,7 @@ export default {
       'Your practice sessions, your fingerings, your profiles and your preferences (language, scores seen) are written to the browser’s local storage. They never leave the device on their own, and clearing the site’s data erases them for good. The Data page can export them to a file.',
     accountTitle: 'The account, if you create one',
     accountBody:
-      'Signing in is what lets your practice follow you from one device to the next. It asks for an email address, which receives a sign-in code: there is no password. Once signed in, your sessions, your fingerings and your profiles (each one’s name and avatar) are copied to the server so they can come back down on your other devices. Nothing else is attached to the account.',
+      'Signing in is what lets your practice follow you from one device to the next. It asks for an email address, which receives a sign-in code: there is no password. Once signed in, your sessions, your fingerings and your profiles (each one’s name and avatar) are copied to the server so they can come back down on your other devices, along with the detail of the notes played in your sessions, kept to analyse your practice. Nothing else is attached to the account.',
     accountDelete:
       'You can delete your account from the Data page. The account and everything synced under it are erased from the servers there and then, without having to ask anyone.',
     feedbackTitle: 'The feedback you send',

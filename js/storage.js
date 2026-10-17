@@ -7,10 +7,11 @@ const DB_BASE_NAME = 'arabesque'
 // moved over on first open (see readLegacyDatabase) so nobody has to re-import
 // a backup.
 const LEGACY_DB_NAME = 'piano-trainer'
-export const DB_VERSION = 3
+export const DB_VERSION = 4
 const FINGERINGS_STORE = 'fingerings'
 const SESSIONS_STORE = 'sessions'
 const AGGREGATES_STORE = 'aggregates'
+const NOTE_LOGS_STORE = 'noteLogs'
 
 // The kinds of data a profile keeps, a store each: how its records are keyed,
 // what they are looked up by, and how a backup carries them, under the store's
@@ -29,8 +30,15 @@ const STORE_DEFS = [
   // Derived from the sessions, and rebuilt from them on import: a backup's
   // copy only lends its names (sync.js).
   { name: AGGREGATES_STORE, keyPath: 'scoreId' },
+  // Every key played, a segment of a session's at a time (noteLog.js), until
+  // the server has it. Kept out of a backup: it is raw material for the
+  // analysis, megabytes of it, where a backup is the practice history — and
+  // this store only holds what is not on the server yet, the last weeks at
+  // most.
+  { name: NOTE_LOGS_STORE, keyPath: 'id', backup: false },
 ]
 export const STORES = STORE_DEFS.map((def) => def.name)
+const BACKUP_DEFS = STORE_DEFS.filter((def) => def.backup !== false)
 // What an operation fails with when the connection under it is gone rather
 // than the operation being wrong: InvalidStateError from transaction() on a
 // connection the browser has closed ("The database connection is closing"),
@@ -193,6 +201,12 @@ export function initStorage() {
     dbReady ??= openDatabase(scopedKey(DB_BASE_NAME))
       .then((db) => {
         pruneProfileStorage().catch(() => {})
+        // Storage left best-effort is what a browser clears first when the
+        // disk fills up, the whole origin at once: the journal of a player who
+        // never signed in, the fingerings not synced yet. Asked at every open,
+        // which costs nothing once granted; Chrome and Safari answer without a
+        // prompt, from how the site is used, and Firefox asks once.
+        globalThis.navigator?.storage?.persist?.().catch(() => {})
         return db
       })
       .catch((error) => {
@@ -358,10 +372,10 @@ export function initStorage() {
       return (await dbGetAll(AGGREGATES_STORE)) || []
     },
 
-    // Every store, each under its own name (see STORE_DEFS).
+    // Every store a backup carries, each under its own name (see STORE_DEFS).
     async exportBackup() {
       const backup = { exportDate: new Date().toISOString() }
-      for (const { name, toBackup = (record) => record } of STORE_DEFS) {
+      for (const { name, toBackup = (record) => record } of BACKUP_DEFS) {
         backup[name] = (await dbGetAll(name)).map(toBackup)
       }
       return backup
@@ -378,6 +392,38 @@ export function initStorage() {
         await promisifyTransaction(transaction)
         return imported
       })
+    },
+
+    // Note logs methods (noteLog.js): every segment held is one the server
+    // does not have yet.
+    saveNoteLog(segment) {
+      return dbPut(NOTE_LOGS_STORE, segment)
+    },
+
+    // Unless one is held under the same id already: fails with a
+    // ConstraintError then.
+    addNoteLog(segment) {
+      return withStore(NOTE_LOGS_STORE, 'readwrite', (store) => promisifyRequest(store.add(segment)))
+    },
+
+    // The segments' ids, and nothing else of them: their sessions are in them.
+    getNoteLogIds() {
+      return withStore(NOTE_LOGS_STORE, 'readonly', (store) => promisifyRequest(store.getAllKeys()))
+    },
+
+    getNoteLogsById(ids) {
+      return dbGetMany(NOTE_LOGS_STORE, ids)
+    },
+
+    // The server has them.
+    deleteNoteLogs(ids) {
+      return withStore(NOTE_LOGS_STORE, 'readwrite', (store) => Promise.all(ids.map((id) => promisifyRequest(store.delete(id)))))
+    },
+
+    // The segments of the sessions started before `epochMs`, by their ids,
+    // which open on it (noteLog.js).
+    deleteNoteLogsBefore(epochMs) {
+      return withStore(NOTE_LOGS_STORE, 'readwrite', (store) => promisifyRequest(store.delete(IDBKeyRange.upperBound(String(epochMs), true))))
     },
 
     // Swap the whole aggregates store for `aggregates`, in one transaction.

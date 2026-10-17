@@ -13,20 +13,24 @@
 // sync there, a profile removed anywhere is dropped everywhere, and its rows
 // on the server go with it.
 //
-// What goes up — sessions, fingerings, each profile's name and avatar — is
-// what the privacy policy says the account holds (privacy.accountBody): sync
-// anything more and that text has to say so too.
+// What goes up — sessions and the notes played in them, fingerings, each
+// profile's name and avatar — is what the privacy policy says the account
+// holds (privacy.accountBody): sync anything more and that text has to say so
+// too.
 //
 // runSync() takes its dependencies (the supabase client, storage,
 // practiceTracker) so it stays page-agnostic.
 import { currentProfileId, listProfiles, mergeProfiles, scopedKey } from './profiles.js'
 import { NEVER_SYNCED } from './storage.js'
+import { sessionOfSegment } from './noteLog.js'
 import { knownNames } from './aggregates.js'
 
 // Per profile: the throttle in autoSync.js reads it, and a profile just
 // switched to has its own catching up to do.
 const lastSyncKey = (profileId) => scopedKey('arabesque:last-sync', profileId)
 const CHUNK = 200
+// A note log segment is up to a few dozen kilobytes (noteLog.js).
+const NOTE_LOG_CHUNK = 50
 // PostgREST answers a request with at most max_rows rows (1000 on this
 // project, Supabase's default) and says nothing of the rest. A profile's
 // session ids outgrow that, one a run, and every id past the cut read as
@@ -182,11 +186,40 @@ export async function runSync({ supabase, storage, practiceTracker, userId = nul
   // --- Fingerings ---
   const { fingeringsPushed, fingeringsPulled } = await syncFingerings({ supabase, storage, uid, profileId, remoteStamps: stampsRead.data })
 
+  // --- Note logs (up only) ---
+  const onServer = new Set([...remoteIds, ...toPush.map((s) => s.id)])
+  const notesPushed = await pushNoteLogs({ supabase, storage, uid, profileId, onServer })
+
   // --- Recompute aggregates locally if we pulled any sessions ---
   if (pulled > 0) await practiceTracker.rebuildAggregates()
 
   setLastSync(new Date().toISOString(), profileId)
-  return { pushed: toPush.length, pulled, fingeringsPushed, fingeringsPulled, profilesChanged }
+  return { pushed: toPush.length, pulled, fingeringsPushed, fingeringsPulled, notesPushed, profilesChanged }
+}
+
+// The notes played in a session go up once the session is on the server — the
+// one under way waits for its end, and a session never filed (nothing played
+// in it worth keeping) never sends its own — and never come down: they are for
+// reading a practice session after the fact, on the server, not for another
+// device. Each chunk leaves this device as soon as the server has it, so a
+// sync cut short sends only the rest next time.
+async function pushNoteLogs({ supabase, storage, uid, profileId, onServer }) {
+  const ready = (await storage.getNoteLogIds()).filter((id) => onServer.has(sessionOfSegment(id)))
+  for (const ids of chunk(ready, NOTE_LOG_CHUNK)) {
+    const part = await storage.getNoteLogsById(ids)
+    const rows = part.map(({ id, sessionId, startedAt, ...data }) => ({
+      user_id: uid,
+      profile_id: profileId,
+      id,
+      session_id: sessionId,
+      started_at: startedAt,
+      data,
+    }))
+    const { error } = await supabase.from('session_notes').upsert(rows)
+    if (error) throw error
+    await storage.deleteNoteLogs(ids)
+  }
+  return ready.length
 }
 
 // A score's fingerings travel as one record, and each side used to replace the

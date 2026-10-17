@@ -45,6 +45,17 @@ export function onForeground(fn) {
   document.addEventListener(NATIVE_FOREGROUND_EVENT, fn)
 }
 
+// The page going away or to the background: a tab left, the page closed, or
+// the app sent to the background, where iOS can end it without another word.
+// What has to be kept before that happens wants these triggers. Both can fire
+// for a single departure, so a caller has to be idempotent.
+export function onBackground(fn) {
+  window.addEventListener('pagehide', fn)
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') fn()
+  })
+}
+
 // Pixel offset for the currently-visible sticky bars (topbar + modebar +
 // optional mode-context band), used both by scrollToMeasure() and by the
 // CSS scroll-margin-top via the --pt-sticky-offset variable.

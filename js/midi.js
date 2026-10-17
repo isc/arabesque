@@ -5,6 +5,8 @@ import { recordError } from './errorLog.js'
 
 const NOTE_ON = 144
 const NOTE_OFF = 128
+const CONTROL_CHANGE = 176
+const SUSTAIN_PEDAL = 64
 const NOTE_NAMES = 'C C# D D# E F F# G G# A A# B'.split(' ')
 
 // Two console.log per MIDI event, unconditionally. Cheap with DevTools shut, not
@@ -29,8 +31,11 @@ let state = {
 }
 
 let callbacks = {
+  // (note, velocity)
   onNotePlayed: null,
   onNoteReleased: null,
+  // The sustain pedal's value, 0 to 127: what the note log keeps of it.
+  onPedal: null,
   // A port coming or going on its own, without connectMIDI() being called. The
   // page mirrors this state in its own UI, and nothing else tells it: on iOS
   // the keyboard is paired in the system sheet, so the connection always
@@ -188,13 +193,14 @@ function parseMidiMessage(data) {
   const statusType = status & 0xf0
 
   if (statusType === NOTE_ON && velocity > 0 && note < 128) {
-    callbacks.onNotePlayed?.(note)
+    callbacks.onNotePlayed?.(note, velocity)
     if (LOG_NOTES) console.log('Note ON detected:', noteName(note))
   }
   if (statusType === NOTE_OFF || (statusType === NOTE_ON && velocity === 0)) {
     callbacks.onNoteReleased?.(note)
     if (LOG_NOTES) console.log('Note OFF detected:', noteName(note))
   }
+  if (statusType === CONTROL_CHANGE && note === SUSTAIN_PEDAL) callbacks.onPedal?.(velocity)
 }
 
 // A MIDI note number as the log names it: "C#4".
