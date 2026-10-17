@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { measuresToReinforce, hasHotSpots } from '../../public/js/reinforcement.js'
+import { measuresToReinforce } from '../../public/js/reinforcement.js'
 
 describe('measures to reinforce', () => {
   // Sessions as the ranking takes them: oldest first, one entry per measure.
@@ -148,49 +148,5 @@ describe('measures to reinforce', () => {
   it('needs three sessions before calling a measure stagnant', () => {
     const twoSessions = [session({ 0: [[1]] }), session({ 0: [[1]] })]
     expect(measuresToReinforce(twoSessions)[0].stagnant).toBe(false)
-  })
-
-  // The library's 🎯 chip: a bar reinforcement would offer that also stands
-  // out from the rest of the piece.
-  describe('hot spots', () => {
-    const clean = [[0], [0], [0]]
-
-    it('finds a bar fumbled far more often than the rest of the piece', () => {
-      expect(hasHotSpots([session({ 0: clean, 1: clean, 2: [[1], [1], [0]] })])).toBe(true)
-    })
-
-    it('finds none in a piece fumbled evenly, though reinforcement has bars to offer', () => {
-      const even = [session({ 0: [[1], [0], [1]], 1: [[1], [1], [0]], 2: [[0], [1], [1]] })]
-      expect(measuresToReinforce(even)).not.toEqual([])
-      expect(hasHotSpots(even)).toBe(false)
-    })
-
-    it('needs more than one unlucky attempt', () => {
-      expect(hasHotSpots([session({ 0: [[0]], 1: [[0]], 2: [[1]] })])).toBe(false)
-      expect(hasHotSpots([session({ 0: clean, 1: clean, 2: [[1], [1], [1]] })])).toBe(true)
-    })
-
-    it('lets a bar go once it has been played cleanly three times in a row', () => {
-      const steady = [[0], [0], [0], [0], [0], [0]]
-      expect(hasHotSpots([session({ 0: steady, 1: [[1], [1], [0], [0]] })])).toBe(true)
-      expect(hasHotSpots([session({ 0: steady, 1: [[1], [1], [0], [0], [0]] })])).toBe(false)
-    })
-
-    it('finds none without sessions or without a fumble', () => {
-      expect(hasHotSpots([])).toBe(false)
-      expect(hasHotSpots([session({ 0: clean })])).toBe(false)
-    })
-
-    it('asks of both hands unless told otherwise', () => {
-      const attempts = (wrongNotes, hands) => wrongNotes.map((w) => ({ wrongNotes: w, clean: w === 0, hands }))
-      const sessions = [{
-        measures: [
-          { sourceMeasureIndex: 0, attempts: [...attempts([0, 0, 0], 'both'), ...attempts([0, 0, 0], 'left')] },
-          { sourceMeasureIndex: 1, attempts: [...attempts([0, 0, 0], 'both'), ...attempts([1, 1, 1], 'left')] },
-        ],
-      }]
-      expect(hasHotSpots(sessions)).toBe(false)
-      expect(hasHotSpots(sessions, 'left')).toBe(true)
-    })
   })
 })

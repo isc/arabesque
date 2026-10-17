@@ -57,13 +57,9 @@ export default {
   // Ce que sélectionne le filtre en cours, sous la liste filtrée de la
   // bibliothèque. Les nombres viennent des constantes que les règles elles-mêmes
   // appliquent : STATUS_THRESHOLDS et le plancher de pratique
-  // (aggregates.js), la fenêtre de renforcement et les seuils des mesures
-  // qui accrochent (HOT_SPOT_*, reinforcement.js), et STALE_DAYS (library.js).
+  // (aggregates.js), et STALE_DAYS (library.js).
   criteria: {
     filterHeading: 'Ce que sélectionne {filter}',
-    reinforceHotSpot: 'Une mesure ratée au moins {factor} fois plus souvent que la moyenne du morceau, sur ses {n} dernières séances',
-    reinforceAttempts: 'Tentée au moins {n} fois',
-    reinforceClean: 'Et pas encore rejouée proprement {n} passages de suite, ni réussie à l’entraînement',
     stalePractised: 'Travaillée au moins {n} min en tout',
     staleSilent: 'Et pas rouverte depuis plus de {n} jours',
     heading: 'Pour passer en {status}',
@@ -90,7 +86,6 @@ export default {
     yearsAgo: 'il y a {n} ans',
   },
   focus: {
-    reinforce: '🎯 À renforcer',
     nearMastery: '⭐ Proches du répertoire',
     stale: '💤 Pas joué depuis {n} j',
   },
