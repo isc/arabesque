@@ -59,14 +59,10 @@ export default {
   },
   // What the current filter selects, shown under the filtered library list.
   // The numbers come from the constants the rules themselves judge by:
-  // STATUS_THRESHOLDS and the practice floor (aggregates.js), the
-  // reinforcement window and the hot-spot thresholds (HOT_SPOT_*,
-  // reinforcement.js), and STALE_DAYS (library.js).
+  // STATUS_THRESHOLDS and the practice floor (aggregates.js), and STALE_DAYS
+  // (library.js).
   criteria: {
     filterHeading: 'What {filter} selects',
-    reinforceHotSpot: 'A bar fumbled at least {factor} times as often as the piece on average, over its last {n} sessions',
-    reinforceAttempts: 'Attempted at least {n} times',
-    reinforceClean: 'And not yet played cleanly {n} attempts in a row, nor completed in training',
     stalePractised: 'Practised for at least {n} min in total',
     staleSilent: 'And not opened again for more than {n} days',
     heading: 'To reach {status}',
@@ -93,7 +89,6 @@ export default {
     yearsAgo: '{n}y ago',
   },
   focus: {
-    reinforce: '🎯 To reinforce',
     nearMastery: '⭐ Near repertoire',
     stale: '💤 Not played in {n}d',
   },

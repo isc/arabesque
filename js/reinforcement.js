@@ -1,12 +1,11 @@
 // Which bars of a score need work: the ones reinforcement mode offers on the
-// score page, and the hot spots that earn a piece the library's 🎯 chip. Both
-// are read off the score's most recent sessions, each hand selection apart —
-// bars fumbled there and not played cleanly since, a bar played with the
-// right notes and a hole in it being fumbled as much as one with a wrong note
-// (steadiness.js): the drill does not fill its dot either. Pure: sessions in, bars
-// out; the tracker hands over one score's sessions (practiceTracker.js), the
-// library every score's.
-import { TWO_HANDS, NO_HANDS, attemptHands } from './hands.js'
+// score page, read off the score's most recent sessions, each hand selection
+// apart — bars fumbled there and not played cleanly since, a bar played with
+// the right notes and a hole in it being fumbled as much as one with a wrong
+// note (steadiness.js): the drill does not fill its dot either. Pure: sessions
+// in, bars out; the tracker hands over the score's sessions
+// (practiceTracker.js).
+import { NO_HANDS, attemptHands } from './hands.js'
 import { byStartedAt } from './days.js'
 
 // Reinforcement suggestions look at this many of a score's most recent
@@ -23,13 +22,6 @@ export const REINFORCEMENT_CLEAN_PASSES = 3
 
 // Sessions a measure must span before its error rate can be called stagnant.
 const STAGNATION_MIN_SESSIONS = 3
-
-// What makes a bar stand out from the rest of its piece, for the library's 🎯
-// chip: fumbled at least HOT_SPOT_FACTOR times as often as the piece as a
-// whole over the same window, on at least HOT_SPOT_MIN_ATTEMPTS attempts — one
-// unlucky pass proves nothing.
-export const HOT_SPOT_FACTOR = 2
-export const HOT_SPOT_MIN_ATTEMPTS = 3
 
 // What reinforcement mode offers on the score page. Given a score's sessions
 // in any order, the measures it would drill right now, best candidates first.
@@ -50,37 +42,7 @@ export function measuresToReinforce(sessions, { hands, limit = 5 } = {}) {
     .slice(0, limit)
 }
 
-// The library's question, asked of every score it lists: is this piece worth
-// opening to reinforce? Not "does reinforcement mode offer anything" — at the
-// error rates real practice runs at (a bar fumbled four times in ten is
-// ordinary), some bar is always short of its clean streak, and a chip asking
-// that held every piece ever played. What earns the chip is a hot spot: a bar
-// reinforcement would offer that also stands out from the rest of the piece.
-// A piece fumbled everywhere has none — the whole piece is the work there, not
-// a handful of bars — and neither does one played evenly well.
-//
-// Asked of both hands by default: the score page opens with both ticked, so
-// that is the badge the chip sends the player to, and a hand practised alone
-// is not pooled with passes it had no part in.
-export function hasHotSpots(sessions, hands = TWO_HANDS) {
-  const recent = recentSessions(sessions)
-  let attempts = 0
-  let fumbles = 0
-  for (const { bySession } of measureHistories(recent, hands)) {
-    for (const session of bySession) {
-      attempts += session.length
-      fumbles += countFumbles(session)
-    }
-  }
-  const threshold = (HOT_SPOT_FACTOR * fumbles) / attempts
-
-  for (const bar of reinforceCandidates(recent, hands)) {
-    if (bar.attempts >= HOT_SPOT_MIN_ATTEMPTS && bar.fumbles / bar.attempts >= threshold) return true
-  }
-  return false
-}
-
-// The window that makes both rules forget: only the last
+// The window that makes the suggestions forget: only the last
 // REINFORCEMENT_WINDOW_SESSIONS sessions of a score count, so a bar massacred
 // six months ago and left alone says nothing today.
 function recentSessions(sessions) {
