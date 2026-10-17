@@ -114,10 +114,12 @@ const attempt = {
 const steadiness = createSteadiness()
 
 // A note that came after a hole. Unlike the played marks it outlives the
-// traversal that left it — the run is over, and where it stopped is what the
-// next one has to work on — and goes when the note is played again. Strict
-// mode, whose off-tempo notes have the same colour, puts it away
-// (clearLateMarks).
+// traversal that left it, the run's end and the beat before a repetition
+// starts over included — where it stopped is what the player looks at before
+// going again — and goes, every one of them, with the first note of the next
+// traversal: left up through it, the marks of the last repetition ahead of
+// the player read as faults of the one under way. Strict mode, whose off-tempo
+// notes have the same colour, puts them away (clearLateMarks).
 const LATE = 'late-note'
 
 // Padding around measure notes for clickable area
@@ -1101,6 +1103,7 @@ function runUnderway() {
 // note that was owed flashes.
 function handleWrongNote(measureData, expectedNote, midiNote) {
   spoilRepetition()
+  steadiness.fault()
   // A wrong note can be the first thing played in a measure, but not the
   // first of a run: with no attempt open the journal has nothing to count it in.
   if (!attempt.open && runUnderway()) startAttempt(measureData)
@@ -1143,7 +1146,6 @@ function markTimestampGroupPlayed(group) {
     const notehead = svgNotehead(noteData)
     // Turn notes without visual noteheads (noteheadIndex = -1) have no element
     setMark(noteData, 'active-note', false, notehead)
-    setMark(noteData, LATE, false, notehead)
     setMark(noteData, 'played-note', true, notehead)
     noteData.played = true
     noteData.active = false
@@ -1370,6 +1372,7 @@ function runsOn(next) {
 // Hands the attack just completed to the steadiness count, and acts on what
 // that judged.
 function registerAttack(measureData, group) {
+  if (!steadiness.underway) clearLateMarks()
   const [{ timestamp, note }] = group
   const verdicts = steadiness.attack({
     at: performance.now(),
@@ -1384,12 +1387,13 @@ function registerAttack(measureData, group) {
   applySteadiness(verdicts)
 }
 
-// A hole marks the notes that came late and, in training, spoils the
-// repetition the way a wrong note does. Joins and holes go to the journal.
+// A hole marks the notes that came late — the ones struck, not a tie held
+// through it — and, in training, spoils the repetition the way a wrong note
+// does. Joins and holes go to the journal.
 function applySteadiness(verdicts) {
   for (const { ref, ratio, hole, entry } of verdicts) {
     if (hole) {
-      for (const noteData of ref.notes) setMark(noteData, LATE, true)
+      for (const noteData of ref.notes) if (!noteData.isTieContinuation) setMark(noteData, LATE, true)
       spoilRepetition()
     }
     if (hole || entry) callbacks.onIntervalJudged?.({ sourceMeasureIndex: ref.sourceMeasureIndex, ratio, hole, entry })
