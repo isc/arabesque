@@ -29,6 +29,9 @@ const StemDirectionEnum = {
   Up: 0,
 }
 
+// The two fermatas among OSMD's articulations (ArticulationEnum)
+const FERMATAS = new Set([10, 11])
+
 // Diatonic note semitone offsets from C (C=0, D=2, E=4, F=5, G=7, A=9, B=11)
 // OSMD's fundamentalNote is the semitone offset of the note name (ignoring accidentals)
 const DIATONIC_NOTES = [0, 2, 4, 5, 7, 9, 11] // C, D, E, F, G, A, B
@@ -562,6 +565,9 @@ function extractNotesFromBars(bars) {
                 soundTs: soundFrom(note),
                 isGrace: voiceEntry.isGrace === true,
                 isAfterGrace: voiceEntry.GraceAfterMainNote === true,
+                // Held as long as the player likes: what follows it is no
+                // measure of their pace (steadiness.js).
+                fermata: voiceEntry.Articulations?.some((a) => FERMATAS.has(a.articulationEnum)) === true,
                 // Index of the notehead within the chord (for targeting individual noteheads in SVG)
                 noteheadIndex,
                 // The staff, and on a middle staff the stem: what handOfNote reads
@@ -626,7 +632,7 @@ function extractNotesFromBars(bars) {
 
 // Every note that decorates another rather than being written as one: grace
 // notes, the notes an ornament expands into, and the trill sentinel.
-function isOrnamentOrGrace(noteData) {
+export function isOrnamentOrGrace(noteData) {
   return Boolean(
     noteData.isGrace ||
     noteData.isTrillNote ||

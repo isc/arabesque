@@ -57,6 +57,7 @@ export function initPracticeTracker(storageInstance = null) {
     toggleMode,
     startMeasureAttempt,
     recordWrongNote,
+    recordSteadiness,
     endMeasureAttempt,
     recordStrictRun,
     markScoreCompleted,
@@ -328,6 +329,25 @@ export function initPracticeTracker(storageInstance = null) {
     currentMeasureAttempt.clean = false
   }
 
+  // What the engine judged of the pace (steadiness.js): `hesitations`, the
+  // holes in the measure, and `entryRatio`, the join into it as a multiple of
+  // the pace — 1 for a bar line played through, 3 for one that cost two notes'
+  // worth of waiting. Neither touches `clean`, which stays what it has always
+  // been, no wrong note, so that the history reads the same before and after.
+  // A verdict can come once the measure is over — the first intervals of a
+  // run are only judged once there are enough of them — so it goes on the
+  // latest attempt at that measure, open or filed. Nothing is written here:
+  // a verdict always comes from playing the measure under way, whose filing
+  // writes the session with it.
+  function recordSteadiness({ sourceMeasureIndex, ratio, hole, entry }) {
+    const target = currentMeasureAttempt?.sourceMeasureIndex === sourceMeasureIndex
+      ? currentMeasureAttempt
+      : currentSession?.measures.find((m) => m.sourceMeasureIndex === sourceMeasureIndex)?.attempts.at(-1)
+    if (!target) return
+    if (hole) target.hesitations = (target.hesitations ?? 0) + 1
+    if (entry && ratio != null) target.entryRatio = Math.round(ratio * 100) / 100
+  }
+
   // Closes the attempt with its own verdict: clean unless recordWrongNote() was
   // called since it opened. An attempt is one measure's, not the passage's: a
   // fumble in the third bar of a passage spoils the repetition, but the first
@@ -356,7 +376,7 @@ export function initPracticeTracker(storageInstance = null) {
   // itself right after: filing a whole run would otherwise write the session,
   // growing as it goes, once per measure.
   function recordMeasureAttempt(
-    { sourceMeasureIndex, startedAt, durationMs, wrongNotes = 0, clean = true, hands = TWO_HANDS },
+    { sourceMeasureIndex, startedAt, durationMs, wrongNotes = 0, clean = true, hands = TWO_HANDS, hesitations, entryRatio },
     { persist = true } = {}
   ) {
     if (!currentSession) return
@@ -367,7 +387,15 @@ export function initPracticeTracker(storageInstance = null) {
       currentSession.measures.push(measureEntry)
     }
 
-    measureEntry.attempts.push({ startedAt, durationMs, wrongNotes, clean, hands })
+    measureEntry.attempts.push({
+      startedAt,
+      durationMs,
+      wrongNotes,
+      clean,
+      hands,
+      ...(hesitations && { hesitations }),
+      ...(entryRatio != null && { entryRatio }),
+    })
 
     // Save session incrementally (don't await - fire and forget)
     if (persist) storage.saveSession({ ...currentSession })

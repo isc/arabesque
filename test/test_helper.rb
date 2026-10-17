@@ -720,9 +720,10 @@ class CapybaraTestBase < Minitest::Test
     assert_text "Départ à la mesure #{first} — cliquez sur la dernière mesure du passage."
   end
 
-  # The cursor moves a beat after the measure is finished (the engine pauses so
-  # the dot can be seen filling), so the next note has to wait for it — playing
-  # into a measure the cursor has not reached yet would count as a wrong note.
+  # At the end of a repetition the cursor moves a beat after the measure is
+  # finished (the engine pauses so the dot can be seen filling), so the next
+  # note has to wait for it — playing into a measure the cursor has not reached
+  # yet would count as a wrong note. A step further into a passage is immediate.
   def wait_for_training_cursor(measure_number)
     assert_selector %(svg rect.measure-click-area.selected[data-measure-index="#{measure_number - 1}"])
   end

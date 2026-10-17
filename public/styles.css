@@ -1858,6 +1858,10 @@ dialog > article > footer {
 
 /* SVG note coloring */
 svg g.vf-notehead.played-note path { fill: var(--pt-note-played); }
+/* A note that came after a hole in free play or training (steadiness.js): the
+   colour of strict mode's off-tempo notes, which say the same thing. Over the
+   played colour, under a key held down now. */
+svg g.vf-notehead.late-note path { fill: var(--pt-note-offtempo); }
 svg g.vf-notehead.active-note path { fill: var(--pt-note-active); }
 svg g.vf-notehead.expected-note path { fill: var(--pt-note-expected); }
 svg g.vf-notehead.offtempo-note path { fill: var(--pt-note-offtempo); }
