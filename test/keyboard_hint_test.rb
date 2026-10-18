@@ -109,13 +109,24 @@ class KeyboardHintTest < CapybaraTestBase
     3.times { play_note('G4') }
     assert_no_selector '.pt-keyhint'
 
+    assert_stays_down_on_the_next_score
+  end
+
+  # Feedback dea5ac23: a player who reads fluently was closing it at every
+  # session. "Ne plus l'afficher" puts it away beyond the day, and the ⚙️ menu
+  # is the way back.
+  def test_it_can_be_put_away_for_good_and_let_back_from_the_menu
     open_two_measures
-    with_clock_control do
-      3.times { play_note('G4') }
-      # Alpine reveals from a timer of its own.
-      advance_clock(100)
-      assert_keyboard_down
-    end
+    3.times { play_note('G4') }
+    click_on 'Ne plus l’afficher'
+    assert_no_selector '.pt-keyhint'
+    assert_stays_down_on_the_next_score
+
+    open_menu
+    assert_selector '.pt-popover button[aria-pressed="true"]', text: 'Jamais'
+    click_on 'Si besoin'
+    3.times { play_note('G4') }
+    assert_selector '.pt-keyhint__key.is-owed[data-midi="60"]'
   end
 
   # Feedback b7682019: the last note played, the cursor goes back to the top
@@ -195,6 +206,16 @@ class KeyboardHintTest < CapybaraTestBase
   # was seen not to reach the wait the keyboard counts from there.
   def assert_back_at_the_top
     assert_no_selector 'svg g.vf-notehead.played-note'
+  end
+
+  def assert_stays_down_on_the_next_score
+    open_two_measures
+    with_clock_control do
+      3.times { play_note('G4') }
+      # Alpine reveals from a timer of its own.
+      advance_clock(100)
+      assert_keyboard_down
+    end
   end
 
   # Down the way x-show puts it, rather than merely not visible: a strip

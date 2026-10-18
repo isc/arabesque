@@ -693,8 +693,10 @@ a:hover { text-decoration: underline; }
 .pt-select:hover { background-color: var(--pt-bg-elevated); }
 .pt-select:focus { outline: 2px solid color-mix(in srgb, var(--pt-accent) 30%, transparent); outline-offset: 1px; }
 
-/* FR/EN language switch: the landing's nav, and the ⚙️ menu. */
-.pt-langswitch {
+/* A segmented switch: a few exclusive choices in one pill, the one in force
+   pressed — FR/EN in the landing's nav and in the ⚙️ menu, and the helper
+   keyboard's setting there. */
+.pt-segmented {
   display: inline-flex;
   flex: 0 0 auto;
   border: 1px solid var(--pt-border);
@@ -702,7 +704,7 @@ a:hover { text-decoration: underline; }
   overflow: hidden;
   background: var(--pt-surface);
 }
-.pt-langswitch button {
+.pt-segmented button {
   flex: 0 0 auto;
   padding: 8px 14px;
   font-size: var(--pt-font-size-sm);
@@ -713,7 +715,7 @@ a:hover { text-decoration: underline; }
   border: none;
   border-radius: 0;
 }
-.pt-langswitch button[aria-pressed="true"] {
+.pt-segmented button[aria-pressed="true"] {
   background: var(--pt-accent);
   color: var(--pt-text-inverse);
 }
@@ -1140,12 +1142,12 @@ a:hover { text-decoration: underline; }
    use is spared: it holds the accent, and this selector is heavy enough to
    take it off, where the .pt-popover button rule it replaces was not. */
 .pt-popover .pt-menu-item:hover,
-.pt-popover .pt-langswitch button:not([aria-pressed="true"]):hover { background: var(--pt-surface-2); }
+.pt-popover .pt-segmented button:not([aria-pressed="true"]):hover { background: var(--pt-surface-2); }
 .pt-menu-dot { margin-left: auto; width: 8px; height: 8px; border-radius: 50%; background: var(--pt-accent); }
 
-/* Keep the FR/EN pill compact instead of stretching to the popover's full
-   width (the section is a column flex, which would otherwise stretch it). */
-.pt-popover .pt-langswitch { align-self: flex-start; }
+/* Keep the switches compact instead of stretching to the popover's full
+   width (the section is a column flex, which would otherwise stretch them). */
+.pt-popover .pt-segmented { align-self: flex-start; }
 
 /* =============================================================================
    Data page (backup + account)
@@ -1941,6 +1943,12 @@ svg g.vf-notehead.wrong-note path { animation: pt-wrong-note-flash 700ms; }
   font-weight: 700;
 }
 .pt-keyhint__hand { color: var(--pt-text-subtle); font-size: var(--pt-font-size-xs); }
+/* Put away for good. On a phone the bar has no room for it beside the notes
+   it is there to name; the ⚙️ menu offers the same choice. */
+.pt-keyhint__never { color: var(--pt-text-muted); font-size: var(--pt-font-size-xs); }
+@media (max-width: 600px) {
+  .pt-keyhint__never { display: none; }
+}
 .pt-keyhint__close { width: var(--pt-keyhint-bar); height: var(--pt-keyhint-bar); }
 /* A score spanning more keys than a phone is wide scrolls sideways inside the
    strip, never the page; keyboardHint.js keeps the lit keys in the middle.

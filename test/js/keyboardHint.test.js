@@ -72,9 +72,9 @@ describe('hintStep', () => {
     expect(state.visible).toBe(false)
   })
 
-  it('starts over at the end of a run, as on a piece just opened, the ✕ kept', () => {
-    expect(hintStep(revealed(), { type: 'restart' })).toEqual(initialHint())
-    expect(run([{ type: 'dismiss' }, { type: 'restart' }], revealed()).dismissed).toBe(true)
+  it('starts over at the end of a run, as on a piece just opened, put away as the setting says', () => {
+    expect(hintStep(revealed(), { type: 'restart', dismissed: false })).toEqual(initialHint())
+    expect(hintStep(revealed(), { type: 'restart', dismissed: true })).toEqual({ ...initialHint(), dismissed: true })
   })
 
   it('goes away once the notes come promptly and clean for a stretch', () => {
@@ -105,8 +105,8 @@ describe('hintStep', () => {
     expect(state.streak).toBe(0)
   })
 
-  it('stays away once dismissed', () => {
-    let state = hintStep(revealed(), { type: 'dismiss' })
+  it('stays away once put away', () => {
+    let state = hintStep(revealed(), { type: 'restart', dismissed: true })
     expect(state.visible).toBe(false)
     state = run([tick('2:0', 0), wrong(1), wrong(2), wrong(3), tick('2:0', HINT_HESITATION_MS * 3)], state)
     expect(state.visible).toBe(false)

@@ -21,6 +21,7 @@ import { feedbackEnabled, buildBaseContext, submitFeedback, defaultFeedbackEmail
 import { getLang, locale } from './i18n.js'
 import { INSTALL_AVAILABLE_EVENT, installAvailable, promptInstall } from './installPrompt.js'
 import { nativePairingAvailable, openNativePairing } from './midi.js'
+import { keyHintAllowed, storeKeyHintAllowed } from './keyHintSetting.js'
 import { recordError } from './errorLog.js'
 
 const CHANGELOG_SEEN_KEY = 'arabesque:changelog-seen'
@@ -77,6 +78,16 @@ export function headerMenu() {
     pairMIDI() {
       this.closeMenu()
       openNativePairing()
+    },
+
+    // --- On-screen keyboard (keyHintSetting.js) ---
+    // In the menu, on every page, because it is the profile's choice rather
+    // than the score's; the strip calls this too, to put itself away for good.
+    // The strip itself hears it through KEY_HINT_SETTING_EVENT.
+    keyHintAllowed: keyHintAllowed(),
+    setKeyHintAllowed(allowed) {
+      storeKeyHintAllowed(allowed)
+      this.keyHintAllowed = allowed
     },
 
     // --- Changelog ("Nouveautés") ---
@@ -194,9 +205,17 @@ const TRIGGER_HTML = `
     <hr />
     <div class="pt-popover__section">
       <h4 x-text="$t('menu.language')">Langue</h4>
-      <div class="pt-langswitch" role="group" aria-label="Language">
+      <div class="pt-segmented" role="group" aria-label="Language">
         <button type="button" data-set-lang="fr">FR</button>
         <button type="button" data-set-lang="en">EN</button>
+      </div>
+    </div>
+    <hr />
+    <div class="pt-popover__section">
+      <h4 x-text="$t('score.keyHintAria')">Clavier d’aide</h4>
+      <div class="pt-segmented" role="group" :aria-label="$t('score.keyHintAria')">
+        <button type="button" :aria-pressed="String(keyHintAllowed)" @click="setKeyHintAllowed(true)" x-text="$t('menu.keyHintAllowed')">Si besoin</button>
+        <button type="button" :aria-pressed="String(!keyHintAllowed)" @click="setKeyHintAllowed(false)" x-text="$t('menu.keyHintNever')">Jamais</button>
       </div>
     </div>
   </div>
