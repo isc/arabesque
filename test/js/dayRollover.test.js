@@ -6,11 +6,10 @@ import { installDocument } from './support/browserGlobals.js'
 
 // The page globals dayRollover.js touches (the suite runs in node).
 function installPage() {
-  const { document, setVisibility } = installDocument()
+  const { setVisibility, wake } = installDocument()
   return {
     comeBack: (state = 'visible') => setVisibility(state),
-    // What the iOS wrapper dispatches on didBecomeActive.
-    wake: () => document.dispatchEvent(new Event(NATIVE_FOREGROUND_EVENT)),
+    wake,
   }
 }
 

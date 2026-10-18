@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { fakePort, installMIDIAccess } from './support/browserGlobals.js'
 
 // midi.js holds the connection and its callbacks at module scope, so each test
 // takes a fresh copy of the module rather than what the one before it left
@@ -9,23 +10,7 @@ const freshMidi = async () => (await import('../../public/js/midi.js')).initMidi
 // iOS, where Bluetooth MIDI is paired from inside the app, and the reason the
 // library page's "play the opening notes to open a score" feature was dead
 // there while note validation worked.
-function fakePort(name) {
-  return { id: name, name, type: 'input', state: 'connected', onmidimessage: null }
-}
-
-function fakeAccess({ inputs = [] } = {}) {
-  return {
-    inputs: new Map(inputs.map((p) => [p.id, p])),
-    outputs: new Map(),
-    onstatechange: null,
-  }
-}
-
 describe('connectMIDI with no device at page load', () => {
-  // `navigator` is getter-only in Node, hence stubGlobal rather than assignment.
-  const stubNavigator = (access) =>
-    vi.stubGlobal('navigator', { requestMIDIAccess: async () => access })
-
   beforeEach(() => {
     vi.resetModules()
     vi.stubGlobal('alert', () => {})
@@ -35,8 +20,7 @@ describe('connectMIDI with no device at page load', () => {
   })
 
   it('still listens for devices that arrive later', async () => {
-    const access = fakeAccess({ inputs: [] })
-    stubNavigator(access)
+    const access = installMIDIAccess()
 
     const midi = await freshMidi()
     const played = []
@@ -58,8 +42,7 @@ describe('connectMIDI with no device at page load', () => {
 
   it('connects straight away when a device is already there', async () => {
     const piano = fakePort('FP-30')
-    const access = fakeAccess({ inputs: [piano] })
-    stubNavigator(access)
+    const access = installMIDIAccess([piano])
 
     const midi = await freshMidi()
     await midi.connectMIDI({ silent: true, autoSelectFirst: true })
@@ -74,8 +57,7 @@ describe('connectMIDI with no device at page load', () => {
   // leaves the header still offering to connect until the user asks a second
   // time. That second tap is what feedback 1ef775cc was about.
   it('tells the page when a keyboard connects or drops on its own', async () => {
-    const access = fakeAccess({ inputs: [] })
-    stubNavigator(access)
+    const access = installMIDIAccess()
 
     const midi = await freshMidi()
     const seen = []
