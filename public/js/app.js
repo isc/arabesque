@@ -303,7 +303,7 @@ export function midiApp() {
       // only depended on when a new session starts (see loadScoreFromURL). The
       // MIDI handshake is nobody's prerequisite at all.
       const trackerReady = practiceTracker.init()
-      midiReady = midi.connectMIDI({ silent: true, autoSelectFirst: true })
+      midiReady = midi.connectAtLoad()
         .then((result) => {
           this.syncMidiState()
           if (result?.status === 'unsupported' && !noMidiDismissed()) this.showNoMidiModal = true
