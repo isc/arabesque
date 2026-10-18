@@ -81,6 +81,29 @@ describe('practiceTracker', () => {
     })
   })
 
+  // A join is the bar line's: it is filed apart from the holes inside the bar,
+  // for reinforcement to drill the two bars together (reinforcement.js).
+  it('files a join apart from the holes inside the bar', async () => {
+    tracker.startSession('/scores/test.xml', 'Test', 'Composer', 'free')
+    tracker.startMeasureAttempt(1)
+    tracker.recordSteadiness({ sourceMeasureIndex: 1, ratio: null, hole: false, entry: true, joined: true })
+    tracker.recordSteadiness({ sourceMeasureIndex: 1, ratio: 3.456, hole: true, entry: true })
+    tracker.recordSteadiness({ sourceMeasureIndex: 1, ratio: 2.5, hole: true, entry: false })
+    await tracker.endMeasureAttempt()
+    // A wrong key on the way in, then the bar's first note.
+    tracker.startMeasureAttempt(2)
+    tracker.recordWrongNote()
+    tracker.recordSteadiness({ sourceMeasureIndex: 2, ratio: null, hole: false, entry: true, joined: true })
+    tracker.recordWrongNote()
+    await tracker.endMeasureAttempt()
+
+    const [first, second] = tracker.getCurrentSession().measures.map((m) => m.attempts[0])
+    expect(first).toMatchObject({ joined: true, entryRatio: 3.46, entryHole: true, hesitations: 1 })
+    expect(second).toMatchObject({ joined: true, entryWrongNotes: 1, wrongNotes: 2 })
+    expect(second).not.toHaveProperty('entryRatio')
+    expect(second).not.toHaveProperty('hesitations')
+  })
+
   // A session nothing was played in changes hands: nothing to file, nothing
   // to sync.
   it('toggleMode files nothing for a session with nothing played in it', async () => {

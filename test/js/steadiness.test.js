@@ -52,18 +52,19 @@ describe('writtenBetween', () => {
 })
 
 describe('createSteadiness', () => {
-  it('finds no hole in an even run, and reports every join as one beat long', () => {
+  it('finds no hole in an even run, and reports every join, entered then judged one beat long', () => {
     const { verdicts } = play(semiquavers(48))
     expect(holes(verdicts)).toEqual([])
-    const joins = verdicts.filter((v) => v.entry)
-    expect(joins.map((v) => v.ref)).toEqual([16, 32])
-    for (const join of joins) expect(join.ratio).toBe(1)
+    expect(verdicts.filter((v) => v.joined).map((v) => v.ref)).toEqual([16, 32])
+    const judged = verdicts.filter((v) => v.entry && !v.joined)
+    expect(judged.map((v) => v.ref)).toEqual([16, 32])
+    for (const join of judged) expect(join.ratio).toBe(1)
   })
 
   it('catches the bar line that stops the run, both bars being clean', () => {
     const { verdicts } = play(semiquavers(32, { gaps: { 16: 900 } }))
     expect(holes(verdicts)).toEqual([16])
-    expect(verdicts.find((v) => v.ref === 16)).toMatchObject({ entry: true, ratio: 3 })
+    expect(verdicts.find((v) => v.ref === 16 && !v.joined)).toMatchObject({ entry: true, ratio: 3 })
   })
 
   it('weighs an interval against what the score writes there', () => {
@@ -117,7 +118,7 @@ describe('createSteadiness', () => {
     const after = semiquavers(16, { ms: 300, tempo: 120, from: 16 }).map((a) => ({ ...a, at: a.at + before.at(-1).at + 1500 }))
     const { verdicts } = play([...before, ...after])
     expect(holes(verdicts)).toEqual([])
-    expect(verdicts.some((v) => v.ref === 16)).toBe(false)
+    expect(verdicts.filter((v) => v.ref === 16).map((v) => v.ratio)).toEqual([null])
   })
 
   it('holds no one to the pace through an ornament or out of a fermata', () => {
@@ -137,6 +138,19 @@ describe('createSteadiness', () => {
     })
     expect(holes(verdicts)).toEqual([])
     expect(verdicts.some((v) => v.ref === 10)).toBe(false)
+  })
+
+  // The leap down into bar 33 of the C minor prelude, played an octave off:
+  // entered, and its pace not judged.
+  it('reports a bar entered after a wrong note, unjudged', () => {
+    const attacks = semiquavers(32, { gaps: { 16: 900 } })
+    const steadiness = createSteadiness()
+    const verdicts = attacks.flatMap((attack, i) => {
+      if (i === 16) steadiness.fault()
+      return steadiness.attack(attack)
+    })
+    expect(verdicts.filter((v) => v.ref === 16)).toEqual([{ ref: 16, ratio: null, hole: false, entry: true, joined: true }])
+    expect(holes(verdicts)).toEqual([])
   })
 
   it('takes nothing for a join it cannot measure', () => {

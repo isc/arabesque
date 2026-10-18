@@ -1166,8 +1166,13 @@ export function midiApp() {
     // for. `words` as withHands takes it: the visible label says MD, the name
     // read aloud says the hand in full.
     reinforceLabel(words) {
-      const measures = this.measuresToReinforce
-      return withHands(tn('score.reinforce', measures.length), measures[0]?.hands ?? TWO_HANDS, words)
+      const items = this.measuresToReinforce
+      const joins = items.filter((item) => item.join).length
+      const bars = items.length - joins
+      const barsText = tn('journal.measuresCount', bars)
+      const joinsText = tn('score.joinsCount', joins)
+      const what = !joins ? barsText : !bars ? joinsText : t('score.reinforceBoth', { bars: barsText, joins: joinsText })
+      return withHands(t('score.reinforce', { what }), items[0]?.hands ?? TWO_HANDS, words)
     },
 
     // From free play or from the strict tab, mid-piece or not: setMode puts

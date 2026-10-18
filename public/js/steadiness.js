@@ -59,7 +59,10 @@ export function writtenBetween(from, to) {
 //
 // Every call returns the verdicts it reached, as { ref, ratio, hole, entry }:
 // the interval as a multiple of the reference, whether that is a hole, and
-// whether it crosses a bar line — the join into the bar `ref` is in.
+// whether it crosses a bar line — the join into the bar `ref` is in. A bar
+// entered from the one before also says so as it is entered, judged or not:
+// { ref, entry, joined: true, ratio: null } — with a wrong note on the way in,
+// never judged at all.
 export function createSteadiness() {
   // The last attack, which the next interval starts from.
   let previous = null
@@ -101,6 +104,9 @@ export function createSteadiness() {
     previous = next
     faulted = false
     if (!from) return verdicts
+    // The way into a bar from the one before, in the same traversal: played,
+    // whatever its pace turns out to be.
+    if (next.measure === from.measure + 1) verdicts.push({ ref: next.ref, ratio: null, hole: false, entry: true, joined: true })
     // A new tempo marked in the score is a new pace to measure against: the
     // Presto of the C minor prelude, or the ritardando MuseScore writes into a
     // bar as a run of tempi.

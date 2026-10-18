@@ -1,16 +1,18 @@
 require_relative 'test_helper'
 
-# 🎯 Renforcer: the measures fumbled in a run, offered back as a training drill.
+# 🎯 Renforcer: the bars and joins fumbled in a run, offered back as a training
+# drill. repeat-endings.xml has one note a bar, so a wrong note there is one on
+# the way into its bar: the join is what is offered, drilled as bars 1 and 2.
 class ReinforcementTest < CapybaraTestBase
   def test_reinforcement_is_offered_before_the_score_has_been_played_through
     # Two measures in: the rest of the piece still lies ahead — nothing here
     # is a playthrough.
     open_with_the_second_bar_fumbled
 
-    assert_text 'Renforcer 1 mesure'
+    assert_text 'Renforcer 1 enchaînement'
     assert_no_text 'Partition terminée'
 
-    click_on 'Renforcer 1 mesure'
+    click_on 'Renforcer 1 enchaînement'
     assert_text 'Mode Entraînement Actif'
     assert_selector 'svg rect.measure-click-area.selected'
 
@@ -27,15 +29,15 @@ class ReinforcementTest < CapybaraTestBase
     # and saying so, since it is not the piece played in full.
     uncheck 'Main gauche'
     play_notes(%w[C4 E4 D4])
-    assert_selector '.pt-reinforce-badge', text: 'Renforcer 1 mesure · MD'
-    assert_selector '.pt-reinforce-badge[aria-label="🎯 Renforcer 1 mesure · main droite"]'
+    assert_selector '.pt-reinforce-badge', text: 'Renforcer 1 enchaînement · MD'
+    assert_selector '.pt-reinforce-badge[aria-label="🎯 Renforcer 1 enchaînement · main droite"]'
 
     # Both hands back: nothing was fumbled two-handed (feedback 0868d96f).
     check 'Main gauche'
     assert_no_selector '.pt-reinforce-badge'
 
     uncheck 'Main gauche'
-    assert_selector '.pt-reinforce-badge', text: 'Renforcer 1 mesure · MD'
+    assert_selector '.pt-reinforce-badge', text: 'Renforcer 1 enchaînement · MD'
   end
 
   def test_reinforcement_mode_after_playthrough_with_mistakes
@@ -61,18 +63,19 @@ class ReinforcementTest < CapybaraTestBase
     click_on 'Close'
 
     # Verify reinforcement link is visible at the top
-    assert_text 'Renforcer 1 mesure'
+    assert_text 'Renforcer 1 enchaînement'
 
     # Start reinforcement mode
-    click_on 'Renforcer 1 mesure'
+    click_on 'Renforcer 1 enchaînement'
 
-    # Verify we're in training mode on measure 2
+    # In training on the join: bars 1 and 2, from the first
     assert_text 'Mode Entraînement Actif'
-    wait_for_training_cursor(2)
+    wait_for_training_cursor(1)
+    assert_selector 'svg rect.measure-click-area.training-range', count: 2
 
-    drill_the_second_bar
+    drill_the_join
 
-    # Reinforcement should be complete (only 1 measure to reinforce)
+    # Reinforcement should be complete (only the join to reinforce)
     assert_text 'Renforcement terminé'
     assert_no_selector 'svg rect.measure-click-area.selected'
     assert_no_selector 'svg circle.repeat-indicator'
@@ -84,11 +87,11 @@ class ReinforcementTest < CapybaraTestBase
   def test_a_reinforcement_started_from_the_strict_tab_leaves_it
     open_with_the_second_bar_fumbled
     click_on '⏱ Mode strict'
-    click_on 'Renforcer 1 mesure'
+    click_on 'Renforcer 1 enchaînement'
 
     assert_selector 'button[data-mode="training"][aria-pressed="true"]'
     assert_no_selector '.pt-context--strict', visible: true
-    drill_the_second_bar
+    drill_the_join
     assert_text 'Renforcement terminé'
   end
 
@@ -97,7 +100,7 @@ class ReinforcementTest < CapybaraTestBase
   # page, the drill never having been told it had ended.
   def test_training_after_a_drill_left_by_hand
     open_with_the_second_bar_fumbled
-    click_on 'Renforcer 1 mesure'
+    click_on 'Renforcer 1 enchaînement'
     assert_text 'Mode Entraînement Actif'
 
     click_on 'Libre'
@@ -130,17 +133,19 @@ class ReinforcementTest < CapybaraTestBase
       assert_selector 'svg rect.measure-click-area.selected'
     end
 
-    drill_the_second_bar
+    drill_the_join
 
     assert_text 'Renforcement terminé'
   end
 
   private
 
-  # The three clean repetitions of measure 2 that finish a drill of it, each
-  # waited out until the measure is cleared for the next.
-  def drill_the_second_bar
+  # The three clean repetitions of bars 1 and 2 that finish a drill of the
+  # join, each waited out until the passage is cleared for the next.
+  def drill_the_join
     3.times do
+      play_note('C4')
+      wait_for_training_cursor(2)
       play_note('D4')
       assert_no_selector 'svg g.vf-notehead.played-note'
     end

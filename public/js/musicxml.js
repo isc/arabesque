@@ -67,13 +67,13 @@ const playedSourceMeasures = new Set()
 // MIDI note numbers currently held down by the player
 const heldMidiNotes = new Set()
 
-// Clean repetitions that fill a drill's dots: a passage's in training, a
-// measure's in reinforcement. A spoiled repetition leaves the dots already
-// filled, and the suggestions count a drill the same way (reinforcement.js).
+// Clean repetitions that fill a drill's dots: a passage's, in training and in
+// reinforcement. A spoiled repetition leaves the dots already filled, and the
+// suggestions count a drill the same way (reinforcement.js).
 const targetRepeatCount = REINFORCEMENT_CLEAN_PASSES
 
 // Training mode, the passage it works and the dots it fills. Reinforcement is
-// training on a list of measures (below), so `on` holds for it too.
+// training on a list of passages (below), so `on` holds for it too.
 const training = {
   on: false,
   // The passage training mode works on, as playback indices. A null end is the
@@ -91,11 +91,12 @@ const training = {
   clean: true,
 }
 
-// Reinforcement: the measures it drills one at a time, by sourceMeasureIndex,
-// and which of them is under way.
+// Reinforcement: the passages it drills one after the other, each worked as a
+// picked training passage is — a bar alone, or the two bars of a join — as
+// playback indices, and which of them is under way.
 const reinforcement = {
   on: false,
-  measures: [],
+  passages: [],
   index: 0,
 }
 
@@ -194,7 +195,8 @@ let callbacks = {
   onReinforcementComplete: null,
   onBackToTop: null,
   // A join between two bars, or a hole, judged (steadiness.js): `entry` and
-  // `hole` say which, `ratio` how long the interval was against the pace.
+  // `hole` say which, `ratio` how long the interval was against the pace;
+  // `joined` says a bar was just entered from the one before.
   onIntervalJudged: null,
   // Return true from this callback to bypass the default jumpToMeasure
   // (strict mode uses it to set its start point instead).
@@ -282,12 +284,8 @@ export function initMusicXML() {
     // score bar by bar. Either way it starts from the top of the passage with
     // no dot banked, so picking one is always a fresh count of three.
     setTrainingRange: (start, end = null) => {
-      // Normalised against the active hands: a passage whose first bar the one
-      // ticked hand rests through starts where that hand actually plays, and
-      // never after its own end.
       dropPendingBeat()
-      training.start = cursorMeasureFor(start)
-      training.end = end == null ? null : Math.max(training.start, end)
+      setPassage(start, end)
       // Closing a passage on its second click leaves the cursor where the first
       // one already put it. The dots still start over, but none of
       // jumpToMeasure's score-wide clearing is owed for shading a few bars.
@@ -317,31 +315,64 @@ export function initMusicXML() {
     getLegacyFingeringKeyMap: () => score.legacyKeyMap,
     svgNote,
     graphicalMeasureForNote,
-    setReinforcementMode: (measures) => {
-      if (!measures || measures.length === 0) return
+    // `items` as reinforcement.js offers them: a bar by its sourceMeasureIndex,
+    // or with `join` the way into it, worked with the bar before.
+    setReinforcementMode: (items) => {
+      const passages = (items ?? []).map(reinforcementPassage).filter(Boolean)
+      if (passages.length === 0) return
 
       // From a clean sheet, as setTrainingMode starts from one — which also
       // puts away any passage the player had picked: reinforcement brings its
-      // own list of measures to work, one at a time.
+      // own, one at a time.
       resetProgress()
       reinforcement.on = true
-      reinforcement.measures = measures.map((m) => m.sourceMeasureIndex)
+      reinforcement.passages = passages
       training.on = true
-
-      // Jump to the first measure to reinforce
-      const playbackIndex = firstPassIndexOf(score.allNotes, reinforcement.measures[0])
-      if (playbackIndex >= 0) {
-        jumpToMeasure(playbackIndex)
-        scrollToMeasure(playbackIndex)
-      }
+      startReinforcementPassage()
     },
   }
 }
 
 function resetReinforcementState() {
   reinforcement.on = false
-  reinforcement.measures = []
+  reinforcement.passages = []
   reinforcement.index = 0
+}
+
+// The bars to work for an item: the bar on its first pass, and for a join the
+// bar played before it too — none before the first.
+function reinforcementPassage({ sourceMeasureIndex, join = false }) {
+  const at = firstPassIndexOf(score.allNotes, sourceMeasureIndex)
+  if (at < 0) return null
+  return { start: join && at > 0 ? at - 1 : at, end: at }
+}
+
+// The passage training works on, normalised against the active hands: a
+// passage whose first bar the one ticked hand rests through starts where that
+// hand actually plays, and never after its own end.
+function setPassage(start, end) {
+  training.start = cursorMeasureFor(start)
+  training.end = end == null ? null : Math.max(training.start, end)
+}
+
+// The passage under way becomes the training passage, from its first bar with
+// no dot banked, as a passage picked on the sheet would.
+function startReinforcementPassage() {
+  const { start, end } = reinforcement.passages[reinforcement.index]
+  setPassage(start, end)
+  jumpToMeasure(training.start)
+  scrollToMeasure(training.start)
+}
+
+// The passage under way is done: on to the next, or the drill is over.
+function nextReinforcementPassage() {
+  reinforcement.index++
+  if (reinforcement.index < reinforcement.passages.length) {
+    afterTheBeat(startReinforcementPassage)
+    return
+  }
+  resetReinforcementState()
+  callbacks.onReinforcementComplete?.()
 }
 
 // Back to the default passage: the single measure under the cursor, the work
@@ -638,7 +669,7 @@ function updateMeasureCursor() {
   // being worked and where the player is in it are both visible at a glance.
   // Nothing to shade when the passage is just the cursor: `selected` says it.
   const { first, last, bounded } = trainingPassage()
-  if (bounded) paintMeasureRange('training-range', first, last)
+  if (bounded && last > first) paintMeasureRange('training-range', first, last)
 
   const currentRects = measureRects(cursor.measureIndex)
   if (currentRects.length === 0) return
@@ -1279,6 +1310,7 @@ function advanceTraining(next) {
     backToTheTopAfterTheBeat()
     return
   }
+  if (action === 'passageDone' && reinforcement.on) return nextReinforcementPassage()
   if (action === 'passageDone') callbacks.onTrainingComplete?.()
 
   // A step further into the passage leaves the measures behind it lit and the
@@ -1290,32 +1322,6 @@ function advanceTraining(next) {
   // a passage that is done rather than merely spoiled empties the dots.
   if (action === 'step') moveTrainingCursorTo(to, { keepRepeats: true })
   else afterTheBeat(() => moveTrainingCursorTo(to, { keepRepeats: action === 'restart', clearFrom: passage.first }))
-}
-
-// Reinforcement drills a list of measures, one at a time and three clean
-// repetitions each — its own count, not a passage's.
-function advanceReinforcement() {
-  if (training.clean) training.banked++
-  updateRepeatIndicators()
-
-  if (training.banked < targetRepeatCount) {
-    afterTheBeat(() => moveTrainingCursorTo(cursor.measureIndex, { keepRepeats: true, clearFrom: cursor.measureIndex }))
-    return
-  }
-
-  reinforcement.index++
-  if (reinforcement.index >= reinforcement.measures.length) {
-    resetReinforcementState()
-    callbacks.onReinforcementComplete?.()
-    return
-  }
-
-  const nextPlaybackIndex = firstPassIndexOf(score.allNotes, reinforcement.measures[reinforcement.index])
-  afterTheBeat(() => {
-    resetMeasureProgress()
-    jumpToMeasure(nextPlaybackIndex)
-    scrollToMeasure(nextPlaybackIndex)
-  })
 }
 
 // Free play walks on down the score, a measure at a time, and a run that
@@ -1375,19 +1381,16 @@ function handleNoteValidated(measureData, group, { struck = true } = {}) {
   callbacks.onMeasureCompleted?.()
 
   if (!training.on) advanceFreePlay(measureData, next, goesOn)
-  // Reinforcement drills its own list of measures one by one, so it banks a
-  // dot per measure and moves down the list rather than over a passage.
-  else if (reinforcement.on) advanceReinforcement()
   else advanceTraining(next)
 }
 
 // Whether the traversal under way runs on past the measure just finished,
-// into `next`: a run, down the score to its end; a training passage, to its
-// last bar — the bar itself unless one was picked; a reinforcement never,
-// since it drills its bars one at a time.
+// into `next`: a run, down the score to its end; a training passage — a
+// reinforcement's included — to its last bar, the bar itself unless one was
+// picked.
 function runsOn(next) {
   if (!training.on) return next < score.allNotes.length
-  return !reinforcement.on && staysInPassage(next, trainingPassage().last)
+  return staysInPassage(next, trainingPassage().last)
 }
 
 // Hands the attack just completed to the steadiness count, and acts on what
@@ -1412,12 +1415,12 @@ function registerAttack(measureData, group) {
 // through it — and, in training, spoils the repetition the way a wrong note
 // does. Joins and holes go to the journal.
 function applySteadiness(verdicts) {
-  for (const { ref, ratio, hole, entry } of verdicts) {
+  for (const { ref, ratio, hole, entry, joined } of verdicts) {
     if (hole) {
       for (const noteData of ref.notes) if (!noteData.isTieContinuation) setMark(noteData, LATE, true)
       spoilRepetition()
     }
-    if (hole || entry) callbacks.onIntervalJudged?.({ sourceMeasureIndex: ref.sourceMeasureIndex, ratio, hole, entry })
+    if (hole || entry) callbacks.onIntervalJudged?.({ sourceMeasureIndex: ref.sourceMeasureIndex, ratio, hole, entry, joined })
   }
 }
 

@@ -74,6 +74,52 @@ describe('measures to reinforce', () => {
     expect(result.map((m) => m.sourceMeasureIndex)).toEqual([1, 2, 0])
   })
 
+  // The way into a bar, which drilling the bar alone never plays.
+  describe('joins', () => {
+    const run = (bars, mode = 'free') => ({
+      mode,
+      measures: Object.entries(bars).map(([index, attempts]) => ({ sourceMeasureIndex: Number(index), attempts })),
+    })
+    const through = { wrongNotes: 0, clean: true, durationMs: 100, joined: true, entryRatio: 1 }
+    const stalled = { ...through, entryRatio: 3.8, entryHole: true }
+    const fumbledIn = { wrongNotes: 1, clean: false, durationMs: 100, joined: true, entryWrongNotes: 1 }
+    // A repetition of the bar alone: clean, and nothing said of its join.
+    const alone = { wrongNotes: 0, clean: true, durationMs: 100 }
+
+    it('offers a join stalled at, apart from its bar played clean', () => {
+      expect(measuresToReinforce([run({ 0: [through], 1: [stalled] })])).toEqual([
+        expect.objectContaining({ sourceMeasureIndex: 1, join: true, attempts: 1, faults: 1 }),
+      ])
+    })
+
+    // The leap into bar 33 of the C minor prelude, played an octave off.
+    it('gives a wrong note on the way into a bar to the join, the rest to the bar', () => {
+      const offered = (attempt) => measuresToReinforce([run({ 1: [attempt] })]).map((c) => [c.sourceMeasureIndex, !!c.join])
+      expect(offered(fumbledIn)).toEqual([[1, true]])
+      expect(offered({ ...fumbledIn, wrongNotes: 3 })).toEqual([[1, false], [1, true]])
+    })
+
+    it('counts a join played through even where its pace could not be judged', () => {
+      const unjudged = { wrongNotes: 0, clean: true, durationMs: 100, joined: true }
+      expect(measuresToReinforce([run({ 1: [fumbledIn] }), run({ 1: [unjudged, unjudged, unjudged] })])).toEqual([])
+    })
+
+    it('is not retired by drilling the bar alone, only by playing through it', () => {
+      const offered = (sessions) => measuresToReinforce(sessions).filter((c) => c.join)
+      expect(offered([run({ 1: [stalled] }), run({ 1: [alone, alone, alone] }, 'training')])).toHaveLength(1)
+      expect(offered([run({ 1: [stalled] }), run({ 1: [through, through, through] }, 'training')])).toEqual([])
+      expect(offered([run({ 1: [stalled] }), run({ 1: [through] }), run({ 1: [through] }), run({ 1: [through] })])).toEqual([])
+    })
+
+    it('ranks a join by the times it was fumbled, with the bars', () => {
+      const ranked = measuresToReinforce([
+        run({ 0: [{ ...alone, wrongNotes: 1, clean: false }], 2: [stalled] }),
+        run({ 2: [stalled] }),
+      ])
+      expect(ranked.map((c) => [c.sourceMeasureIndex, !!c.join])).toEqual([[2, true], [0, false]])
+    })
+  })
+
   it('sorts by wrong notes, then by duration', () => {
     const result = measuresToReinforce([
       session({ 0: [[2, 100]], 1: [[3, 100]], 2: [[2, 300]] }),
@@ -86,7 +132,7 @@ describe('measures to reinforce', () => {
       session({ 0: [[1, 100]] }),
       session({ 0: [[2, 300]] }),
     ])
-    expect(result[0]).toMatchObject({ wrongNotes: 3, durationMs: 300 })
+    expect(result[0]).toMatchObject({ faults: 3, durationMs: 300 })
   })
 
   it('respects the limit', () => {
