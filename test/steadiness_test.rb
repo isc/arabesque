@@ -61,10 +61,10 @@ class SteadinessTest < CapybaraTestBase
     assert_no_selector 'svg g.vf-notehead.played-note'
 
     # The join into bar 2 took nearly twelve quavers' time: filed on the
-    # bar's attempt, which stays clean — no wrong note.
+    # bar's attempt as its join's, the bar itself clean and steady.
     wait_for_records('sessions', where: <<~JS.strip)
       record.measures.some((m) => m.sourceMeasureIndex === 1
-        && m.attempts.some((a) => a.clean && a.hesitations === 1 && a.entryRatio > 10))
+        && m.attempts.some((a) => a.clean && a.joined && a.entryHole && !a.hesitations && a.entryRatio > 10))
     JS
 
     # Strict mode marks its off-tempo notes in the same colour: the mark goes.
@@ -101,6 +101,47 @@ class SteadinessTest < CapybaraTestBase
       play_evenly(BAR_1.take(1), first_after: 10)
       assert_no_selector 'svg g.vf-notehead.fumbled-note'
     end
+  end
+
+  # A run that stops at the bar line, both bars clean: what reinforcement
+  # offers is the join, drilled as the two bars together, which drilling bar
+  # 2 alone would never play.
+  def test_a_join_stalled_at_is_reinforced_as_the_two_bars_together
+    open_steady_quavers
+    with_clock_control do
+      play_evenly(BAR_1)
+      play_evenly(BAR_2, first_after: HESITATION)
+    end
+    find('dialog[open] button[aria-label="Close"]').click
+
+    click_on 'Renforcer 1 enchaînement'
+    assert_text 'Mode Entraînement Actif'
+    assert_selector 'svg rect.measure-click-area.training-range', count: 2
+
+    with_clock_control do
+      3.times { play_evenly(BAR_1 + BAR_2, first_after: 300) }
+    end
+    assert_text 'Tout ce qui était proposé a été renforcé avec succès.'
+  end
+
+  # A wrong note inside a bar is the bar's own: it is drilled alone.
+  def test_a_wrong_note_inside_a_bar_offers_the_bar_alone
+    open_steady_quavers
+    with_clock_control do
+      play_evenly(BAR_1)
+      play_evenly(%w[C5 B4 G4 A4 G4 F4 E4 D4 C4]) # G4 where A4 is owed
+    end
+    find('dialog[open] button[aria-label="Close"]').click
+
+    click_on 'Renforcer 1 mesure'
+    assert_text 'Mode Entraînement Actif'
+    wait_for_training_cursor(2)
+    assert_no_selector 'svg rect.measure-click-area.training-range'
+
+    with_clock_control do
+      3.times { play_evenly(BAR_2, first_after: 300) }
+    end
+    assert_text 'Tout ce qui était proposé a été renforcé avec succès.'
   end
 
   # A late group can hold a tie the player never let go of: only the note
