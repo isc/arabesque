@@ -16,6 +16,9 @@ export default {
     privacy: '🔒 Confidentialité',
     install: '📲 Installer l’application',
     language: 'Langue',
+    // The on-screen keyboard's setting (keyHintSetting.js), under score.keyHintAria.
+    keyHintAllowed: 'Si besoin',
+    keyHintNever: 'Jamais',
   },
   // Several people on one device (profiles.js).
   profiles: {
@@ -328,7 +331,8 @@ export default {
     // The on-screen keyboard that comes up when a note is hard to find.
     keyHintAria: 'Clavier d’aide',
     keyHintPlay: 'À jouer',
-    keyHintHide: 'Masquer le clavier',
+    keyHintHide: 'Masquer jusqu’à demain',
+    keyHintNever: 'Ne plus l’afficher',
     midiHelpTitle: 'Connexion clavier MIDI',
     midiHelpIntro: 'Aucun périphérique MIDI détecté. Voici comment connecter votre clavier :',
     macTwoCases: 'Selon votre piano, deux cas de figure :',

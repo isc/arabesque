@@ -16,6 +16,9 @@ export default {
     privacy: '🔒 Privacy',
     install: '📲 Install the app',
     language: 'Language',
+    // The on-screen keyboard's setting (keyHintSetting.js), under score.keyHintAria.
+    keyHintAllowed: 'When stuck',
+    keyHintNever: 'Never',
   },
   // Several people on one device (profiles.js).
   profiles: {
@@ -331,7 +334,8 @@ export default {
     // The on-screen keyboard that comes up when a note is hard to find.
     keyHintAria: 'Helper keyboard',
     keyHintPlay: 'Play',
-    keyHintHide: 'Hide the keyboard',
+    keyHintHide: 'Hide until tomorrow',
+    keyHintNever: 'Don’t show again',
     midiHelpTitle: 'Connecting a MIDI keyboard',
     midiHelpIntro: 'No MIDI device detected. Here is how to connect your keyboard:',
     macTwoCases: 'Depending on your piano, two cases:',
