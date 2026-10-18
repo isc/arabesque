@@ -169,7 +169,7 @@ export function libraryApp() {
       midi.setCallbacks({
         onNotePlayed: (midiNote) => this.handleSearchNote(midiNote),
       })
-      midi.connectMIDI({ silent: true, autoSelectFirst: true })
+      midi.connectAtLoad()
 
       // Reaching this page via history.back() (e.g. the MIDI "highest key"
       // shortcut) can restore it from the browser's back/forward cache: a
