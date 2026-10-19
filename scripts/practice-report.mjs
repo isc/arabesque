@@ -30,21 +30,13 @@
 //
 // ## How a hole is found
 //
-// By the app's own rule: the attacks of the log are fed to createSteadiness()
-// (steadiness.js), which judges them as the score page did while they were
-// played. An attack is a moment of the score — the notes of one position in
-// one bar, both hands on a beat — completed by the last of its keys to come
-// down, as in registerAttack() (musicxml.js); a wrong key spoils the interval
-// it falls in. A traversal, a run or a repetition, starts over where the
-// attacks go back in the score or skip ahead. That is read off the attacks
-// alone: a bar clicked or a hand toggled, which make the app start its count
-// over, leave nothing in the log to say so.
-//
-// The score is read from the file rather than through noteExtraction.js,
-// which needs OSMD: keys by fileNumbering(), so that they name the notes the
-// log names, and positions from the durations, <backup>s and <forward>s. The
-// tempo a bar is judged at is the first one the bar marks, or the one it
-// inherits — the app reads OSMD's, per bar too.
+// By the app's own rule, through public/js/noteLogAnalysis.js, which says how
+// attacks and traversals are rebuilt from the log. The score model it reads is
+// built here from the file rather than through noteExtraction.js, which needs
+// OSMD: keys by fileNumbering(), so that they name the notes the log names, and
+// positions from the durations, <backup>s and <forward>s. The tempo a bar is
+// judged at is the first one the bar marks, or the one it inherits — the app
+// reads OSMD's, per bar too.
 import { execFileSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
@@ -57,7 +49,7 @@ import {
   playthroughOf,
   sessionAttempts,
 } from '../public/js/practiceTime.js'
-import { createSteadiness } from '../public/js/steadiness.js'
+import { attackNumber, eventsOf, excess, traversals } from '../public/js/noteLogAnalysis.js'
 import { scoreFile } from './import-fingerings.mjs'
 import { die, query, quote } from './lib/supabase.mjs'
 import { openScore } from './mxl.mjs'
@@ -158,124 +150,13 @@ export function scoreModel(xml) {
   return { notes, bars }
 }
 
-// The `#n` of a position in a source bar, 1-based, and how it prints: the
-// interval ending on #1 is the join from the bar before.
-const attackNumber = (model, bar, position) => model.bars[bar].positions.indexOf(position) + 1
+// How the `#n` of an attack prints: the interval ending on #1 is the join.
 const positionLabel = (n) => (n === 1 ? 'join' : `#${n}`)
 
 const NOTE_NAMES = ['C', 'C#', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B']
 const noteName = (midi) => `${NOTE_NAMES[midi % 12]}${Math.floor(midi / 12) - 1}`
 const hand = (staff) => (staff === 0 ? 'RH' : staff === 1 ? 'LH' : `staff${staff + 1}`)
 
-// A session's note log as one list of events in time order: { at (epoch ms),
-// code, pitch, key, bar }, `bar` the playback index — the columns of noteLog.js
-// put back together, segment by segment.
-export function eventsOf(segments) {
-  const events = []
-  for (const { startedMs, data } of segments) {
-    for (let i = 0; i < data.e.length; i++) {
-      events.push({
-        at: startedMs + data.t[i],
-        code: data.e[i],
-        pitch: data.p[i],
-        key: data.n[i] >= 0 ? data.keys[data.n[i]] : null,
-        bar: data.b[i],
-      })
-    }
-  }
-  return events.sort((a, b) => a.at - b.at)
-}
-
-// Back by more than this share of a bar, the player has started over; a hand
-// a note late over a bar line goes back by much less.
-const RESTART = 0.25
-
-// The log cut into traversals, each judged by the app's rule: per traversal,
-// its attacks in score order — { bar (playback), sourceBar, position, at,
-// hole, entry, joined, ratio, ms, faulted } — and the wrong keys played during
-// it, { at, bar, key, pitch }.
-export function traversals(events, model) {
-  const runs = []
-  let run = null
-  let last = -Infinity
-  let lastBar = -Infinity
-  for (const event of events) {
-    const note = event.key && model.notes.get(event.key)
-    if (!note || event.bar < 0) continue
-    if (event.code === 'w') {
-      run?.wrong.push(event)
-      continue
-    }
-    if (event.code !== 'd') continue
-    const where = event.bar + note.position / (model.bars[note.bar].duration || 1)
-    if (!run || where < last - RESTART || event.bar > lastBar + 1) runs.push((run = { attacks: new Map(), wrong: [] }))
-    last = where
-    lastBar = event.bar
-    const id = `${event.bar}@${note.position}${note.grace ? 'g' : ''}`
-    let attack = run.attacks.get(id)
-    if (!attack) {
-      attack = {
-        bar: event.bar,
-        sourceBar: note.bar,
-        position: note.position,
-        grace: note.grace,
-        fermata: note.fermata,
-        hole: false,
-        at: 0,
-      }
-      run.attacks.set(id, attack)
-    }
-    // Completed by the last of its keys to come down — the last time, when
-    // the engine took one again after a wrong note: the run went on from there.
-    attack.at = Math.max(attack.at, event.at)
-    attack.fermata ||= note.fermata
-  }
-  return runs.map((r) => judge(r, model))
-}
-
-function judge({ attacks, wrong }, model) {
-  const ordered = [...attacks.values()].sort((a, b) => a.bar - b.bar || a.position - b.position || a.grace - b.grace)
-  const steadiness = createSteadiness()
-  const apply = (verdicts) => {
-    for (const { ref, ratio, hole, entry, joined } of verdicts) {
-      ref.ratio = ratio
-      ref.hole ||= hole
-      ref.entry ||= entry
-      ref.joined ||= joined
-    }
-  }
-  let previous = null
-  for (const attack of ordered) {
-    if (previous) {
-      attack.ms = attack.at - previous.at
-      if (wrong.some((w) => w.at > previous.at && w.at <= attack.at)) {
-        steadiness.fault()
-        attack.faulted = true
-      }
-    }
-    const bar = model.bars[attack.sourceBar]
-    apply(
-      steadiness.attack({
-        at: attack.at,
-        measure: attack.bar,
-        position: attack.position,
-        measureDuration: bar.duration,
-        tempo: bar.tempo,
-        decorative: attack.grace,
-        fermata: attack.fermata,
-        ref: attack,
-      }),
-    )
-    previous = attack
-  }
-  apply(steadiness.close())
-  return { attacks: ordered, wrong }
-}
-
-// How much longer than the pace an interval took, in ms: what it would have
-// lasted at the reference the verdict weighed it against, subtracted. Nothing
-// for an interval never judged.
-const excess = ({ ms, ratio }) => (ratio > 1 ? ms - ms / ratio : 0)
 const totalExcess = (attacks) => attacks.reduce((total, a) => total + excess(a), 0)
 
 // --- Supabase ---------------------------------------------------------------
@@ -295,10 +176,11 @@ async function sessionsOf(player, { score, days, id }) {
 }
 
 // Note log segments, with the score their session was played on: one
-// session's, or every one of a score's.
+// session's, or every one of a score's — each in the shape noteLog.js wrote it,
+// its columns beside its startedAt, as eventsOf() reads it.
 async function segmentsOf(player, { score, days, id }) {
-  return query(`
-    select n.session_id as "sessionId", (extract(epoch from n.started_at) * 1000)::float8 as "startedMs", n.data,
+  const rows = await query(`
+    select n.session_id as "sessionId", (extract(epoch from n.started_at) * 1000)::float8 as "startedAt", n.data,
       t.data->>'scoreId' as "scoreId"
     from public.session_notes n join public.training_sessions t on t.user_id = n.user_id and t.id = n.session_id
     where ${ownedBy(player, 'n')}
@@ -306,6 +188,7 @@ async function segmentsOf(player, { score, days, id }) {
       ${days ? `and t.ended_at > now() - interval '${Number(days)} days'` : ''}
       ${id ? `and n.session_id = ${quote(id)}` : ''}
     order by n.started_at`)
+  return rows.map(({ data, ...row }) => ({ ...row, ...data }))
 }
 
 const models = new Map()
