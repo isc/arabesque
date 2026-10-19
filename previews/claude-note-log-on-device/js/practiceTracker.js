@@ -306,7 +306,15 @@ export function initPracticeTracker(storageInstance = null) {
   // begins. Usually the first one, but not always: with one hand unticked the
   // score can open on a bar that hand rests through, and the cursor starts after
   // it — the score page knows which measure that is, the tracker doesn't.
-  function startMeasureAttempt(sourceMeasureIndex, startsPlaythrough = sourceMeasureIndex === 0, activeHands = { right: true, left: true }) {
+  // `partial` for a bar a drilled fragment covers only part of (musicxml.js):
+  // its attempt says nothing of the bar as a whole, and the bar's statuses and
+  // suggestions leave it out.
+  function startMeasureAttempt(
+    sourceMeasureIndex,
+    startsPlaythrough = sourceMeasureIndex === 0,
+    activeHands = { right: true, left: true },
+    { partial = false } = {},
+  ) {
     if (!currentSession) return null
 
     if (startsPlaythrough && !currentSession.playthroughStartedAt) {
@@ -320,6 +328,7 @@ export function initPracticeTracker(storageInstance = null) {
       wrongNotes: 0,
       clean: true,
       hands: handsKey(activeHands),
+      ...(partial && { partial }),
     }
     return currentMeasureAttempt
   }
@@ -394,7 +403,7 @@ export function initPracticeTracker(storageInstance = null) {
   // itself right after: filing a whole run would otherwise write the session,
   // growing as it goes, once per measure.
   function recordMeasureAttempt(
-    { sourceMeasureIndex, startedAt, durationMs, wrongNotes = 0, clean = true, hands = TWO_HANDS, hesitations, joined, entryRatio, entryHole, entryWrongNotes },
+    { sourceMeasureIndex, startedAt, durationMs, wrongNotes = 0, clean = true, hands = TWO_HANDS, hesitations, joined, entryRatio, entryHole, entryWrongNotes, partial },
     { persist = true } = {}
   ) {
     if (!currentSession) return
@@ -416,6 +425,7 @@ export function initPracticeTracker(storageInstance = null) {
       ...(entryRatio != null && { entryRatio }),
       ...(entryHole && { entryHole }),
       ...(entryWrongNotes && { entryWrongNotes }),
+      ...(partial && { partial }),
     })
 
     // Save session incrementally (don't await - fire and forget)

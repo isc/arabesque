@@ -60,8 +60,10 @@ const CONNECTION_LOST = new Set(['InvalidStateError', 'UnknownError'])
 export const NEVER_SYNCED = Object.freeze({ fingerings: Object.freeze({}), updatedAt: -1 })
 
 // A session's segments, by their ids — `<session id>:<n>` (noteLog.js): ';'
-// sorts right after ':'.
+// sorts right after ':'. Read back in their order, which a string key does
+// not keep past the ninth.
 const sessionRange = (sessionId) => IDBKeyRange.bound(`${sessionId}:`, `${sessionId};`, false, true)
+const segmentNumber = (id) => Number(id.slice(id.lastIndexOf(':') + 1))
 
 // The records of `store` under `keys`, a key with none left out.
 async function getMany(store, keys) {
@@ -456,6 +458,19 @@ export function initStorage() {
     saveKeptNoteLogs(segments) {
       return withNoteLogStores('readwrite', (pending, kept) => {
         for (const segment of segments) kept.put(segment)
+      })
+    },
+
+    // The segments of each of these sessions, sent or not, in order: an array
+    // per session, as noteLogAnalysis.js reads one.
+    getNoteLogsOfSessions(sessionIds) {
+      return withNoteLogStores('readonly', (pending, kept) => {
+        const read = (store, id) => promisifyRequest(store.getAll(sessionRange(id)))
+        return Promise.all(
+          sessionIds.map(async (id) =>
+            (await Promise.all([read(kept, id), read(pending, id)])).flat().sort((a, b) => segmentNumber(a.id) - segmentNumber(b.id)),
+          ),
+        )
       })
     },
 

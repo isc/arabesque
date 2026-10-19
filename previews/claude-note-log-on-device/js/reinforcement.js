@@ -132,7 +132,8 @@ function measureHistories(sessions, hands) {
     for (const measure of session.measures || []) {
       for (const attempt of measure.attempts || []) {
         const selection = attemptHands(attempt)
-        if (selection === NO_HANDS || (hands && selection !== hands)) continue
+        // A fragment drilled over part of the bar says nothing of the whole.
+        if (attempt.partial || selection === NO_HANDS || (hands && selection !== hands)) continue
 
         let histories = bySelection.get(selection)
         if (!histories) bySelection.set(selection, (histories = new Map()))
