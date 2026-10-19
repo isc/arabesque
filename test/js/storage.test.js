@@ -175,6 +175,18 @@ describe('note logs', () => {
     expect((await storage.getHeldNoteLogIds()).sort()).toEqual(['s1:0', 's1:1', 's2:0'])
   })
 
+  it('reads the segments of sessions, sent or not, in their order past the ninth', async () => {
+    const { storage } = await aDevice()
+    const ids = Array.from({ length: 12 }, (_, n) => `s1:${n}`)
+    await storage.saveKeptNoteLogs(ids.slice(0, 6).map(noteLog))
+    for (const id of ids.slice(6)) await storage.saveNoteLog(noteLog(id))
+    await storage.saveNoteLog(noteLog('s10:0'))
+
+    const read = async (sessionIds) => (await storage.getNoteLogsOfSessions(sessionIds)).map((segments) => segments.map((s) => s.id))
+    expect(await read(['s1'])).toEqual([ids])
+    expect(await read(['s10', 's1', 's2'])).toEqual([['s10:0'], ids, []])
+  })
+
   it('drops the kept segments of sessions, never one still to send', async () => {
     const { storage } = await aDevice()
     await storage.saveKeptNoteLogs([noteLog('s1:0'), noteLog('s10:0'), noteLog('s2:0')])

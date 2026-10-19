@@ -42,13 +42,14 @@ describe('the note log', () => {
       id: 's1:0',
       sessionId: 's1',
       keys: ['m1:0:0:0', 'm1:0:0:1'],
-      e: 'dwuxpd',
-      p: [60, 63, 60, 64, 127, 62],
-      v: [70, 40, 0, 55, 0, 66],
-      n: [0, 1, -1, -1, -1, 1],
-      b: [0, 0, -1, -1, -1, 0],
+      // Opening on the hands ticked: both.
+      e: 'hdwuxpd',
+      p: [3, 60, 63, 60, 64, 127, 62],
+      v: [0, 70, 40, 0, 55, 0, 66],
+      n: [-1, 0, 1, -1, -1, -1, 1],
+      b: [-1, 0, 0, -1, -1, -1, 0],
     })
-    expect(segment.t).toHaveLength(6)
+    expect(segment.t).toHaveLength(7)
     expect(Date.parse(segment.startedAt)).not.toBeNaN()
   })
 
@@ -66,28 +67,44 @@ describe('the note log', () => {
     await page.log.flush()
     page.log.keyDown(64, 70)
     await page.log.flush()
-    expect(page.saved().map((s) => [s.id, s.e])).toEqual([['s1:0', 'x'], ['s2:0', 'x'], ['s2:1', 'x']])
+    expect(page.saved().map((s) => [s.id, s.e])).toEqual([['s1:0', 'hx'], ['s2:0', 'hx'], ['s2:1', 'hx']])
     expect(sessionOfSegment('1791987424375-psu0m1s:12')).toBe('1791987424375-psu0m1s')
   })
 
   it('writes a segment once it is full, and goes on in the next', async () => {
     for (let i = 0; i <= SEGMENT_EVENTS; i++) page.log.keyUp(60)
     await page.log.flush()
-    expect(page.saved().map((s) => [s.id, s.e.length])).toEqual([['s1:0', SEGMENT_EVENTS], ['s1:1', 1]])
+    expect(page.saved().map((s) => [s.id, s.e.length])).toEqual([['s1:0', SEGMENT_EVENTS], ['s1:1', 3]])
+  })
+
+  // What a traversal was played with: the log says what was ticked, not only
+  // what was played (noteLogAnalysis.js).
+  it('writes the hands ticked as they change, and at the head of every segment', async () => {
+    page.log.keyDown(60, 70)
+    page.log.hands({ right: true, left: false })
+    page.log.hands({ right: true, left: false })
+    page.log.keyDown(62, 70)
+    await page.log.flush()
+    page.log.keyDown(64, 70)
+    await page.log.flush()
+    expect(page.saved().map((s) => [s.e, s.p])).toEqual([
+      ['hxhx', [3, 60, 1, 62]],
+      ['hx', [1, 64]],
+    ])
   })
 
   // A continuous pedal sends dozens of values a press.
   it('keeps the pedal from one band to the next, and at both ends', async () => {
     for (const value of [0, 3, 9, 20, 25, 70, 126, 127, 127, 60, 1, 0]) page.log.pedal(value)
     await page.log.flush()
-    expect(page.saved()[0].p).toEqual([0, 20, 70, 126, 127, 127, 60, 1, 0])
+    expect(page.saved()[0].p).toEqual([3, 0, 20, 70, 126, 127, 127, 60, 1, 0])
   })
 
   it('leaves the segment under way for the next page, which writes it unless it was', async () => {
     page.log.keyDown(60, 70)
     // The way out: kept, and its write started.
     page.log.leave()
-    expect(JSON.parse(localStorage.getItem(PENDING_NOTE_LOG_KEY)).e).toBe('x')
+    expect(JSON.parse(localStorage.getItem(PENDING_NOTE_LOG_KEY)).e).toBe('hx')
 
     // The write got there: the next page's copy is the older one, and loses.
     const next = aPage(page.held)
@@ -101,7 +118,7 @@ describe('the note log', () => {
     page.held.clear()
     const after = aPage(page.held)
     await after.log.tidy()
-    expect(after.saved().map((s) => [s.id, s.e])).toEqual([['s1:1', 'x']])
+    expect(after.saved().map((s) => [s.id, s.e])).toEqual([['s1:1', 'hx']])
   })
 })
 

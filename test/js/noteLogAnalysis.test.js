@@ -28,19 +28,19 @@ const attackKeys = (b) => [
   [`m${b}:0:0:3`],
 ]
 
-// A note log of one segment as noteLog.js writes it, from [at, code, key, bar]
-// events.
+// A note log of one segment as noteLog.js writes it, from [at, code, key, bar,
+// pitch] events.
 function log(events) {
-  const keys = [...new Set(events.map(([, , key]) => key))]
+  const keys = [...new Set(events.map(([, , key]) => key).filter(Boolean))]
   return eventsOf([
     {
       startedAt: new Date(0).toISOString(),
       keys,
       t: events.map(([at]) => at),
       e: events.map(([, code]) => code).join(''),
-      p: events.map(() => 60),
+      p: events.map(([, , , , pitch = 60]) => pitch),
       v: events.map(() => 64),
-      n: events.map(([, , key]) => keys.indexOf(key)),
+      n: events.map(([, , key]) => (key ? keys.indexOf(key) : -1)),
       b: events.map(([, , , b]) => b),
     },
   ])
@@ -109,6 +109,13 @@ describe('traversals', () => {
     const [run] = traversals(log(events), model)
     expect(run.wrong).toHaveLength(1)
     expect(run.attacks.find((a) => a.position === 0.25 && a.bar === 1)).toMatchObject({ faulted: true, hole: false })
+  })
+
+  it('says the hands ticked as each traversal began, both when the log does not say', () => {
+    const once = played(500)
+    const again = once.map(([at, ...rest]) => [at + 5000, ...rest])
+    const runs = traversals(log([...once, [4900, 'h', null, -1, 1], ...again]), model)
+    expect(runs.map((r) => r.hands)).toEqual(['both', 'right'])
   })
 
   it('starts a new traversal where the player went back to repeat', () => {
