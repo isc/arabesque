@@ -105,7 +105,10 @@ orders the queue only on a best-effort basis, so the deploy publishes the
 head of main when it runs, never the commit of its event, and it goes green
 only once `arabesque.app/.deploy-sha` says that commit is online. A preview is on the same origin as
 production, so it reads and writes the same IndexedDB and localStorage: runs
-played on a preview land in the real practice journal.
+played on a preview land in the real practice journal. A preview that raises
+`DB_VERSION` upgrades that database for production too, which opens it as it
+stands rather than refusing it (`openAsItStands` in `public/js/storage.js`):
+a version may only ever add stores.
 
 ## Library
 
