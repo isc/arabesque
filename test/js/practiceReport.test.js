@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
-import { scoreModel, eventsOf, traversals } from '../../scripts/practice-report.mjs'
+import { scoreModel } from '../../scripts/practice-report.mjs'
 import { walkNotes } from '../../scripts/import-fingerings.mjs'
 import { openScore } from '../../scripts/mxl.mjs'
 
@@ -18,47 +18,6 @@ const bar = (number) => `<measure number="${number}">
   ${note('C', 3, { duration: 2, voice: 5, staff: 2 })}${note('G', 3, { duration: 2, voice: 5, staff: 2 })}
 </measure>`
 const XML = `<score-partwise><part id="P1">${bar(1)}${bar(2)}</part></score-partwise>`
-
-// The keys each attack of a bar is completed by, in score order.
-const attackKeys = (b) => [
-  [`m${b}:0:0:0`, `m${b}:1:4:0`],
-  [`m${b}:0:0:1`],
-  [`m${b}:0:0:2`, `m${b}:1:4:1`],
-  [`m${b}:0:0:3`],
-]
-
-// A note log of one segment, from [at, code, key, bar] events.
-function log(events) {
-  const keys = [...new Set(events.map(([, , key]) => key))]
-  return eventsOf([
-    {
-      startedMs: 0,
-      data: {
-        keys,
-        t: events.map(([at]) => at),
-        e: events.map(([, code]) => code).join(''),
-        p: events.map(() => 60),
-        v: events.map(() => 64),
-        n: events.map(([, , key]) => keys.indexOf(key)),
-        b: events.map(([, , , b]) => b),
-      },
-    },
-  ])
-}
-
-// The two bars played at one attack every `pace` ms, `late` ms more before the
-// attacks listed in `delays` ("bar:attack", 0-based).
-function played(pace, delays = {}) {
-  const events = []
-  let at = 0
-  for (const b of [0, 1]) {
-    attackKeys(b).forEach((keys, i) => {
-      at += pace + (delays[`${b}:${i}`] ?? 0)
-      for (const key of keys) events.push([at, 'd', key, b])
-    })
-  }
-  return events
-}
 
 describe('scoreModel', () => {
   it('places each note at its position in the bar, both hands on a beat sharing one', () => {
@@ -88,37 +47,5 @@ describe('scoreModel', () => {
       const { xml } = openScore(readFileSync(join(SCORES, file)))
       expect([...scoreModel(xml).notes.keys()], file).toEqual([...walkNotes(xml)].map((n) => n.key))
     }
-  })
-})
-
-describe('traversals', () => {
-  const model = scoreModel(XML)
-
-  it('finds a hole where the flow stopped, by the app’s rule', () => {
-    const [run] = traversals(log(played(500, { '1:1': 1500 })), model)
-    const holes = run.attacks.filter((a) => a.hole)
-    expect(holes).toHaveLength(1)
-    expect(holes[0]).toMatchObject({ sourceBar: 1, position: 0.25, ms: 2000 })
-  })
-
-  it('tells a hole at the bar line, the join, from one inside the bar', () => {
-    const [run] = traversals(log(played(500, { '1:0': 1500 })), model)
-    expect(run.attacks.find((a) => a.hole)).toMatchObject({ sourceBar: 1, position: 0, entry: true, joined: true })
-  })
-
-  it('counts the time a wrong note took as the mistake’s, not a hole', () => {
-    const events = played(500, { '1:1': 1500 })
-    const owedAt = events.findIndex(([, , key]) => key === 'm1:0:0:1')
-    events.splice(owedAt, 0, [events[owedAt][0] - 100, 'w', 'm1:0:0:1', 1])
-    const [run] = traversals(log(events), model)
-    expect(run.wrong).toHaveLength(1)
-    expect(run.attacks.find((a) => a.position === 0.25 && a.bar === 1)).toMatchObject({ faulted: true, hole: false })
-  })
-
-  it('starts a new traversal where the player went back to repeat', () => {
-    const once = played(500)
-    const again = once.filter(([, , , b]) => b === 1).map(([at, ...rest]) => [at + 5000, ...rest])
-    const runs = traversals(log([...once, ...again]), model)
-    expect(runs.map((r) => new Set(r.attacks.map((a) => a.bar)).size)).toEqual([2, 1])
   })
 })

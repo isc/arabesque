@@ -282,10 +282,11 @@ system, so a schema change is applied by hand **and** written there.
 Asked to look at a practice session ("regarde les données"), start from
 `scripts/practice-report.mjs` rather than writing queries: it reads the session
 records and the per-key note log (`session_notes`, `public/js/noteLog.js`) of a
-signed-in player through the same Management API token, and judges holes with
-the app's own `steadiness.js` — a run of the C minor prelude comes out with the
-73 holes the app counted. Runs are cut from the log alone, though: a bar
-clicked or a hand toggled leaves no trace there.
+signed-in player through the same Management API token, and reads the log
+with `public/js/noteLogAnalysis.js`, which judges holes with the app's own
+`steadiness.js` — a run of the C minor prelude comes out with the 73 holes the
+app counted. Runs are cut from the log alone, though: a bar clicked or a hand
+toggled leaves no trace there.
 
 ```bash
 node scripts/practice-report.mjs sessions --score BWV_847 --days 7  # ids, modes, counts
@@ -295,9 +296,11 @@ node scripts/practice-report.mjs repeats --score BWV_847             # wrong not
 ```
 
 The player defaults to git's `user.email` (`--player`, `--profile` otherwise).
-The script header says how attacks and traversals are rebuilt from the log.
-Extend it when an analysis needs something it does not print, so the next one
-starts from there.
+The module's header says how attacks and traversals are rebuilt from the log.
+The log is the record and the analysis is recomputed from it, so a rule
+belongs in the module, where the app will read it too, and the script only
+prints. Extend them when an analysis needs something they do not give, so the
+next one starts from there.
 
 ## Supabase auth config
 
