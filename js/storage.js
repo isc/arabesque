@@ -117,6 +117,7 @@ async function openDatabase(name) {
 
       request.onerror = () => {
         if (abandoned) globalThis.addEventListener('pageshow', open, { once: true })
+        else if (request.error?.name === 'VersionError') openAsItStands()
         else reject(request.error)
       }
       request.onsuccess = () => resolve(request.result)
@@ -155,6 +156,17 @@ async function openDatabase(name) {
         upgrade.addEventListener('complete', settled)
         upgrade.addEventListener('abort', settled)
       }
+    }
+    // A newer build has upgraded the database past DB_VERSION: a branch
+    // preview, served from the same origin and so on the same database. A
+    // version only ever adds stores (STORE_DEFS), so every store this build
+    // knows is there: it is opened as it stands, rather than refused with a
+    // VersionError that left production without its data until the branch
+    // shipped.
+    const openAsItStands = () => {
+      const request = indexedDB.open(name)
+      request.onerror = () => reject(request.error)
+      request.onsuccess = () => resolve(request.result)
     }
     open()
   })
