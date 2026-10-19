@@ -80,13 +80,14 @@ describe('runSync', () => {
   let practiceTracker
   let runSync
   let mergeFingerings
+  let pullNoteLogs
   let profiles
 
   // A page: fresh modules — profiles.js reads the profile the page is on when
   // it loads — and that profile's database.
   async function openPage() {
     vi.resetModules()
-    ;({ runSync, mergeFingerings } = await import('../../public/js/sync.js'))
+    ;({ runSync, mergeFingerings, pullNoteLogs } = await import('../../public/js/sync.js'))
     profiles = await import('../../public/js/profiles.js')
     const { initStorage } = await import('../../public/js/storage.js')
     const { initPracticeTracker } = await import('../../public/js/practiceTracker.js')
@@ -118,9 +119,34 @@ describe('runSync', () => {
     expect(rows.map((row) => row.id).sort()).toEqual(['a:0', 'a:1'])
     expect(rows[0]).toMatchObject({ user_id: USER, profile_id: MAIN, session_id: 'a', started_at: '2026-01-01T10:00:00.000Z' })
     expect(rows[0].data).toEqual({ keys: [], t: [0], e: 'x', p: [60], v: [64], n: [-1], b: [-1] })
-    // The live session's wait for its end; the others leave the device.
+    // The live session's wait for its end; the others are kept for the
+    // analysis, and not sent again.
     expect(await storage.getNoteLogIds()).toEqual(['live:0'])
+    expect((await storage.getHeldNoteLogIds()).sort()).toEqual(['a:0', 'a:1', 'live:0'])
     expect((await runSync({ supabase, storage, practiceTracker })).notesPushed).toBe(0)
+  })
+
+  // A score opening brings down what another device played of it.
+  it('pulls the note logs of the sessions asked for, in the shape they were written', async () => {
+    const supabase = makeFakeSupabase()
+    const data = { keys: ['m0:0:0:0'], t: [0], e: 'd', p: [60], v: [64], n: [0], b: [0] }
+    const row = (id, profile_id = MAIN) => ({ user_id: USER, profile_id, id, session_id: id.split(':')[0], started_at: '2026-01-01T10:00:00+00:00', data })
+    supabase.from('session_notes').upsert([row('a:0'), row('b:0'), row('c:0', 'other')])
+
+    const kept = []
+    await pullNoteLogs({ supabase, storage: { saveKeptNoteLogs: async (segments) => kept.push(...segments) }, sessionIds: ['a', 'c'] })
+    expect(kept).toEqual([{ id: 'a:0', sessionId: 'a', startedAt: '2026-01-01T10:00:00+00:00', ...data }])
+  })
+
+  // Kept, not to be sent back.
+  it('keeps what it pulls apart from the segments to send', async () => {
+    const supabase = makeFakeSupabase()
+    const data = { keys: [], t: [0], e: 'x', p: [60], v: [64], n: [-1], b: [-1] }
+    supabase.from('session_notes').upsert([{ user_id: USER, profile_id: MAIN, id: 'a:0', session_id: 'a', started_at: '2026-01-01T10:00:00+00:00', data }])
+
+    await pullNoteLogs({ supabase, storage, sessionIds: ['a'] })
+    expect(await storage.getHeldNoteLogIds()).toEqual(['a:0'])
+    expect(await storage.getNoteLogIds()).toEqual([])
   })
 
   it('pushes local-only ended sessions to the server', async () => {

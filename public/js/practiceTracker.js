@@ -71,6 +71,7 @@ export function initPracticeTracker(storageInstance = null) {
     getPracticeCalendar,
     getScoreHistory,
     getAllPlaythroughs,
+    getScoreSessions: scoreSessions,
     rebuildAggregates,
     getCurrentSession: () => currentSession,
   }

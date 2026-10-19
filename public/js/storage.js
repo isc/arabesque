@@ -7,11 +7,12 @@ const DB_BASE_NAME = 'arabesque'
 // moved over on first open (see readLegacyDatabase) so nobody has to re-import
 // a backup.
 const LEGACY_DB_NAME = 'piano-trainer'
-export const DB_VERSION = 4
+export const DB_VERSION = 5
 const FINGERINGS_STORE = 'fingerings'
 const SESSIONS_STORE = 'sessions'
 const AGGREGATES_STORE = 'aggregates'
 const NOTE_LOGS_STORE = 'noteLogs'
+const KEPT_NOTE_LOGS_STORE = 'keptNoteLogs'
 
 // The kinds of data a profile keeps, a store each: how its records are keyed,
 // what they are looked up by, and how a backup carries them, under the store's
@@ -36,6 +37,12 @@ const STORE_DEFS = [
   // this store only holds what is not on the server yet, the last weeks at
   // most.
   { name: NOTE_LOGS_STORE, keyPath: 'id', backup: false },
+  // Segments the server has, kept here for the analysis of the score they
+  // were played on (noteLogAnalysis.js): moved over once pushed, or fetched
+  // from the server for the sessions another device played. Out of a backup
+  // for the same reason, and only a score's last sessions' (keepScoreNoteLogs
+  // in noteLog.js).
+  { name: KEPT_NOTE_LOGS_STORE, keyPath: 'id', backup: false },
 ]
 export const STORES = STORE_DEFS.map((def) => def.name)
 const BACKUP_DEFS = STORE_DEFS.filter((def) => def.backup !== false)
@@ -51,6 +58,15 @@ const CONNECTION_LOST = new Set(['InvalidStateError', 'UnknownError'])
 // it, so what was entered here joins what other devices entered first rather
 // than replacing it.
 export const NEVER_SYNCED = Object.freeze({ fingerings: Object.freeze({}), updatedAt: -1 })
+
+// A session's segments, by their ids — `<session id>:<n>` (noteLog.js): ';'
+// sorts right after ':'.
+const sessionRange = (sessionId) => IDBKeyRange.bound(`${sessionId}:`, `${sessionId};`, false, true)
+
+// The records of `store` under `keys`, a key with none left out.
+async function getMany(store, keys) {
+  return (await Promise.all(keys.map((key) => promisifyRequest(store.get(key))))).filter(Boolean)
+}
 
 function promisifyRequest(request) {
   return new Promise((resolve, reject) => {
@@ -256,8 +272,19 @@ export function initStorage() {
 
   // The records under `keys`, in one transaction; a key with none is left out.
   function dbGetMany(storeName, keys) {
-    return withStore(storeName, 'readonly', async (store) =>
-      (await Promise.all(keys.map((key) => promisifyRequest(store.get(key))))).filter(Boolean))
+    return withStore(storeName, 'readonly', (store) => getMany(store, keys))
+  }
+
+  // Both note log stores in one transaction — the segments still to send and
+  // those kept — resolved once it has committed, with what `operation` did.
+  function withNoteLogStores(mode, operation) {
+    return withDb(async (db) => {
+      const transaction = db.transaction([NOTE_LOGS_STORE, KEPT_NOTE_LOGS_STORE], mode)
+      const done = promisifyTransaction(transaction)
+      const result = await operation(transaction.objectStore(NOTE_LOGS_STORE), transaction.objectStore(KEPT_NOTE_LOGS_STORE))
+      await done
+      return result
+    })
   }
 
   function dbPut(storeName, data) {
@@ -394,8 +421,9 @@ export function initStorage() {
       })
     },
 
-    // Note logs methods (noteLog.js): every segment held is one the server
-    // does not have yet.
+    // Note logs methods (noteLog.js): every segment in NOTE_LOGS_STORE is one
+    // the server does not have yet, every one in KEPT_NOTE_LOGS_STORE one it
+    // has.
     saveNoteLog(segment) {
       return dbPut(NOTE_LOGS_STORE, segment)
     },
@@ -415,15 +443,44 @@ export function initStorage() {
       return dbGetMany(NOTE_LOGS_STORE, ids)
     },
 
-    // The server has them.
-    deleteNoteLogs(ids) {
-      return withStore(NOTE_LOGS_STORE, 'readwrite', (store) => Promise.all(ids.map((id) => promisifyRequest(store.delete(id)))))
+    // The server has them: from the segments to send to those kept, in one
+    // transaction, so that none is ever in both or in neither.
+    keepNoteLogs(ids) {
+      return withNoteLogStores('readwrite', async (pending, kept) => {
+        for (const segment of await getMany(pending, ids)) kept.put(segment)
+        for (const id of ids) pending.delete(id)
+      })
     },
 
-    // The segments of the sessions started before `epochMs`, by their ids,
-    // which open on it (noteLog.js).
+    // Segments fetched from the server.
+    saveKeptNoteLogs(segments) {
+      return withNoteLogStores('readwrite', (pending, kept) => {
+        for (const segment of segments) kept.put(segment)
+      })
+    },
+
+    // The ids of every segment held, sent or not.
+    getHeldNoteLogIds() {
+      return withNoteLogStores('readonly', async (pending, kept) =>
+        (await Promise.all([pending, kept].map((store) => promisifyRequest(store.getAllKeys())))).flat(),
+      )
+    },
+
+    // The kept segments of these sessions: the server still has them.
+    deleteKeptNoteLogsOfSessions(sessionIds) {
+      return withNoteLogStores('readwrite', (pending, kept) => {
+        for (const id of sessionIds) kept.delete(sessionRange(id))
+      })
+    },
+
+    // The segments of the sessions started before `epochMs`, sent or not, by
+    // their ids, which open on it (noteLog.js).
     deleteNoteLogsBefore(epochMs) {
-      return withStore(NOTE_LOGS_STORE, 'readwrite', (store) => promisifyRequest(store.delete(IDBKeyRange.upperBound(String(epochMs), true))))
+      return withNoteLogStores('readwrite', (pending, kept) => {
+        const before = IDBKeyRange.upperBound(String(epochMs), true)
+        pending.delete(before)
+        kept.delete(before)
+      })
     },
 
     // Swap the whole aggregates store for `aggregates`, in one transaction.

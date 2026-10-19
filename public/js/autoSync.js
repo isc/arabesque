@@ -11,7 +11,7 @@
 // Every trigger here is best-effort: silent when nobody is signed in or when
 // the network fails. The data page stays the one place that reports a sync's
 // outcome.
-import { lastSyncAt, runSync } from './sync.js'
+import { lastSyncAt, pullNoteLogs, runSync } from './sync.js'
 import { signedInOnThisDevice } from './supabaseConfig.js'
 import { onIdle, onForeground } from './utils.js'
 import { recordError } from './errorLog.js'
@@ -98,6 +98,14 @@ export function requestSync() {
       inFlight = null
     })
   return inFlight
+}
+
+// The segments of these sessions the server has, for a score being opened
+// (keepScoreNoteLogs in noteLog.js): nothing for a player with no account.
+export async function fetchNoteLogs(storage, sessionIds) {
+  if (!signedInOnThisDevice()) return
+  const client = await signedInClient()
+  if (client) await pullNoteLogs({ supabase: client.supabase, storage, sessionIds })
 }
 
 // Fire-and-forget sync for an automatic trigger: no-op unless an account is

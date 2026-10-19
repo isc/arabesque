@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { installLocalStorage } from './support/browserGlobals.js'
-import { initNoteLog, sessionOfSegment, SEGMENT_EVENTS, PENDING_NOTE_LOG_KEY } from '../../public/js/noteLog.js'
+import { initNoteLog, keepScoreNoteLogs, sessionOfSegment, NOTE_LOG_SINCE, SEGMENT_EVENTS, PENDING_NOTE_LOG_KEY } from '../../public/js/noteLog.js'
+import { REINFORCEMENT_WINDOW_SESSIONS } from '../../public/js/reinforcement.js'
 
 // A storage that keeps what is written, and a session the page can switch.
 function aPage(held = new Map()) {
@@ -101,5 +102,52 @@ describe('the note log', () => {
     const after = aPage(page.held)
     await after.log.tidy()
     expect(after.saved().map((s) => [s.id, s.e])).toEqual([['s1:1', 'x']])
+  })
+})
+
+// What a score keeps of its note logs as it opens: its last sessions' — the
+// window reinforcement reads — brought down when this device holds nothing of
+// them, and no older ones.
+describe('keepScoreNoteLogs', () => {
+  const DAY = 24 * 60 * 60 * 1000
+  // Ended sessions of one score, a day apart from `from` on.
+  const sessions = (count, from = NOTE_LOG_SINCE) =>
+    Array.from({ length: count }, (_, i) => {
+      const startedAt = new Date(from + i * DAY).toISOString()
+      return { id: `s${i}`, startedAt, endedAt: startedAt }
+    })
+
+  function aStorage(held) {
+    const storage = {
+      held: new Set(held),
+      dropped: [],
+      getHeldNoteLogIds: async () => [...storage.held].map((id) => `${id}:0`),
+      deleteKeptNoteLogsOfSessions: async (ids) => storage.dropped.push(...ids),
+    }
+    return storage
+  }
+
+  it('brings down the window’s sessions held nowhere here, and drops the kept ones of older sessions', async () => {
+    const all = sessions(REINFORCEMENT_WINDOW_SESSIONS + 2)
+    const storage = aStorage(['s0', 's5', 's11'])
+    const pulled = []
+
+    await keepScoreNoteLogs({ storage, sessions: all, pull: async (ids) => pulled.push(...ids) })
+
+    expect(storage.dropped).toEqual(['s0'])
+    expect(pulled.sort()).toEqual(['s10', 's2', 's3', 's4', 's6', 's7', 's8', 's9'])
+  })
+
+  it('asks for nothing played before the note log, nor for the session under way', async () => {
+    const all = [
+      ...sessions(3, NOTE_LOG_SINCE - 2 * DAY),
+      { id: 'live', startedAt: new Date(NOTE_LOG_SINCE).toISOString(), endedAt: null },
+    ]
+    const pulled = []
+
+    await keepScoreNoteLogs({ storage: aStorage([]), sessions: all, pull: async (ids) => pulled.push(...ids) })
+
+    // s2 started the instant the log shipped; s0 and s1 before it.
+    expect(pulled).toEqual(['s2'])
   })
 })

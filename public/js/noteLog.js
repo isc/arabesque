@@ -29,10 +29,13 @@
 // session's, then its number in it (`<session id>:<n>`), and a session's id
 // opens on the epoch ms it started at (practiceTracker.js): what sync and
 // pruning read a segment's session and age from, without reading the segment.
-// Segments go up with sync (sync.js), which drops them here once the server
-// has them; a player who never signs in keeps the last RETENTION_DAYS.
+// Segments go up with sync (sync.js), which keeps them aside once the server
+// has them, for the analysis of their score (noteLogAnalysis.js): a score
+// keeps its last sessions' at hand (keepScoreNoteLogs), and nothing is kept
+// past RETENTION_DAYS, sent or not — all a player who never signs in has.
 import { recordError } from './errorLog.js'
 import { scopedKey } from './profiles.js'
+import { recentSessions } from './reinforcement.js'
 
 export const SEGMENT_EVENTS = 500
 export const RETENTION_DAYS = 60
@@ -50,6 +53,30 @@ export const PENDING_NOTE_LOG_KEY = scopedKey('arabesque:pending-note-log')
 
 // The session a segment id belongs to.
 export const sessionOfSegment = (id) => id.slice(0, id.lastIndexOf(':'))
+
+// When the note log shipped (#479): a session started before has none, here
+// or on the server, and is not asked for. Moot once it is RETENTION_DAYS old,
+// in December 2026, and to go then.
+export const NOTE_LOG_SINCE = Date.parse('2026-10-17T13:00:00Z')
+const DAY_MS = 24 * 60 * 60 * 1000
+
+// A score's note logs, as it opens: those of its last sessions — the window
+// reinforcement reads — at hand on this device, and no others of the score
+// kept. `sessions` are the score's; `pull` takes the ids of the sessions in
+// the window that this device holds nothing of, and brings down what the
+// server has of them (fetchNoteLogs in autoSync.js). Segments not sent yet
+// stay whatever their session: they are not on the server. Nothing is asked
+// for that tidy() would drop again, past RETENTION_DAYS.
+export async function keepScoreNoteLogs({ storage, sessions, pull }) {
+  const ended = sessions.filter((s) => s.endedAt)
+  const window = new Set(recentSessions(ended))
+  const held = new Set((await storage.getHeldNoteLogIds()).map(sessionOfSegment))
+  const left = ended.filter((s) => !window.has(s) && held.has(s.id)).map((s) => s.id)
+  if (left.length > 0) await storage.deleteKeptNoteLogsOfSessions(left)
+  const since = Math.max(NOTE_LOG_SINCE, Date.now() - RETENTION_DAYS * DAY_MS)
+  const missing = [...window].filter((s) => !held.has(s.id) && Date.parse(s.startedAt) >= since).map((s) => s.id)
+  if (missing.length > 0) await pull(missing)
+}
 
 // `sessionId` answers the session under way, or null when there is none (a
 // score opened from a file, which has no session to file anything under).
@@ -138,7 +165,7 @@ export function initNoteLog({ storage, sessionId }) {
         if (error?.name !== 'ConstraintError') recordError(error, 'Stashed note log could not be saved')
       }
       try {
-        await storage.deleteNoteLogsBefore(Date.now() - RETENTION_DAYS * 24 * 60 * 60 * 1000)
+        await storage.deleteNoteLogsBefore(Date.now() - RETENTION_DAYS * DAY_MS)
       } catch (error) {
         recordError(error, 'Old note logs could not be dropped')
       }

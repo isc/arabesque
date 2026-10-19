@@ -6,7 +6,7 @@ import { initPracticeTracker } from './practiceTracker.js'
 import { TWO_HANDS, handsKey } from './hands.js'
 import { formatDuration, formatDate, applyStickyOffset, scorePageUrl, onForeground, onBackground, onIdle, withHands, passage, pickPassageMeasure, passageText } from './utils.js'
 import { initStorage } from './storage.js'
-import { initNoteLog } from './noteLog.js'
+import { initNoteLog, keepScoreNoteLogs } from './noteLog.js'
 import { loadMxlAsXml } from './mxlLoader.js'
 import { injectFingerings } from './fingeringInjector.js'
 import { migrateFingeringRecord } from './fingeringKeys.js'
@@ -18,7 +18,7 @@ import { BPM_DEFAULT } from './bpmStepper.js'
 import { bpmField } from './bpmField.js'
 import { resultModal } from './resultModal.js'
 import { headerMenu } from './headerMenu.js'
-import { initAutoSync, triggerSync } from './autoSync.js'
+import { fetchNoteLogs, initAutoSync, triggerSync } from './autoSync.js'
 import { scopedKey } from './profiles.js'
 import { t, tn } from './i18n.js'
 import { recordError } from './errorLog.js'
@@ -549,6 +549,16 @@ export function midiApp() {
       // Suggestions from the score's recent history, before a note is played
       await this.refreshReinforcementSuggestions()
       await this.markScoreReady()
+      // The notes of its last sessions at hand, those played elsewhere
+      // included, for reading them back: once the page is quiet.
+      onIdle(async () => {
+        try {
+          const sessions = await practiceTracker.getScoreSessions(url)
+          await keepScoreNoteLogs({ storage, sessions, pull: (ids) => fetchNoteLogs(storage, ids) })
+        } catch (error) {
+          recordError(error, 'Note logs could not be kept')
+        }
+      })
     },
 
     // Marks the score page as ready to be driven: OSMD has painted, metadata

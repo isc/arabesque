@@ -80,8 +80,9 @@ export function measuresToReinforce(sessions, { hands, limit = 5 } = {}) {
 
 // The window that makes the suggestions forget: only the last
 // REINFORCEMENT_WINDOW_SESSIONS sessions of a score count, so a bar massacred
-// six months ago and left alone says nothing today.
-function recentSessions(sessions) {
+// six months ago and left alone says nothing today. Also the sessions whose
+// note logs a score keeps at hand (keepScoreNoteLogs in noteLog.js).
+export function recentSessions(sessions) {
   return [...sessions].sort(byStartedAt).slice(-REINFORCEMENT_WINDOW_SESSIONS)
 }
 
