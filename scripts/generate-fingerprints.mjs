@@ -13,26 +13,25 @@
 import { readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { openScore } from './mxl.mjs'
-import { PART, TOKEN, STAFF, VOICE, REST, GRACE, CHORD, TIE_START, TIE_STOP, CUE_OR_HIDDEN, numberOf } from './lib/musicxml.mjs'
+import {
+  PART,
+  TOKEN,
+  STAFF,
+  VOICE,
+  REST,
+  GRACE,
+  CHORD,
+  TIE_START,
+  TIE_STOP,
+  CUE_OR_HIDDEN,
+  numberOf,
+  midiOf,
+} from './lib/musicxml.mjs'
 import { MIN_MATCH } from '../public/js/fingerprints.js'
 
 const PUBLIC_DIR = join(import.meta.dirname, '..', 'public')
 export const OUTPUT_FILE = join(PUBLIC_DIR, 'data', 'fingerprints.json')
 const NOTE_COUNT = 20
-
-const STEP_SEMITONES = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 }
-
-// The <tag>text</tag> of a note's pitch.
-const text = (xml, tag) => new RegExp(`<${tag}>\\s*([^<]*)</${tag}>`).exec(xml)?.[1]
-
-// The MIDI number of a note's pitch, or null for a note without one.
-function midiOf(note) {
-  const pitch = /<pitch>([\s\S]*?)<\/pitch>/.exec(note)?.[1]
-  const step = pitch && text(pitch, 'step')?.trim()
-  const octave = pitch && text(pitch, 'octave')
-  if (!(step in STEP_SEMITONES) || octave === undefined) return null
-  return 12 * (parseInt(octave, 10) + 1) + STEP_SEMITONES[step] + (parseInt(text(pitch, 'alter') ?? '0', 10) || 0)
-}
 
 // The melody a player starts with: voice 1 of the first part, one note per
 // chord and per sounding (no rests, grace notes or tied-on notes), bar by bar,

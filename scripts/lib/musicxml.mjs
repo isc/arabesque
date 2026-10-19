@@ -1,6 +1,6 @@
 // Reading MusicXML as text, for the scripts that walk a score's notes without
-// a DOM — the fingerprint generator and the fingering import — so that both
-// read a note the same way, in either quote style: MuseScore writes double
+// a DOM — the fingerprint generator, the fingering import and the practice
+// report — so that they read a note the same way, in either quote style: MuseScore writes double
 // quotes, but the Hanon files come from scripts/split_hanon.rb through REXML,
 // which writes single ones.
 
@@ -41,3 +41,31 @@ export function numberOf(xml, pattern) {
   const match = pattern.exec(xml)
   return match ? parseInt(match[1], 10) : 1
 }
+
+const STEP_SEMITONES = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 }
+const PITCH = /<pitch>([\s\S]*?)<\/pitch>/
+const STEP = /<step>\s*([^<]*)<\/step>/
+const OCTAVE = /<octave>\s*([^<]*)<\/octave>/
+const ALTER = /<alter>\s*([^<]*)<\/alter>/
+
+// The MIDI number of a note's pitch, or null for a note without one.
+export function midiOf(note) {
+  const pitch = PITCH.exec(note)?.[1]
+  const step = pitch && STEP.exec(pitch)?.[1].trim()
+  const octave = pitch && OCTAVE.exec(pitch)?.[1]
+  if (!(step in STEP_SEMITONES) || octave === undefined) return null
+  return 12 * (parseInt(octave, 10) + 1) + STEP_SEMITONES[step] + (parseInt(ALTER.exec(pitch)?.[1] ?? '0', 10) || 0)
+}
+
+// Besides the notes, what times them, for a walk that places each note in its
+// bar: the measures, what moves the cursor back and forth between voices, what
+// scales a duration, and the tempo marked. `TOKEN` has no group of its own, so
+// the backreference counts from here.
+export const TIMED_TOKEN = new RegExp(
+  `${TOKEN.source}|<(backup|forward)>[\\s\\S]*?<\\/\\1>|<divisions>[^<]*<\\/divisions>|<sound\\s[^>]*\\btempo=["'][^"']*["']`,
+  'g',
+)
+export const DURATION = /<duration>\s*([\d.]+)\s*<\/duration>/
+export const DIVISIONS = /<divisions>\s*([\d.]+)/
+export const TEMPO = /\btempo=["']([^"']*)["']/
+export const FERMATA = /<fermata[\s/>]/

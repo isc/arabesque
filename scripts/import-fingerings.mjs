@@ -319,8 +319,8 @@ function catalogTitles() {
 
 // A stored `scoreUrl` is the catalog path, `scores/<file>`. Read from a branch
 // preview it can carry a prefix (`previews/some-branch/scores/<file>`), which
-// names the same file in `public/`.
-function scoreFile(scoreUrl) {
+// names the same file in `public/`. Null for a path outside `scores/`.
+export function scoreFile(scoreUrl) {
   const at = scoreUrl.lastIndexOf('scores/')
   return at < 0 ? null : scoreUrl.slice(at + 'scores/'.length)
 }
