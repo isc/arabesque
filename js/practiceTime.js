@@ -34,7 +34,8 @@ export function median(values) {
 
 // Measure attempts overlapping [start, end], in chronological order, flattened
 // to what their readers need: when it started, how long it took, which hands
-// played it, which measure it was and how many wrong notes it took. Bounds are
+// played it, which measure it was, how many wrong notes it took, and what the
+// pace said of it (practiceTracker.js) — the holes in it and its join. Bounds are
 // inclusive — a measure played faster than the clock ticks would otherwise fall
 // out of the very run it belongs to, and an attempt touching a bound with no
 // overlap adds nothing to the time either way. Defaults to every attempt in the
@@ -53,6 +54,10 @@ export function sessionAttempts(session, start = -Infinity, end = Infinity) {
           hands: attempt.hands,
           sourceMeasureIndex: measure.sourceMeasureIndex,
           wrongNotes: attempt.wrongNotes || 0,
+          hesitations: attempt.hesitations || 0,
+          joined: attempt.joined ?? false,
+          entryHole: attempt.entryHole ?? false,
+          entryRatio: attempt.entryRatio ?? null,
         })
       }
     }
