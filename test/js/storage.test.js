@@ -151,6 +151,30 @@ describe('a backup restored on another device', () => {
 
 const noteLog = (id) => ({ id, sessionId: id.split(':')[0], startedAt: '2026-06-10T10:00:00.000Z', t: [0], e: 'd', p: [60], v: [64], n: [0], b: [0], keys: ['m1:0:0:0'] })
 
+// A branch preview is on production's origin, and on its database: one that
+// raised DB_VERSION leaves it a version ahead of production.
+describe('a database a newer build upgraded', () => {
+  it('opens as it stands, with every store this build knows', async () => {
+    indexedDB = new IDBFactory()
+    await new Promise((resolve, reject) => {
+      const request = indexedDB.open('arabesque', DB_VERSION + 1)
+      request.onupgradeneeded = () => {
+        for (const store of [...STORES, 'fromTheFuture']) request.result.createObjectStore(store, { keyPath: 'id' })
+      }
+      request.onsuccess = () => {
+        request.result.close()
+        resolve()
+      }
+      request.onerror = () => reject(request.error)
+    })
+
+    const storage = initStorage()
+    await storage.init()
+    await storage.saveSession(session('s1'))
+    expect((await storage.getSessions()).map((s) => s.id)).toEqual(['s1'])
+  })
+})
+
 describe('note logs', () => {
   // A session's id opens on the epoch ms it started at (practiceTracker.js).
   it('drops the segments of the sessions started before an instant', async () => {
