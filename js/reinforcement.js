@@ -80,8 +80,9 @@ export function measuresToReinforce(sessions, { hands, limit = 5 } = {}) {
 
 // The window that makes the suggestions forget: only the last
 // REINFORCEMENT_WINDOW_SESSIONS sessions of a score count, so a bar massacred
-// six months ago and left alone says nothing today.
-function recentSessions(sessions) {
+// six months ago and left alone says nothing today. Also the sessions whose
+// note logs a score keeps at hand (keepScoreNoteLogs in noteLog.js).
+export function recentSessions(sessions) {
   return [...sessions].sort(byStartedAt).slice(-REINFORCEMENT_WINDOW_SESSIONS)
 }
 
@@ -131,7 +132,8 @@ function measureHistories(sessions, hands) {
     for (const measure of session.measures || []) {
       for (const attempt of measure.attempts || []) {
         const selection = attemptHands(attempt)
-        if (selection === NO_HANDS || (hands && selection !== hands)) continue
+        // A fragment drilled over part of the bar says nothing of the whole.
+        if (attempt.partial || selection === NO_HANDS || (hands && selection !== hands)) continue
 
         let histories = bySelection.get(selection)
         if (!histories) bySelection.set(selection, (histories = new Map()))

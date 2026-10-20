@@ -11,8 +11,10 @@
 // beat — completed by the last of its keys to come down; a wrong key spoils
 // the interval it falls in, as handleWrongNote() does. A traversal, a run or a
 // repetition, starts over where the attacks go back in the score or skip
-// ahead. That is read off the attacks alone: a bar clicked or a hand toggled,
-// which make the page start its count over, leave nothing in the log.
+// ahead. That is read off the attacks alone: a bar clicked, which makes the
+// page start its count over, leaves nothing in the log. The hands ticked do
+// (the `h` events), and a traversal is played with those ticked as it began —
+// both, in a log from before they were written.
 //
 // Pure: segments and a note model in, verdicts out. The model is the score's,
 // by source bar:
@@ -20,13 +22,20 @@
 //   notes  Map of fingering key (fingeringKeys.js) to { bar, staff, position,
 //          midi, grace, fermata }: `bar` the source index, `position` in whole
 //          notes from the bar's start
-//   bars   per source bar, { duration, tempo, positions }: how long it is in
-//          whole notes, the tempo it is judged at, and the positions of its
-//          attacks in order, which number them
+//   bars   per source bar, { duration, tempo, positions, beat }: how long it
+//          is in whole notes, the tempo it is judged at, the positions of its
+//          attacks in order, which number them, and — for fragments.js — how
+//          long a beat of it is
 //
-// Positions are compared exactly: whoever builds the model rounds them, so
-// that both hands on a beat share one.
+// Positions are compared exactly: whoever builds the model rounds them with
+// roundPosition, so that both hands on a beat share one.
 import { createSteadiness } from './steadiness.js'
+import { TWO_HANDS, handsKey } from './hands.js'
+
+// How finely positions are told apart, in whole notes: far below any note,
+// far above the error of summing durations.
+export const POSITION_EPSILON = 1e-6
+export const roundPosition = (wholeNotes) => Math.round(wholeNotes / POSITION_EPSILON) / (1 / POSITION_EPSILON)
 
 // A session's note log as one list of events in time order: { at (epoch ms),
 // code, pitch, key, bar }, `bar` the playback index — the columns of a segment
@@ -47,16 +56,22 @@ export function eventsOf(segments) {
 // a note late over a bar line goes back by much less.
 const RESTART = 0.25
 
+// The hands ticked, as an `h` event writes them (noteLog.js).
+export const handsOfBits = (bits) => handsKey({ right: Boolean(bits & 1), left: Boolean(bits & 2) })
+
 // The log cut into traversals, each judged: per traversal, its attacks in
 // score order — { bar (playback), sourceBar, position, at, ms, ratio, hole,
-// entry, joined, faulted } — and the wrong keys played during it, { at, bar,
-// key, pitch }, `key` the note that was owed.
+// entry, joined, faulted } — the wrong keys played during it, { at, bar, key,
+// pitch }, `key` the note that was owed, and the hands ticked as it began
+// (handsKey).
 export function traversals(events, model) {
   const runs = []
   let run = null
   let last = -Infinity
   let lastBar = -Infinity
+  let hands = TWO_HANDS
   for (const event of events) {
+    if (event.code === 'h') hands = handsOfBits(event.pitch)
     const note = event.key && model.notes.get(event.key)
     if (!note || event.bar < 0) continue
     if (event.code === 'w') {
@@ -65,7 +80,7 @@ export function traversals(events, model) {
     }
     if (event.code !== 'd') continue
     const where = event.bar + note.position / (model.bars[note.bar].duration || 1)
-    if (!run || where < last - RESTART || event.bar > lastBar + 1) runs.push((run = { attacks: new Map(), wrong: [] }))
+    if (!run || where < last - RESTART || event.bar > lastBar + 1) runs.push((run = { attacks: new Map(), wrong: [], hands }))
     last = where
     lastBar = event.bar
     const id = `${event.bar}@${note.position}${note.grace ? 'g' : ''}`
@@ -90,7 +105,7 @@ export function traversals(events, model) {
   return runs.map((r) => judge(r, model))
 }
 
-function judge({ attacks, wrong }, model) {
+function judge({ attacks, wrong, hands }, model) {
   const ordered = [...attacks.values()].sort((a, b) => a.bar - b.bar || a.position - b.position || a.grace - b.grace)
   const steadiness = createSteadiness()
   const apply = (verdicts) => {
@@ -126,7 +141,7 @@ function judge({ attacks, wrong }, model) {
     previous = attack
   }
   apply(steadiness.close())
-  return { attacks: ordered, wrong }
+  return { attacks: ordered, wrong, hands }
 }
 
 // The attack at `position` in source bar `bar`, numbered from 1: the downbeat

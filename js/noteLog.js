@@ -19,7 +19,10 @@
 //            trill, or in strict mode, whose own engine judges it
 //         u  a key up
 //         p  the sustain pedal, `p` holding its value
-//   p   the MIDI note (or the pedal's value)
+//         h  the hands ticked, `p` holding 1 for the right, 2 for the left, 3
+//            for both: at the head of every segment, and whenever they change.
+//            A log from before it was written was played with both
+//   p   the MIDI note (or the pedal's value, or the hands ticked)
 //   v   the velocity, 0 for a key up and the pedal
 //   n   an index into `keys`, the notes' fingering keys (fingeringKeys.js),
 //       or -1
@@ -29,10 +32,13 @@
 // session's, then its number in it (`<session id>:<n>`), and a session's id
 // opens on the epoch ms it started at (practiceTracker.js): what sync and
 // pruning read a segment's session and age from, without reading the segment.
-// Segments go up with sync (sync.js), which drops them here once the server
-// has them; a player who never signs in keeps the last RETENTION_DAYS.
+// Segments go up with sync (sync.js), which keeps them aside once the server
+// has them, for the analysis of their score (noteLogAnalysis.js): a score
+// keeps its last sessions' at hand (keepScoreNoteLogs), and nothing is kept
+// past RETENTION_DAYS, sent or not — all a player who never signs in has.
 import { recordError } from './errorLog.js'
 import { scopedKey } from './profiles.js'
+import { recentSessions } from './reinforcement.js'
 
 export const SEGMENT_EVENTS = 500
 export const RETENTION_DAYS = 60
@@ -51,6 +57,34 @@ export const PENDING_NOTE_LOG_KEY = scopedKey('arabesque:pending-note-log')
 // The session a segment id belongs to.
 export const sessionOfSegment = (id) => id.slice(0, id.lastIndexOf(':'))
 
+// When the note log shipped (#479): a session started before has none, here
+// or on the server, and is not asked for. Moot once it is RETENTION_DAYS old,
+// in December 2026, and to go then.
+export const NOTE_LOG_SINCE = Date.parse('2026-10-17T13:00:00Z')
+const DAY_MS = 24 * 60 * 60 * 1000
+
+// The sessions of a score whose note logs are kept at hand and read back
+// (fragmentSuggestions.js): its last ones ended, the window reinforcement
+// reads.
+export const noteLogWindow = (sessions) => recentSessions(sessions.filter((s) => s.endedAt))
+
+// A score's note logs, as it opens: those of its last sessions — the window
+// reinforcement reads — at hand on this device, and no others of the score
+// kept. `sessions` are the score's; `pull` takes the ids of the sessions in
+// the window that this device holds nothing of, and brings down what the
+// server has of them (fetchNoteLogs in autoSync.js). Segments not sent yet
+// stay whatever their session: they are not on the server. Nothing is asked
+// for that tidy() would drop again, past RETENTION_DAYS.
+export async function keepScoreNoteLogs({ storage, sessions, pull }) {
+  const window = new Set(noteLogWindow(sessions))
+  const held = new Set((await storage.getHeldNoteLogIds()).map(sessionOfSegment))
+  const left = sessions.filter((s) => s.endedAt && !window.has(s) && held.has(s.id)).map((s) => s.id)
+  if (left.length > 0) await storage.deleteKeptNoteLogsOfSessions(left)
+  const since = Math.max(NOTE_LOG_SINCE, Date.now() - RETENTION_DAYS * DAY_MS)
+  const missing = [...window].filter((s) => !held.has(s.id) && Date.parse(s.startedAt) >= since).map((s) => s.id)
+  if (missing.length > 0) await pull(missing)
+}
+
 // `sessionId` answers the session under way, or null when there is none (a
 // score opened from a file, which has no session to file anything under).
 export function initNoteLog({ storage, sessionId }) {
@@ -62,12 +96,19 @@ export function initNoteLog({ storage, sessionId }) {
   let origin = 0
   // The last segment opened, which numbers the next one of the same session.
   let last = { sessionId: null, seq: -1 }
+  // The segments of that session this page has written: with the one under
+  // way, the session as played so far, for reading it back as it goes.
+  let written = []
+  // The hands ticked, as an `h` event writes them: both until told otherwise.
+  let handsBits = 3
   let pedalBand = null
 
   function open(id) {
+    if (last.sessionId !== id) written = []
     last = { sessionId: id, seq: last.sessionId === id ? last.seq + 1 : 0 }
     origin = performance.now()
-    return { id: `${id}:${last.seq}`, sessionId: id, startedAt: new Date().toISOString(), keys: [], t: [], e: '', p: [], v: [], n: [], b: [] }
+    // Opening on the hands ticked: a segment read on its own still says them.
+    return { id: `${id}:${last.seq}`, sessionId: id, startedAt: new Date().toISOString(), keys: [], t: [0], e: 'h', p: [handsBits], v: [0], n: [-1], b: [-1] }
   }
 
   function record(code, pitch, velocity = 0, taken = null) {
@@ -95,10 +136,11 @@ export function initNoteLog({ storage, sessionId }) {
   // anyone who has a key to answer: the write is IndexedDB's business.
   async function flush() {
     if (!segment) return
-    const written = segment
+    const full = segment
     segment = null
+    written.push(full)
     try {
-      await storage.saveNoteLog(written)
+      await storage.saveNoteLog(full)
     } catch (error) {
       recordError(error, 'Note log could not be saved')
     }
@@ -109,6 +151,13 @@ export function initNoteLog({ storage, sessionId }) {
     // musicxml.js): null when it took no part in it.
     keyDown: (pitch, velocity, taken = null) => record(!taken ? 'x' : taken.wrong ? 'w' : 'd', pitch, velocity, taken),
     keyUp: (pitch) => record('u', pitch),
+    // The hands ticked changed (handsKey's { right, left }).
+    hands({ right, left }) {
+      const bits = (right ? 1 : 0) | (left ? 2 : 0)
+      if (bits === handsBits) return
+      handsBits = bits
+      if (segment) record('h', bits)
+    },
     pedal(value) {
       const band = Math.floor(value / PEDAL_BAND)
       if (band === pedalBand && value !== 0 && value !== 127) return
@@ -116,6 +165,9 @@ export function initNoteLog({ storage, sessionId }) {
       record('p', value)
     },
     flush,
+    // The session under way as played so far on this page, segment by
+    // segment (noteLogAnalysis.js reads them).
+    liveSegments: () => (segment ? [...written, segment] : written),
     // The page going away, or to the background where it may never come back
     // from: the segment under way kept synchronously for the next page, then
     // written — if the write gets there, the next page finds it written.
@@ -138,7 +190,7 @@ export function initNoteLog({ storage, sessionId }) {
         if (error?.name !== 'ConstraintError') recordError(error, 'Stashed note log could not be saved')
       }
       try {
-        await storage.deleteNoteLogsBefore(Date.now() - RETENTION_DAYS * 24 * 60 * 60 * 1000)
+        await storage.deleteNoteLogsBefore(Date.now() - RETENTION_DAYS * DAY_MS)
       } catch (error) {
         recordError(error, 'Old note logs could not be dropped')
       }

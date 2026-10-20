@@ -2056,7 +2056,9 @@ svg g.vf-notehead.wrong-note path { animation: pt-wrong-note-flash 700ms; }
    listed first so `.selected` picks the stronger fill on the measure carrying
    both. Same two-tone reading as strict-range / strict-start below. */
 .measure-click-area.training-range { fill: color-mix(in srgb, var(--pt-mode-training) 8%, transparent); }
-.measure-click-area.selected { fill: color-mix(in srgb, var(--pt-mode-training) 14%, transparent); }
+.measure-click-area.selected,
+.fragment-range { fill: color-mix(in srgb, var(--pt-mode-training) 14%, transparent); }
+.fragment-range { pointer-events: none; }
 .measure-click-area.strict-start { fill: color-mix(in srgb, var(--pt-mode-strict) 14%, transparent); stroke: var(--pt-mode-strict); stroke-width: 2; }
 .measure-click-area.strict-range { fill: color-mix(in srgb, var(--pt-mode-strict) 10%, transparent); }
 

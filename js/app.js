@@ -6,7 +6,8 @@ import { initPracticeTracker } from './practiceTracker.js'
 import { TWO_HANDS, handsKey } from './hands.js'
 import { formatDuration, formatDate, applyStickyOffset, scorePageUrl, onForeground, onBackground, onIdle, withHands, passage, pickPassageMeasure, passageText } from './utils.js'
 import { initStorage } from './storage.js'
-import { initNoteLog } from './noteLog.js'
+import { initNoteLog, keepScoreNoteLogs } from './noteLog.js'
+import { initFragmentSuggestions } from './fragmentSuggestions.js'
 import { loadMxlAsXml } from './mxlLoader.js'
 import { injectFingerings } from './fingeringInjector.js'
 import { migrateFingeringRecord } from './fingeringKeys.js'
@@ -18,7 +19,7 @@ import { BPM_DEFAULT } from './bpmStepper.js'
 import { bpmField } from './bpmField.js'
 import { resultModal } from './resultModal.js'
 import { headerMenu } from './headerMenu.js'
-import { initAutoSync, triggerSync } from './autoSync.js'
+import { fetchNoteLogs, initAutoSync, triggerSync } from './autoSync.js'
 import { scopedKey } from './profiles.js'
 import { t, tn } from './i18n.js'
 import { recordError } from './errorLog.js'
@@ -60,6 +61,7 @@ export function midiApp() {
   const storage = initStorage()
   const practiceTracker = initPracticeTracker(storage)
   const noteLog = initNoteLog({ storage, sessionId: () => practiceTracker.getCurrentSession()?.id })
+  const fragmentSuggestions = initFragmentSuggestions({ storage, practiceTracker, noteLog, getAllNotes: musicxml.getAllNotes })
   const playback = initPlayback(midi.state)
   const strictPlaythrough = initStrictPlaythrough()
   // The on-screen keyboard; built in init(), where the page's state it reads is.
@@ -407,8 +409,8 @@ export function midiApp() {
           this.showTrainingDone(this.trainingPassage, musicxml.getTrainingState().targetRepeatCount)
           await rollSession(this.currentMode)
         },
-        onMeasureStarted: (sourceMeasureIndex, startsPlaythrough) => {
-          practiceTracker.startMeasureAttempt(sourceMeasureIndex, startsPlaythrough, this.activeHands)
+        onMeasureStarted: (sourceMeasureIndex, startsPlaythrough, options) => {
+          practiceTracker.startMeasureAttempt(sourceMeasureIndex, startsPlaythrough, this.activeHands, options)
         },
         onMeasureCompleted: () => {
           practiceTracker.endMeasureAttempt()
@@ -549,6 +551,19 @@ export function midiApp() {
       // Suggestions from the score's recent history, before a note is played
       await this.refreshReinforcementSuggestions()
       await this.markScoreReady()
+      // The notes of its last sessions at hand, those played elsewhere
+      // included, for reading them back: once the page is quiet.
+      onIdle(async () => {
+        try {
+          const sessions = await practiceTracker.getScoreSessions(url)
+          await keepScoreNoteLogs({ storage, sessions, pull: (ids) => fetchNoteLogs(storage, ids) })
+          // What came down can change what is worth drilling.
+          fragmentSuggestions.forget()
+          await this.refreshReinforcementSuggestions()
+        } catch (error) {
+          recordError(error, 'Note logs could not be kept')
+        }
+      })
     },
 
     // Marks the score page as ready to be driven: OSMD has painted, metadata
@@ -1158,7 +1173,7 @@ export function midiApp() {
     // on, and the label says so whenever it is not both.
     async refreshReinforcementSuggestions() {
       const seq = ++reinforcementRefreshSeq
-      const measures = await practiceTracker.getMeasuresToReinforce(this.scoreUrl, handsKey(this.activeHands))
+      const measures = await fragmentSuggestions.suggestions(this.scoreUrl, handsKey(this.activeHands))
       if (seq === reinforcementRefreshSeq) this.measuresToReinforce = measures
     },
 
@@ -1167,12 +1182,7 @@ export function midiApp() {
     // read aloud says the hand in full.
     reinforceLabel(words) {
       const items = this.measuresToReinforce
-      const joins = items.filter((item) => item.join).length
-      const bars = items.length - joins
-      const barsText = tn('journal.measuresCount', bars)
-      const joinsText = tn('score.joinsCount', joins)
-      const what = !joins ? barsText : !bars ? joinsText : t('score.reinforceBoth', { bars: barsText, joins: joinsText })
-      return withHands(t('score.reinforce', { what }), items[0]?.hands ?? TWO_HANDS, words)
+      return withHands(t('score.reinforce', { what: tn('score.passagesCount', items.length) }), items[0]?.hands ?? TWO_HANDS, words)
     },
 
     // From free play or from the strict tab, mid-piece or not: setMode puts
@@ -1192,6 +1202,7 @@ export function midiApp() {
       musicxml.setActiveHands(this.activeHands)
       strictPlaythrough.setActiveHands(this.activeHands)
       practiceTracker.setActiveHands(this.activeHands)
+      noteLog.hands(this.activeHands)
       playback.setHands(this.activeHands)
       this.refreshReinforcementSuggestions()
     },
