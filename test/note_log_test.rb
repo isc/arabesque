@@ -12,14 +12,15 @@ class NoteLogTest < CapybaraTestBase
     play_note('D4') # the run is over, and filed with its notes
     assert_selector 'dialog[open]'
 
-    # Pedal, C4 down and up, E4 wrong for the D4 of bar 2 and up, D4 down.
+    # Both hands ticked, the pedal, C4 down and up, E4 wrong for the D4 of bar
+    # 2 and up, D4 down.
     wait_for_records('noteLogs', where: <<~JS.strip)
-      record.e === 'pduwud'
-        && record.p.join() === '127,60,60,64,64,62'
-        && record.v.join() === '0,80,0,80,0,80'
-        && record.b.join() === '-1,0,-1,1,-1,1'
+      record.e === 'hpduwud'
+        && record.p.join() === '3,127,60,60,64,64,62'
+        && record.v.join() === '0,0,80,0,80,0,80'
+        && record.b.join() === '-1,-1,0,-1,1,-1,1'
         && record.keys.length === 2
-        && record.n[3] === record.n[5] && record.n[1] !== record.n[3]
+        && record.n[4] === record.n[6] && record.n[2] !== record.n[4]
     JS
   end
 end

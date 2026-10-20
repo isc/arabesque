@@ -104,9 +104,9 @@ class SteadinessTest < CapybaraTestBase
   end
 
   # A run that stops at the bar line, both bars clean: what reinforcement
-  # offers is the join, drilled as the two bars together, which drilling bar
-  # 2 alone would never play.
-  def test_a_join_stalled_at_is_reinforced_as_the_two_bars_together
+  # offers is the way in, the last beat of bar 1 and the first of bar 2,
+  # which drilling bar 2 alone would never play (fragments.js).
+  def test_a_join_stalled_at_is_reinforced_as_the_beats_on_either_side
     open_steady_quavers
     with_clock_control do
       play_evenly(BAR_1)
@@ -114,18 +114,65 @@ class SteadinessTest < CapybaraTestBase
     end
     find('dialog[open] button[aria-label="Close"]').click
 
-    click_on 'Renforcer 1 enchaînement'
-    assert_text 'Mode Entraînement Actif'
-    assert_selector 'svg rect.measure-click-area.training-range', count: 2
+    drill_the_fragment(%w[B4 C5 C5 B4], shaded_bars: 2)
+  end
 
+  # The stall of feedback 534a800b: the downbeat on time, and the hand only
+  # then setting up for the rest of the bar. It is the way in all the same.
+  def test_a_stall_after_the_downbeat_is_reinforced_as_the_way_in
+    open_steady_quavers
     with_clock_control do
-      3.times { play_evenly(BAR_1 + BAR_2, first_after: 300) }
+      play_evenly(BAR_1 + BAR_2.take(1))
+      play_evenly(BAR_2.drop(1), first_after: HESITATION)
+    end
+    find('dialog[open] button[aria-label="Close"]').click
+
+    drill_the_fragment(%w[B4 C5 C5 B4], shaded_bars: 2)
+    # Each bar played in part: its attempts say nothing of the whole bar.
+    wait_for_records('sessions', where: <<~JS.strip)
+      record.mode === 'training' && [0, 1].every((bar) =>
+        record.measures.some((m) => m.sourceMeasureIndex === bar && m.attempts.length && m.attempts.every((a) => a.partial)))
+    JS
+  end
+
+  # What to drill is read again from the note log, not from what the page kept
+  # of the run: a reload still offers it.
+  def test_what_to_reinforce_is_read_back_from_the_note_log
+    open_steady_quavers
+    with_clock_control do
+      play_evenly(BAR_1)
+      play_evenly(BAR_2, first_after: HESITATION)
+    end
+    wait_for_records('noteLogs')
+    wait_for_records('sessions', where: 'record.endedAt')
+
+    open_steady_quavers
+    assert_selector '.pt-reinforce-badge', text: 'Renforcer 1 passage'
+  end
+
+  # A history played before the note log existed has none to read: its bars
+  # and joins are offered the way they were, drilled as whole bars.
+  def test_a_history_with_no_note_log_offers_its_bars_whole
+    open_steady_quavers
+    seed_store('sessions', [{
+      id: '1700000000000-old', scoreId: '/test-fixtures/steady-quavers.xml', scoreTitle: 'Steady quavers',
+      mode: 'free', startedAt: '2023-11-14T22:13:20.000Z', endedAt: '2023-11-14T22:15:00.000Z', totalMeasures: 2,
+      measures: [{ sourceMeasureIndex: 1, attempts: [
+        { startedAt: '2023-11-14T22:13:30.000Z', durationMs: 3000, wrongNotes: 1, clean: false, hands: 'both' },
+      ] }],
+    }])
+
+    open_steady_quavers
+    click_on 'Renforcer 1 passage'
+    assert_selector 'svg rect.fragment-range', count: 1
+    with_clock_control do
+      3.times { play_evenly(BAR_2, first_after: 300) }
     end
     assert_text 'Tout ce qui était proposé a été renforcé avec succès.'
   end
 
-  # A wrong note inside a bar is the bar's own: it is drilled alone.
-  def test_a_wrong_note_inside_a_bar_offers_the_bar_alone
+  # A wrong note inside a bar: its beat, and the beat before.
+  def test_a_wrong_note_inside_a_bar_offers_its_beat_and_the_one_before
     open_steady_quavers
     with_clock_control do
       play_evenly(BAR_1)
@@ -133,15 +180,7 @@ class SteadinessTest < CapybaraTestBase
     end
     find('dialog[open] button[aria-label="Close"]').click
 
-    click_on 'Renforcer 1 mesure'
-    assert_text 'Mode Entraînement Actif'
-    wait_for_training_cursor(2)
-    assert_no_selector 'svg rect.measure-click-area.training-range'
-
-    with_clock_control do
-      3.times { play_evenly(BAR_2, first_after: 300) }
-    end
-    assert_text 'Tout ce qui était proposé a été renforcé avec succès.'
+    drill_the_fragment(%w[C5 B4 A4 G4], shaded_bars: 1)
   end
 
   # A late group can hold a tie the player never let go of: only the note
@@ -166,6 +205,19 @@ class SteadinessTest < CapybaraTestBase
   def open_steady_quavers
     visit '/score.html?url=/test-fixtures/steady-quavers.xml'
     wait_for_score_render(16)
+  end
+
+  # The one passage offered, drilled to done: three clean repetitions of
+  # `notes`, the rest of the bars around them owed nothing.
+  def drill_the_fragment(notes, shaded_bars:)
+    click_on 'Renforcer 1 passage'
+    assert_text 'Mode Entraînement Actif'
+    assert_selector 'svg rect.fragment-range', count: shaded_bars
+
+    with_clock_control do
+      3.times { play_evenly(notes, first_after: 300) }
+    end
+    assert_text 'Tout ce qui était proposé a été renforcé avec succès.'
   end
 
   def play_evenly(notes, first_after: GAP)

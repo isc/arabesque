@@ -128,7 +128,8 @@ export function foldSession(aggregate, session, meta) {
     }
 
     const measureAgg = aggregate.measures[measureIndex]
-    for (const attempt of measureData.attempts) {
+    // A fragment drilled over part of the bar says nothing of the whole of it.
+    for (const attempt of measureData.attempts.filter((a) => !a.partial)) {
       measureAgg.totalAttempts++
       // Like timesCompleted: the plain counter is the one the statuses
       // read, and means both hands.

@@ -199,10 +199,10 @@ export async function runSync({ supabase, storage, practiceTracker, userId = nul
 
 // The notes played in a session go up once the session is on the server — the
 // one under way waits for its end, and a session never filed (nothing played
-// in it worth keeping) never sends its own — and never come down: they are for
-// reading a practice session after the fact, on the server, not for another
-// device. Each chunk leaves this device as soon as the server has it, so a
-// sync cut short sends only the rest next time.
+// in it worth keeping) never sends its own. Each chunk moves to the segments
+// kept as soon as the server has it, so a sync cut short sends only the rest
+// next time. They come down only for a score being opened (pullNoteLogs), not
+// with a sync: what reads them is that score's analysis.
 async function pushNoteLogs({ supabase, storage, uid, profileId, onServer }) {
   const ready = (await storage.getNoteLogIds()).filter((id) => onServer.has(sessionOfSegment(id)))
   for (const ids of chunk(ready, NOTE_LOG_CHUNK)) {
@@ -217,9 +217,22 @@ async function pushNoteLogs({ supabase, storage, uid, profileId, onServer }) {
     }))
     const { error } = await supabase.from('session_notes').upsert(rows)
     if (error) throw error
-    await storage.deleteNoteLogs(ids)
+    await storage.keepNoteLogs(ids)
   }
   return ready.length
+}
+
+// The segments of these sessions on the server, kept on this device for the
+// analysis of the score they were played on (keepScoreNoteLogs in
+// noteLog.js): a few sessions at a time, one score's, so well short of a page.
+export async function pullNoteLogs({ supabase, storage, profileId = currentProfileId(), sessionIds }) {
+  const { data: rows, error } = await supabase
+    .from('session_notes')
+    .select('id, session_id, started_at, data')
+    .eq('profile_id', profileId)
+    .in('session_id', sessionIds)
+  if (error) throw error
+  await storage.saveKeptNoteLogs(rows.map(({ id, session_id, started_at, data }) => ({ id, sessionId: session_id, startedAt: started_at, ...data })))
 }
 
 // A score's fingerings travel as one record, and each side used to replace the

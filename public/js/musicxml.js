@@ -14,6 +14,7 @@ import { arrayBufferToXml, isMusicXml } from './mxlLoader.js'
 import { stripPlaybackTempoMarks } from './tempoMarks.js'
 import { recordError } from './errorLog.js'
 import { REINFORCEMENT_CLEAN_PASSES } from './reinforcement.js'
+import { POSITION_EPSILON } from './noteLogAnalysis.js'
 import { createSteadiness } from './steadiness.js'
 
 // The score on the stand: the sheet OSMD holds, and the note model built from
@@ -84,6 +85,10 @@ const training = {
   // joins between its measures, and the slurs across them, inside the work.
   start: 0,
   end: null,
+  // Inside that passage, the notes owed, when it is a fragment rather than
+  // whole bars (fragments.js): { from, until } as timestamps, from inclusive.
+  // The notes outside it are no more owed than the other hand's are.
+  fragment: null,
   // The clean repetitions banked: the dots filled.
   banked: 0,
   // Whether the traversal of the passage under way is still flawless — one
@@ -92,8 +97,8 @@ const training = {
 }
 
 // Reinforcement: the passages it drills one after the other, each worked as a
-// picked training passage is — a bar alone, or the two bars of a join — as
-// playback indices, and which of them is under way.
+// picked training passage is — a fragment, or else a bar alone or the two bars
+// of a join — as playback indices, and which of them is under way.
 const reinforcement = {
   on: false,
   passages: [],
@@ -276,6 +281,7 @@ export function initMusicXML() {
         updateMeasureCursor()
       } else {
         clearMeasureClasses('selected', 'training-range')
+        clearFragmentShade()
         document.getElementById('repeat-indicators')?.remove()
       }
     },
@@ -315,8 +321,8 @@ export function initMusicXML() {
     getLegacyFingeringKeyMap: () => score.legacyKeyMap,
     svgNote,
     graphicalMeasureForNote,
-    // `items` as reinforcement.js offers them: a bar by its sourceMeasureIndex,
-    // or with `join` the way into it, worked with the bar before.
+    // `items` as the page offers them: fragments, { from, until } as source
+    // bars and positions (fragmentSuggestions.js).
     setReinforcementMode: (items) => {
       const passages = (items ?? []).map(reinforcementPassage).filter(Boolean)
       if (passages.length === 0) return
@@ -337,29 +343,35 @@ function resetReinforcementState() {
   reinforcement.on = false
   reinforcement.passages = []
   reinforcement.index = 0
+  training.fragment = null
 }
 
-// The bars to work for an item: the bar on its first pass, and for a join the
-// bar played before it too — none before the first.
-function reinforcementPassage({ sourceMeasureIndex, join = false }) {
-  const at = firstPassIndexOf(score.allNotes, sourceMeasureIndex)
-  if (at < 0) return null
-  return { start: join && at > 0 ? at - 1 : at, end: at }
+// The bars a fragment is drilled in, and what of them: from the first pass of
+// the bar it starts in to the first pass of the bar it ends in, which must
+// follow one another for it to reach back — one that would reach back over a
+// repeat starts on its last bar's downbeat instead.
+function reinforcementPassage({ from, until }) {
+  const end = firstPassIndexOf(score.allNotes, until.bar)
+  if (end < 0) return null
+  const start = firstPassIndexOf(score.allNotes, from.bar)
+  if (start === end || start === end - 1) return { start, end, fragment: { from: start + from.position, until: end + until.position } }
+  return { start: end, end, fragment: { from: end, until: end + until.position } }
 }
 
 // The passage training works on, normalised against the active hands: a
 // passage whose first bar the one ticked hand rests through starts where that
 // hand actually plays, and never after its own end.
-function setPassage(start, end) {
+function setPassage(start, end, fragment = null) {
   training.start = cursorMeasureFor(start)
   training.end = end == null ? null : Math.max(training.start, end)
+  training.fragment = fragment
 }
 
 // The passage under way becomes the training passage, from its first bar with
 // no dot banked, as a passage picked on the sheet would.
 function startReinforcementPassage() {
-  const { start, end } = reinforcement.passages[reinforcement.index]
-  setPassage(start, end)
+  const { start, end, fragment } = reinforcement.passages[reinforcement.index]
+  setPassage(start, end, fragment)
   jumpToMeasure(training.start)
   scrollToMeasure(training.start)
 }
@@ -380,6 +392,7 @@ function nextReinforcementPassage() {
 function resetTrainingRange() {
   training.start = 0
   training.end = null
+  training.fragment = null
 }
 
 // The passage under work: playback indices, inclusive. `bounded` says the
@@ -426,12 +439,22 @@ function setCallbacks(cbs) {
   callbacks = { ...callbacks, ...cbs }
 }
 
-function isNoteActiveForHands(noteData) {
-  return isNoteActiveForHandsShared(noteData, activeHands)
+// A note the player owes: one of the hands ticked, inside the fragment drilled
+// when there is one (training.fragment).
+function isNoteOwed(noteData) {
+  return isNoteActiveForHandsShared(noteData, activeHands) && inFragment(noteData)
+}
+
+// Only training drills a fragment: free play or strict mode, left to from a
+// drill, owe the whole score again.
+function inFragment({ timestamp }) {
+  const { fragment } = training
+  if (!training.on || !fragment) return true
+  return timestamp >= fragment.from - POSITION_EPSILON && timestamp < fragment.until - POSITION_EPSILON
 }
 
 function nextPlayable(from) {
-  return nextPlayableMeasure(score.allNotes, from, activeHands)
+  return nextPlayableMeasure(score.allNotes, from, activeHands, isNoteOwed)
 }
 
 // Where the cursor goes when it has to be somewhere: the last measure when the
@@ -640,10 +663,13 @@ function resetMeasureProgress({ keepRepeats = false, keepRepetition = false, not
   startAttempt(measureData)
 }
 
-// Opens the journal's attempt at a measure (onMeasureStarted).
+// Opens the journal's attempt at a measure (onMeasureStarted): `partial` when
+// a fragment leaves out notes of it the hands would otherwise owe, so that it
+// says nothing of the bar as a whole.
 function startAttempt(measureData) {
   attempt.open = true
-  callbacks.onMeasureStarted?.(measureData.sourceMeasureIndex, atScoreStart())
+  const partial = measureData.notes.some((n) => isNoteActiveForHandsShared(n, activeHands) && !inFragment(n))
+  callbacks.onMeasureStarted?.(measureData.sourceMeasureIndex, atScoreStart(), { partial })
 }
 
 // Takes the marks off the noteheads of one source measure, for a measure played
@@ -663,18 +689,22 @@ function updateMeasureCursor() {
   if (!training.on || cursor.measureIndex >= score.allNotes.length) return
 
   clearMeasureClasses('selected', 'training-range')
+  clearFragmentShade()
 
   // A picked passage is shaded whole, the measure under the cursor more
   // strongly — the same two-tone reading as strict mode's loop, so what is
   // being worked and where the player is in it are both visible at a glance.
   // Nothing to shade when the passage is just the cursor: `selected` says it.
+  // A fragment is shaded over its own notes alone, the bars around it left
+  // plain: what is owed is what is shaded.
   const { first, last, bounded } = trainingPassage()
-  if (bounded && last > first) paintMeasureRange('training-range', first, last)
+  if (training.fragment) paintFragment(first, last)
+  else if (bounded && last > first) paintMeasureRange('training-range', first, last)
 
   const currentRects = measureRects(cursor.measureIndex)
   if (currentRects.length === 0) return
 
-  for (const rect of currentRects) rect.classList.add('selected')
+  if (!training.fragment) for (const rect of currentRects) rect.classList.add('selected')
 
   const measured = measureNoteBounds(cursor.measureIndex)
   if (measured) createRepeatIndicators(measured)
@@ -695,7 +725,7 @@ const REPEAT_INDICATOR_SPACING = 18
 // the noteheads of the first system the bar is drawn on: the dots go where the
 // bar starts, not across the gap to the next system.
 function measureNoteBounds(measureIndex) {
-  const notes = score.allNotes[measureIndex]?.notes
+  const notes = score.allNotes[measureIndex]?.notes.filter(inFragment)
   if (!notes?.length) return null
 
   const noteElements = notesBySystem(notes)[0].map((n) => svgNote(n.note))
@@ -830,6 +860,36 @@ function clearMeasureClasses(...classes) {
   }
 }
 
+// The fragment drilled, shaded over the notes it owes in the bars `first` to
+// `last`: a band per bar and system, as tall as the bar's rect there and as
+// wide as those noteheads reach. Drawn beside the bar's rect, and let through
+// to it: a click there still picks the bar.
+const FRAGMENT_SHADE = 'fragment-range'
+
+function paintFragment(first, last) {
+  for (let i = first; i <= last; i++) {
+    const owed = score.allNotes[i]?.notes.filter(isNoteOwed) ?? []
+    if (owed.length === 0) continue
+    for (const group of notesBySystem(owed)) {
+      const boxes = getBoundingBoxesForNotes(group.map((n) => svgNote(n.note)))
+      if (boxes.length === 0) continue
+      const { minX, maxX } = calculateCombinedBounds(boxes)
+      const barRect = measureRects(i).find((rect) => {
+        const x = Number(rect.getAttribute('x'))
+        return minX >= x && minX <= x + Number(rect.getAttribute('width'))
+      })
+      if (!barRect) continue
+      // Across the notes, padded as a bar's rect is; up and down, the bar's.
+      const across = measureClickRectDimensions({ minX, maxX, minY: 0, maxY: 0 })
+      barRect.after(svgRect(FRAGMENT_SHADE, { ...across, y: barRect.getAttribute('y'), height: barRect.getAttribute('height') }))
+    }
+  }
+}
+
+function clearFragmentShade() {
+  for (const shade of document.querySelectorAll(`rect.${FRAGMENT_SHADE}`)) shade.remove()
+}
+
 // Shades [from, to] inclusive. Strict mode's picked loop and training mode's
 // passage are the same two-tone reading, so they are drawn by the same code.
 function paintMeasureRange(className, from, to) {
@@ -849,16 +909,17 @@ function notesBySystem(notes) {
   return [...groups.values()]
 }
 
-function createMeasureRectangle(bounds, measureIndex) {
+// An SVG rect of class `className` over { x, y, width, height }.
+function svgRect(className, { x, y, width, height }) {
   const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect')
-  rect.classList.add('measure-click-area')
-  const { x, y, width, height } = measureClickRectDimensions(bounds)
-  rect.setAttribute('x', x)
-  rect.setAttribute('y', y)
-  rect.setAttribute('width', width)
-  rect.setAttribute('height', height)
-  rect.dataset.measureIndex = measureIndex
+  rect.classList.add(className)
+  for (const [name, value] of Object.entries({ x, y, width, height })) rect.setAttribute(name, value)
+  return rect
+}
 
+function createMeasureRectangle(bounds, measureIndex) {
+  const rect = svgRect('measure-click-area', measureClickRectDimensions(bounds))
+  rect.dataset.measureIndex = measureIndex
   return rect
 }
 
@@ -1008,7 +1069,7 @@ function owedGroup() {
 }
 
 function pendingNotes() {
-  return score.allNotes[cursor.measureIndex]?.notes.filter((n) => isNoteActiveForHands(n) && !n.played) ?? []
+  return score.allNotes[cursor.measureIndex]?.notes.filter((n) => isNoteOwed(n) && !n.played) ?? []
 }
 
 // The notes at the earliest of these timestamps, keyed by where they sit so a
@@ -1064,7 +1125,7 @@ function activateNote(midiNote) {
 
   const measureData = measureUnderCursor()
   if (!measureData) return null
-  const activeNotes = measureData.notes.filter(isNoteActiveForHands)
+  const activeNotes = measureData.notes.filter(isNoteOwed)
   let expectedNote = activeNotes.find(awaitsKey)
   if (!expectedNote) return null
 
@@ -1213,7 +1274,7 @@ function cascadeHeldTieValidations() {
     if (!next) return
 
     const group = measureData.notes.filter(
-      (n) => isNoteActiveForHands(n) && n.timestamp === next.timestamp,
+      (n) => isNoteOwed(n) && n.timestamp === next.timestamp,
     )
     // Only auto-advance when every note is already held by a tie - otherwise the
     // player still owes a fresh keypress for this group.
@@ -1344,7 +1405,7 @@ function advanceFreePlay(measureData, next, goesOn) {
   // Complete when every source measure the active hands play has been
   // played. Derived from the hands rather than counted as we go, so a run
   // still adds up after the hand toggles moved mid-way through it.
-  const owed = score.allNotes.filter((m) => m.notes.some(isNoteActiveForHands))
+  const owed = score.allNotes.filter((m) => m.notes.some(isNoteOwed))
   if (owed.every((m) => playedSourceMeasures.has(m.sourceMeasureIndex))) {
     callbacks.onScoreCompleted?.(cursor.measureIndex)
   }
@@ -1367,7 +1428,7 @@ function handleNoteValidated(measureData, group, { struck = true } = {}) {
   // After the attempt is open, which a join into the measure is reported on.
   if (struck) registerAttack(measureData, group)
 
-  if (!measureData.notes.filter(isNoteActiveForHands).every((n) => n.played)) return
+  if (!measureData.notes.filter(isNoteOwed).every((n) => n.played)) return
 
   const next = nextPlayable(cursor.measureIndex + 1)
   const goesOn = runsOn(next)

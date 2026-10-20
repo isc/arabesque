@@ -111,7 +111,10 @@ describe('a backup restored on another device', () => {
   // A store is only created by the upgrade to a new version: one added without
   // DB_VERSION raised never reaches a device that already has the database,
   // and a backup there fails on it. The stores each version shipped with:
-  const STORES_BY_VERSION = { 4: ['aggregates', 'fingerings', 'noteLogs', 'sessions'] }
+  const STORES_BY_VERSION = {
+    4: ['aggregates', 'fingerings', 'noteLogs', 'sessions'],
+    5: ['aggregates', 'fingerings', 'keptNoteLogs', 'noteLogs', 'sessions'],
+  }
 
   it('raises the database version with every store added', () => {
     expect([...STORES].sort()).toEqual(STORES_BY_VERSION[DB_VERSION])
@@ -124,10 +127,13 @@ describe('a backup restored on another device', () => {
   })
 
   // Raw material for the analysis, megabytes of it, kept a few weeks only.
-  it('leaves the note logs out', async () => {
+  it('leaves the note logs out, sent or not', async () => {
     const { storage } = await aDevice()
     await storage.saveNoteLog(noteLog('s1:0'))
-    expect(await storage.exportBackup()).not.toHaveProperty('noteLogs')
+    await storage.saveKeptNoteLogs([noteLog('s2:0')])
+    const backup = await storage.exportBackup()
+    expect(backup).not.toHaveProperty('noteLogs')
+    expect(backup).not.toHaveProperty('keptNoteLogs')
   })
 
   it('brings every store back', async () => {
@@ -175,8 +181,43 @@ describe('note logs', () => {
     const { storage } = await aDevice()
     for (const id of ['1700000000000-old:0', '1700000000000-old:1', '1800000000000-new:0']) await storage.saveNoteLog(noteLog(id))
 
+    await storage.saveKeptNoteLogs([noteLog('1700000000000-sent:0'), noteLog('1800000000000-sent:0')])
+
     await storage.deleteNoteLogsBefore(1750000000000)
     expect(await storage.getNoteLogIds()).toEqual(['1800000000000-new:0'])
+    expect((await storage.getHeldNoteLogIds()).sort()).toEqual(['1800000000000-new:0', '1800000000000-sent:0'])
+  })
+
+  // Once the server has them, segments are kept for the analysis rather than
+  // dropped, and none is ever sent twice.
+  it('keeps the segments the server has apart from those still to send', async () => {
+    const { storage } = await aDevice()
+    for (const id of ['s1:0', 's1:1', 's2:0']) await storage.saveNoteLog(noteLog(id))
+
+    await storage.keepNoteLogs(['s1:0', 's1:1'])
+    expect(await storage.getNoteLogIds()).toEqual(['s2:0'])
+    expect((await storage.getHeldNoteLogIds()).sort()).toEqual(['s1:0', 's1:1', 's2:0'])
+  })
+
+  it('reads the segments of sessions, sent or not, in their order past the ninth', async () => {
+    const { storage } = await aDevice()
+    const ids = Array.from({ length: 12 }, (_, n) => `s1:${n}`)
+    await storage.saveKeptNoteLogs(ids.slice(0, 6).map(noteLog))
+    for (const id of ids.slice(6)) await storage.saveNoteLog(noteLog(id))
+    await storage.saveNoteLog(noteLog('s10:0'))
+
+    const read = async (sessionIds) => (await storage.getNoteLogsOfSessions(sessionIds)).map((segments) => segments.map((s) => s.id))
+    expect(await read(['s1'])).toEqual([ids])
+    expect(await read(['s10', 's1', 's2'])).toEqual([['s10:0'], ids, []])
+  })
+
+  it('drops the kept segments of sessions, never one still to send', async () => {
+    const { storage } = await aDevice()
+    await storage.saveKeptNoteLogs([noteLog('s1:0'), noteLog('s10:0'), noteLog('s2:0')])
+    await storage.saveNoteLog(noteLog('s1:1'))
+
+    await storage.deleteKeptNoteLogsOfSessions(['s1'])
+    expect((await storage.getHeldNoteLogIds()).sort()).toEqual(['s10:0', 's1:1', 's2:0'])
   })
 
   it('adds a segment only where none is held under its id', async () => {

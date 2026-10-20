@@ -49,7 +49,7 @@ import {
   playthroughOf,
   sessionAttempts,
 } from '../public/js/practiceTime.js'
-import { attackNumber, eventsOf, excess, traversals } from '../public/js/noteLogAnalysis.js'
+import { attackNumber, eventsOf, excess, roundPosition, traversals } from '../public/js/noteLogAnalysis.js'
 import { scoreFile } from './import-fingerings.mjs'
 import { die, query, quote } from './lib/supabase.mjs'
 import { openScore } from './mxl.mjs'
@@ -75,9 +75,6 @@ import {
 
 const PUBLIC_DIR = join(import.meta.dirname, '..', 'public')
 
-// Positions are sums of fractions: rounded before two are compared, so that
-// both hands on a beat are one attack.
-const exact = (wholeNotes) => Math.round(wholeNotes * 1e6) / 1e6
 
 const durationOf = (token, divisions) => parseFloat(DURATION.exec(token)?.[1] ?? '0') / divisions / 4
 
@@ -128,11 +125,11 @@ export function scoreModel(xml) {
           onset = at
           if (!grace) at += durationOf(token, divisions)
         }
-        bar.duration = Math.max(bar.duration, exact(at))
+        bar.duration = Math.max(bar.duration, roundPosition(at))
         if (REST.test(token)) continue
         const { key, staff } = numbering.note(numberOf(token, STAFF), numberOf(token, VOICE))
         const sounded = !TIE_STOP.test(token) && !CUE_OR_HIDDEN.test(token)
-        const position = exact(start)
+        const position = roundPosition(start)
         notes.set(key, {
           bar: barIndex,
           staff,
