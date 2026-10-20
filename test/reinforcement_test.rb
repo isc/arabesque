@@ -139,6 +139,38 @@ class ReinforcementTest < CapybaraTestBase
     assert_text 'Renforcement terminé'
   end
 
+  # The dots hang over a passage's first notes, where a hand changes shape and
+  # a fingering is most often written: they clear it rather than cover it
+  # (feedback 65537b34). Bar 19 of the C minor prelude: the right hand's first
+  # notes low under a beam, their fingerings over the staff. The passage is
+  # handed to the page as it would offer it, sparing eighteen bars of playing.
+  def test_the_dots_clear_the_fingerings_over_a_passage
+    url = '/scores/Prelude_No._2_BWV_847_in_C_Minor.mxl'
+    visit "/score.html?url=#{url}"
+    wait_for_score_render
+    seed_store('fingerings', [{ scoreUrl: url, fingerings: { 'm18:0:0:0' => 1, 'm18:0:0:1' => 3 }, updatedAt: 1 }])
+    visit "/score.html?url=#{url}"
+    wait_for_score_render
+
+    execute_script(<<~JS)
+      Alpine.$data(document.querySelector('[x-data]'))
+        .setMode('reinforcement', [{ from: { bar: 18, position: 0 }, until: { bar: 18, position: 0.25 }, hands: 'both', faults: 1 }])
+    JS
+    assert_selector 'svg circle.repeat-indicator', count: 3
+    clearance = evaluate_script(<<~JS)
+      (() => {
+        const dot = document.querySelector('svg circle.repeat-indicator')
+        const bottom = Number(dot.getAttribute('cy')) + Number(dot.getAttribute('r'))
+        const fingerings = [...document.querySelectorAll('#score svg text')]
+          .filter((t) => ['1', '3'].includes(t.textContent.trim()))
+          .map((t) => t.getBBox())
+          .filter((box) => Math.abs(box.x - Number(dot.getAttribute('cx'))) < 60)
+        return fingerings.length === 2 ? Math.min(...fingerings.map((box) => box.y)) - bottom : null
+      })()
+    JS
+    assert_operator clearance, :>=, 0
+  end
+
   private
 
   # The three clean repetitions of bars 1 and 2 that finish a drill of the
