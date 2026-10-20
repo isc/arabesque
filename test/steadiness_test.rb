@@ -171,6 +171,33 @@ class SteadinessTest < CapybaraTestBase
     assert_text 'Tout ce qui était proposé a été renforcé avec succès.'
   end
 
+  # Two passages, drilled one after the other, the second before the first in
+  # the score: where it starts is where it owes a note, which the first
+  # fragment, still in place as the drill moved on, said was nowhere — and the
+  # drill started at the end of the score, nothing shaded.
+  def test_a_drill_moves_on_to_a_passage_earlier_in_the_score
+    open_steady_quavers
+    with_clock_control do
+      play_evenly(%w[C4 D4])
+      play_note('G4') # E4 is owed
+      play_evenly(%w[E4 F4 G4 A4 B4 C5 C5 B4 A4 G4 F4 E4])
+      2.times { play_note('F4') } # D4 is owed
+      play_evenly(%w[D4 C4])
+    end
+    find('dialog[open] button[aria-label="Close"]').click
+
+    click_on 'Renforcer 2 passages'
+    with_clock_control do
+      3.times { play_evenly(%w[F4 E4 D4 C4], first_after: 300) }
+      advance_clock(1_000)
+    end
+    assert_selector 'svg rect.fragment-range', count: 1
+    with_clock_control do
+      3.times { play_evenly(%w[C4 D4 E4 F4], first_after: 300) }
+    end
+    assert_text 'Tout ce qui était proposé a été renforcé avec succès.'
+  end
+
   # A wrong note inside a bar: its beat, and the beat before.
   def test_a_wrong_note_inside_a_bar_offers_its_beat_and_the_one_before
     open_steady_quavers

@@ -361,10 +361,13 @@ function reinforcementPassage({ from, until }) {
 // The passage training works on, normalised against the active hands: a
 // passage whose first bar the one ticked hand rests through starts where that
 // hand actually plays, and never after its own end.
+// The fragment first: where the passage can start is where it owes a note,
+// and with the last fragment still in place, a drill moving on from one to the
+// next found nothing owed in its new bars and started at the end of the score.
 function setPassage(start, end, fragment = null) {
+  training.fragment = fragment
   training.start = cursorMeasureFor(start)
   training.end = end == null ? null : Math.max(training.start, end)
-  training.fragment = fragment
 }
 
 // The passage under way becomes the training passage, from its first bar with
@@ -724,25 +727,52 @@ const REPEAT_INDICATOR_SPACING = 18
 // it and the autoscroll predicts them from it, so both read one geometry. Only
 // the noteheads of the first system the bar is drawn on: the dots go where the
 // bar starts, not across the gap to the next system.
+//
+// With it, the top of the fingerings drawn over those notes (`fingeringsTop`,
+// Infinity for none), which the dots clear rather than cover: centred over a
+// fragment, they hang over its first notes, where a hand changes shape and a
+// fingering is most often written (feedback 65537b34).
 function measureNoteBounds(measureIndex) {
   const notes = score.allNotes[measureIndex]?.notes.filter(inFragment)
   if (!notes?.length) return null
 
-  const noteElements = notesBySystem(notes)[0].map((n) => svgNote(n.note))
+  const drawn = notesBySystem(notes)[0]
+  const noteElements = drawn.map((n) => svgNote(n.note))
   const svg = noteElements[0]?.ownerSVGElement
   if (!svg) return null
 
   const boxes = getBoundingBoxesForNotes(noteElements)
   if (boxes.length === 0) return null
 
-  return { svg, bounds: calculateCombinedBounds(boxes) }
+  const fingeringsTop = Math.min(...fingeringLabels(drawn).map((text) => text.getBBox().y))
+  return { svg, bounds: calculateCombinedBounds(boxes), fingeringsTop }
 }
 
-const repeatIndicatorCenterY = (bounds) => bounds.minY - REPEAT_INDICATOR_RISE
+// The fingering labels OSMD drew for `notes` (FingeringEntries, which
+// fingeringEditor.js rewrites in place).
+function fingeringLabels(notes) {
+  const labels = []
+  for (const noteData of notes) {
+    for (const staffEntry of graphicalMeasureForNote(noteData.note)?.staffEntries ?? []) {
+      for (const entry of staffEntry.FingeringEntries ?? []) {
+        const text = entry.sourceNote === noteData.note && entry.SVGNode?.querySelector('text')
+        if (text) labels.push(text)
+      }
+    }
+  }
+  return labels
+}
 
-function createRepeatIndicators({ svg, bounds }) {
+// Clear of a fingering by this much, between its top and a dot's bottom.
+const REPEAT_INDICATOR_FINGERING_GAP = 4
+
+const repeatIndicatorCenterY = ({ bounds, fingeringsTop }) =>
+  Math.min(bounds.minY - REPEAT_INDICATOR_RISE, fingeringsTop - REPEAT_INDICATOR_RADIUS - REPEAT_INDICATOR_FINGERING_GAP)
+
+function createRepeatIndicators(measured) {
+  const { svg, bounds } = measured
   const centerX = (bounds.minX + bounds.maxX) / 2
-  const circleY = repeatIndicatorCenterY(bounds)
+  const circleY = repeatIndicatorCenterY(measured)
 
   const indicatorsGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g')
   indicatorsGroup.id = 'repeat-indicators'
@@ -1034,7 +1064,7 @@ function repeatIndicatorsTopY(measureIndex) {
   const measured = measureNoteBounds(measureIndex)
   if (!measured) return null
 
-  const top = repeatIndicatorCenterY(measured.bounds) - REPEAT_INDICATOR_RADIUS
+  const top = repeatIndicatorCenterY(measured) - REPEAT_INDICATOR_RADIUS
   return svgYToViewport(top, measured.svg)
 }
 
