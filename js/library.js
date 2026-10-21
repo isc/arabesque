@@ -186,7 +186,8 @@ export function libraryApp() {
 
       // The practice data is read as soon as the database is open, alongside
       // the two files: it needs neither. A read that fails costs its own
-      // column, not the list — the scores are set below either way.
+      // column, not the list — the scores are set below either way. Both files
+      // are preloaded by library.html.
       const [loaded, fingerprintsResponse] = await Promise.all([
         loadCatalog(),
         fetch('data/fingerprints.json'),

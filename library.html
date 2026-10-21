@@ -3,12 +3,50 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="app-version" content="975469dbf49c" />
+    <meta name="app-version" content="77e412c66aca" />
     <title data-i18n="library.pageTitle">Arabesque · Bibliothèque</title>
     <link rel="icon" href="favicon.svg" type="image/svg+xml" />
     <link rel="manifest" href="manifest.webmanifest" />
     <meta name="theme-color" content="#f7f7f9" />
     <link rel="stylesheet" href="styles.css" />
+    <!-- preloads: written at deploy by scripts/preload-modules.mjs -->
+    <link rel="modulepreload" href="js/errorLog.js" />
+    <link rel="modulepreload" href="js/version.js" />
+    <link rel="modulepreload" href="js/swRegister.js" />
+    <link rel="modulepreload" href="js/library.js" />
+    <link rel="modulepreload" href="js/alpineBoot.js" />
+    <link rel="modulepreload" href="js/journalEntries.js" />
+    <link rel="modulepreload" href="js/utils.js" />
+    <link rel="modulepreload" href="js/midi.js" />
+    <link rel="modulepreload" href="js/practiceTracker.js" />
+    <link rel="modulepreload" href="js/aggregates.js" />
+    <link rel="modulepreload" href="js/storage.js" />
+    <link rel="modulepreload" href="js/musicalPeriods.js" />
+    <link rel="modulepreload" href="js/headerMenu.js" />
+    <link rel="modulepreload" href="js/profiles.js" />
+    <link rel="modulepreload" href="js/autoSync.js" />
+    <link rel="modulepreload" href="js/dayRollover.js" />
+    <link rel="modulepreload" href="js/days.js" />
+    <link rel="modulepreload" href="js/i18n.js" />
+    <link rel="modulepreload" href="js/fingerprints.js" />
+    <link rel="modulepreload" href="js/catalog.js" />
+    <link rel="modulepreload" href="js/hands.js" />
+    <link rel="modulepreload" href="js/midi_mock.js" />
+    <link rel="modulepreload" href="js/practiceTime.js" />
+    <link rel="modulepreload" href="js/reinforcement.js" />
+    <link rel="modulepreload" href="js/practiceJournal.js" />
+    <link rel="modulepreload" href="js/changelog.js" />
+    <link rel="modulepreload" href="js/feedback.js" />
+    <link rel="modulepreload" href="js/installPrompt.js" />
+    <link rel="modulepreload" href="js/keyHintSetting.js" />
+    <link rel="modulepreload" href="js/sync.js" />
+    <link rel="modulepreload" href="js/supabaseConfig.js" />
+    <link rel="modulepreload" href="js/locales/fr.js" />
+    <link rel="modulepreload" href="js/locales/en.js" />
+    <link rel="modulepreload" href="js/legacyKeys.js" />
+    <link rel="modulepreload" href="js/noteLog.js" />
+    <link rel="preload" as="script" href="vendor/alpinejs.3.14.9.min.js" />
+    <!-- /preloads -->
     <script type="module" src="js/errorLog.js"></script>
     <script type="module" src="js/version.js"></script>
     <script type="module" src="js/swRegister.js"></script>
@@ -18,6 +56,11 @@
       import { mountJournalEntries } from './js/journalEntries.js'
       startAlpine({ libraryApp }, [mountJournalEntries])
     </script>
+    <!-- Read once Alpine has booted, a round trip after the last module: asked
+         for now, they are there when the page gets to them. After the modules,
+         which are needed first. -->
+    <link rel="preload" href="data/scores.json" as="fetch" crossorigin />
+    <link rel="preload" href="data/fingerprints.json" as="fetch" crossorigin />
   </head>
   <body>
     <!-- data-tab is also static: the pane rules key off it, and without a
