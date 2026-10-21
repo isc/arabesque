@@ -43,6 +43,12 @@ const score = {
 // marks go back on with repaintNoteMarks(), as strict mode keeps its verdict.
 const noteMarks = new Map() // Map<fingeringKey, Set<class>>
 
+// What the player wrote beside the staves — the circled notes and their
+// reminders (noteCircles.js) — as boxes in SVG units with the system each is
+// on, for the training dots to clear. Handed over at each paint of it, which
+// follows every redraw (repaintScore in app.js).
+let writtenBoxes = []
+
 // The click rectangles of each bar, by sourceMeasureIndex: a repeated bar is
 // drawn once, so the passes must share its rects instead of stacking identical
 // ones. One rect per bar, but for a bar split across two systems (see
@@ -240,6 +246,9 @@ export function initMusicXML() {
     },
     getOsmdInstance: () => score.osmdInstance,
     getAllNotes: () => score.allNotes,
+    keepDotsClearOf: (boxes) => {
+      writtenBoxes = boxes
+    },
     repaintNoteMarks,
     getOwedGroup: owedGroup,
     // The name the catalog gives the score (app.js), put over what the file
@@ -728,10 +737,12 @@ const REPEAT_INDICATOR_SPACING = 18
 // the noteheads of the first system the bar is drawn on: the dots go where the
 // bar starts, not across the gap to the next system.
 //
-// With it, the top of the fingerings drawn over those notes (`fingeringsTop`,
-// Infinity for none), which the dots clear rather than cover: centred over a
-// fragment, they hang over its first notes, where a hand changes shape and a
-// fingering is most often written (feedback 65537b34).
+// With it, the top of what the player wrote there (`writtenTop`, Infinity for
+// nothing): the fingerings drawn over those notes, and the circled notes of
+// the system under the dots (writtenBoxes), a reminder hanging beside its
+// staff wherever its note is. The dots clear them rather than cover them:
+// centred over a fragment, they hang over its first notes, where a hand
+// changes shape and a fingering is most often written (feedback 65537b34).
 function measureNoteBounds(measureIndex) {
   const notes = score.allNotes[measureIndex]?.notes.filter(inFragment)
   if (!notes?.length) return null
@@ -744,8 +755,14 @@ function measureNoteBounds(measureIndex) {
   const boxes = getBoundingBoxesForNotes(noteElements)
   if (boxes.length === 0) return null
 
-  const fingeringsTop = Math.min(...fingeringLabels(drawn).map((text) => text.getBBox().y))
-  return { svg, bounds: calculateCombinedBounds(boxes), fingeringsTop }
+  const bounds = calculateCombinedBounds(boxes)
+  const fingeringTops = fingeringLabels(drawn).map((text) => text.getBBox().y)
+  const system = graphicalMeasureForNote(drawn[0].note).parentMusicSystem
+  const centerX = repeatIndicatorsCenterX(bounds)
+  const underTheDots = (box) =>
+    box.system === system && box.left < centerX + REPEAT_INDICATORS_HALF_WIDTH && box.right > centerX - REPEAT_INDICATORS_HALF_WIDTH
+  const writtenTops = writtenBoxes.filter(underTheDots).map((box) => box.top)
+  return { svg, bounds, writtenTop: Math.min(...fingeringTops, ...writtenTops) }
 }
 
 // The fingering labels OSMD drew for `notes` (FingeringEntries, which
@@ -763,15 +780,20 @@ function fingeringLabels(notes) {
   return labels
 }
 
-// Clear of a fingering by this much, between its top and a dot's bottom.
-const REPEAT_INDICATOR_FINGERING_GAP = 4
+// Clear of a fingering or a circle by this much, between its top and a dot's
+// bottom.
+const REPEAT_INDICATOR_WRITTEN_GAP = 4
 
-const repeatIndicatorCenterY = ({ bounds, fingeringsTop }) =>
-  Math.min(bounds.minY - REPEAT_INDICATOR_RISE, fingeringsTop - REPEAT_INDICATOR_RADIUS - REPEAT_INDICATOR_FINGERING_GAP)
+const repeatIndicatorsCenterX = (bounds) => (bounds.minX + bounds.maxX) / 2
+// From the centre of the row of dots to the far side of its last.
+const REPEAT_INDICATORS_HALF_WIDTH = ((targetRepeatCount - 1) / 2) * REPEAT_INDICATOR_SPACING + REPEAT_INDICATOR_RADIUS
+
+const repeatIndicatorCenterY = ({ bounds, writtenTop }) =>
+  Math.min(bounds.minY - REPEAT_INDICATOR_RISE, writtenTop - REPEAT_INDICATOR_RADIUS - REPEAT_INDICATOR_WRITTEN_GAP)
 
 function createRepeatIndicators(measured) {
   const { svg, bounds } = measured
-  const centerX = (bounds.minX + bounds.maxX) / 2
+  const centerX = repeatIndicatorsCenterX(bounds)
   const circleY = repeatIndicatorCenterY(measured)
 
   const indicatorsGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g')

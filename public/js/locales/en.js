@@ -327,6 +327,9 @@ export default {
     noMidiBrowsers: '(Chrome, Edge, or Opera).',
     fingeringTitle: 'Fingering',
     fingeringValidate: '✓ Confirm',
+    circleNote: '⭕ Circle',
+    circlePlaceholder: 'A reminder (optional)',
+    circleRemove: 'Remove circle',
     // The seven letters, from C to B — the only part of a note's name that is
     // language's business; the ♯ and ♭ that go with them are music's own signs.
     noteLetters: 'C D E F G A B',
@@ -435,16 +438,16 @@ export default {
     pageTitle: 'Arabesque · Privacy',
     heading: 'Privacy',
     back: '← Library',
-    updated: 'Last updated: 27 September 2026.',
+    updated: 'Last updated: 21 October 2026.',
     summaryTitle: 'In short',
     summaryBody:
       'Arabesque runs in your browser and keeps your practice data on your device. Nothing goes anywhere else unless you ask for it — by creating an account to sync your devices, or by sending feedback. There are no ads, no trackers, and nothing is ever sold.',
     localTitle: 'What stays on your device',
     localBody:
-      'Your practice sessions, your fingerings, your profiles and your preferences (language, scores seen) are written to the browser’s local storage. They never leave the device on their own, and clearing the site’s data erases them for good. The Data page can export them to a file.',
+      'Your practice sessions, your fingerings, the notes you circle and their reminders, your profiles and your preferences (language, scores seen) are written to the browser’s local storage. They never leave the device on their own, and clearing the site’s data erases them for good. The Data page can export them to a file.',
     accountTitle: 'The account, if you create one',
     accountBody:
-      'Signing in is what lets your practice follow you from one device to the next. It asks for an email address, which receives a sign-in code: there is no password. Once signed in, your sessions, your fingerings and your profiles (each one’s name and avatar) are copied to the server so they can come back down on your other devices, along with the detail of the notes played in your sessions, kept to analyse your practice. Nothing else is attached to the account.',
+      'Signing in is what lets your practice follow you from one device to the next. It asks for an email address, which receives a sign-in code: there is no password. Once signed in, your sessions, your fingerings, the notes you circle and their reminders, and your profiles (each one’s name and avatar) are copied to the server so they can come back down on your other devices, along with the detail of the notes played in your sessions, kept to analyse your practice. Nothing else is attached to the account.',
     accountDelete:
       'You can delete your account from the Data page. The account and everything synced under it are erased from the servers there and then, without having to ask anyone.',
     feedbackTitle: 'The feedback you send',

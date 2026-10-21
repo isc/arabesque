@@ -2,6 +2,7 @@ import { initMidi, nativePairingAvailable, openNativePairing } from './midi.js'
 import { initMusicXML } from './musicxml.js'
 import { initFingeringEditor } from './fingeringEditor.js'
 import { fingeringPad } from './fingeringPad.js'
+import { initNoteCircles } from './noteCircles.js'
 import { initPracticeTracker } from './practiceTracker.js'
 import { TWO_HANDS, handsKey } from './hands.js'
 import { formatDuration, formatDate, applyStickyOffset, scorePageUrl, onForeground, onBackground, onIdle, withHands, passage, pickPassageMeasure, passageText } from './utils.js'
@@ -57,6 +58,12 @@ export function midiApp() {
     getNoteDataByKey: musicxml.getNoteDataByKey,
     svgNote: musicxml.svgNote,
     graphicalMeasureForNote: musicxml.graphicalMeasureForNote,
+  })
+  const noteCircles = initNoteCircles({
+    getOsmdInstance: musicxml.getOsmdInstance,
+    getNoteDataByKey: musicxml.getNoteDataByKey,
+    graphicalMeasureForNote: musicxml.graphicalMeasureForNote,
+    keepClear: musicxml.keepDotsClearOf,
   })
   const storage = initStorage()
   const practiceTracker = initPracticeTracker(storage)
@@ -161,7 +168,7 @@ export function midiApp() {
 
   return {
     ...headerMenu(),
-    ...fingeringPad({ storage, fingeringEditor }),
+    ...fingeringPad({ storage, fingeringEditor, noteCircles }),
     ...bpmField(),
     // The next run starts as the piece did (feedback b7682019).
     ...resultModal({ onOpen: () => keyHint.restart() }),
@@ -523,6 +530,8 @@ export function midiApp() {
       try {
         await musicxml.loadMusicXML(file)
         this.scoreUrl = null
+        // None: the circles of the score it replaces are not this one's.
+        noteCircles.load({})
         await this.afterScoreLoad()
         await this.markScoreReady()
       } catch (error) {
@@ -629,15 +638,18 @@ export function midiApp() {
     },
 
     async renderScoreWithFingerings() {
-      // Independent: one is IndexedDB, the other the score bytes (already in
-      // flight since the head script, so this is where its await belongs).
-      const [fingeringRecord, xml] = await Promise.all([
-        storage.getFingerings(this.scoreUrl),
+      // Independent: IndexedDB, and the score bytes (already in flight since
+      // the head script, so this is where their await belongs).
+      const [fingeringRecord, circleRecord, xml] = await Promise.all([
+        storage.fingerings.get(this.scoreUrl),
+        storage.circles.get(this.scoreUrl),
         loadMxlAsXml(this.scoreUrl),
       ])
+      noteCircles.load(circleRecord.circles)
       const modified = injectFingerings(xml, fingeringRecord.fingerings)
       await musicxml.renderMusicXML(modified)
       await this.afterScoreLoad()
+      noteCircles.repaint()
       this.setupFingeringHandlers()
       await this.migrateFingeringKeys(fingeringRecord)
     },
@@ -680,7 +692,7 @@ export function midiApp() {
     async migrateFingeringKeys(record) {
       const migrated = migrateFingeringRecord(record, musicxml.getLegacyFingeringKeyMap())
       if (!migrated) return
-      await storage.putFingeringRecordsIfUnchanged([{ record: migrated.record, read: record.updatedAt ?? 0 }])
+      await storage.fingerings.putIfUnchanged([{ record: migrated.record, read: record.updatedAt ?? 0 }])
       for (const key of migrated.added) {
         fingeringEditor.setFingeringInDataModel(key, migrated.record.fingerings[key])
       }
@@ -1231,8 +1243,8 @@ export function midiApp() {
     formatDuration,
 
     // Every redraw replaces the SVG, taking with it everything painted on it:
-    // note colours, fingering handlers, the training cursor, the strict marker,
-    // the marks a strict run left.
+    // note colours, fingering handlers, the circled notes, the training cursor,
+    // the strict marker, the marks a strict run left.
     // What the redraw cannot take is the session behind those marks — renderScore
     // keeps it across a rebuild of the note model — so this only paints it back.
     repaintScore() {
@@ -1242,6 +1254,8 @@ export function midiApp() {
       // After the free and training marks: a strict hit wears the same class,
       // and the two paint it from stores of their own.
       strictPlaythrough.repaintMarks()
+      // Ahead of the training cursor, whose dots clear the reminders.
+      noteCircles.repaint()
       musicxml.updateMeasureCursor()
       // The click rectangles are rebuilt by the redraw, so the marker went with them.
       this.paintStrictRange()

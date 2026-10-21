@@ -180,8 +180,7 @@ class FingeringAnnotationTest < CapybaraTestBase
     wait_for_score_render
     assert_equal %w[5 3 1], first_beat_fingerings
 
-    tag_middle_notehead_of_first_beat
-    enter_fingering(find('[data-testid="middle-notehead"]'), 2)
+    enter_fingering(first_beat_notehead(0, 1), 2)
 
     # The 3 belongs to G4, the middle note, so only the middle label may change.
     assert_equal %w[5 2 1], first_beat_fingerings
@@ -324,24 +323,6 @@ class FingeringAnnotationTest < CapybaraTestBase
           .map((text) => ({ value: text.textContent.trim(), y: text.getBoundingClientRect().y }))
           .sort((a, b) => a.y - b.y)
           .map((label) => label.value)
-      })()
-    JS
-  end
-
-  # Mark the middle note by pitch (G4) so Capybara can click its notehead.
-  def tag_middle_notehead_of_first_beat
-    page.execute_script(<<~JS)
-      (() => {
-        const staffEntry = osmdInstance.graphic.MeasureList[0][0].staffEntries[0]
-        const notes = staffEntry.graphicalVoiceEntries
-          .flatMap((voiceEntry) => voiceEntry.notes)
-          .map((graphicalNote) => graphicalNote.sourceNote)
-          .sort((a, b) => a.Pitch.getHalfTone() - b.Pitch.getHalfTone())
-        osmdInstance.rules
-          .GNote(notes[1])
-          .getSVGGElement()
-          .querySelector('.vf-notehead')
-          .setAttribute('data-testid', 'middle-notehead')
       })()
     JS
   end
