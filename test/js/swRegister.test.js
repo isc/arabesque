@@ -58,6 +58,12 @@ describe('registering the service worker', () => {
     expect(page.register.mock.calls[0][1]).toEqual({ updateViaCache: 'none' })
   })
 
+  it('does not register on a branch preview', async () => {
+    const page = fakePage({ pathname: '/previews/some-branch/library.html' })
+    await load(page)
+    expect(page.register).not.toHaveBeenCalled()
+  })
+
   it('does not register from an unstamped checkout', async () => {
     const page = fakePage()
     await load(page, { version: 'dev' })
