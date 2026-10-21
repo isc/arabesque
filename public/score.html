@@ -17,12 +17,21 @@
       //     only went out once OSMD (1.3MB) and every module had been fetched,
       //     evaluated and Alpine had booted — a second or more of doing nothing
       //     with the connection. loadMxlAsXml() picks the bytes up from here.
+      //     The catalog that names it (lookUpListing) is preloaded with it:
+      //     read once Alpine has booted, it waited a round trip after the
+      //     last module.
       //  2. Flags the document as loading a score, which is what puts the
       //     spinner below on screen in place of the onboarding card.
       ;(function () {
         var url = new URLSearchParams(location.search).get('url')
         if (!url) return
         document.documentElement.dataset.loadingScore = '1'
+        var catalog = document.createElement('link')
+        catalog.rel = 'preload'
+        catalog.as = 'fetch'
+        catalog.crossOrigin = 'anonymous'
+        catalog.href = 'data/scores.json'
+        document.head.appendChild(catalog)
         // Resolves to null rather than rejecting on failure: nobody awaits this
         // for another second or so, and a rejection with no handler yet is an
         // unhandled-rejection report. null simply sends the consumer back to a
