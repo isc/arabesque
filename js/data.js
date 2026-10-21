@@ -204,8 +204,8 @@ export function dataApp() {
         }
         // this.lastSync is set by the onSynced callback above.
         this.syncSummary = t('data.syncSummary', {
-          up: r.pushed + r.fingeringsPushed,
-          down: r.pulled + r.fingeringsPulled,
+          up: r.pushed + r.fingeringsPushed + r.circlesPushed,
+          down: r.pulled + r.fingeringsPulled + r.circlesPulled,
         })
         this.syncStatus = 'done'
       } catch (err) {

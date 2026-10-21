@@ -77,6 +77,10 @@
   --pt-note-expected: #3b82f6;
   --pt-note-offtempo: #eab308;
   --pt-note-missed: #ef4444;
+  /* A note the player circled, and its reminder (noteCircles.js): a colour no
+     mode paints a note with, and far enough from the black of the notes to be
+     seen at a glance. */
+  --pt-note-circled: #db2777;
 
   /* Practice calendar (practice.html) — one ramp from "nothing" to "a real
      session", derived from the accent so the grid reads as part of the app
@@ -1842,6 +1846,10 @@ dialog > article > footer {
   font-weight: 600;
   border-radius: var(--pt-radius-md);
 }
+/* Under the digits: ⭕, or once the note is circled the field for its reminder
+   and the way to take the circle off. */
+.pt-circle-row { display: flex; align-items: center; gap: var(--pt-space-2); margin-top: var(--pt-space-3); }
+.pt-circle-row input { flex: 1; min-width: 0; margin: 0; }
 
 /* =============================================================================
    Score area (preserved from before, restyled)
@@ -2070,6 +2078,23 @@ svg g.vf-notehead.wrong-note path { animation: pt-wrong-note-flash 700ms; }
 .repeat-indicator.filled { fill: var(--pt-mode-training); }
 /* The repetition under way is already lost: a wrong note spoiled it. */
 .repeat-indicator.spoiled { stroke: var(--pt-note-missed); }
+
+/* A circled note (noteCircles.js): a ring around its head, tinted inside from
+   under the note, and the reminder beside its staff, haloed in the paper's
+   colour so that it reads over a staff line or a slur. Let through to the note
+   and the bar underneath. */
+.pt-circles, .pt-circle-tints { pointer-events: none; }
+.pt-circle ellipse { fill: none; stroke: var(--pt-note-circled); stroke-width: 2; }
+.pt-circle-tints ellipse { fill: color-mix(in srgb, var(--pt-note-circled) 22%, transparent); }
+.pt-circle text {
+  fill: var(--pt-note-circled);
+  font-family: var(--pt-font-ui);
+  font-style: italic;
+  paint-order: stroke;
+  stroke: var(--pt-bg-elevated);
+  stroke-width: 3;
+  stroke-linejoin: round;
+}
 
 /* Clickable noteheads for fingering annotation. The hover tint is for a real
    pointer only: a finger has no hover, and the tap that opens the fingering pad

@@ -324,6 +324,9 @@ export default {
     noMidiBrowsers: '(Chrome, Edge ou Opera).',
     fingeringTitle: 'Doigté',
     fingeringValidate: '✓ Valider',
+    circleNote: '⭕ Entourer',
+    circlePlaceholder: 'Un rappel (facultatif)',
+    circleRemove: 'Retirer le cercle',
     // The seven letters, from do to si — the only part of a note's name that is
     // language's business; the ♯ and ♭ that go with them are music's own signs.
     noteLetters: 'do ré mi fa sol la si',
@@ -432,16 +435,16 @@ export default {
     pageTitle: 'Arabesque · Confidentialité',
     heading: 'Confidentialité',
     back: '← Bibliothèque',
-    updated: 'Dernière mise à jour : 27 septembre 2026.',
+    updated: 'Dernière mise à jour : 21 octobre 2026.',
     summaryTitle: 'En bref',
     summaryBody:
       "Arabesque fonctionne dans votre navigateur et garde vos données de pratique sur votre appareil. Rien n'est envoyé ailleurs tant que vous ne le demandez pas — en créant un compte pour synchroniser vos appareils, ou en envoyant un avis. Il n'y a ni publicité, ni traceur, ni revente de quoi que ce soit.",
     localTitle: 'Ce qui reste sur votre appareil',
     localBody:
-      "Vos séances de travail, vos doigtés, vos profils et vos préférences (langue, morceaux vus) sont écrits dans le stockage local du navigateur. Ils ne quittent pas l'appareil de leur propre initiative, et vider les données du site les efface définitivement. La page Données permet de les exporter dans un fichier.",
+      "Vos séances de travail, vos doigtés, les notes que vous entourez et leurs rappels, vos profils et vos préférences (langue, morceaux vus) sont écrits dans le stockage local du navigateur. Ils ne quittent pas l'appareil de leur propre initiative, et vider les données du site les efface définitivement. La page Données permet de les exporter dans un fichier.",
     accountTitle: 'Le compte, si vous en créez un',
     accountBody:
-      "Se connecter sert à retrouver sa pratique d'un appareil à l'autre. Cela demande une adresse e-mail, à laquelle est envoyé un code de connexion : il n'y a pas de mot de passe. Une fois connecté, vos séances, vos doigtés et vos profils (le nom et l'avatar de chacun) sont copiés sur le serveur pour être redescendus sur vos autres appareils, ainsi que le détail des notes jouées pendant vos séances, conservé pour analyser votre pratique. Aucune autre donnée n'est associée au compte.",
+      "Se connecter sert à retrouver sa pratique d'un appareil à l'autre. Cela demande une adresse e-mail, à laquelle est envoyé un code de connexion : il n'y a pas de mot de passe. Une fois connecté, vos séances, vos doigtés, les notes que vous entourez et leurs rappels, et vos profils (le nom et l'avatar de chacun) sont copiés sur le serveur pour être redescendus sur vos autres appareils, ainsi que le détail des notes jouées pendant vos séances, conservé pour analyser votre pratique. Aucune autre donnée n'est associée au compte.",
     accountDelete:
       "Vous pouvez supprimer votre compte depuis la page Données. Le compte et toutes les données synchronisées sont alors effacés des serveurs, sans délai et sans avoir à le demander à qui que ce soit.",
     feedbackTitle: 'Les avis que vous envoyez',

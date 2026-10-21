@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="app-version" content="47461aa9a7ce" />
+    <meta name="app-version" content="975469dbf49c" />
     <title data-i18n="score.pageTitle">Arabesque</title>
     <link rel="icon" href="favicon.svg" type="image/svg+xml" />
     <link rel="manifest" href="manifest.webmanifest" />
@@ -514,6 +514,15 @@
             <button @click="appendFinger(finger)" x-text="finger"></button>
           </template>
           <button class="pt-chip pt-action-button" @click="removeFingering()">×</button>
+        </div>
+        <!-- A spot to watch: the note circled on the score, with a few words to
+             remember it by (noteCircles.js). -->
+        <div class="pt-circle-row">
+          <button class="pt-chip pt-action-button" x-show="selectedCircle === null" @click="circleNote()" x-text="$t('score.circleNote')">⭕ Entourer</button>
+          <template x-if="selectedCircle !== null">
+            <input type="text" x-ref="circleText" x-model="circleText" maxlength="40" enterkeyhint="done" :placeholder="$t('score.circlePlaceholder')" :aria-label="$t('score.circlePlaceholder')" @keydown.enter.prevent="validateFingering()" data-testid="circle-text" />
+          </template>
+          <button class="pt-chip pt-action-button" x-show="selectedCircle !== null" @click="removeCircle()" x-text="$t('score.circleRemove')">Retirer le cercle</button>
         </div>
         <footer>
           <button class="pt-chip pt-action-button is-primary" @click="validateFingering()" x-text="$t('score.fingeringValidate')">✓ Valider</button>
