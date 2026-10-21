@@ -18,6 +18,11 @@
       import { mountJournalEntries } from './js/journalEntries.js'
       startAlpine({ libraryApp }, [mountJournalEntries])
     </script>
+    <!-- Read once Alpine has booted, a round trip after the last module: asked
+         for now, they are there when the page gets to them. After the modules,
+         which are needed first. -->
+    <link rel="preload" href="data/scores.json" as="fetch" crossorigin />
+    <link rel="preload" href="data/fingerprints.json" as="fetch" crossorigin />
   </head>
   <body>
     <!-- data-tab is also static: the pane rules key off it, and without a
