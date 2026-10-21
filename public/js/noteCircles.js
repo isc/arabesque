@@ -74,24 +74,36 @@ function reminderBox({ line, lines, space }, ring, left, size, placed) {
   return box
 }
 
+// Where a score's circles are drawn: the rings and reminders over everything,
+// and the tints inside the rings under the staves and the notes, so that the
+// head stays as black as it was printed. Under them, only the bars' click
+// rectangles, whose own shading (a training passage) the tint goes over.
+function circleLayers(svg) {
+  const under = svgElement('g', { class: 'pt-circle-tints' })
+  svg.insertBefore(under, svg.querySelector(':scope > g.measure-click-areas')?.nextSibling ?? svg.firstChild)
+  return { under, over: svg.appendChild(svgElement('g', { class: 'pt-circles' })) }
+}
+
 // `keepClear` is handed, at each paint, the box of every circle drawn and the
 // system it is on (OSMD's MusicSystem), for the training dots to clear.
 export function initNoteCircles({ getOsmdInstance, getNoteDataByKey, graphicalMeasureForNote, keepClear }) {
   // The score's circles, by note key: their reminders ('' for none).
   let circles = {}
 
-  // A ring around the note's head and its reminder, if any, in `group`; its
-  // box, ring and reminder together, in SVG units.
-  function drawCircle(group, key, text, noteData, notehead, placed) {
+  // A ring around the note's head and its reminder, if any, in `layers.over`,
+  // and the tint inside the ring in `layers.under`; its box, ring and reminder
+  // together, in SVG units.
+  function drawCircle(layers, key, text, noteData, notehead, placed) {
     const measure = graphicalMeasureForNote(noteData.note)
     const staff = { line: measure.ParentStaffLine, lines: measure.parentMusicSystem.StaffLines, space: measure.stave.getSpacingBetweenLines() }
     const head = notehead.getBBox()
     const pad = RING_PADDING * staff.space
     const ring = { cx: head.x + head.width / 2, cy: head.y + head.height / 2, rx: head.width / 2 + pad, ry: head.height / 2 + pad }
 
+    layers.under.append(svgElement('ellipse', ring))
     const mark = svgElement('g', { class: 'pt-circle', 'data-key': key })
     mark.append(svgElement('ellipse', ring))
-    group.append(mark)
+    layers.over.append(mark)
     const box = { system: measure.parentMusicSystem, left: ring.cx - ring.rx, right: ring.cx + ring.rx, top: ring.cy - ring.ry, bottom: ring.cy + ring.ry }
     if (!text) return box
 
@@ -123,10 +135,10 @@ export function initNoteCircles({ getOsmdInstance, getNoteDataByKey, graphicalMe
   // Draws the circles over the score as it stands, in place of those drawn
   // before. A key no note of the score answers to draws nothing.
   function repaint() {
-    for (const group of document.querySelectorAll('#score g.pt-circles')) group.remove()
+    for (const group of document.querySelectorAll('#score g.pt-circles, #score g.pt-circle-tints')) group.remove()
     const osmd = getOsmdInstance()
     const noteDataByKey = getNoteDataByKey()
-    const groups = new Map()
+    const layers = new Map()
     const placed = []
     const boxes = []
     for (const [key, text] of Object.entries(osmd ? circles : {})) {
@@ -134,8 +146,8 @@ export function initNoteCircles({ getOsmdInstance, getNoteDataByKey, graphicalMe
       const notehead = noteData && svgNoteheadFor(osmd, noteData)
       const svg = notehead?.ownerSVGElement
       if (!svg) continue
-      if (!groups.has(svg)) groups.set(svg, svg.appendChild(svgElement('g', { class: 'pt-circles' })))
-      boxes.push(drawCircle(groups.get(svg), key, text, noteData, notehead, placed))
+      if (!layers.has(svg)) layers.set(svg, circleLayers(svg))
+      boxes.push(drawCircle(layers.get(svg), key, text, noteData, notehead, placed))
     }
     keepClear(boxes)
   }
