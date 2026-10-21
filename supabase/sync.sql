@@ -20,6 +20,10 @@
 --     updated_at (a JS epoch-ms value). A device sends or takes a row whole,
 --     and when both it and the server changed one since they last met, it
 --     merges the two note by note before sending (public/js/sync.js).
+--   - user_circles: the notes a player circled on a score, each with the few
+--     words of a reminder; rows like user_fingerings', synced the same way. A
+--     table of its own rather than a column there: public/js/storage.js says
+--     why.
 --   - profiles: the people sharing the account's devices (public/js/profiles.js).
 --     One row per (user, profile); the newest updated_at wins, and a removed
 --     profile keeps its row as a tombstone (deleted) so that a device that
@@ -100,6 +104,22 @@ create policy user_fingerings_owner on public.user_fingerings
   using (user_id = auth.uid())
   with check (user_id = auth.uid());
 
+create table if not exists public.user_circles (
+  user_id    uuid not null references auth.users (id) on delete cascade,
+  profile_id text not null default 'main',
+  score_url  text not null,
+  circles    jsonb not null,         -- { <fingering key>: <reminder text, '' for none> }
+  updated_at bigint not null,        -- client updatedAt (epoch ms): which side changed (sync.js)
+  primary key (user_id, profile_id, score_url)
+);
+
+alter table public.user_circles enable row level security;
+drop policy if exists user_circles_owner on public.user_circles;
+create policy user_circles_owner on public.user_circles
+  for all to authenticated
+  using (user_id = auth.uid())
+  with check (user_id = auth.uid());
+
 create table if not exists public.profiles (
   user_id    uuid not null references auth.users (id) on delete cascade,
   id         text not null,          -- client-generated, 'main' for the first
@@ -130,6 +150,7 @@ begin
   delete from public.training_sessions where user_id = new.user_id and profile_id = new.id;
   delete from public.session_notes where user_id = new.user_id and profile_id = new.id;
   delete from public.user_fingerings where user_id = new.user_id and profile_id = new.id;
+  delete from public.user_circles where user_id = new.user_id and profile_id = new.id;
   return new;
 end;
 $$;

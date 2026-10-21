@@ -738,6 +738,28 @@ class CapybaraTestBase < Minitest::Test
     assert_selector 'dialog#fingeringModal[open]'
   end
 
+  # The notehead of the first beat of `staff` at `rank` in pitch order (0 the
+  # lowest, -1 the highest), tagged so Capybara can click it.
+  def first_beat_notehead(staff, rank)
+    testid = "first-beat-#{staff}-#{rank}"
+    page.execute_script(<<~JS)
+      (() => {
+        const entry = osmdInstance.graphic.MeasureList[0][#{staff}].staffEntries[0]
+        const notes = entry.graphicalVoiceEntries
+          .flatMap((voiceEntry) => voiceEntry.notes)
+          .map((graphicalNote) => graphicalNote.sourceNote)
+          .sort((a, b) => a.Pitch.getHalfTone() - b.Pitch.getHalfTone())
+        const note = notes.at(#{rank})
+        osmdInstance.rules
+          .GNote(note)
+          .getSVGGElement()
+          .querySelectorAll('.vf-notehead')[note.ParentVoiceEntry.Notes.indexOf(note)]
+          .setAttribute('data-testid', #{testid.to_json})
+      })()
+    JS
+    find("[data-testid=\"#{testid}\"]")
+  end
+
   # Enters `digit` on `notehead` and returns once the pad has closed: by then
   # the fingering is stored and the score redrawn, on the same code path.
   def enter_fingering(notehead, digit)

@@ -15,15 +15,17 @@ const MAX_ROWS = 1000
 const KEYS = {
   training_sessions: (r) => `${r.profile_id ?? MAIN}|${r.id}`,
   user_fingerings: (r) => `${r.profile_id ?? MAIN}|${r.score_url}`,
+  user_circles: (r) => `${r.profile_id ?? MAIN}|${r.score_url}`,
   profiles: (r) => r.id,
   session_notes: (r) => r.id,
 }
 
-function makeFakeSupabase({ sessions = [], fingerings = [], profiles = [] } = {}) {
-  const tables = { training_sessions: new Map(), user_fingerings: new Map(), profiles: new Map(), session_notes: new Map() }
+function makeFakeSupabase({ sessions = [], fingerings = [], circles = [], profiles = [] } = {}) {
+  const tables = Object.fromEntries(Object.keys(KEYS).map((name) => [name, new Map()]))
   const seed = (name, rows) => rows.forEach((r) => tables[name].set(KEYS[name]({ profile_id: MAIN, ...r }), { profile_id: MAIN, ...r }))
   seed('training_sessions', sessions)
   seed('user_fingerings', fingerings)
+  seed('user_circles', circles)
   seed('profiles', profiles)
 
   const result = (rows, cols) => {
@@ -79,7 +81,7 @@ describe('runSync', () => {
   let storage
   let practiceTracker
   let runSync
-  let mergeFingerings
+  let mergeNoteMap
   let pullNoteLogs
   let profiles
 
@@ -87,7 +89,7 @@ describe('runSync', () => {
   // it loads — and that profile's database.
   async function openPage() {
     vi.resetModules()
-    ;({ runSync, mergeFingerings, pullNoteLogs } = await import('../../public/js/sync.js'))
+    ;({ runSync, mergeNoteMap, pullNoteLogs } = await import('../../public/js/sync.js'))
     profiles = await import('../../public/js/profiles.js')
     const { initStorage } = await import('../../public/js/storage.js')
     const { initPracticeTracker } = await import('../../public/js/practiceTracker.js')
@@ -254,7 +256,7 @@ describe('runSync', () => {
   })
 
   it('fingerings: pushes local-newer, pulls remote-newer (last-write-wins)', async () => {
-    await storage.putFingeringRecord({ scoreUrl: '/s/1.xml', fingerings: { n1: 1 }, updatedAt: 2000 })
+    await storage.fingerings.put({ scoreUrl: '/s/1.xml', fingerings: { n1: 1 }, updatedAt: 2000 })
     const supabase = makeFakeSupabase({
       fingerings: [
         { user_id: USER, score_url: '/s/1.xml', fingerings: { n1: 9 }, updated_at: 1000 }, // older → local wins
@@ -267,7 +269,7 @@ describe('runSync', () => {
     expect(r.fingeringsPushed).toBe(1)
     expect(r.fingeringsPulled).toBe(1)
     expect(supabase._fingerings.get('/s/1.xml').updated_at).toBe(2000)
-    expect((await storage.getFingerings('/s/2.xml')).fingerings).toEqual({ n2: 3 })
+    expect((await storage.fingerings.get('/s/2.xml')).fingerings).toEqual({ n2: 3 })
   })
 
   describe('fingerings changed on both sides', () => {
@@ -279,19 +281,19 @@ describe('runSync', () => {
     // The iPad left open for days adds n3 to its stale copy; the phone had
     // added n2 and synced. Each side used to replace the other whole.
     it('keeps what each side added since they last met', async () => {
-      await storage.putFingeringRecord(record({ n1: 1, n3: 3 }, 3000, { n1: 1 }))
+      await storage.fingerings.put(record({ n1: 1, n3: 3 }, 3000, { n1: 1 }))
       const supabase = makeFakeSupabase({ fingerings: [serverRow({ n1: 1, n2: 2 }, 2000)] })
 
       await runSync({ supabase, storage, practiceTracker })
 
-      const local = await storage.getFingerings(URL_1)
+      const local = await storage.fingerings.get(URL_1)
       expect(local.fingerings).toEqual({ n1: 1, n2: 2, n3: 3 })
       expect(supabase._fingerings.get(URL_1).fingerings).toEqual({ n1: 1, n2: 2, n3: 3 })
       expect(supabase._fingerings.get(URL_1).updated_at).toBe(local.updatedAt)
     })
 
     it('sends nothing on the next sync once the two agree', async () => {
-      await storage.putFingeringRecord({ scoreUrl: URL_1, fingerings: { n1: 1 }, updatedAt: 1000 })
+      await storage.fingerings.put({ scoreUrl: URL_1, fingerings: { n1: 1 }, updatedAt: 1000 })
       const supabase = makeFakeSupabase()
 
       await runSync({ supabase, storage, practiceTracker })
@@ -304,17 +306,17 @@ describe('runSync', () => {
     // Written back over the record as read, a sync would put back the version
     // it sent and drop the note entered while it was out.
     it('leaves a fingering entered during the sync for the next one', async () => {
-      await storage.putFingeringRecord(record({ n1: 1 }, 2000, {}))
+      await storage.fingerings.put(record({ n1: 1 }, 2000, {}))
       const supabase = makeFakeSupabase({ fingerings: [serverRow({}, 1000)] })
       const from = supabase.from.bind(supabase)
       supabase.from = (name) => {
         const table = from(name)
         if (name !== 'user_fingerings') return table
-        return { ...table, upsert: async (rows) => { await storage.setFingering(URL_1, 'n2', 2); return table.upsert(rows) } }
+        return { ...table, upsert: async (rows) => { await storage.fingerings.set(URL_1, 'n2', 2); return table.upsert(rows) } }
       }
 
       await runSync({ supabase, storage, practiceTracker })
-      expect((await storage.getFingerings(URL_1)).fingerings).toEqual({ n1: 1, n2: 2 })
+      expect((await storage.fingerings.get(URL_1)).fingerings).toEqual({ n1: 1, n2: 2 })
 
       supabase.from = from
       await runSync({ supabase, storage, practiceTracker })
@@ -329,11 +331,11 @@ describe('runSync', () => {
     const URL_1 = '/s/1.xml'
 
     it('are merged, not taken for the version the two last shared', async () => {
-      await storage.putFingeringRecord({ scoreUrl: URL_1, fingerings: { n1: 1 }, updatedAt: 1000 })
+      await storage.fingerings.put({ scoreUrl: URL_1, fingerings: { n1: 1 }, updatedAt: 1000 })
       const supabase = makeFakeSupabase()
       await runSync({ supabase, storage, practiceTracker })
 
-      await storage.setFingering(URL_1, 'n2', 2)
+      await storage.fingerings.set(URL_1, 'n2', 2)
       supabase.from('user_fingerings').upsert([{ user_id: USER, profile_id: MAIN, score_url: URL_1, fingerings: { n1: 1, n3: 3 }, updated_at: 2000 }])
       await runSync({ supabase, storage, practiceTracker })
 
@@ -343,7 +345,7 @@ describe('runSync', () => {
     // A score this device never had fingerings for: its first ones used to go
     // up whole, over those the phone had put there.
     it('join those another device entered first', async () => {
-      await storage.setFingering(URL_1, 'n3', 3)
+      await storage.fingerings.set(URL_1, 'n3', 3)
       const supabase = makeFakeSupabase({ fingerings: [{ user_id: USER, score_url: URL_1, fingerings: { n1: 1, n2: 2 }, updated_at: 1000 }] })
 
       await runSync({ supabase, storage, practiceTracker })
@@ -352,9 +354,9 @@ describe('runSync', () => {
     })
   })
 
-  describe('mergeFingerings', () => {
+  describe('mergeNoteMap', () => {
     const merge = (mine, theirs, was, { mineAt = 3000, theirsAt = 2000 } = {}) =>
-      mergeFingerings({ fingerings: mine, updatedAt: mineAt, synced: { fingerings: was } }, { fingerings: theirs, updatedAt: theirsAt })
+      mergeNoteMap('fingerings', { fingerings: mine, updatedAt: mineAt, synced: { fingerings: was } }, { fingerings: theirs, updatedAt: theirsAt })
 
     it('clears a note on one side when the other left it as it was', () => {
       expect(merge({ n1: 1 }, { n1: 1, n2: 2, n4: 4 }, { n1: 1, n2: 2 })).toEqual({ n1: 1, n4: 4 })
@@ -367,13 +369,53 @@ describe('runSync', () => {
     })
   })
 
+  // Circled notes travel as fingerings do, in a table of their own, a
+  // reminder's text being a note's value as a finger's number is.
+  describe('circles', () => {
+    const URL_1 = '/s/1.xml'
+    const serverRow = (circles, updatedAt) => ({ user_id: USER, score_url: URL_1, circles, updated_at: updatedAt })
+    const circleRow = (supabase) => supabase._rows('user_circles').find((row) => row.score_url === URL_1)
+
+    it('go up and come down, apart from the fingerings', async () => {
+      await storage.circles.set(URL_1, 'n1', 'fa, pas fa♯')
+      const supabase = makeFakeSupabase({ circles: [{ user_id: USER, score_url: '/s/2.xml', circles: { n2: '' }, updated_at: 5000 }] })
+
+      const r = await runSync({ supabase, storage, practiceTracker })
+
+      expect(r).toMatchObject({ circlesPushed: 1, circlesPulled: 1, fingeringsPushed: 0, fingeringsPulled: 0 })
+      expect(circleRow(supabase)).toMatchObject({ profile_id: MAIN, circles: { n1: 'fa, pas fa♯' } })
+      expect(supabase._fingerings.get(URL_1)).toBeUndefined()
+      expect((await storage.circles.get('/s/2.xml')).circles).toEqual({ n2: '' })
+    })
+
+    // The phone circled n2 and synced; the iPad, on its stale copy, rewrote
+    // n1's reminder and took off n3's circle.
+    it('keep what each side changed since they last met', async () => {
+      const was = { n1: 'fa', n3: '' }
+      await storage.circles.put({ scoreUrl: URL_1, circles: { n1: 'fa, pas fa♯' }, updatedAt: 3000, synced: { circles: was, updatedAt: 1000 } })
+      const supabase = makeFakeSupabase({ circles: [serverRow({ ...was, n2: 'lent' }, 2000)] })
+
+      await runSync({ supabase, storage, practiceTracker })
+
+      const merged = { n1: 'fa, pas fa♯', n2: 'lent' }
+      expect((await storage.circles.get(URL_1)).circles).toEqual(merged)
+      expect(circleRow(supabase).circles).toEqual(merged)
+      expect((await runSync({ supabase, storage, practiceTracker })).circlesPushed).toBe(0)
+    })
+
+    it('give a reminder both sides rewrote to the newer record', () => {
+      const local = { circles: { n1: 'fa' }, updatedAt: 2000, synced: { circles: { n1: '' } } }
+      expect(mergeNoteMap('circles', local, { circles: { n1: 'fa♮' }, updatedAt: 3000 })).toEqual({ n1: 'fa♮' })
+    })
+  })
+
   describe('profiles', () => {
     it('tags what it pushes with the profile the page is on, and pulls only that profile', async () => {
       const charlie = profiles.addProfile({ name: 'Charlie' })
       profiles.switchProfile(charlie.id)
       await openPage()
       await storage.saveSession(endedSession('c1', '/s/1.xml'))
-      await storage.putFingeringRecord({ scoreUrl: '/s/1.xml', fingerings: { n1: 2 }, updatedAt: 10 })
+      await storage.fingerings.put({ scoreUrl: '/s/1.xml', fingerings: { n1: 2 }, updatedAt: 10 })
       const remote = endedSession('m1', '/s/2.xml')
       const supabase = makeFakeSupabase({
         sessions: [{ user_id: USER, profile_id: MAIN, id: 'm1', data: remote, ended_at: remote.endedAt }],

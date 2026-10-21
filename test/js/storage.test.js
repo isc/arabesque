@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import 'fake-indexeddb/auto'
-import { initStorage, NEVER_SYNCED, STORES, DB_VERSION } from '../../public/js/storage.js'
+import { initStorage, neverSynced, STORES, DB_VERSION } from '../../public/js/storage.js'
 import { initPracticeTracker } from '../../public/js/practiceTracker.js'
 import { importBackup } from '../../public/js/sync.js'
 
@@ -27,7 +27,7 @@ describe('importing a backup', () => {
   })
 
   it('keeps a score’s fingerings entered here since the backup was made', async () => {
-    await storage.putFingeringRecord({ scoreUrl: 'scores/a.mxl', fingerings: { n1: 3 }, updatedAt: 2000 })
+    await storage.fingerings.put({ scoreUrl: 'scores/a.mxl', fingerings: { n1: 3 }, updatedAt: 2000 })
 
     const { importedFingerings } = await importBackup({ storage, practiceTracker }, {
       sessions: [],
@@ -38,8 +38,8 @@ describe('importing a backup', () => {
     })
 
     expect(importedFingerings).toBe(1)
-    expect((await storage.getFingerings('scores/a.mxl')).fingerings).toEqual({ n1: 3 })
-    expect((await storage.getFingerings('scores/b.mxl')).fingerings).toEqual({ n2: 2 })
+    expect((await storage.fingerings.get('scores/a.mxl')).fingerings).toEqual({ n1: 3 })
+    expect((await storage.fingerings.get('scores/b.mxl')).fingerings).toEqual({ n2: 2 })
   })
 
   // Entered as if played here: the notes the backup adds join the record, and
@@ -47,11 +47,11 @@ describe('importing a backup', () => {
   // reads as a change to send.
   it('adds the backup’s notes to the ones here, for the next sync to send', async () => {
     const synced = { fingerings: { n1: 3 }, updatedAt: 2000 }
-    await storage.putFingeringRecord({ scoreUrl: 'scores/a.mxl', fingerings: { n1: 3 }, updatedAt: 2000, synced })
+    await storage.fingerings.put({ scoreUrl: 'scores/a.mxl', fingerings: { n1: 3 }, updatedAt: 2000, synced })
 
     await importBackup({ storage, practiceTracker }, { sessions: [], fingerings: [{ scoreUrl: 'scores/a.mxl', fingerings: { n2: 2 }, updatedAt: 1000 }] })
 
-    const record = await storage.getFingerings('scores/a.mxl')
+    const record = await storage.fingerings.get('scores/a.mxl')
     expect(record.fingerings).toEqual({ n1: 3, n2: 2 })
     expect(record.updatedAt).toBeGreaterThan(2000)
     expect(record.synced).toEqual(synced)
@@ -62,7 +62,7 @@ describe('importing a backup', () => {
   it('gives a score new to this device the base a new record starts from', async () => {
     await importBackup({ storage, practiceTracker }, { sessions: [], fingerings: [{ scoreUrl: 'scores/b.mxl', fingerings: { n2: 2 }, updatedAt: 1000 }] })
 
-    expect((await storage.getFingerings('scores/b.mxl')).synced).toEqual(NEVER_SYNCED)
+    expect((await storage.fingerings.get('scores/b.mxl')).synced).toEqual(neverSynced('fingerings'))
   })
 
   // The backup's aggregates only lend their names, below this device's own:
@@ -83,15 +83,59 @@ describe('importing a backup', () => {
   })
 })
 
+// A backup's circles join those here as its fingerings do, note by note:
+// the reminder of a note both hold is the newer side's.
+describe('importing a backup with circles', () => {
+  it('adds the backup’s circles to the ones here, keeping a reminder rewritten since', async () => {
+    const { storage, practiceTracker } = await aDevice()
+    await storage.circles.put({ scoreUrl: 'scores/a.mxl', circles: { n1: 'fa, pas fa♯' }, updatedAt: 2000 })
+
+    const { importedCircles } = await importBackup({ storage, practiceTracker }, {
+      sessions: [],
+      circles: [
+        { scoreUrl: 'scores/a.mxl', circles: { n1: 'fa', n2: '' }, updatedAt: 1000 },
+        { scoreUrl: 'scores/b.mxl', circles: { n3: 'lent' }, updatedAt: 1000 },
+      ],
+    })
+
+    expect(importedCircles).toBe(2)
+    expect((await storage.circles.get('scores/a.mxl')).circles).toEqual({ n1: 'fa, pas fa♯', n2: '' })
+    expect((await storage.circles.get('scores/b.mxl')).circles).toEqual({ n3: 'lent' })
+  })
+})
+
+describe('circles', () => {
+  // Kept apart from the fingerings: a build that knows only fingerings writes
+  // their record whole, and would drop what it does not know (storage.js).
+  it('are kept per note, a circle with no reminder included, apart from the fingerings', async () => {
+    const { storage } = await aDevice()
+    await storage.fingerings.set('scores/a.mxl', 'n1', 3)
+    await storage.circles.set('scores/a.mxl', 'n1', '')
+    await storage.circles.set('scores/a.mxl', 'n2', 'fa, pas fa♯')
+    await storage.circles.remove('scores/a.mxl', 'n2')
+
+    expect((await storage.circles.get('scores/a.mxl')).circles).toEqual({ n1: '' })
+    expect((await storage.fingerings.get('scores/a.mxl')).fingerings).toEqual({ n1: 3 })
+  })
+
+  it('start from the base a record new to this device has', async () => {
+    const { storage } = await aDevice()
+    expect(await storage.circles.get('scores/a.mxl')).toEqual({ scoreUrl: 'scores/a.mxl', circles: {}, synced: neverSynced('circles') })
+  })
+})
+
 // `synced` is this device's own exchange with the server (sync.js): another
 // device importing it would merge against a version it never had.
 describe('a backup', () => {
-  it('leaves out what a fingering record last exchanged with the server', async () => {
+  it('leaves out what a fingering or circle record last exchanged with the server', async () => {
     indexedDB = new IDBFactory()
     const storage = initStorage()
-    await storage.putFingeringRecord({ scoreUrl: 's', fingerings: { n1: 1 }, updatedAt: 5, synced: { fingerings: { n1: 1 }, updatedAt: 5 } })
+    await storage.fingerings.put({ scoreUrl: 's', fingerings: { n1: 1 }, updatedAt: 5, synced: { fingerings: { n1: 1 }, updatedAt: 5 } })
+    await storage.circles.put({ scoreUrl: 's', circles: { n1: '' }, updatedAt: 5, synced: { circles: { n1: '' }, updatedAt: 5 } })
 
-    expect((await storage.exportBackup()).fingerings).toEqual([{ scoreUrl: 's', fingerings: { n1: 1 }, updatedAt: 5 }])
+    const backup = await storage.exportBackup()
+    expect(backup.fingerings).toEqual([{ scoreUrl: 's', fingerings: { n1: 1 }, updatedAt: 5 }])
+    expect(backup.circles).toEqual([{ scoreUrl: 's', circles: { n1: '' }, updatedAt: 5 }])
   })
 })
 
@@ -101,11 +145,12 @@ describe('a backup', () => {
 // here, and every such store needs a record below, so a new one cannot slip
 // past.
 describe('a backup restored on another device', () => {
-  // A record of each store, and the storage method that writes it.
+  // A record of each store, and how storage writes it.
   const records = {
-    fingerings: [{ scoreUrl: 'scores/a.mxl', fingerings: { n1: 3 }, updatedAt: 5 }, 'putFingeringRecord'],
-    sessions: [session('s1'), 'saveSession'],
-    aggregates: [{ scoreId: 'scores/a.mxl', scoreTitle: 'Gymnopédie' }, 'saveAggregate'],
+    fingerings: [{ scoreUrl: 'scores/a.mxl', fingerings: { n1: 3 }, updatedAt: 5 }, (storage, record) => storage.fingerings.put(record)],
+    circles: [{ scoreUrl: 'scores/a.mxl', circles: { n1: 'fa, pas fa♯', n2: '' }, updatedAt: 5 }, (storage, record) => storage.circles.put(record)],
+    sessions: [session('s1'), (storage, record) => storage.saveSession(record)],
+    aggregates: [{ scoreId: 'scores/a.mxl', scoreTitle: 'Gymnopédie' }, (storage, record) => storage.saveAggregate(record)],
   }
 
   // A store is only created by the upgrade to a new version: one added without
@@ -114,6 +159,7 @@ describe('a backup restored on another device', () => {
   const STORES_BY_VERSION = {
     4: ['aggregates', 'fingerings', 'noteLogs', 'sessions'],
     5: ['aggregates', 'fingerings', 'keptNoteLogs', 'noteLogs', 'sessions'],
+    6: ['aggregates', 'circles', 'fingerings', 'keptNoteLogs', 'noteLogs', 'sessions'],
   }
 
   it('raises the database version with every store added', () => {
@@ -138,7 +184,7 @@ describe('a backup restored on another device', () => {
 
   it('brings every store back', async () => {
     const { storage } = await aDevice()
-    for (const [record, write] of Object.values(records)) await storage[write](record)
+    for (const [record, write] of Object.values(records)) await write(storage, record)
     const backup = JSON.parse(JSON.stringify(await storage.exportBackup()))
 
     const elsewhere = await aDevice()
@@ -274,7 +320,7 @@ describe('storage on a lost connection', () => {
   it('reopens once for the reads that found the connection dead together', async () => {
     const open = vi.spyOn(indexedDB, 'open')
 
-    await Promise.all([storage.getSessions(), storage.getAllAggregates(), storage.getAllFingerings()])
+    await Promise.all([storage.getSessions(), storage.getAllAggregates(), storage.fingerings.getAll()])
 
     expect(open).toHaveBeenCalledTimes(1)
   })
