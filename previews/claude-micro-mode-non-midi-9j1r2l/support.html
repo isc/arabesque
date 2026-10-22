@@ -3,10 +3,19 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="app-version" content="f84823251231" />
+    <meta name="app-version" content="7a0aab702e0d" />
     <title data-i18n="support.pageTitle">Arabesque · Assistance</title>
     <link rel="icon" href="favicon.svg" type="image/svg+xml" />
     <link rel="stylesheet" href="styles.css" />
+    <!-- preloads: written at deploy by scripts/preload-modules.mjs -->
+    <link rel="modulepreload" href="js/errorLog.js" />
+    <link rel="modulepreload" href="js/version.js" />
+    <link rel="modulepreload" href="js/appStore.js" />
+    <link rel="modulepreload" href="js/i18n.js" />
+    <link rel="modulepreload" href="js/locales/fr.js" />
+    <link rel="modulepreload" href="js/locales/en.js" />
+    <link rel="modulepreload" href="js/legacyKeys.js" />
+    <!-- /preloads -->
     <script type="module" src="js/errorLog.js"></script>
     <script type="module" src="js/version.js"></script>
     <script type="module" src="js/appStore.js"></script>

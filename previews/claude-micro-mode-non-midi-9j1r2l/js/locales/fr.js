@@ -16,6 +16,9 @@ export default {
     privacy: '🔒 Confidentialité',
     install: '📲 Installer l’application',
     language: 'Langue',
+    // The on-screen keyboard's setting (keyHintSetting.js), under score.keyHintAria.
+    keyHintAllowed: 'Si besoin',
+    keyHintNever: 'Jamais',
   },
   // Several people on one device (profiles.js).
   profiles: {
@@ -57,13 +60,9 @@ export default {
   // Ce que sélectionne le filtre en cours, sous la liste filtrée de la
   // bibliothèque. Les nombres viennent des constantes que les règles elles-mêmes
   // appliquent : STATUS_THRESHOLDS et le plancher de pratique
-  // (aggregates.js), la fenêtre de renforcement et les seuils des mesures
-  // qui accrochent (HOT_SPOT_*, reinforcement.js), et STALE_DAYS (library.js).
+  // (aggregates.js), et STALE_DAYS (library.js).
   criteria: {
     filterHeading: 'Ce que sélectionne {filter}',
-    reinforceHotSpot: 'Une mesure ratée au moins {factor} fois plus souvent que la moyenne du morceau, sur ses {n} dernières séances',
-    reinforceAttempts: 'Tentée au moins {n} fois',
-    reinforceClean: 'Et pas encore rejouée proprement {n} passages de suite, ni réussie à l’entraînement',
     stalePractised: 'Travaillée au moins {n} min en tout',
     staleSilent: 'Et pas rouverte depuis plus de {n} jours',
     heading: 'Pour passer en {status}',
@@ -90,7 +89,6 @@ export default {
     yearsAgo: 'il y a {n} ans',
   },
   focus: {
-    reinforce: '🎯 À renforcer',
     nearMastery: '⭐ Proches du répertoire',
     stale: '💤 Pas joué depuis {n} j',
   },
@@ -259,8 +257,9 @@ export default {
     bpm: 'BPM',
     rightHand: 'Main droite',
     leftHand: 'Main gauche',
-    reinforceOne: '🎯 Renforcer {n} mesure',
-    reinforce: '🎯 Renforcer {n} mesures',
+    reinforce: '🎯 Renforcer {what}',
+    passagesCountOne: '{n} passage',
+    passagesCount: '{n} passages',
     stop: '⏹ Stop',
     listen: '▶ Écouter',
     playbackHint: 'Cliquez sur une mesure pour écouter à partir de là.',
@@ -281,10 +280,10 @@ export default {
     loopRun: 'passage {n}',
     loopStreak: '{n} sur {streak} propres',
     trainingBand: '🎯 Entraînement',
-    trainingHint: 'Chaque mesure doit être jouée {times}× sans erreur.',
+    trainingHint: 'Chaque mesure doit être jouée {times}× sans erreur ni hésitation.',
     trainingLoopTitle: 'Travailler un passage entier : cliquez sur sa première puis sa dernière mesure',
-    trainingPassage: 'Mesures {from} à {to} : le passage entier doit être joué {times}× sans erreur.',
-    trainingPassageOne: 'Mesure {from} seule : elle doit être jouée {times}× sans erreur.',
+    trainingPassage: 'Mesures {from} à {to} : le passage entier doit être joué {times}× sans erreur ni hésitation.',
+    trainingPassageOne: 'Mesure {from} seule : elle doit être jouée {times}× sans erreur ni hésitation.',
     onboardingTitle: 'Charger un fichier MusicXML',
     onboardingDrag: 'Glissez votre fichier ici ou cliquez pour le sélectionner. Les fichiers <code>.mxl</code> compressés sont acceptés.',
     onboardingChoose: '📄 Choisir un fichier',
@@ -309,7 +308,7 @@ export default {
     strictTooLate: 'trop tard',
     strictMissed: 'manquées',
     strictWrongNotes: 'fausses notes',
-    reinforcementDone: 'Toutes les mesures ont été renforcées avec succès.',
+    reinforcementDone: 'Tout ce qui était proposé a été renforcé avec succès.',
     close: 'Fermer',
     historyTitle: '📜 Historique de pratique',
     total: 'Total : ',
@@ -329,13 +328,17 @@ export default {
     noMidiBrowsers: '(Chrome, Edge ou Opera).',
     fingeringTitle: 'Doigté',
     fingeringValidate: '✓ Valider',
+    circleNote: '⭕ Entourer',
+    circlePlaceholder: 'Un rappel (facultatif)',
+    circleRemove: 'Retirer le cercle',
     // The seven letters, from do to si — the only part of a note's name that is
     // language's business; the ♯ and ♭ that go with them are music's own signs.
     noteLetters: 'do ré mi fa sol la si',
     // The on-screen keyboard that comes up when a note is hard to find.
     keyHintAria: 'Clavier d’aide',
     keyHintPlay: 'À jouer',
-    keyHintHide: 'Masquer le clavier',
+    keyHintHide: 'Masquer jusqu’à demain',
+    keyHintNever: 'Ne plus l’afficher',
     midiHelpTitle: 'Connexion clavier MIDI',
     midiHelpIntro: 'Aucun périphérique MIDI détecté. Voici comment connecter votre clavier :',
     macTwoCases: 'Selon votre piano, deux cas de figure :',
@@ -379,7 +382,6 @@ export default {
     loadRetry: 'Réessayer',
   },
   errors: {
-    webMidiUnsupported: 'Web MIDI API non supportée par ce navigateur',
     invalidChoice: 'Choix invalide',
     chooseMidiDevice: 'Plusieurs périphériques MIDI trouvés :\n{devices}\n\nEntrez le numéro (1-{count}) :',
     midiConnection: 'Erreur lors de la connexion MIDI: {message}',
@@ -442,16 +444,16 @@ export default {
     pageTitle: 'Arabesque · Confidentialité',
     heading: 'Confidentialité',
     back: '← Bibliothèque',
-    updated: 'Dernière mise à jour : 27 septembre 2026.',
+    updated: 'Dernière mise à jour : 21 octobre 2026.',
     summaryTitle: 'En bref',
     summaryBody:
       "Arabesque fonctionne dans votre navigateur et garde vos données de pratique sur votre appareil. Rien n'est envoyé ailleurs tant que vous ne le demandez pas — en créant un compte pour synchroniser vos appareils, ou en envoyant un avis. Il n'y a ni publicité, ni traceur, ni revente de quoi que ce soit.",
     localTitle: 'Ce qui reste sur votre appareil',
     localBody:
-      "Vos séances de travail, vos doigtés, vos profils et vos préférences (langue, morceaux vus) sont écrits dans le stockage local du navigateur. Ils ne quittent pas l'appareil de leur propre initiative, et vider les données du site les efface définitivement. La page Données permet de les exporter dans un fichier.",
+      "Vos séances de travail, vos doigtés, les notes que vous entourez et leurs rappels, vos profils et vos préférences (langue, morceaux vus) sont écrits dans le stockage local du navigateur. Ils ne quittent pas l'appareil de leur propre initiative, et vider les données du site les efface définitivement. La page Données permet de les exporter dans un fichier.",
     accountTitle: 'Le compte, si vous en créez un',
     accountBody:
-      "Se connecter sert à retrouver sa pratique d'un appareil à l'autre. Cela demande une adresse e-mail, à laquelle est envoyé un code de connexion : il n'y a pas de mot de passe. Une fois connecté, vos séances, vos doigtés et vos profils (le nom et l'avatar de chacun) sont copiés sur le serveur pour être redescendus sur vos autres appareils. Aucune autre donnée n'est associée au compte.",
+      "Se connecter sert à retrouver sa pratique d'un appareil à l'autre. Cela demande une adresse e-mail, à laquelle est envoyé un code de connexion : il n'y a pas de mot de passe. Une fois connecté, vos séances, vos doigtés, les notes que vous entourez et leurs rappels, et vos profils (le nom et l'avatar de chacun) sont copiés sur le serveur pour être redescendus sur vos autres appareils, ainsi que le détail des notes jouées pendant vos séances, conservé pour analyser votre pratique. Aucune autre donnée n'est associée au compte.",
     accountDelete:
       "Vous pouvez supprimer votre compte depuis la page Données. Le compte et toutes les données synchronisées sont alors effacés des serveurs, sans délai et sans avoir à le demander à qui que ce soit.",
     feedbackTitle: 'Les avis que vous envoyez',

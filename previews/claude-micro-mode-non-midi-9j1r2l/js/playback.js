@@ -8,6 +8,7 @@ import {
   GRACE_NOTE_OFFSET_WN,
 } from './playbackTiming.js'
 import { BPM_DEFAULT } from './bpmStepper.js'
+import { isNoteActiveForHands } from './noteExtraction.js'
 
 // The three states the transport can be in. Paused is not stopped: the piece is
 // still on the stand at the bar it was held at.
@@ -39,6 +40,9 @@ let heldAtMeasure = 0
 // The tempo to play at, in BPM. Null until the page sets one, so a score
 // listened to before anything is chosen goes at the tempo it is written at.
 let playbackBpm = null
+// The hands the piece is heard with — the MD / MG toggles, so the hand the
+// player is working alone is the one they hear (feedback 42499ee5).
+let playbackHands = { right: true, left: true }
 
 const GRACE_NOTE_DURATION_S = 0.08
 
@@ -79,6 +83,7 @@ export function initPlayback(externalMidiState = null) {
     pause,
     seekToMeasure,
     setTempo,
+    setHands,
     stop,
     setOnTransportChange: (fn) => { onTransportChange = fn },
     get transport() { return transport },
@@ -471,6 +476,13 @@ function setTempo(bpm) {
   if (transport === PLAYING) seekToMeasure(resumeAt)
 }
 
+// The hands to hear. Like the tempo, a change mid-piece takes effect from the
+// bar being played.
+function setHands(hands) {
+  playbackHands = { ...hands }
+  if (transport === PLAYING) seekToMeasure(currentMeasure())
+}
+
 function bpmFor(osmdInstance) {
   return playbackBpm ?? getBPM(osmdInstance)
 }
@@ -522,12 +534,15 @@ function startPlayback(allNotes, osmdInstance, startMeasureIndex = 0) {
         }
       }
 
+      // The other hand's notes are still timed, so the listening ends with the
+      // piece rather than with the last note the hand being heard plays.
+      maxEndMs = Math.max(maxEndMs, startMs + durationMs)
+      if (!isNoteActiveForHands(n, playbackHands)) continue
+
       if (!n.isTieContinuation) {
         scheduledTimeouts.push(setTimeout(() => noteOn(n.midiNumber), startMs))
       }
       scheduledTimeouts.push(setTimeout(() => noteOff(n.midiNumber), startMs + durationMs))
-
-      maxEndMs = Math.max(maxEndMs, startMs + durationMs)
     }
 
     for (const pe of measureData.pedalEvents || []) {

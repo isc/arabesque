@@ -16,6 +16,9 @@ export default {
     privacy: '🔒 Privacy',
     install: '📲 Install the app',
     language: 'Language',
+    // The on-screen keyboard's setting (keyHintSetting.js), under score.keyHintAria.
+    keyHintAllowed: 'When stuck',
+    keyHintNever: 'Never',
   },
   // Several people on one device (profiles.js).
   profiles: {
@@ -59,14 +62,10 @@ export default {
   },
   // What the current filter selects, shown under the filtered library list.
   // The numbers come from the constants the rules themselves judge by:
-  // STATUS_THRESHOLDS and the practice floor (aggregates.js), the
-  // reinforcement window and the hot-spot thresholds (HOT_SPOT_*,
-  // reinforcement.js), and STALE_DAYS (library.js).
+  // STATUS_THRESHOLDS and the practice floor (aggregates.js), and STALE_DAYS
+  // (library.js).
   criteria: {
     filterHeading: 'What {filter} selects',
-    reinforceHotSpot: 'A bar fumbled at least {factor} times as often as the piece on average, over its last {n} sessions',
-    reinforceAttempts: 'Attempted at least {n} times',
-    reinforceClean: 'And not yet played cleanly {n} attempts in a row, nor completed in training',
     stalePractised: 'Practised for at least {n} min in total',
     staleSilent: 'And not opened again for more than {n} days',
     heading: 'To reach {status}',
@@ -93,7 +92,6 @@ export default {
     yearsAgo: '{n}y ago',
   },
   focus: {
-    reinforce: '🎯 To reinforce',
     nearMastery: '⭐ Near repertoire',
     stale: '💤 Not played in {n}d',
   },
@@ -261,8 +259,9 @@ export default {
     bpm: 'BPM',
     rightHand: 'Right hand',
     leftHand: 'Left hand',
-    reinforceOne: '🎯 Reinforce {n} bar',
-    reinforce: '🎯 Reinforce {n} bars',
+    reinforce: '🎯 Reinforce {what}',
+    passagesCountOne: '{n} passage',
+    passagesCount: '{n} passages',
     stop: '⏹ Stop',
     listen: '▶ Listen',
     playbackHint: 'Click a bar to listen from there.',
@@ -283,10 +282,10 @@ export default {
     loopRun: 'run {n}',
     loopStreak: '{n} of {streak} clean',
     trainingBand: '🎯 Training',
-    trainingHint: 'Each bar must be played {times}× without a mistake.',
+    trainingHint: 'Each bar must be played {times}× without a mistake or a hesitation.',
     trainingLoopTitle: 'Work a whole passage: click its first bar, then its last',
-    trainingPassage: 'Bars {from} to {to}: the whole passage must be played {times}× without a mistake.',
-    trainingPassageOne: 'Bar {from} on its own: it must be played {times}× without a mistake.',
+    trainingPassage: 'Bars {from} to {to}: the whole passage must be played {times}× without a mistake or a hesitation.',
+    trainingPassageOne: 'Bar {from} on its own: it must be played {times}× without a mistake or a hesitation.',
     onboardingTitle: 'Load a MusicXML file',
     onboardingDrag: 'Drag your file here or click to select it. Compressed <code>.mxl</code> files are accepted.',
     onboardingChoose: '📄 Choose a file',
@@ -311,7 +310,7 @@ export default {
     strictTooLate: 'too late',
     strictMissed: 'missed',
     strictWrongNotes: 'wrong notes',
-    reinforcementDone: 'All bars were reinforced successfully.',
+    reinforcementDone: 'Everything offered was reinforced successfully.',
     close: 'Close',
     historyTitle: '📜 Practice history',
     total: 'Total: ',
@@ -331,13 +330,17 @@ export default {
     noMidiBrowsers: '(Chrome, Edge, or Opera).',
     fingeringTitle: 'Fingering',
     fingeringValidate: '✓ Confirm',
+    circleNote: '⭕ Circle',
+    circlePlaceholder: 'A reminder (optional)',
+    circleRemove: 'Remove circle',
     // The seven letters, from C to B — the only part of a note's name that is
     // language's business; the ♯ and ♭ that go with them are music's own signs.
     noteLetters: 'C D E F G A B',
     // The on-screen keyboard that comes up when a note is hard to find.
     keyHintAria: 'Helper keyboard',
     keyHintPlay: 'Play',
-    keyHintHide: 'Hide the keyboard',
+    keyHintHide: 'Hide until tomorrow',
+    keyHintNever: 'Don’t show again',
     midiHelpTitle: 'Connecting a MIDI keyboard',
     midiHelpIntro: 'No MIDI device detected. Here is how to connect your keyboard:',
     macTwoCases: 'Depending on your piano, two cases:',
@@ -381,7 +384,6 @@ export default {
     loadRetry: 'Try again',
   },
   errors: {
-    webMidiUnsupported: 'Web MIDI API not supported by this browser',
     invalidChoice: 'Invalid choice',
     chooseMidiDevice: 'Several MIDI devices found:\n{devices}\n\nEnter the number (1-{count}):',
     midiConnection: 'MIDI connection error: {message}',
@@ -444,16 +446,16 @@ export default {
     pageTitle: 'Arabesque · Privacy',
     heading: 'Privacy',
     back: '← Library',
-    updated: 'Last updated: 27 September 2026.',
+    updated: 'Last updated: 21 October 2026.',
     summaryTitle: 'In short',
     summaryBody:
       'Arabesque runs in your browser and keeps your practice data on your device. Nothing goes anywhere else unless you ask for it — by creating an account to sync your devices, or by sending feedback. There are no ads, no trackers, and nothing is ever sold.',
     localTitle: 'What stays on your device',
     localBody:
-      'Your practice sessions, your fingerings, your profiles and your preferences (language, scores seen) are written to the browser’s local storage. They never leave the device on their own, and clearing the site’s data erases them for good. The Data page can export them to a file.',
+      'Your practice sessions, your fingerings, the notes you circle and their reminders, your profiles and your preferences (language, scores seen) are written to the browser’s local storage. They never leave the device on their own, and clearing the site’s data erases them for good. The Data page can export them to a file.',
     accountTitle: 'The account, if you create one',
     accountBody:
-      'Signing in is what lets your practice follow you from one device to the next. It asks for an email address, which receives a sign-in code: there is no password. Once signed in, your sessions, your fingerings and your profiles (each one’s name and avatar) are copied to the server so they can come back down on your other devices. Nothing else is attached to the account.',
+      'Signing in is what lets your practice follow you from one device to the next. It asks for an email address, which receives a sign-in code: there is no password. Once signed in, your sessions, your fingerings, the notes you circle and their reminders, and your profiles (each one’s name and avatar) are copied to the server so they can come back down on your other devices, along with the detail of the notes played in your sessions, kept to analyse your practice. Nothing else is attached to the account.',
     accountDelete:
       'You can delete your account from the Data page. The account and everything synced under it are erased from the servers there and then, without having to ask anyone.',
     feedbackTitle: 'The feedback you send',

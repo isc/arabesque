@@ -3,12 +3,47 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="app-version" content="f84823251231" />
+    <meta name="app-version" content="7a0aab702e0d" />
     <title data-i18n="data.pageTitle">Arabesque · Données</title>
     <link rel="icon" href="favicon.svg" type="image/svg+xml" />
     <link rel="manifest" href="manifest.webmanifest" />
     <meta name="theme-color" content="#f7f7f9" />
     <link rel="stylesheet" href="styles.css" />
+    <!-- preloads: written at deploy by scripts/preload-modules.mjs -->
+    <link rel="modulepreload" href="js/errorLog.js" />
+    <link rel="modulepreload" href="js/version.js" />
+    <link rel="modulepreload" href="js/swRegister.js" />
+    <link rel="modulepreload" href="js/data.js" />
+    <link rel="modulepreload" href="js/alpineBoot.js" />
+    <link rel="modulepreload" href="js/utils.js" />
+    <link rel="modulepreload" href="js/storage.js" />
+    <link rel="modulepreload" href="js/practiceTracker.js" />
+    <link rel="modulepreload" href="js/days.js" />
+    <link rel="modulepreload" href="js/sync.js" />
+    <link rel="modulepreload" href="js/autoSync.js" />
+    <link rel="modulepreload" href="js/account.js" />
+    <link rel="modulepreload" href="js/i18n.js" />
+    <link rel="modulepreload" href="js/headerMenu.js" />
+    <link rel="modulepreload" href="js/profiles.js" />
+    <link rel="modulepreload" href="js/hands.js" />
+    <link rel="modulepreload" href="js/catalog.js" />
+    <link rel="modulepreload" href="js/practiceTime.js" />
+    <link rel="modulepreload" href="js/reinforcement.js" />
+    <link rel="modulepreload" href="js/aggregates.js" />
+    <link rel="modulepreload" href="js/practiceJournal.js" />
+    <link rel="modulepreload" href="js/noteLog.js" />
+    <link rel="modulepreload" href="js/supabaseConfig.js" />
+    <link rel="modulepreload" href="js/locales/fr.js" />
+    <link rel="modulepreload" href="js/locales/en.js" />
+    <link rel="modulepreload" href="js/legacyKeys.js" />
+    <link rel="modulepreload" href="js/changelog.js" />
+    <link rel="modulepreload" href="js/feedback.js" />
+    <link rel="modulepreload" href="js/installPrompt.js" />
+    <link rel="modulepreload" href="js/midi.js" />
+    <link rel="modulepreload" href="js/keyHintSetting.js" />
+    <link rel="modulepreload" href="js/midi_mock.js" />
+    <link rel="preload" as="script" href="vendor/alpinejs.3.14.9.min.js" />
+    <!-- /preloads -->
     <script type="module" src="js/errorLog.js"></script>
     <script type="module" src="js/version.js"></script>
     <script type="module" src="js/swRegister.js"></script>
@@ -19,10 +54,13 @@
     </script>
   </head>
   <body>
-    <main class="container pt-data-page">
+    <main class="container pt-data-page" @keydown.escape.window="closeMenuLayer()">
       <div class="pt-page-header">
         <a href="library.html" class="pt-back" data-i18n="data.back">← Bibliothèque</a>
         <h1 x-text="$t('data.heading')">Données</h1>
+        <div class="pt-page-header__actions">
+          <div data-menu-slot></div>
+        </div>
       </div>
 
       <!-- Profiles: who the data on this device belongs to -->
@@ -189,9 +227,9 @@
         </div>
       </article>
 
-      <!-- This page is where someone comes to think about their data, so it is
-           where the two pages explaining it belong; the ⚙️ menu that carries
-           them elsewhere is not mounted here. -->
+      <!-- This page is where someone comes to think about their data, so the
+           two pages explaining it are in plain sight here, not only in the
+           ⚙️ menu. -->
       <footer class="pt-footer">
         <span class="pt-footer-links">
           <a href="privacy.html" data-i18n="common.privacy">Confidentialité</a>

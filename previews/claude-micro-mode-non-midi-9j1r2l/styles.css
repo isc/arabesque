@@ -77,6 +77,10 @@
   --pt-note-expected: #3b82f6;
   --pt-note-offtempo: #eab308;
   --pt-note-missed: #ef4444;
+  /* A note the player circled, and its reminder (noteCircles.js): a colour no
+     mode paints a note with, and far enough from the black of the notes to be
+     seen at a glance. */
+  --pt-note-circled: #db2777;
 
   /* Practice calendar (practice.html) — one ramp from "nothing" to "a real
      session", derived from the accent so the grid reads as part of the app
@@ -541,7 +545,7 @@ a:hover { text-decoration: underline; }
   flex-wrap: wrap;
 }
 .pt-page-header h1 { margin: 0; flex-shrink: 0; }
-.pt-page-header__actions { margin-left: auto; display: flex; gap: var(--pt-space-2); align-items: center; }
+.pt-page-header__actions { margin-left: auto; display: flex; gap: var(--pt-space-2); align-items: center; justify-content: flex-end; }
 .pt-page-header__search {
   position: relative;
   flex: 1 1 320px;
@@ -693,8 +697,10 @@ a:hover { text-decoration: underline; }
 .pt-select:hover { background-color: var(--pt-bg-elevated); }
 .pt-select:focus { outline: 2px solid color-mix(in srgb, var(--pt-accent) 30%, transparent); outline-offset: 1px; }
 
-/* FR/EN language switch: the landing's nav, and the ⚙️ menu. */
-.pt-langswitch {
+/* A segmented switch: a few exclusive choices in one pill, the one in force
+   pressed — FR/EN in the landing's nav and in the ⚙️ menu, and the helper
+   keyboard's setting there. */
+.pt-segmented {
   display: inline-flex;
   flex: 0 0 auto;
   border: 1px solid var(--pt-border);
@@ -702,7 +708,7 @@ a:hover { text-decoration: underline; }
   overflow: hidden;
   background: var(--pt-surface);
 }
-.pt-langswitch button {
+.pt-segmented button {
   flex: 0 0 auto;
   padding: 8px 14px;
   font-size: var(--pt-font-size-sm);
@@ -713,7 +719,7 @@ a:hover { text-decoration: underline; }
   border: none;
   border-radius: 0;
 }
-.pt-langswitch button[aria-pressed="true"] {
+.pt-segmented button[aria-pressed="true"] {
   background: var(--pt-accent);
   color: var(--pt-text-inverse);
 }
@@ -1140,12 +1146,12 @@ a:hover { text-decoration: underline; }
    use is spared: it holds the accent, and this selector is heavy enough to
    take it off, where the .pt-popover button rule it replaces was not. */
 .pt-popover .pt-menu-item:hover,
-.pt-popover .pt-langswitch button:not([aria-pressed="true"]):hover { background: var(--pt-surface-2); }
+.pt-popover .pt-segmented button:not([aria-pressed="true"]):hover { background: var(--pt-surface-2); }
 .pt-menu-dot { margin-left: auto; width: 8px; height: 8px; border-radius: 50%; background: var(--pt-accent); }
 
-/* Keep the FR/EN pill compact instead of stretching to the popover's full
-   width (the section is a column flex, which would otherwise stretch it). */
-.pt-popover .pt-langswitch { align-self: flex-start; }
+/* Keep the switches compact instead of stretching to the popover's full
+   width (the section is a column flex, which would otherwise stretch them). */
+.pt-popover .pt-segmented { align-self: flex-start; }
 
 /* =============================================================================
    Data page (backup + account)
@@ -1445,6 +1451,9 @@ a:hover { text-decoration: underline; }
 .pt-calendar__months { display: flex; gap: var(--pt-cal-gap); height: 1rem; padding-inline-end: var(--pt-space-6); }
 .pt-calendar__month {
   flex: 0 0 var(--pt-cal-cell);
+  /* A flex item will not shrink below its text by default: each label would
+     widen its column and push every later month a few days to the right. */
+  min-width: 0;
   font-size: var(--pt-font-size-2xs);
   line-height: 1rem;
   color: var(--pt-text-subtle);
@@ -1837,6 +1846,10 @@ dialog > article > footer {
   font-weight: 600;
   border-radius: var(--pt-radius-md);
 }
+/* Under the digits: ⭕, or once the note is circled the field for its reminder
+   and the way to take the circle off. */
+.pt-circle-row { display: flex; align-items: center; gap: var(--pt-space-2); margin-top: var(--pt-space-3); }
+.pt-circle-row input { flex: 1; min-width: 0; margin: 0; }
 
 /* =============================================================================
    Score area (preserved from before, restyled)
@@ -1855,6 +1868,13 @@ dialog > article > footer {
 
 /* SVG note coloring */
 svg g.vf-notehead.played-note path { fill: var(--pt-note-played); }
+/* A note that came after a hole in free play or training (steadiness.js): the
+   colour of strict mode's off-tempo notes, which say the same thing. Over the
+   played colour, under a key held down now. */
+svg g.vf-notehead.late-note path { fill: var(--pt-note-offtempo); }
+/* A note a wrong key was played for, once the repetition or the run is over
+   (musicxml.js): the colour of strict mode's missed notes. Over a late one. */
+svg g.vf-notehead.fumbled-note path { fill: var(--pt-note-missed); }
 svg g.vf-notehead.active-note path { fill: var(--pt-note-active); }
 svg g.vf-notehead.expected-note path { fill: var(--pt-note-expected); }
 svg g.vf-notehead.offtempo-note path { fill: var(--pt-note-offtempo); }
@@ -1931,6 +1951,12 @@ svg g.vf-notehead.wrong-note path { animation: pt-wrong-note-flash 700ms; }
   font-weight: 700;
 }
 .pt-keyhint__hand { color: var(--pt-text-subtle); font-size: var(--pt-font-size-xs); }
+/* Put away for good. On a phone the bar has no room for it beside the notes
+   it is there to name; the ⚙️ menu offers the same choice. */
+.pt-keyhint__never { color: var(--pt-text-muted); font-size: var(--pt-font-size-xs); }
+@media (max-width: 600px) {
+  .pt-keyhint__never { display: none; }
+}
 .pt-keyhint__close { width: var(--pt-keyhint-bar); height: var(--pt-keyhint-bar); }
 /* A score spanning more keys than a phone is wide scrolls sideways inside the
    strip, never the page; keyboardHint.js keeps the lit keys in the middle.
@@ -2038,7 +2064,9 @@ svg g.vf-notehead.wrong-note path { animation: pt-wrong-note-flash 700ms; }
    listed first so `.selected` picks the stronger fill on the measure carrying
    both. Same two-tone reading as strict-range / strict-start below. */
 .measure-click-area.training-range { fill: color-mix(in srgb, var(--pt-mode-training) 8%, transparent); }
-.measure-click-area.selected { fill: color-mix(in srgb, var(--pt-mode-training) 14%, transparent); }
+.measure-click-area.selected,
+.fragment-range { fill: color-mix(in srgb, var(--pt-mode-training) 14%, transparent); }
+.fragment-range { pointer-events: none; }
 .measure-click-area.strict-start { fill: color-mix(in srgb, var(--pt-mode-strict) 14%, transparent); stroke: var(--pt-mode-strict); stroke-width: 2; }
 .measure-click-area.strict-range { fill: color-mix(in srgb, var(--pt-mode-strict) 10%, transparent); }
 
@@ -2050,6 +2078,23 @@ svg g.vf-notehead.wrong-note path { animation: pt-wrong-note-flash 700ms; }
 .repeat-indicator.filled { fill: var(--pt-mode-training); }
 /* The repetition under way is already lost: a wrong note spoiled it. */
 .repeat-indicator.spoiled { stroke: var(--pt-note-missed); }
+
+/* A circled note (noteCircles.js): a ring around its head, tinted inside from
+   under the note, and the reminder beside its staff, haloed in the paper's
+   colour so that it reads over a staff line or a slur. Let through to the note
+   and the bar underneath. */
+.pt-circles, .pt-circle-tints { pointer-events: none; }
+.pt-circle ellipse { fill: none; stroke: var(--pt-note-circled); stroke-width: 2; }
+.pt-circle-tints ellipse { fill: color-mix(in srgb, var(--pt-note-circled) 22%, transparent); }
+.pt-circle text {
+  fill: var(--pt-note-circled);
+  font-family: var(--pt-font-ui);
+  font-style: italic;
+  paint-order: stroke;
+  stroke: var(--pt-bg-elevated);
+  stroke-width: 3;
+  stroke-linejoin: round;
+}
 
 /* Clickable noteheads for fingering annotation. The hover tint is for a real
    pointer only: a finger has no hover, and the tap that opens the fingering pad

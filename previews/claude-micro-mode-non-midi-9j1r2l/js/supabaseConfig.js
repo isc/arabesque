@@ -3,8 +3,9 @@
 // These are SAFE to commit and expose client-side: the publishable key grants
 // only what Row-Level Security allows — anonymous INSERT into `feedback`, and
 // nothing on the per-user sync tables (training_sessions / user_fingerings /
-// profiles) without an authenticated session (see supabase/sync.sql). The real
-// secrets (Resend API key, SMTP password) live in Supabase, never in this repo.
+// user_circles / profiles) without an authenticated session (see
+// supabase/sync.sql). The real secrets (Resend API key, SMTP password) live in
+// Supabase, never in this repo.
 //
 // Kept in its own tiny module (no heavy imports) so feedback.js can read the
 // constants without dragging in the @supabase/supabase-js client, which only

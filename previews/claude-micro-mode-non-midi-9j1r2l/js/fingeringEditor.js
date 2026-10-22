@@ -186,101 +186,63 @@ export function initFingeringEditor({
     for (const { textEl, x } of moves) textEl.setAttribute('x', x)
   }
 
-  // Create a new SVG <text> element for a grace note fingering, positioned left of the note.
-  // Returns true if created, false if the required SVG structure is missing.
-  function createGraceNoteFingeringText(svgGroup, fingerText) {
-    const modifiers = svgGroup.querySelector('.vf-modifiers')
-    const noteEl = svgGroup.querySelector('.vf-note')
-    if (!modifiers || !noteEl) return false
-
-    const bbox = noteEl.getBBox()
-    const textEl = document.createElementNS('http://www.w3.org/2000/svg', 'text')
-    textEl.setAttribute('x', bbox.x - 9)
-    textEl.setAttribute('y', bbox.y + bbox.height / 2 + 5)
-    textEl.setAttribute('font-size', '9pt')
-    textEl.setAttribute('font-family', 'sans-serif')
-    textEl.setAttribute('font-weight', 'bold')
-    textEl.setAttribute('fill', '#000000')
-    textEl.textContent = fingerText
-    modifiers.appendChild(textEl)
-    return true
-  }
-
-  // Update an existing fingering's SVG directly without re-rendering
-  // Returns true if successful, false if no existing fingering found
+  // Rewrite a fingering's label in place, sparing a redraw; false when the note
+  // has none to rewrite. A grace note never has one: VexFlow draws its fingering
+  // as part of the note, which only renderScore({ rebuild: true }) draws anew.
   function updateFingeringSVG(key, newFinger) {
     const targetNoteData = getNoteDataByKey().get(key)
-    if (!targetNoteData) return false
-
-    const fingerText = newFinger.toString()
-
-    // Grace notes don't have FingeringEntries - their fingerings are rendered
-    // by VexFlow as <text> inside the <g class="vf-modifiers"> of the stavenote group.
-    // OSMD's calculateFingerings skips grace voices, so re-rendering won't create
-    // the text — we must handle both update and creation here.
-    if (targetNoteData.isGrace) {
-      const svgGroup = svgNote(targetNoteData.note)
-      if (!svgGroup) return false
-
-      const existingText = svgGroup.querySelector('text')
-      if (existingText) {
-        existingText.textContent = fingerText
-        return true
-      }
-
-      return createGraceNoteFingeringText(svgGroup, fingerText)
-    }
-
-    const fingeringEntry = findFingeringEntry(targetNoteData)
+    const fingeringEntry = targetNoteData && findFingeringEntry(targetNoteData)
     const textEl = fingeringEntry?.SVGNode?.querySelector('text')
     if (!textEl) return false
 
-    textEl.textContent = fingerText
-
+    textEl.textContent = newFinger.toString()
     // Keep OSMD's internal label in sync
-    if (fingeringEntry.label) {
-      fingeringEntry.label.text = fingerText
-    }
-
-    // Keep TechnicalInstruction value in sync so light re-renders stay consistent
-    const tis = targetNoteData.voiceEntry?.TechnicalInstructions || []
-    const ti = tis.find((t) => t.type === 0 && t.sourceNote === targetNoteData.note)
-    if (ti) ti.value = fingerText
-
+    if (fingeringEntry.label) fingeringEntry.label.text = textEl.textContent
     return true
   }
 
-  // Add a fingering to OSMD's internal data model (without re-rendering)
-  // This allows a subsequent renderScore() to pick it up via calculateFingerings
-  function addFingeringToDataModel(key, finger) {
+  // A note's fingering in OSMD's data model, as its MusicXML reader leaves it:
+  // one TechnicalInstruction among its voice entry's, pointing back at the note,
+  // and the same object again as the note's own Fingering. The label above or
+  // below a note is drawn from the first, a grace note's fingering from the
+  // second.
+  function ownFingering(noteData) {
+    return noteData.voiceEntry?.TechnicalInstructions?.find(
+      (ti) => ti.type === 0 && ti.sourceNote === noteData.note,
+    )
+  }
+
+  // Set a note's fingering in OSMD's data model, without re-rendering.
+  function setFingeringInDataModel(key, finger) {
     const noteData = getNoteDataByKey().get(key)
     if (!noteData?.voiceEntry?.TechnicalInstructions) return false
 
-    noteData.voiceEntry.TechnicalInstructions.push({
-      type: 0, // TechnicalInstructionType.Fingering
-      value: finger.toString(),
-      sourceNote: noteData.note,
-    })
+    let ti = ownFingering(noteData)
+    if (!ti) {
+      ti = { type: 0 /* TechnicalInstructionType.Fingering */, sourceNote: noteData.note }
+      noteData.voiceEntry.TechnicalInstructions.push(ti)
+    }
+    ti.value = finger.toString()
+    noteData.note.Fingering = ti
     return true
   }
 
   // Remove a fingering from OSMD's internal data model
   function removeFingeringFromDataModel(key) {
     const noteData = getNoteDataByKey().get(key)
-    if (!noteData?.voiceEntry?.TechnicalInstructions) return false
+    const ti = noteData && ownFingering(noteData)
+    if (!ti) return false
 
+    noteData.note.Fingering = undefined
     const tis = noteData.voiceEntry.TechnicalInstructions
-    const index = tis.findIndex((ti) => ti.type === 0 && ti.sourceNote === noteData.note)
-    if (index < 0) return false
-
-    tis.splice(index, 1)
+    tis.splice(tis.indexOf(ti), 1)
     return true
   }
 
   return {
     setupFingeringClickHandlers,
     updateFingeringSVG,
-    addFingeringToDataModel,
+    setFingeringInDataModel,
     removeFingeringFromDataModel,
     alignFingeringLabelsToNoteheads,
   }

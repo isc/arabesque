@@ -1,12 +1,12 @@
-// Shared header chrome — the ⚙️ menu and its modals, identical on the two pages
-// that carry them.
+// Shared header chrome — the ⚙️ menu and its modals, identical on every page
+// that carries it.
 //
-// Both the library (libraryApp) and the score page (midiApp) get the exact same
-// menu (load a score, what's new, feedback, a link to the data page, language)
-// and the same changelog + feedback modals. To keep a single source of truth
-// without a build step or HTML-include mechanism, the markup lives here as
-// strings and is injected by mountHeaderMenu() before Alpine boots; the Alpine
-// state + methods come from the headerMenu() mixin both components spread in.
+// Every page of the app gets the exact same menu (load a score, what's new,
+// feedback, a link to the data page, language) and the same changelog +
+// feedback modals. To keep a single source of truth without a build step or
+// HTML-include mechanism, the markup lives here as strings and is injected by
+// mountHeaderMenu(), which startAlpine() runs on every page; the Alpine state +
+// methods come from the headerMenu() mixin each component spreads in.
 //
 // NOTE: markup-as-strings is a deliberate departure from this project's
 // markup-in-HTML convention, forced by the no-build-step constraint. If a
@@ -21,6 +21,7 @@ import { feedbackEnabled, buildBaseContext, submitFeedback, defaultFeedbackEmail
 import { getLang, locale } from './i18n.js'
 import { INSTALL_AVAILABLE_EVENT, installAvailable, promptInstall } from './installPrompt.js'
 import { nativePairingAvailable, openNativePairing } from './midi.js'
+import { keyHintAllowed, storeKeyHintAllowed } from './keyHintSetting.js'
 import { recordError } from './errorLog.js'
 
 const CHANGELOG_SEEN_KEY = 'arabesque:changelog-seen'
@@ -48,7 +49,7 @@ export function headerMenu() {
       this.menuOpen = false
     },
 
-    // Escape, on either page: the menu first, then a modal it opened, one a
+    // Escape, on every page: the menu first, then a modal it opened, one a
     // press. Says whether it closed anything, so that a page hands the key on
     // to its own modals only when it did not.
     closeMenuLayer() {
@@ -77,6 +78,16 @@ export function headerMenu() {
     pairMIDI() {
       this.closeMenu()
       openNativePairing()
+    },
+
+    // --- On-screen keyboard (keyHintSetting.js) ---
+    // In the menu, on every page, because it is the profile's choice rather
+    // than the score's; the strip calls this too, to put itself away for good.
+    // The strip itself hears it through KEY_HINT_SETTING_EVENT.
+    keyHintAllowed: keyHintAllowed(),
+    setKeyHintAllowed(allowed) {
+      storeKeyHintAllowed(allowed)
+      this.keyHintAllowed = allowed
     },
 
     // --- Changelog ("Nouveautés") ---
@@ -194,9 +205,17 @@ const TRIGGER_HTML = `
     <hr />
     <div class="pt-popover__section">
       <h4 x-text="$t('menu.language')">Langue</h4>
-      <div class="pt-langswitch" role="group" aria-label="Language">
+      <div class="pt-segmented" role="group" aria-label="Language">
         <button type="button" data-set-lang="fr">FR</button>
         <button type="button" data-set-lang="en">EN</button>
+      </div>
+    </div>
+    <hr />
+    <div class="pt-popover__section">
+      <h4 x-text="$t('score.keyHintAria')">Clavier d’aide</h4>
+      <div class="pt-segmented" role="group" :aria-label="$t('score.keyHintAria')">
+        <button type="button" :aria-pressed="String(keyHintAllowed)" @click="setKeyHintAllowed(true)" x-text="$t('menu.keyHintAllowed')">Si besoin</button>
+        <button type="button" :aria-pressed="String(!keyHintAllowed)" @click="setKeyHintAllowed(false)" x-text="$t('menu.keyHintNever')">Jamais</button>
       </div>
     </div>
   </div>
