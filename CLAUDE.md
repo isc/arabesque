@@ -110,6 +110,12 @@ played on a preview land in the real practice journal. A preview that raises
 stands rather than refusing it (`openAsItStands` in `public/js/storage.js`):
 a version may only ever add stores.
 
+Previews run without the offline cache. `swRegister.js` registers no worker
+under `previews/`, production's worker leaves them to the network, and a worker
+a preview registered before that unregisters itself on its next update
+(`public/sw.js` says why). So a change to the worker is tried locally, as
+"New HTML pages" below describes, not on its preview.
+
 ## Library
 
 **IMPORTANT:** After adding or removing a score (editing `public/data/scores.json`

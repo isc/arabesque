@@ -14,9 +14,9 @@ const SW = join(import.meta.dirname, '..', '..', '..', 'public', 'sw.js')
 // Loads the worker and returns its event handlers by type. With `shell`, from a
 // copy stamped with that precache list the way a deploy stamps it — the
 // checkout's own list is empty by design, so the install path does nothing
-// until a deploy has written one in.
-export async function loadWorker({ shell } = {}) {
-  const handlers = stubSelf()
+// until a deploy has written one in. `at` is where the worker is served from.
+export async function loadWorker({ shell, at } = {}) {
+  const handlers = stubSelf({ at })
   if (!shell) {
     await import(pathToFileURL(SW).href)
     return handlers
@@ -36,12 +36,14 @@ export async function loadWorker({ shell } = {}) {
 // its handlers — collected into `handlers`. Stubbed again for each test by a
 // file that loads the worker once: vitest puts stubbed globals back before
 // every test.
-export function stubSelf(handlers = new Map()) {
+export function stubSelf({ at = '/sw.js' } = {}) {
+  const handlers = new Map()
   vi.stubGlobal('self', {
-    location: { href: `${ORIGIN}/sw.js`, origin: ORIGIN },
+    location: new URL(at, ORIGIN),
     addEventListener: (type, fn) => handlers.set(type, fn),
     skipWaiting: () => {},
     clients: { claim: async () => {} },
+    registration: { unregister: vi.fn(async () => true) },
   })
   return handlers
 }
@@ -75,6 +77,8 @@ export function fakeCaches() {
         put: async (request, response) => entries.set(cacheKey(request), response),
         match: async (request, options) =>
           [...entries].find(([stored]) => cacheKey(stored, options) === cacheKey(request, options))?.[1],
+        keys: async () => [...entries.keys()].map((url) => ({ url })),
+        delete: async (request) => entries.delete(cacheKey(request)),
       }
     },
     keys: async () => [...stores.keys()],

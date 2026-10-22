@@ -49,6 +49,8 @@ describe('the service worker', () => {
     expect(await respond(request('/library.html', { method: 'POST' }))).toBeNull()
     expect(await respond(request('https://esm.sh/@supabase/supabase-js@2.45.4'))).toBeNull()
     expect(await respond(request('/video/hero.fr.mp4'))).toBeNull()
+    // A branch preview, which is opened to see its latest push.
+    expect(await respond(request('/previews/some-branch/library.html', { mode: 'navigate' }))).toBeNull()
     expect(network).not.toHaveBeenCalled()
   })
 
@@ -145,5 +147,14 @@ describe('the service worker', () => {
     await dispatch(handlers, 'activate')
 
     expect((await caches.keys()).sort()).toEqual(['arabesque-lasting', 'arabesque-shell-dev', 'somebody-elses-cache'])
+  })
+
+  it('drops what branch previews left in the lasting cache, and keeps its own', async () => {
+    await seed('arabesque-lasting', `${ORIGIN}/vendor/tone.14.8.49.min.js`, 'ours')
+    await seed('arabesque-lasting', `${ORIGIN}/previews/some-branch/vendor/tone.14.8.49.min.js`, 'a preview’s')
+
+    await dispatch(handlers, 'activate')
+
+    expect([...caches.stores.get('arabesque-lasting').keys()]).toEqual([`${ORIGIN}/vendor/tone.14.8.49.min.js`])
   })
 })

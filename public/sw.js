@@ -43,6 +43,15 @@
 // HTTP cache, so it reaches devices without their having to load a page that
 // may itself be broken.
 //
+// Branch previews run without it (CLAUDE.md, "Branch previews"). A preview is
+// opened to see the latest push, and a cache-first worker showed the push
+// before, reloading into this one only once the new shell was precached,
+// which on a train took a minute. Worse, the caches belong to the origin, not
+// to a worker, and a preview's worker activating dropped production's shell
+// along with its own: production stopped opening offline. So production's
+// worker leaves previews/ to the network, and the worker a preview registered
+// before this was written installs once more only to unregister itself.
+//
 // VERSION and SHELL are rewritten at deploy time by scripts/stamp-version.mjs;
 // a checkout keeps 'dev' and an empty list, and swRegister.js declines to
 // register at 'dev'.
@@ -52,6 +61,11 @@ const SHELL = []
 const SHELL_CACHE = `arabesque-shell-${VERSION}`
 const LASTING_CACHE = 'arabesque-lasting'
 
+// A branch preview's path, the worker's own included; swRegister.js asks the
+// same of a page.
+const inPreview = (path) => path.includes('/previews/')
+const IS_PREVIEW = inPreview(self.location.pathname)
+
 // Which cache answers for a path. Kept next to each other because they are one
 // decision; what is precached at install is a separate one, in
 // scripts/stamp-version.mjs.
@@ -60,6 +74,7 @@ const lasting = (pathname) => isScore(pathname) || pathname.includes('/vendor/')
 const cacheFor = (pathname) => (lasting(pathname) ? LASTING_CACHE : SHELL_CACHE)
 
 self.addEventListener('install', (event) => {
+  if (IS_PREVIEW) return event.waitUntil(self.skipWaiting())
   event.waitUntil(precache().then(() => self.skipWaiting()))
 })
 
@@ -85,8 +100,12 @@ async function precache() {
   )
 }
 
+// A preview's worker deletes nothing on its way out: it cannot tell an earlier
+// preview's shell from production's by name, and the next deploy of production
+// drops them anyway.
 self.addEventListener('activate', (event) => {
-  event.waitUntil(dropOldShells().then(() => self.clients.claim()))
+  if (IS_PREVIEW) return event.waitUntil(self.registration.unregister())
+  event.waitUntil(Promise.all([dropOldShells(), dropPreviewLeftovers()]).then(() => self.clients.claim()))
 })
 
 async function dropOldShells() {
@@ -95,7 +114,21 @@ async function dropOldShells() {
   await Promise.all(stale.map((key) => caches.delete(key)))
 }
 
-self.addEventListener('fetch', (event) => {
+// The vendor bundles and scores each preview's worker kept under its own path,
+// which outlive deploys like production's own. Nothing writes them any more:
+// this can go once the preview workers registered before 2026-10-21 have
+// retired.
+async function dropPreviewLeftovers() {
+  const cache = await caches.open(LASTING_CACHE)
+  const leftovers = (await cache.keys()).filter((request) => inPreview(request.url))
+  await Promise.all(leftovers.map((request) => cache.delete(request)))
+}
+
+// None on a preview's worker, so the pages it still controls go straight to the
+// network rather than through it.
+if (!IS_PREVIEW) self.addEventListener('fetch', onFetch)
+
+function onFetch(event) {
   const { request } = event
   if (request.method !== 'GET') return
 
@@ -103,6 +136,7 @@ self.addEventListener('fetch', (event) => {
   // Supabase, and the esm.sh bundle it comes from, are somebody else's origin
   // and somebody else's freshness. Signing in and syncing need a network anyway.
   if (url.origin !== self.location.origin) return
+  if (inPreview(url.pathname)) return
   // 3.2MB of landing video nobody needs offline.
   if (url.pathname.includes('/video/')) return
 
@@ -113,7 +147,7 @@ self.addEventListener('fetch', (event) => {
   // score.html?url=… is the same document whichever score it is about, so a
   // navigation ignores the query.
   event.respondWith(cacheFirst(request, cacheFor(url.pathname), request.mode === 'navigate'))
-})
+}
 
 // ignoreVary as well: Pages answers with Vary headers that a navigation request
 // does not reproduce, and a cached entry that cannot be matched is a cache miss

@@ -28,6 +28,9 @@ function registerServiceWorker() {
   // a local server would answer with yesterday's edit, and there would be no
   // deploy to move it on.
   if (APP_VERSION === 'dev') return
+  // A branch preview is opened to see its latest push, which a cache-first
+  // worker shows one reload late; see sw.js.
+  if (location.pathname.includes('/previews/')) return
   if (!('serviceWorker' in navigator)) return
 
   // Whether this page was already being served by a worker, read once, now:
