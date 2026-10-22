@@ -22,6 +22,9 @@ const STATUS_RANK = Object.fromEntries(STATUS_ORDER.map((s, i) => [s, i]))
 // than as the edge of the window.
 const DAYS_TO_SHOW = 14
 const STALE_DAYS = 7
+// See init. A cold start reads in a few hundred milliseconds, an aggregate
+// rebuild after an update in a second or two.
+const PRACTICE_READ_GRACE_MS = 2000
 // The focus chips, in the order they are offered — the library's own list, so
 // they read like STATUS_ORDER/statusLabel and PERIODS/periodLabel next door.
 const FOCUS_LABEL_KEYS = {
@@ -186,12 +189,19 @@ export function libraryApp() {
 
       // The practice data is read as soon as the database is open, alongside
       // the two files: it needs neither. A read that fails costs its own
-      // column, not the list — the scores are set below either way. Both files
-      // are preloaded by library.html.
+      // column, not the list, and so does one that never ends — an iPad once
+      // left IndexedDB unanswered until the app was quit, and the library sat
+      // there without a single row (feedback 35e475a4). The list waits for the
+      // read PRACTICE_READ_GRACE_MS at most, so a slow one still comes in whole,
+      // then shows without it, the practice columns filling in if it lands.
+      // Both files are preloaded by library.html.
+      const practiceRead = practiceTracker.init()
+        .then(() => this.refreshPracticeViews())
+        .catch((error) => recordError(error, 'Practice data could not be read'))
       const [loaded, fingerprintsResponse] = await Promise.all([
         loadCatalog(),
         fetch('data/fingerprints.json'),
-        practiceTracker.init().then(() => this.refreshPracticeViews()),
+        Promise.race([practiceRead, new Promise((resolve) => setTimeout(resolve, PRACTICE_READ_GRACE_MS))]),
       ])
       catalog = loaded
 
@@ -220,7 +230,9 @@ export function libraryApp() {
       this.showScoresIfNarrowed()
 
       // The library is where synced data shows up (journal, status pills), so
-      // it syncs on open and on tab focus, and redraws whatever came down.
+      // it syncs on open and on tab focus, and redraws whatever came down —
+      // once its own read is in, which a sync's writes would otherwise race.
+      await practiceRead
       initAutoSync({ storage, practiceTracker }, {
         syncOnOpen: true,
         onSynced: (summary) => {

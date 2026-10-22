@@ -11,6 +11,16 @@ class LibraryTest < CapybaraTestBase
     assert_selector 'tbody tr', minimum: 50
   end
 
+  # An iPad left IndexedDB unanswered until the app was quit, and the library
+  # waited on it for its whole list, not just the practice columns read from it
+  # (feedback 35e475a4).
+  def test_the_list_shows_when_the_database_never_answers
+    stall_indexeddb
+    visit '/library.html'
+
+    assert_selector 'tbody tr', minimum: 50
+  end
+
   def test_search_filters_scores_by_title
     fill_in 'Rechercher une partition', with: 'Moonlight'
 

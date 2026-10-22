@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import 'fake-indexeddb/auto'
 import { initStorage, neverSynced, STORES, DB_VERSION } from '../../public/js/storage.js'
 import { initPracticeTracker } from '../../public/js/practiceTracker.js'
@@ -381,5 +381,75 @@ describe('a page left while the database is created', () => {
     onUpgrade = (upgrade) => upgrade.addEventListener('complete', leave)
 
     expect([...(await storage.init()).objectStoreNames]).toEqual([...STORES].sort())
+  })
+})
+
+// An operation that neither succeeds nor fails reaches no catch block, and a
+// report sent from a page waiting on one said nothing of it (watchStall).
+describe('a database that does not answer', () => {
+  let logged
+
+  beforeEach(() => {
+    logged = vi.spyOn(console, 'error').mockImplementation(() => {})
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+    logged.mockRestore()
+  })
+
+  // What recordError (errorLog.js) logs as it keeps an error for a report.
+  const recorded = () => logged.mock.calls.filter(([where]) => where === 'Storage:').map(([, error]) => error.message)
+
+  it('is recorded once it has stalled, and again when it lands', async () => {
+    vi.useFakeTimers()
+    const request = {}
+    vi.stubGlobal('indexedDB', { databases: async () => [], open: () => request })
+    const opened = initStorage().init()
+
+    await vi.advanceTimersByTimeAsync(4999)
+    expect(recorded()).toEqual([])
+    await vi.advanceTimersByTimeAsync(1)
+    expect(recorded()).toEqual(['IndexedDB open still pending after 5s'])
+
+    await vi.advanceTimersByTimeAsync(7000)
+    request.result = {}
+    request.onsuccess()
+    await opened
+    expect(recorded()).toEqual(['IndexedDB open still pending after 5s', 'IndexedDB open settled after 12s'])
+  })
+
+  it('records an upgrade another connection holds up, and then goes through', async () => {
+    indexedDB = new IDBFactory()
+    const older = await new Promise((resolve) => {
+      const request = indexedDB.open('arabesque', DB_VERSION - 1)
+      request.onsuccess = () => resolve(request.result)
+    })
+    const opened = initStorage().init()
+
+    await vi.waitFor(() => expect(recorded()).toEqual([`IndexedDB open of version ${DB_VERSION} blocked by another connection`]))
+    older.close()
+    expect((await opened).version).toBe(DB_VERSION)
+  })
+
+  it('records one stall at a time: the first, which the others queue behind', async () => {
+    const request = {}
+    const reads = []
+    const store = { getAll: () => reads[reads.push({}) - 1] }
+    vi.stubGlobal('indexedDB', { databases: async () => [], open: () => request })
+    const storage = initStorage()
+    const opened = storage.init()
+    await vi.waitFor(() => expect(request.onsuccess).toBeTypeOf('function'))
+    request.result = { transaction: () => ({ objectStore: () => store }) }
+    request.onsuccess()
+    await opened
+
+    vi.useFakeTimers()
+    const both = Promise.all([storage.getSessions(), storage.getAllAggregates()])
+    await vi.advanceTimersByTimeAsync(5000)
+    for (const read of reads) read.onsuccess()
+    await both
+
+    expect(recorded()).toEqual(['IndexedDB readonly sessions still pending after 5s', 'IndexedDB readonly sessions settled after 5s'])
   })
 })
