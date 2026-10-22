@@ -222,6 +222,17 @@ describe('the feedback context', () => {
     recordError(new Error('before the report'), 'x')
     expect(buildBaseContext().errors.map((entry) => entry.message)).toEqual(['Error: before the report'])
   })
+
+  // Defined by the iOS app before the page's first script (ios/README.md).
+  it('carries the iOS app’s build and system, and no key at all in a browser', async () => {
+    await loadPage()
+    const { buildBaseContext } = await import('../../public/js/feedback.js')
+    expect(buildBaseContext()).not.toHaveProperty('native_app')
+
+    const app = { version: '1.2', build: '57', system: 'iPadOS 17.7.11' }
+    vi.stubGlobal('__arabesqueApp', app)
+    expect(buildBaseContext().native_app).toEqual(app)
+  })
 })
 
 // The listeners only catch what is thrown after they are installed, and a page

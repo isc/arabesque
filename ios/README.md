@@ -44,6 +44,11 @@ MIDI device ──CoreMIDI──▶ MIDIBridge.swift ──evaluateJavaScript─
   file the page made for the player to keep (the backup on the data page). A
   download link has nowhere to go in a WKWebView, so the app writes the file to
   its temporary directory and offers it through the share sheet.
+- Native → JS, before any script of the page runs: `window.__arabesqueApp`,
+  this build's `version` and `build` and the `system` under it
+  (`"iPadOS 17.7.11"`), which a feedback report carries as `native_app`. The
+  user agent cannot say that either, and the iPadOS version is what tells which
+  WebKit a report came from — an IndexedDB hang came in without it.
 
 The shim keeps port object identity stable across updates because `midi.js`
 compares ports with `===` in its `onstatechange` auto-reconnect logic. Its

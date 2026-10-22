@@ -26,6 +26,9 @@
 // public/js/errorLog.js). `list` marks those with ⚠ and how many; `show`
 // prints them after the rest of the entry, one stack under each message.
 //
+// A report sent from the iOS app also carries its build and system
+// (context.native_app, see ios/README.md), which `list` shows.
+//
 // ⚠ That token is account-wide, not project-scoped: never print it, never copy
 // it anywhere else. See ~/.claude/SUPABASE.md.
 import { writeFileSync } from 'node:fs'
@@ -62,7 +65,8 @@ async function list({ all, limit }) {
            screenshot is not null as has_shot,
            case when jsonb_typeof(context->'errors') = 'array'
                 then jsonb_array_length(context->'errors') end as error_count,
-           context->>'score' as score, context->>'app_version' as app_version
+           context->>'score' as score, context->>'app_version' as app_version,
+           context->'native_app' as native_app
       from public.feedback
      ${all ? '' : "where status = 'new'"}
      order by created_at desc
@@ -79,6 +83,7 @@ async function list({ all, limit }) {
       row.category,
       row.score,
       row.app_version,
+      row.native_app && nativeApp(row.native_app),
       row.has_shot && '📷 shot',
       row.error_count && errorCount(row.error_count),
     ]
@@ -114,6 +119,11 @@ async function show(prefix) {
   console.log(JSON.stringify(entry, null, 2))
   if (errors) printErrors(errors, entry.created_at)
   if (row.shot_bytes) console.log(`\n📷 ${Math.round(row.shot_bytes / 1024)} kB — feedback.mjs shot ${short(id)}`)
+}
+
+// e.g. "iPadOS 17.7.11 · iOS app 1.2 (57)"
+function nativeApp({ system, version, build }) {
+  return `${system} · iOS app ${version} (${build})`
 }
 
 function errorCount(n) {
