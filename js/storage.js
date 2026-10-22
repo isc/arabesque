@@ -1,4 +1,5 @@
 import { scopedKey, listProfiles, pruneRemovedProfileKeys, SCOPE_SEPARATOR } from './profiles.js'
+import { recordError } from './errorLog.js'
 
 // Each profile has a database of its own, named from this (profiles.js). The
 // main profile's is the bare name — the one this device had before profiles.
@@ -69,6 +70,34 @@ const BACKUP_DEFS = STORE_DEFS.filter((def) => def.backup !== false)
 // UnknownError from a request the loss cut off ("Connection to Indexed
 // Database server lost"). See withDb.
 const CONNECTION_LOST = new Set(['InvalidStateError', 'UnknownError'])
+
+// An operation that neither succeeds nor fails reaches no catch block, so a
+// page waiting on one had nothing to say in a report (feedback 35e475a4). One
+// still pending after STALL_MS is recorded (errorLog.js), and again if it ever
+// settles, which tells a hang from a slow disk. Only one at a time: every
+// operation on the same stores queues behind a hung one, and their records
+// would push the one that names it out of the few a report keeps.
+const STALL_MS = 5000
+let stallReported = false
+
+function watchStall(what, promise) {
+  const report = (state) => recordError(new Error(`IndexedDB ${what} ${state}`), 'Storage')
+  const startedAt = Date.now()
+  let reported = false
+  const timer = setTimeout(() => {
+    if (stallReported) return
+    stallReported = reported = true
+    report(`still pending after ${STALL_MS / 1000}s`)
+  }, STALL_MS)
+  const settled = () => {
+    clearTimeout(timer)
+    if (!reported) return
+    stallReported = false
+    report(`settled after ${Math.round((Date.now() - startedAt) / 1000)}s`)
+  }
+  promise.then(settled, settled)
+  return promise
+}
 
 // The version a record of `field` new to this device last exchanged with the
 // server: none, and nothing in it. sync.js merges the server's copy against
@@ -156,6 +185,9 @@ async function openDatabase(name) {
         else reject(request.error)
       }
       request.onsuccess = () => resolve(request.result)
+      // Another page holds the database at an older version and has not let
+      // go: the upgrade, and this page with it, waits until it does.
+      request.onblocked = () => recordError(new Error(`IndexedDB open of version ${DB_VERSION} blocked by another connection`), 'Storage')
 
       request.onupgradeneeded = (event) => {
         created ||= event.oldVersion === 0
@@ -245,7 +277,7 @@ export function initStorage() {
   let dbReady = null
 
   function ensureDb() {
-    dbReady ??= openDatabase(scopedKey(DB_BASE_NAME))
+    dbReady ??= watchStall('open', openDatabase(scopedKey(DB_BASE_NAME)))
       .then((db) => {
         pruneProfileStorage().catch(() => {})
         // Storage left best-effort is what a browser clears first when the
@@ -272,23 +304,27 @@ export function initStorage() {
   // columns empty (feedback be332d4d). So an operation that fails on a lost
   // connection drops it and runs once more on a fresh one; concurrent failures
   // on the same connection share that one reopen.
-  async function withDb(operation) {
+  //
+  // `operation` is given a transaction over `stores` (a name or a list).
+  async function withDb(stores, mode, operation) {
+    const what = `${mode} ${[stores].flat().join(', ')}`
+    const run = (db) => watchStall(what, operation(db.transaction(stores, mode)))
     const ready = ensureDb()
     const db = await ready
     try {
-      return await operation(db)
+      return await run(db)
     } catch (error) {
       if (!CONNECTION_LOST.has(error?.name)) throw error
       if (dbReady === ready) {
         dbReady = null
         db.close()
       }
-      return operation(await ensureDb())
+      return run(await ensureDb())
     }
   }
 
   function withStore(storeName, mode, operation) {
-    return withDb((db) => operation(db.transaction(storeName, mode).objectStore(storeName)))
+    return withDb(storeName, mode, (transaction) => operation(transaction.objectStore(storeName)))
   }
 
   function dbGet(storeName, key) {
@@ -309,8 +345,7 @@ export function initStorage() {
   // Both note log stores in one transaction — the segments still to send and
   // those kept — resolved once it has committed, with what `operation` did.
   function withNoteLogStores(mode, operation) {
-    return withDb(async (db) => {
-      const transaction = db.transaction([NOTE_LOGS_STORE, KEPT_NOTE_LOGS_STORE], mode)
+    return withDb([NOTE_LOGS_STORE, KEPT_NOTE_LOGS_STORE], mode, async (transaction) => {
       const done = promisifyTransaction(transaction)
       const result = await operation(transaction.objectStore(NOTE_LOGS_STORE), transaction.objectStore(KEPT_NOTE_LOGS_STORE))
       await done
@@ -446,8 +481,7 @@ export function initStorage() {
     // does not have yet, by id, in one transaction. Resolves to how many were
     // new.
     importSessions(sessions) {
-      return withDb(async (db) => {
-        const transaction = db.transaction([SESSIONS_STORE], 'readwrite')
+      return withDb(SESSIONS_STORE, 'readwrite', async (transaction) => {
         const here = new Set(await promisifyRequest(transaction.objectStore(SESSIONS_STORE).getAllKeys()))
         const imported = putAllToStore(transaction, SESSIONS_STORE, sessions.filter((s) => !here.has(s.id)))
         await promisifyTransaction(transaction)
@@ -534,8 +568,7 @@ export function initStorage() {
     // Aggregates are derived from sessions, and a rebuild replaces them all:
     // nothing reads a store half cleared, half written.
     replaceAggregates(aggregates) {
-      return withDb((db) => {
-        const transaction = db.transaction([AGGREGATES_STORE], 'readwrite')
+      return withDb(AGGREGATES_STORE, 'readwrite', (transaction) => {
         transaction.objectStore(AGGREGATES_STORE).clear()
         putAllToStore(transaction, AGGREGATES_STORE, aggregates)
         return promisifyTransaction(transaction)
