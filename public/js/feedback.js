@@ -56,10 +56,13 @@ function rememberFeedbackEmail(address) {
 // Non-identifying environment captured with every submission, so a bug report
 // carries the context to reproduce it. No personal data, no stored identifiers.
 // The errors the app ran into lately ride along (errorLog.js), and are left
-// out when there were none. The form lists what goes (feedback.privacy), and
+// out when there were none. So does the iOS app's build and system
+// (ios/README.md), out of a report sent from a browser. The form lists what
+// goes (feedback.privacy), and
 // so does the privacy policy (privacy.feedbackBody): both follow this.
 export function buildBaseContext() {
   const errors = recentErrors()
+  const nativeApp = globalThis.__arabesqueApp
   return {
     app_version: APP_VERSION,
     locale: getLang(),
@@ -68,6 +71,7 @@ export function buildBaseContext() {
       typeof window !== 'undefined'
         ? { w: window.innerWidth, h: window.innerHeight }
         : null,
+    ...(nativeApp && { native_app: nativeApp }),
     ...(errors.length > 0 && { errors }),
   }
 }

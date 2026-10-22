@@ -46,6 +46,21 @@ final class ViewController: UIViewController {
     return URL(string: configured ?? "https://arabesque.app/")!
   }
 
+  /// Defines `window.__arabesqueApp`, e.g.
+  /// `{"version": "1.2", "build": "57", "system": "iPadOS 17.7.11"}`.
+  private static var appInfoScript: String? {
+    let info = Bundle.main.infoDictionary ?? [:]
+    let device = UIDevice.current
+    let app = [
+      "version": info["CFBundleShortVersionString"] as? String ?? "",
+      "build": info["CFBundleVersion"] as? String ?? "",
+      "system": "\(device.systemName) \(device.systemVersion)",
+    ]
+    guard let data = try? JSONSerialization.data(withJSONObject: app),
+      let json = String(data: data, encoding: .utf8) else { return nil }
+    return "window.__arabesqueApp = \(json)"
+  }
+
   deinit {
     wakeLockPoll?.invalidate()
   }
@@ -68,6 +83,12 @@ final class ViewController: UIViewController {
         let shim = try? String(contentsOf: shimURL) else { continue }
       contentController.addUserScript(
         WKUserScript(source: shim, injectionTime: .atDocumentStart, forMainFrameOnly: true))
+    }
+    // Which build of this app the page runs in, and on which system, for a
+    // feedback report to carry (see README, "How the bridge works").
+    if let appInfo = Self.appInfoScript {
+      contentController.addUserScript(
+        WKUserScript(source: appInfo, injectionTime: .atDocumentStart, forMainFrameOnly: true))
     }
     contentController.add(WeakScriptMessageHandler(self), name: "midiBridge")
     // A file the page makes for the player to keep — a backup — which a
