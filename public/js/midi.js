@@ -1,10 +1,12 @@
-import { isTestEnv } from './utils.js'
+import { isTestEnv, onForeground } from './utils.js'
 import mockMIDI, { MOCK_DEVICE_NAME } from './midi_mock.js'
 import { t } from './i18n.js'
 import { recordError } from './errorLog.js'
 
 export const NOTE_ON = 144
 export const NOTE_OFF = 128
+const CONTROL_CHANGE = 176
+const SUSTAIN_PEDAL = 64
 const NOTE_NAMES = 'C C# D D# E F F# G G# A A# B'.split(' ')
 
 // Two console.log per MIDI event, unconditionally. Cheap with DevTools shut, not
@@ -29,8 +31,11 @@ let state = {
 }
 
 let callbacks = {
+  // (note, velocity)
   onNotePlayed: null,
   onNoteReleased: null,
+  // The sustain pedal's value, 0 to 127: what the note log keeps of it.
+  onPedal: null,
   // A port coming or going on its own, without connectMIDI() being called. The
   // page mirrors this state in its own UI, and nothing else tells it: on iOS
   // the keyboard is paired in the system sheet, so the connection always
@@ -41,12 +46,21 @@ let callbacks = {
 export function initMidi() {
   return {
     connectMIDI,
+    connectAtLoad,
     // Mic mode's way in: the notes it hears arrive as the messages a keyboard
     // would have sent (micInput.js).
     parseMidiMessage,
     setCallbacks,
     state,
   }
+}
+
+// The connection a page makes as it opens: quietly, to the first keyboard
+// there is, and offering the wrapper's sheet when there is none.
+async function connectAtLoad() {
+  const result = await connectMIDI({ silent: true, autoSelectFirst: true })
+  offerPairingWhenMissing()
+  return result
 }
 
 // iOS pairs Bluetooth MIDI devices per app rather than in Settings, so the
@@ -61,6 +75,65 @@ export function openNativePairing() {
   if (nativePairingAvailable()) globalThis.__pianoTrainerMIDI.pairBluetooth()
 }
 
+// A keyboard has been connected on this device: the player has one.
+const KEYBOARD_SEEN_KEY = 'arabesque:midi-keyboard-seen'
+// The keyboard has been looked for since the app opened. sessionStorage lasts
+// as long as the wrapper's webview, which is one launch.
+const CHECKED_KEY = 'arabesque:keyboard-checked'
+// Time for a keyboard that reconnects by itself to be back.
+export const PAIRING_GRACE_MS = 2000
+
+// In the wrapper, the sheet comes up by itself when the app opens, or comes
+// back to the foreground, without its keyboard: a player who forgot to pair
+// found out from the first notes going unheard (feedback 95951128). Only on a
+// device that has had a keyboard, so that someone following the score with no
+// piano is never asked. The sheet closes itself once the keyboard arrives
+// (ViewController.swift), so turning the piano on is all it asks for.
+// Looked at once the connection made at load is settled (connectAtLoad).
+function offerPairingWhenMissing() {
+  if (!nativePairingAvailable() || !keyboardSeen()) return
+  if (!checkedThisLaunch()) offerPairingSoon()
+  onForeground(offerPairingSoon)
+}
+
+function keyboardSeen() {
+  try {
+    return localStorage.getItem(KEYBOARD_SEEN_KEY) === '1'
+  } catch {
+    return false
+  }
+}
+
+function checkedThisLaunch() {
+  try {
+    return sessionStorage.getItem(CHECKED_KEY) === '1'
+  } catch {
+    return true
+  }
+}
+
+// Once the grace is over rather than as it starts: a library left for a score
+// within it has not looked yet, and the score page does.
+function markCheckedThisLaunch() {
+  try {
+    sessionStorage.setItem(CHECKED_KEY, '1')
+  } catch {
+    /* no sessionStorage: checkedThisLaunch() never offers at load either */
+  }
+}
+
+// Once per return, which onForeground can report twice: visibilitychange and
+// the wrapper's own event.
+let pairingOffer = null
+function offerPairingSoon() {
+  if (pairingOffer) return
+  pairingOffer = setTimeout(() => {
+    pairingOffer = null
+    markCheckedThisLaunch()
+    if (!state.midiConnected) openNativePairing()
+  }, PAIRING_GRACE_MS)
+}
+
 function setCallbacks(cbs) {
   callbacks = { ...callbacks, ...cbs }
 }
@@ -68,14 +141,14 @@ function setCallbacks(cbs) {
 async function connectMIDI(options = {}) {
   const { silent = false, autoSelectFirst = false } = options
 
+  // Safari and Firefox, left to the caller to tell the player about. The iOS
+  // wrapper never gets here, its shim being in place before any page script
+  // runs. Ahead of the mock so a test can take the API away and see what such
+  // a browser sees.
+  if (!navigator.requestMIDIAccess) return { status: 'unsupported' }
+
   if (isTestEnv()) {
     return connectMIDIMock()
-  }
-
-  if (!navigator.requestMIDIAccess) {
-    console.error('Web MIDI API non supportée')
-    if (!silent) alert(t('errors.webMidiUnsupported'))
-    return
   }
 
   try {
@@ -168,6 +241,13 @@ function selectMIDIInput(input) {
 function setConnectedInput(input) {
   state.midiInput = input
   state.midiConnected = !!input
+  if (input && nativePairingAvailable()) {
+    try {
+      localStorage.setItem(KEYBOARD_SEEN_KEY, '1')
+    } catch {
+      /* storage refused: the sheet is just never offered by itself */
+    }
+  }
   console.log(input ? `MIDI connected: ${input.name}` : 'MIDI input disconnected')
   callbacks.onConnectionChange?.()
 }
@@ -195,13 +275,14 @@ function parseMidiMessage(data) {
   const statusType = data[0] & 0xf0
 
   if (isNoteOn(data)) {
-    callbacks.onNotePlayed?.(note)
+    callbacks.onNotePlayed?.(note, velocity)
     if (LOG_NOTES) console.log('Note ON detected:', noteName(note))
   }
   if (statusType === NOTE_OFF || (statusType === NOTE_ON && velocity === 0)) {
     callbacks.onNoteReleased?.(note)
     if (LOG_NOTES) console.log('Note OFF detected:', noteName(note))
   }
+  if (statusType === CONTROL_CHANGE && note === SUSTAIN_PEDAL) callbacks.onPedal?.(velocity)
 }
 
 // A MIDI note number as the log names it: "C#4".

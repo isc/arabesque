@@ -2,10 +2,13 @@ import { initMidi, nativePairingAvailable, openNativePairing } from './midi.js'
 import { initMusicXML } from './musicxml.js'
 import { initFingeringEditor } from './fingeringEditor.js'
 import { fingeringPad } from './fingeringPad.js'
+import { initNoteCircles } from './noteCircles.js'
 import { initPracticeTracker } from './practiceTracker.js'
 import { TWO_HANDS, handsKey } from './hands.js'
-import { formatDuration, formatDate, applyStickyOffset, scorePageUrl, onForeground, withHands, passage, pickPassageMeasure, passageText } from './utils.js'
+import { formatDuration, formatDate, applyStickyOffset, scorePageUrl, onForeground, onBackground, onIdle, withHands, passage, pickPassageMeasure, passageText } from './utils.js'
 import { initStorage } from './storage.js'
+import { initNoteLog, keepScoreNoteLogs } from './noteLog.js'
+import { initFragmentSuggestions } from './fragmentSuggestions.js'
 import { loadMxlAsXml } from './mxlLoader.js'
 import { injectFingerings } from './fingeringInjector.js'
 import { migrateFingeringRecord } from './fingeringKeys.js'
@@ -17,7 +20,7 @@ import { BPM_DEFAULT } from './bpmStepper.js'
 import { bpmField } from './bpmField.js'
 import { resultModal } from './resultModal.js'
 import { headerMenu } from './headerMenu.js'
-import { initAutoSync, triggerSync } from './autoSync.js'
+import { fetchNoteLogs, initAutoSync, triggerSync } from './autoSync.js'
 import { scopedKey } from './profiles.js'
 import { t, tn } from './i18n.js'
 import { recordError } from './errorLog.js'
@@ -56,8 +59,16 @@ export function midiApp() {
     svgNote: musicxml.svgNote,
     graphicalMeasureForNote: musicxml.graphicalMeasureForNote,
   })
+  const noteCircles = initNoteCircles({
+    getOsmdInstance: musicxml.getOsmdInstance,
+    getNoteDataByKey: musicxml.getNoteDataByKey,
+    graphicalMeasureForNote: musicxml.graphicalMeasureForNote,
+    keepClear: musicxml.keepDotsClearOf,
+  })
   const storage = initStorage()
   const practiceTracker = initPracticeTracker(storage)
+  const noteLog = initNoteLog({ storage, sessionId: () => practiceTracker.getCurrentSession()?.id })
+  const fragmentSuggestions = initFragmentSuggestions({ storage, practiceTracker, noteLog, getAllNotes: musicxml.getAllNotes })
   const playback = initPlayback(midi.state)
   const strictPlaythrough = initStrictPlaythrough()
   // The on-screen keyboard; built in init(), where the page's state it reads is.
@@ -89,11 +100,13 @@ export function midiApp() {
   // What was filed is worth pushing at once: runSync only takes sessions that
   // have ended, so a playthrough finished here would otherwise sit on this
   // device until the data page is opened. `sync: false` leaves it to a caller
-  // that syncs later (the tempo trainer, at the end of its loop).
+  // that syncs later (the tempo trainer, at the end of its loop). The notes
+  // played in the session go with it, written before it is closed.
   let sessionRolled = Promise.resolve()
   function rollSession(mode, { sync = true } = {}) {
     sessionRolled = sessionRolled
       .then(async () => {
+        await noteLog.flush()
         if ((await practiceTracker.toggleMode(mode)) && sync) triggerSync('session ended')
       })
       .catch((error) => recordError(error, 'Session could not be filed'))
@@ -133,9 +146,29 @@ export function midiApp() {
     return Number.isFinite(stored) && stored > 0 ? stored : fallback
   }
 
+  // A browser without Web MIDI is told so once, then left alone: every score
+  // opened is a page load, and stepping through a collection's parts met the
+  // notice at each one. Per device rather than per profile — it is the
+  // browser that lacks the API. The connect button still brings it back.
+  const NO_MIDI_DISMISSED_KEY = 'arabesque:no-midi-dismissed'
+
+  function noMidiDismissed() {
+    try {
+      return localStorage.getItem(NO_MIDI_DISMISSED_KEY) === '1'
+    } catch {
+      return false
+    }
+  }
+
+  function rememberNoMidiDismissed() {
+    try {
+      localStorage.setItem(NO_MIDI_DISMISSED_KEY, '1')
+    } catch { /* storage unavailable: told again at the next score */ }
+  }
+
   return {
     ...headerMenu(),
-    ...fingeringPad({ storage, fingeringEditor }),
+    ...fingeringPad({ storage, fingeringEditor, noteCircles }),
     ...bpmField(),
     // The next run starts as the piece did (feedback b7682019).
     ...resultModal({ onOpen: () => keyHint.restart() }),
@@ -229,6 +262,7 @@ export function midiApp() {
     historyCharts: [],
     measuresToReinforce: [],
     showMidiHelpModal: false,
+    showNoMidiModal: false,
 
     // Container width the score is currently laid out for, so a height-only
     // resize doesn't pay for a redraw (see handleViewportResize).
@@ -279,8 +313,11 @@ export function midiApp() {
       // only depended on when a new session starts (see loadScoreFromURL). The
       // MIDI handshake is nobody's prerequisite at all.
       const trackerReady = practiceTracker.init()
-      midiReady = midi.connectMIDI({ silent: true, autoSelectFirst: true })
-        .then(() => this.syncMidiState())
+      midiReady = midi.connectAtLoad()
+        .then((result) => {
+          this.syncMidiState()
+          if (result?.status === 'unsupported' && !noMidiDismissed()) this.showNoMidiModal = true
+        })
 
       this.wireKeyboard()
       this.wireScoreEngine()
@@ -324,7 +361,7 @@ export function midiApp() {
       const NAVIGATE_BACK_KEY = C8 // the highest piano key: the least jarring sound
 
       midi.setCallbacks({
-        onNotePlayed: (midiNote) => {
+        onNotePlayed: (midiNote, velocity) => {
           if (midiNote === NAVIGATE_BACK_KEY) {
             // Go back rather than to the library so its filters (stored in
             // the URL) that led here are preserved. Fall back to the library
@@ -343,16 +380,19 @@ export function midiApp() {
           // strict tab opened the free results and filed a free session.
           if (this.mode === 'strict') {
             strictPlaythrough.handleNoteOn(midiNote)
+            noteLog.keyDown(midiNote, velocity)
             return
           }
-          musicxml.activateNote(midiNote)
+          noteLog.keyDown(midiNote, velocity, musicxml.activateNote(midiNote))
           keyHint.keyDown(midiNote)
         },
         onNoteReleased: (midiNote) => {
+          noteLog.keyUp(midiNote)
           if (this.mode === 'strict') return
           musicxml.deactivateNote(midiNote)
           keyHint.keyUp(midiNote)
         },
+        onPedal: (value) => noteLog.pedal(value),
         // Without this the notes came through while the header still offered
         // to connect, and only pressing that button again refreshed it.
         onConnectionChange: () => this.syncMidiState(),
@@ -377,13 +417,14 @@ export function midiApp() {
           this.showTrainingDone(this.trainingPassage, musicxml.getTrainingState().targetRepeatCount)
           await rollSession(this.currentMode)
         },
-        onMeasureStarted: (sourceMeasureIndex, startsPlaythrough) => {
-          practiceTracker.startMeasureAttempt(sourceMeasureIndex, startsPlaythrough, this.activeHands)
+        onMeasureStarted: (sourceMeasureIndex, startsPlaythrough, options) => {
+          practiceTracker.startMeasureAttempt(sourceMeasureIndex, startsPlaythrough, this.activeHands, options)
         },
         onMeasureCompleted: () => {
           practiceTracker.endMeasureAttempt()
           this.refreshReinforcementSuggestions()
         },
+        onIntervalJudged: (verdict) => practiceTracker.recordSteadiness(verdict),
         onWrongNote: (midiNote) => {
           practiceTracker.recordWrongNote()
           keyHint.wrongNote(midiNote)
@@ -428,6 +469,9 @@ export function midiApp() {
       // that the next page load turns into a proper close.
       window.addEventListener('beforeunload', () => practiceTracker.endSession())
       window.addEventListener('pagehide', () => practiceTracker.stashPendingSession())
+      // The notes played since the last segment was written.
+      onBackground(() => noteLog.leave())
+      onIdle(() => noteLog.tidy())
       // Restored from the back/forward cache: the page was never destroyed and
       // the session is still live, so the snapshot must not be replayed.
       window.addEventListener('pageshow', (event) => {
@@ -461,6 +505,7 @@ export function midiApp() {
     async connectMIDI() {
       const result = await midi.connectMIDI()
       this.syncMidiState()
+      if (result?.status === 'unsupported') return (this.showNoMidiModal = true)
       // No keyboard found: say how to connect one. In the wrapper that is not
       // instructions but a system sheet (see midi.js).
       if (result?.status !== 'no_devices') return
@@ -490,6 +535,11 @@ export function midiApp() {
       this.micActive = false
     },
 
+    closeNoMidiModal() {
+      this.showNoMidiModal = false
+      rememberNoMidiDismissed()
+    },
+
     detectedOS() {
       // Asked first, because the user agent lies where it matters most: the
       // iPad wrapper sends a Macintosh one, and used to get macOS instructions
@@ -506,6 +556,8 @@ export function midiApp() {
       try {
         await musicxml.loadMusicXML(file)
         this.scoreUrl = null
+        // None: the circles of the score it replaces are not this one's.
+        noteCircles.load({})
         await this.afterScoreLoad()
         await this.markScoreReady()
       } catch (error) {
@@ -534,6 +586,19 @@ export function midiApp() {
       // Suggestions from the score's recent history, before a note is played
       await this.refreshReinforcementSuggestions()
       await this.markScoreReady()
+      // The notes of its last sessions at hand, those played elsewhere
+      // included, for reading them back: once the page is quiet.
+      onIdle(async () => {
+        try {
+          const sessions = await practiceTracker.getScoreSessions(url)
+          await keepScoreNoteLogs({ storage, sessions, pull: (ids) => fetchNoteLogs(storage, ids) })
+          // What came down can change what is worth drilling.
+          fragmentSuggestions.forget()
+          await this.refreshReinforcementSuggestions()
+        } catch (error) {
+          recordError(error, 'Note logs could not be kept')
+        }
+      })
     },
 
     // Marks the score page as ready to be driven: OSMD has painted, metadata
@@ -599,15 +664,18 @@ export function midiApp() {
     },
 
     async renderScoreWithFingerings() {
-      // Independent: one is IndexedDB, the other the score bytes (already in
-      // flight since the head script, so this is where its await belongs).
-      const [fingeringRecord, xml] = await Promise.all([
-        storage.getFingerings(this.scoreUrl),
+      // Independent: IndexedDB, and the score bytes (already in flight since
+      // the head script, so this is where their await belongs).
+      const [fingeringRecord, circleRecord, xml] = await Promise.all([
+        storage.fingerings.get(this.scoreUrl),
+        storage.circles.get(this.scoreUrl),
         loadMxlAsXml(this.scoreUrl),
       ])
+      noteCircles.load(circleRecord.circles)
       const modified = injectFingerings(xml, fingeringRecord.fingerings)
       await musicxml.renderMusicXML(modified)
       await this.afterScoreLoad()
+      noteCircles.repaint()
       this.setupFingeringHandlers()
       await this.migrateFingeringKeys(fingeringRecord)
     },
@@ -650,9 +718,9 @@ export function midiApp() {
     async migrateFingeringKeys(record) {
       const migrated = migrateFingeringRecord(record, musicxml.getLegacyFingeringKeyMap())
       if (!migrated) return
-      await storage.putFingeringRecordsIfUnchanged([{ record: migrated.record, read: record.updatedAt ?? 0 }])
+      await storage.fingerings.putIfUnchanged([{ record: migrated.record, read: record.updatedAt ?? 0 }])
       for (const key of migrated.added) {
-        fingeringEditor.addFingeringToDataModel(key, migrated.record.fingerings[key])
+        fingeringEditor.setFingeringInDataModel(key, migrated.record.fingerings[key])
       }
       if (migrated.added.length) this.rerenderScore()
     },
@@ -1101,8 +1169,12 @@ export function midiApp() {
       // strict run's verdict, the notes a free or training run played —
       // belongs to the run that lit it, and that run is over. The two halves
       // are cleared by their own module, the second as the engine takes up
-      // the new mode.
+      // the new mode. Where the last run went wrong or hesitated is the
+      // exception: that is what training is about to work on, so those marks
+      // stay until the first note played there — except under strict mode's
+      // verdict, which comes in the same colours.
       strictPlaythrough.clearMarks()
+      if (name === 'strict') musicxml.clearVerdictMarks()
       this.mode = name
       // Before the engine moves: a reinforcement starts its first measure at
       // once, and a measure started on the session being closed goes with it.
@@ -1126,8 +1198,7 @@ export function midiApp() {
       if (this.showResultModal) return this.closeResultModal()
       if (this.showHistoryModal) return (this.showHistoryModal = false)
       if (this.showMidiHelpModal) return (this.showMidiHelpModal = false)
-      const noMidi = document.getElementById('noMidiModal')
-      if (noMidi?.open) noMidi.close()
+      if (this.showNoMidiModal) this.closeNoMidiModal()
     },
 
     // Refreshed at every measure boundary, so the badge shows up as soon as a
@@ -1140,7 +1211,7 @@ export function midiApp() {
     // on, and the label says so whenever it is not both.
     async refreshReinforcementSuggestions() {
       const seq = ++reinforcementRefreshSeq
-      const measures = await practiceTracker.getMeasuresToReinforce(this.scoreUrl, handsKey(this.activeHands))
+      const measures = await fragmentSuggestions.suggestions(this.scoreUrl, handsKey(this.activeHands))
       if (seq === reinforcementRefreshSeq) this.measuresToReinforce = measures
     },
 
@@ -1148,8 +1219,8 @@ export function midiApp() {
     // for. `words` as withHands takes it: the visible label says MD, the name
     // read aloud says the hand in full.
     reinforceLabel(words) {
-      const measures = this.measuresToReinforce
-      return withHands(tn('score.reinforce', measures.length), measures[0]?.hands ?? TWO_HANDS, words)
+      const items = this.measuresToReinforce
+      return withHands(t('score.reinforce', { what: tn('score.passagesCount', items.length) }), items[0]?.hands ?? TWO_HANDS, words)
     },
 
     // From free play or from the strict tab, mid-piece or not: setMode puts
@@ -1169,6 +1240,8 @@ export function midiApp() {
       musicxml.setActiveHands(this.activeHands)
       strictPlaythrough.setActiveHands(this.activeHands)
       practiceTracker.setActiveHands(this.activeHands)
+      noteLog.hands(this.activeHands)
+      playback.setHands(this.activeHands)
       this.refreshReinforcementSuggestions()
     },
 
@@ -1196,8 +1269,8 @@ export function midiApp() {
     formatDuration,
 
     // Every redraw replaces the SVG, taking with it everything painted on it:
-    // note colours, fingering handlers, the training cursor, the strict marker,
-    // the marks a strict run left.
+    // note colours, fingering handlers, the circled notes, the training cursor,
+    // the strict marker, the marks a strict run left.
     // What the redraw cannot take is the session behind those marks — renderScore
     // keeps it across a rebuild of the note model — so this only paints it back.
     repaintScore() {
@@ -1207,16 +1280,18 @@ export function midiApp() {
       // After the free and training marks: a strict hit wears the same class,
       // and the two paint it from stores of their own.
       strictPlaythrough.repaintMarks()
+      // Ahead of the training cursor, whose dots clear the reminders.
+      noteCircles.repaint()
       musicxml.updateMeasureCursor()
       // The click rectangles are rebuilt by the redraw, so the marker went with them.
       this.paintStrictRange()
     },
 
-    // A full redraw: the note model is rebuilt from OSMD's sheet, which is how a
-    // fingering just injected into it reaches the page.
+    // A full redraw: OSMD's graphic and the note model are rebuilt from its
+    // sheet, which is how a fingering just set in it reaches the page.
     rerenderScore() {
       const scrollY = window.scrollY
-      musicxml.renderScore()
+      musicxml.renderScore({ rebuild: true })
       this.repaintScore()
       window.scrollTo(0, scrollY)
     },

@@ -58,6 +58,30 @@ class CollectionTest < CapybaraTestBase
     assert_match(/Ex_03/, link[:href])
   end
 
+  # Safari has no Web MIDI, and each part is a page load of its own: the notice
+  # opened at every one, in the middle of working through an exercise book. It
+  # is shown once per device, and again only when the player asks to connect.
+  def test_no_web_midi_notice_is_not_repeated_from_part_to_part
+    page.driver.browser.page.command(
+      'Page.addScriptToEvaluateOnNewDocument',
+      source: 'delete Navigator.prototype.requestMIDIAccess'
+    )
+    click_link 'Le Pianiste virtuose (1re partie)'
+    wait_for_score_render
+    within('#noMidiModal[open]') { click_button 'Close' }
+    assert_no_selector '#noMidiModal[open]'
+
+    click_button 'Exercice suivant'
+    assert_current_path %r{Ex_02}
+    wait_for_score_render
+    # Opened, when it opens, by the MIDI handshake at init — long before the
+    # render the line above waited for.
+    assert_no_selector '#noMidiModal[open]'
+
+    click_button 'Connecter clavier MIDI'
+    assert_selector '#noMidiModal[open]', text: 'Web MIDI non supporté'
+  end
+
   def test_open_exercise_by_playing_its_beginning
     # Hanon exercise 1, right hand: C3 E3 F3 G3 A3
     play_notes(%w[C3 E3 F3 G3 A3])

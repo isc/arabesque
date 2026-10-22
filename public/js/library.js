@@ -1,13 +1,6 @@
 import { initMidi } from './midi.js'
 import { initPracticeTracker } from './practiceTracker.js'
 import { STATUS_THRESHOLDS, cleanMeasureRatio, hasMinimumPractice, MIN_PRACTICE_MS_FOR_STATUS } from './aggregates.js'
-import {
-  hasHotSpots,
-  HOT_SPOT_FACTOR,
-  HOT_SPOT_MIN_ATTEMPTS,
-  REINFORCEMENT_WINDOW_SESSIONS,
-  REINFORCEMENT_CLEAN_PASSES,
-} from './reinforcement.js'
 import { initStorage } from './storage.js'
 import { formatDate, formatRelativeDate, statusLabel, scorePageUrl, searchWords, matchesSearch } from './utils.js'
 import { journalEntryHelpers } from './journalEntries.js'
@@ -32,7 +25,6 @@ const STALE_DAYS = 7
 // The focus chips, in the order they are offered — the library's own list, so
 // they read like STATUS_ORDER/statusLabel and PERIODS/periodLabel next door.
 const FOCUS_LABEL_KEYS = {
-  reinforce: 'focus.reinforce',
   'near-mastery': 'focus.nearMastery',
   stale: 'focus.stale',
 }
@@ -122,7 +114,7 @@ export function libraryApp() {
     statusFilter: '',
     composerFilter: '',
     periodFilter: '',    // '' | 'baroque' | 'classique' | 'romantique' | 'moderne' | 'contemporain' | 'traditionnel'
-    focusFilter: '',     // '' | 'reinforce' | 'near-mastery' | 'stale'
+    focusFilter: '',     // '' | 'near-mastery' | 'stale'
     sortBy: 'lastPlayed', // 'title' | 'composer' | 'status' | 'practice' | 'lastPlayed'
     sortDir: 'desc',      // 'asc' | 'desc'
     // Both only matter below the breakpoint where .pt-librarybar and
@@ -135,14 +127,6 @@ export function libraryApp() {
     refreshingPractice: null,
     lastPlayedByScore: {},
     aggregatesByScore: {},
-    // The score files with a bar that stands out (hasHotSpots), settled once
-    // per practice-data reload rather than per render: the answer needs a
-    // score's sessions, and the filter bar asks it of every score for every
-    // option it offers. A component property like the two above — what the
-    // table draws from has to be observed, or a refresh that touched only
-    // sessions would leave the chip showing a stale count with nothing to
-    // explain it.
-    reinforceScores: new Set(),
 
     async init() {
       // Mark this visitor as a returning user so the landing page (/) can
@@ -185,7 +169,7 @@ export function libraryApp() {
       midi.setCallbacks({
         onNotePlayed: (midiNote) => this.handleSearchNote(midiNote),
       })
-      midi.connectMIDI({ silent: true, autoSelectFirst: true })
+      midi.connectAtLoad()
 
       // Reaching this page via history.back() (e.g. the MIDI "highest key"
       // shortcut) can restore it from the browser's back/forward cache: a
@@ -202,7 +186,8 @@ export function libraryApp() {
 
       // The practice data is read as soon as the database is open, alongside
       // the two files: it needs neither. A read that fails costs its own
-      // column, not the list — the scores are set below either way.
+      // column, not the list — the scores are set below either way. Both files
+      // are preloaded by library.html.
       const [loaded, fingerprintsResponse] = await Promise.all([
         loadCatalog(),
         fetch('data/fingerprints.json'),
@@ -268,7 +253,7 @@ export function libraryApp() {
       return this.refreshingPractice
     },
 
-    // Recomputes lastPlayedByScore/aggregatesByScore/reinforceScores/sessionCountByScore
+    // Recomputes lastPlayedByScore/aggregatesByScore/sessionCountByScore
     // from storage, each keyed by score id — the url a catalog file is filed
     // under (fileUrl). Safe to call more than once (each map is rebuilt from
     // scratch), unlike the rest of init() which registers listeners.
@@ -281,25 +266,12 @@ export function libraryApp() {
 
       const lastPlayedByScore = {}
       const countByScore = {}
-      const sessionsByScore = new Map()
       for (const session of sessions) {
         const existing = lastPlayedByScore[session.scoreId]
         if (!existing || session.startedAt > existing) {
           lastPlayedByScore[session.scoreId] = session.startedAt
         }
         countByScore[session.scoreId] = (countByScore[session.scoreId] ?? 0) + 1
-        const forScore = sessionsByScore.get(session.scoreId)
-        if (forScore) forScore.push(session)
-        else sessionsByScore.set(session.scoreId, [session])
-      }
-
-      // The 🎯 chip reads the score's own recent sessions, not the aggregates,
-      // whose counters have never forgotten anything. Every piece it lists
-      // also has a "Renforcer N mesures" badge on its page, but not the other
-      // way round: see hasHotSpots for why the badge alone selected everything.
-      const reinforceScores = new Set()
-      for (const [scoreId, forScore] of sessionsByScore) {
-        if (hasHotSpots(forScore)) reinforceScores.add(scoreId)
       }
 
       // Aggregates power the status filter, status pills, and practice-focus chips.
@@ -311,7 +283,6 @@ export function libraryApp() {
 
       this.lastPlayedByScore = lastPlayedByScore
       this.aggregatesByScore = aggregatesByScore
-      this.reinforceScores = reinforceScores
       sessionCountByScore = countByScore
       collectionAggregates.clear()
     },
@@ -568,11 +539,6 @@ export function libraryApp() {
     // Each focus chip filters the table to an actionable subset — the user
     // can immediately see which pieces match, unlike a passive count banner.
     matchesFocus(score, focus) {
-      // Not an aggregate question, and not one the aggregates could answer: a
-      // recueil is worth reinforcing when one of its exercises is, each judged
-      // on its own sessions (bar numbers only mean something within a part).
-      if (focus === 'reinforce') return partsOf(score).some((part) => this.reinforceScores.has(fileUrl(catalog, part.file)))
-
       const agg = this.aggregateFor(score)
       if (!agg) return false
       if (focus === 'near-mastery') {
@@ -604,24 +570,9 @@ export function libraryApp() {
     // Under the filtered list: what the filter on screen selects. Narrowing is
     // asking what the filter means, and the answer was nowhere in the app —
     // the numbers come from the same constants the rules themselves judge by,
-    // STATUS_THRESHOLDS and the reinforcement window. Null when there is
+    // STATUS_THRESHOLDS and STALE_DAYS. Null when there is
     // nothing to say: no filter, or Répertoire, which has no status above it.
     get filterCriteria() {
-      // "À renforcer" is the one chip whose label does not say what it selects,
-      // which is what the player asked ("quels sont les critères ?"). It takes
-      // precedence over a status filter the same way "Proches du répertoire"
-      // does below: the chip is the narrower question of the two.
-      if (this.focusFilter === 'reinforce') {
-        return {
-          heading: t('criteria.filterHeading', { filter: focusLabel('reinforce') }),
-          items: [
-            t('criteria.reinforceHotSpot', { factor: HOT_SPOT_FACTOR, n: REINFORCEMENT_WINDOW_SESSIONS }),
-            t('criteria.reinforceAttempts', { n: HOT_SPOT_MIN_ATTEMPTS }),
-            t('criteria.reinforceClean', { n: REINFORCEMENT_CLEAN_PASSES }),
-          ],
-        }
-      }
-
       // Its label says the silence half and always did; what it never said is
       // the half added with the practice floor, which is the half that decides
       // whether a piece belongs on the list at all.

@@ -254,17 +254,31 @@ n'importe quelle app distribuée. Le committer évite en prime que
 `xcodegen generate` efface l'équipe choisie dans Xcode à chaque régénération.
 
 Le numéro de build vient de `github.run_number`, donc il est unique sans état à
-maintenir. La version affichée aux testeurs se passe en paramètre du workflow,
-ou reste celle de `project.yml`.
+maintenir.
+
+La version, elle, est choisie par le workflow. Une version approuvée ferme son
+« train » : 1.0 étant en vente, TestFlight refusait tout nouveau build 1.0
+(`Invalid Pre-Release Train. The train version '1.0' is closed for new build
+submissions`), et seulement au moment de l'envoi, après l'archive. Le workflow
+lit donc d'abord les versions côté Apple (`scripts/appstore/next_version.py`) :
+celle de `project.yml` tant que rien d'aussi haut n'est approuvé, sinon la
+mineure suivant la plus haute approuvée — 1.1 en vente, le build suivant part en
+1.2. `project.yml` sert de plancher, à monter à la main pour un saut plus grand
+(2.0) ; une version saisie au lancement du workflow passe devant les deux.
 
 Le job tourne sur **`macos-26`** : Apple refuse tout envoi construit avec un SDK
 antérieur à iOS 26, et `macos-15` s'arrête à Xcode 16.4 / SDK 18.5. Le message
 d'erreur est explicite (`This app was built with the iOS 18.5 SDK`) mais
 n'arrive qu'à la toute fin, après l'archive et l'export.
 
-⚠️ La signature à la volée crée un **certificat de distribution**, et Apple en
-limite le nombre à trois par compte — les révoquer depuis le portail si le quota
-est atteint.
+⚠️ La signature à la volée crée à chaque build un **certificat de
+développement** (« Created via API »), dont la clé privée part avec le runner,
+et Apple plafonne leur nombre : le 2026-10-04, le build suivant onze d'entre eux
+a échoué sur `Your account has reached the maximum number of certificates`. Le
+workflow révoque désormais ceux des builds précédents avant d'archiver
+(`scripts/appstore/revoke_ci_certificates.py`, `--dry-run` pour les lister à la
+main) ; il ne touche ni aux certificats faits par Xcode sur un Mac, ni à ceux de
+distribution.
 
 **Éprouvé le 2026-08-11**, au troisième essai : le build 3 est passé en `VALID`
 et s'installe. Les deux échecs précédents sont désormais couverts par la

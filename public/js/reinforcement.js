@@ -1,10 +1,17 @@
-// Which bars of a score need work: the ones reinforcement mode offers on the
-// score page, and the hot spots that earn a piece the library's 🎯 chip. Both
-// are read off the score's most recent sessions, each hand selection apart —
-// bars fumbled there and not played cleanly since. Pure: sessions in, bars
-// out; the tracker hands over one score's sessions (practiceTracker.js), the
-// library every score's.
-import { TWO_HANDS, NO_HANDS, attemptHands } from './hands.js'
+// What of a score needs work: the bars, and the joins between them, that
+// reinforcement mode offers on the score page, read off the score's most
+// recent sessions, each hand selection apart — fumbled there and not played
+// cleanly since. A bar is fumbled by a wrong note or a hole inside it, a bar
+// played with the right notes and a hole being fumbled as much as one with a
+// wrong note (steadiness.js): the drill does not fill its dot either. A join
+// is fumbled where the way into a bar from the one before was a hole, or a
+// wrong note — the leap down into bar 33 of the C minor prelude, or the hand
+// opening late into bar 19 — which drilling the bar on its own never plays:
+// each repetition starts on it. So a join is drilled as the two bars together,
+// and the bar an attempt is filed under is the one the join leads into. Pure:
+// sessions in, candidates out; the tracker hands over the score's sessions
+// (practiceTracker.js).
+import { NO_HANDS, attemptHands } from './hands.js'
 import { byStartedAt } from './days.js'
 
 // Reinforcement suggestions look at this many of a score's most recent
@@ -22,15 +29,38 @@ export const REINFORCEMENT_CLEAN_PASSES = 3
 // Sessions a measure must span before its error rate can be called stagnant.
 const STAGNATION_MIN_SESSIONS = 3
 
-// What makes a bar stand out from the rest of its piece, for the library's 🎯
-// chip: fumbled at least HOT_SPOT_FACTOR times as often as the piece as a
-// whole over the same window, on at least HOT_SPOT_MIN_ATTEMPTS attempts — one
-// unlucky pass proves nothing.
-export const HOT_SPOT_FACTOR = 2
-export const HOT_SPOT_MIN_ATTEMPTS = 3
+// What a kind of candidate reads of an attempt: whether it says anything about
+// it at all, whether it was fumbled, and how many faults it holds — what the
+// two kinds are ranked together by. Every attempt tells of its bar; only one
+// entered from the bar before, in the same run, tells of the join
+// (practiceTracker.js), and a drill of the bar alone never does.
+// A wrong note on the way into a bar is the join's: the bar's own are the rest.
+const wrongInside = (a) => (a.wrongNotes || 0) - (a.entryWrongNotes || 0)
+
+const BAR = {
+  join: false,
+  measured: () => true,
+  // A wrong note fails the attempt, and the matcher can fail one on its own
+  // (strict mode's missed notes end a measure unclean with no wrong note
+  // recorded). So does a hole, which `clean` leaves out — it keeps meaning no
+  // wrong note, for the history and the statuses (aggregates.js) — and which
+  // attempts from before hesitations were counted cannot have.
+  fumbled: (a) => wrongInside(a) > 0 || (a.hesitations || 0) > 0 || (a.clean === false && !a.wrongNotes),
+  faults: (a) => wrongInside(a) + (a.hesitations || 0),
+}
+// Attempts filed before `joined` say nothing of their join: a hole there was
+// counted among their hesitations.
+const JOIN = {
+  join: true,
+  measured: (a) => a.joined === true,
+  fumbled: (a) => a.entryHole === true || (a.entryWrongNotes || 0) > 0,
+  faults: (a) => (a.entryWrongNotes || 0) + (a.entryHole ? 1 : 0),
+}
 
 // What reinforcement mode offers on the score page. Given a score's sessions
-// in any order, the measures it would drill right now, best candidates first.
+// in any order, what it would drill right now, best candidates first: bars,
+// and joins — `join: true`, the join into the bar `sourceMeasureIndex` — ranked
+// together by how many faults they gathered.
 //
 // Each hand selection keeps a list of its own (feedback 0868d96f): a bar
 // fumbled with the left hand alone is not a bar to drill two-handed, and clean
@@ -42,67 +72,53 @@ export function measuresToReinforce(sessions, { hands, limit = 5 } = {}) {
     .sort(
       (a, b) =>
         Number(b.stagnant) - Number(a.stagnant) ||
-        b.wrongNotes - a.wrongNotes ||
+        b.faults - a.faults ||
         b.durationMs - a.durationMs
     )
     .slice(0, limit)
 }
 
-// The library's question, asked of every score it lists: is this piece worth
-// opening to reinforce? Not "does reinforcement mode offer anything" — at the
-// error rates real practice runs at (a bar fumbled four times in ten is
-// ordinary), some bar is always short of its clean streak, and a chip asking
-// that held every piece ever played. What earns the chip is a hot spot: a bar
-// reinforcement would offer that also stands out from the rest of the piece.
-// A piece fumbled everywhere has none — the whole piece is the work there, not
-// a handful of bars — and neither does one played evenly well.
-//
-// Asked of both hands by default: the score page opens with both ticked, so
-// that is the badge the chip sends the player to, and a hand practised alone
-// is not pooled with passes it had no part in.
-export function hasHotSpots(sessions, hands = TWO_HANDS) {
-  const recent = recentSessions(sessions)
-  let attempts = 0
-  let fumbles = 0
-  for (const { bySession } of measureHistories(recent, hands)) {
-    for (const session of bySession) {
-      attempts += session.length
-      fumbles += countFumbles(session)
-    }
-  }
-  const threshold = (HOT_SPOT_FACTOR * fumbles) / attempts
-
-  for (const bar of reinforceCandidates(recent, hands)) {
-    if (bar.attempts >= HOT_SPOT_MIN_ATTEMPTS && bar.fumbles / bar.attempts >= threshold) return true
-  }
-  return false
-}
-
-// The window that makes both rules forget: only the last
+// The window that makes the suggestions forget: only the last
 // REINFORCEMENT_WINDOW_SESSIONS sessions of a score count, so a bar massacred
-// six months ago and left alone says nothing today.
-function recentSessions(sessions) {
+// six months ago and left alone says nothing today. Also the sessions whose
+// note logs a score keeps at hand (keepScoreNoteLogs in noteLog.js).
+export function recentSessions(sessions) {
   return [...sessions].sort(byStartedAt).slice(-REINFORCEMENT_WINDOW_SESSIONS)
 }
 
-// The measures worth offering, unranked, over that window.
+// The bars and joins worth offering, unranked, over that window.
 function* reinforceCandidates(sessions, hands) {
-  for (const { sourceMeasureIndex, hands: selection, bySession, modes } of measureHistories(recentSessions(sessions), hands)) {
-    const attempts = bySession.flat()
-    if (!attempts.some(fumbled)) continue
-    // Settled: played cleanly REINFORCEMENT_CLEAN_PASSES times in a row since,
-    // or drilled to done in training and not fumbled since.
-    if (cleanStreak(attempts) >= REINFORCEMENT_CLEAN_PASSES || drilledToDone(bySession, modes)) continue
-
-    yield {
-      sourceMeasureIndex,
-      hands: selection,
-      attempts: attempts.length,
-      fumbles: countFumbles(attempts),
-      wrongNotes: attempts.reduce((sum, a) => sum + (a.wrongNotes || 0), 0),
-      durationMs: attempts[attempts.length - 1].durationMs || 0,
-      stagnant: isStagnant(bySession),
+  for (const history of measureHistories(recentSessions(sessions), hands)) {
+    for (const kind of [BAR, JOIN]) {
+      const offered = candidate(kind, history)
+      if (offered) yield offered
     }
+  }
+}
+
+// What `kind` makes of a bar's history: null when there is nothing to work —
+// never fumbled, or settled since: played cleanly REINFORCEMENT_CLEAN_PASSES
+// times in a row, or drilled to done in training and not fumbled since.
+function candidate(kind, { sourceMeasureIndex, hands, bySession: allSessions, modes: allModes }) {
+  const bySession = []
+  const modes = []
+  allSessions.forEach((attempts, i) => {
+    const measured = attempts.filter(kind.measured)
+    if (measured.length === 0) return
+    bySession.push(measured)
+    modes.push(allModes[i])
+  })
+  const attempts = bySession.flat()
+  if (!attempts.some(kind.fumbled)) return null
+  if (cleanStreak(kind, attempts) >= REINFORCEMENT_CLEAN_PASSES || drilledToDone(kind, bySession, modes)) return null
+  return {
+    sourceMeasureIndex,
+    join: kind.join,
+    hands,
+    attempts: attempts.length,
+    faults: attempts.reduce((sum, a) => sum + kind.faults(a), 0),
+    durationMs: attempts[attempts.length - 1].durationMs || 0,
+    stagnant: isStagnant(kind, bySession),
   }
 }
 
@@ -116,7 +132,8 @@ function measureHistories(sessions, hands) {
     for (const measure of session.measures || []) {
       for (const attempt of measure.attempts || []) {
         const selection = attemptHands(attempt)
-        if (selection === NO_HANDS || (hands && selection !== hands)) continue
+        // A fragment drilled over part of the bar says nothing of the whole.
+        if (attempt.partial || selection === NO_HANDS || (hands && selection !== hands)) continue
 
         let histories = bySelection.get(selection)
         if (!histories) bySelection.set(selection, (histories = new Map()))
@@ -138,30 +155,24 @@ function measureHistories(sessions, hands) {
   return [...bySelection.values()].flatMap((histories) => [...histories.values()])
 }
 
-// A wrong note always fails the attempt, but the matcher can fail one on its
-// own (a missed note ends the measure unclean without recording anything).
-function fumbled(attempt) {
-  return attempt.clean === false || (attempt.wrongNotes || 0) > 0
+function countFumbles(kind, attempts) {
+  return attempts.filter(kind.fumbled).length
 }
 
-function countFumbles(attempts) {
-  return attempts.filter(fumbled).length
-}
-
-function cleanStreak(attempts) {
+function cleanStreak(kind, attempts) {
   let streak = 0
-  for (let i = attempts.length - 1; i >= 0 && !fumbled(attempts[i]); i--) streak++
+  for (let i = attempts.length - 1; i >= 0 && !kind.fumbled(attempts[i]); i--) streak++
   return streak
 }
 
-// Whether the measure's last training session — its drill — gave it its
-// clean passes, a spoiled one among them or not, with no fumble in any
-// session since. `bySession` and `modes` as measureHistories keeps them.
-function drilledToDone(bySession, modes) {
+// Whether the last training session — the drill — gave it its clean passes, a
+// spoiled one among them or not, with no fumble in any session since.
+// `bySession` and `modes` as measureHistories keeps them.
+function drilledToDone(kind, bySession, modes) {
   for (let i = bySession.length - 1; i >= 0; i--) {
     const attempts = bySession[i]
-    if (modes[i] === 'training' && attempts.length - countFumbles(attempts) >= REINFORCEMENT_CLEAN_PASSES) return true
-    if (attempts.some(fumbled)) return false
+    if (modes[i] === 'training' && attempts.length - countFumbles(kind, attempts) >= REINFORCEMENT_CLEAN_PASSES) return true
+    if (attempts.some(kind.fumbled)) return false
   }
   return false
 }
@@ -170,9 +181,9 @@ function drilledToDone(bySession, modes) {
 // when the error rate of its recent sessions is no better than that of the
 // earlier ones. Below STAGNATION_MIN_SESSIONS there is no trend to read, only
 // the noise of a good day and a bad one.
-function isStagnant(bySession) {
+function isStagnant(kind, bySession) {
   if (bySession.length < STAGNATION_MIN_SESSIONS) return false
-  const rates = bySession.map((attempts) => countFumbles(attempts) / attempts.length)
+  const rates = bySession.map((attempts) => countFumbles(kind, attempts) / attempts.length)
   const split = Math.floor(rates.length / 2)
   return mean(rates.slice(split)) >= mean(rates.slice(0, split))
 }

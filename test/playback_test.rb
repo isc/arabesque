@@ -65,7 +65,7 @@ class PlaybackTest < CapybaraTestBase
   def test_starting_reinforcement_ends_the_listening
     # A fumbled bar, so there is something to reinforce.
     open_with_the_second_bar_fumbled
-    assert_text 'Renforcer 1 mesure'
+    assert_text 'Renforcer 1 passage'
 
     # Held at its first bar before reinforcement is asked for: nothing is left
     # scheduled, so the listening can only end for the reason under test rather

@@ -2,6 +2,7 @@ import { barCounter, fingeringKey, legacyFingeringKey, nextNoteIndex } from './f
 import { t } from './i18n.js'
 import { withHands } from './utils.js'
 import { GRACE_NOTE_OFFSET_WN } from './playbackTiming.js'
+import { roundPosition } from './noteLogAnalysis.js'
 
 // Ornament types from OSMD
 const OrnamentEnum = {
@@ -28,6 +29,9 @@ const AccidentalEnum = {
 const StemDirectionEnum = {
   Up: 0,
 }
+
+// The two fermatas among OSMD's articulations (ArticulationEnum)
+const FERMATAS = new Set([10, 11])
 
 // Diatonic note semitone offsets from C (C=0, D=2, E=4, F=5, G=7, A=9, B=11)
 // OSMD's fundamentalNote is the semitone offset of the note name (ignoring accidentals)
@@ -562,6 +566,9 @@ function extractNotesFromBars(bars) {
                 soundTs: soundFrom(note),
                 isGrace: voiceEntry.isGrace === true,
                 isAfterGrace: voiceEntry.GraceAfterMainNote === true,
+                // Held as long as the player likes: what follows it is no
+                // measure of their pace (steadiness.js).
+                fermata: voiceEntry.Articulations?.some((a) => FERMATAS.has(a.articulationEnum)) === true,
                 // Index of the notehead within the chord (for targeting individual noteheads in SVG)
                 noteheadIndex,
                 // The staff, and on a middle staff the stem: what handOfNote reads
@@ -626,7 +633,7 @@ function extractNotesFromBars(bars) {
 
 // Every note that decorates another rather than being written as one: grace
 // notes, the notes an ornament expands into, and the trill sentinel.
-function isOrnamentOrGrace(noteData) {
+export function isOrnamentOrGrace(noteData) {
   return Boolean(
     noteData.isGrace ||
     noteData.isTrillNote ||
@@ -685,20 +692,64 @@ export function isNoteActiveForHands(noteData, activeHands) {
   return activeHands[handOfNote(noteData)]
 }
 
+// The score as noteLogAnalysis.js reads it, from the note model: the notes by
+// fingering key, and per source bar its length, tempo, attack positions and
+// beat (fragments.js). A bar is read on its first pass, its positions being
+// the same on every one; a note expanded into an ornament's is read on the
+// note drawn, the ornament's notes making one decorative attack with it.
+export function analysisModel(allNotes) {
+  const notes = new Map()
+  const bars = []
+  for (const { measureIndex, sourceMeasureIndex: bar, notes: measureNotes, duration } of allNotes) {
+    if (bars[bar]) continue
+    const positions = new Set()
+    for (const noteData of measureNotes) {
+      if (noteData.noteheadIndex < 0 && notes.has(noteData.fingeringKey)) continue
+      const position = roundPosition(noteData.timestamp - measureIndex)
+      const decorative = isOrnamentOrGrace(noteData)
+      notes.set(noteData.fingeringKey, {
+        bar,
+        staff: noteData.staffIndex,
+        position,
+        midi: noteData.midiNumber,
+        grace: decorative,
+        fermata: noteData.fermata,
+      })
+      if (!decorative && !noteData.isTieContinuation) positions.add(position)
+    }
+    const sourceMeasure = measureNotes[0]?.note?.SourceMeasure
+    bars[bar] = {
+      duration,
+      tempo: sourceMeasure?.TempoInBPM,
+      positions: [...positions].sort((a, b) => a - b),
+      beat: beatLength(sourceMeasure?.ActiveTimeSignature),
+    }
+  }
+  return { notes, bars }
+}
+
+// A beat in whole notes: the time signature's unit, or three of them in a
+// compound metre — a dotted crotchet in 6/8. A crotchet when the bar says
+// nothing.
+export function beatLength(signature) {
+  const numerator = signature?.Numerator
+  const denominator = signature?.Denominator
+  if (!numerator || !denominator) return 1 / 4
+  const compound = numerator > 3 && numerator % 3 === 0 && denominator >= 8
+  return (compound ? 3 : 1) / denominator
+}
+
 // The first measure at or after `from` that the active hands actually play,
 // or allNotes.length when the rest of the score is the other hand's alone.
 //
 // The measure cursor only ever moves when a note is validated, so a bar one
 // hand rests through — bar 25 of Bach's BWV 847 prelude is a whole rest in the
 // right hand — is a dead end for anyone working that hand by itself.
-export function nextPlayableMeasure(allNotes, from, activeHands) {
+// `owes` says which notes are played, when more than the hands decide it: a
+// fragment drilled (musicxml.js).
+export function nextPlayableMeasure(allNotes, from, activeHands, owes = (noteData) => isNoteActiveForHands(noteData, activeHands)) {
   let index = from
-  while (
-    index < allNotes.length &&
-    !allNotes[index].notes.some((noteData) => isNoteActiveForHands(noteData, activeHands))
-  ) {
-    index++
-  }
+  while (index < allNotes.length && !allNotes[index].notes.some(owes)) index++
   return index
 }
 

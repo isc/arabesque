@@ -17,12 +17,21 @@
       //     only went out once OSMD (1.3MB) and every module had been fetched,
       //     evaluated and Alpine had booted — a second or more of doing nothing
       //     with the connection. loadMxlAsXml() picks the bytes up from here.
+      //     The catalog that names it (lookUpListing) is preloaded with it:
+      //     read once Alpine has booted, it waited a round trip after the
+      //     last module.
       //  2. Flags the document as loading a score, which is what puts the
       //     spinner below on screen in place of the onboarding card.
       ;(function () {
         var url = new URLSearchParams(location.search).get('url')
         if (!url) return
         document.documentElement.dataset.loadingScore = '1'
+        var catalog = document.createElement('link')
+        catalog.rel = 'preload'
+        catalog.as = 'fetch'
+        catalog.crossOrigin = 'anonymous'
+        catalog.href = 'data/scores.json'
+        document.head.appendChild(catalog)
         // Resolves to null rather than rejecting on failure: nobody awaits this
         // for another second or so, and a rejection with no handler yet is an
         // unhandled-rejection report. null simply sends the consumer back to a
@@ -51,13 +60,12 @@
          the first paint and the fetch of the module graph below. Deferred
          classic scripts still run in document order, before the module. -->
     <script defer src="vendor/jszip.3.10.1.min.js"></script>
-    <script defer src="vendor/opensheetmusicdisplay.2.2.0.min.js"></script>
+    <script defer src="vendor/opensheetmusicdisplay.2.2.1.min.js"></script>
     <script type="module">
       import { midiApp } from './js/app.js'
       import { startAlpine } from './js/alpineBoot.js'
-      import { mountHeaderMenu } from './js/headerMenu.js'
       import { mountBpmFields } from './js/bpmField.js'
-      startAlpine({ midiApp }, [mountHeaderMenu, mountBpmFields])
+      startAlpine({ midiApp }, [mountBpmFields])
     </script>
   </head>
   <body @keydown.escape.window="handleEscape()">
@@ -271,7 +279,7 @@
           x-text="$t('score.loopBtn')"
         >🔁 Boucle</button>
       </div>
-      <span class="pt-context__row" x-text="trainingBandText()">Chaque mesure doit être jouée 3× sans erreur.</span>
+      <span class="pt-context__row" x-text="trainingBandText()">Chaque mesure doit être jouée 3× sans erreur ni hésitation.</span>
     </div>
 
     <main class="container pt-score-main">
@@ -413,7 +421,7 @@
 
           <!-- Reinforcement: brief acknowledgement -->
           <template x-if="resultMode === 'reinforcement'">
-            <p class="pt-modal-note" x-text="$t('score.reinforcementDone')">Toutes les mesures ont été renforcées avec succès.</p>
+            <p class="pt-modal-note" x-text="$t('score.reinforcementDone')">Tout ce qui était proposé a été renforcé avec succès.</p>
           </template>
         </div>
 
@@ -495,11 +503,11 @@
     </dialog>
 
     <!-- No-MIDI fallback -->
-    <dialog id="noMidiModal" x-bind:open="!navigator.requestMIDIAccess">
+    <dialog id="noMidiModal" :open="showNoMidiModal">
       <article>
         <header>
           <p><strong data-i18n="score.noMidiTitle">Web MIDI non supporté</strong></p>
-          <button aria-label="Close" rel="prev" onclick="noMidiModal.close()"></button>
+          <button aria-label="Close" rel="prev" @click="closeNoMidiModal()"></button>
         </header>
         <p>
           <span data-i18n="score.noMidiBody">Votre navigateur ne supporte pas Web MIDI API. Essayez avec</span>
@@ -508,7 +516,7 @@
         </p>
         <p x-text="$t('score.micHelpAlt')">Piano acoustique ou pas de MIDI ? Essayez le mode micro (bêta) : l'application écoute votre piano via le microphone et valide les notes jouées, une note à la fois (les accords ne sont pas encore reconnus).</p>
         <footer>
-          <button class="pt-chip pt-action-button" @click="noMidiModal.close(); toggleMic()" x-text="$t('score.midiHelpTryMic')">🎤 Essayer le mode micro (bêta)</button>
+          <button class="pt-chip pt-action-button" @click="closeNoMidiModal(); toggleMic()" x-text="$t('score.midiHelpTryMic')">🎤 Essayer le mode micro (bêta)</button>
         </footer>
       </article>
     </dialog>
@@ -530,6 +538,15 @@
             <button @click="appendFinger(finger)" x-text="finger"></button>
           </template>
           <button class="pt-chip pt-action-button" @click="removeFingering()">×</button>
+        </div>
+        <!-- A spot to watch: the note circled on the score, with a few words to
+             remember it by (noteCircles.js). -->
+        <div class="pt-circle-row">
+          <button class="pt-chip pt-action-button" x-show="selectedCircle === null" @click="circleNote()" x-text="$t('score.circleNote')">⭕ Entourer</button>
+          <template x-if="selectedCircle !== null">
+            <input type="text" x-ref="circleText" x-model="circleText" maxlength="40" enterkeyhint="done" :placeholder="$t('score.circlePlaceholder')" :aria-label="$t('score.circlePlaceholder')" @keydown.enter.prevent="validateFingering()" data-testid="circle-text" />
+          </template>
+          <button class="pt-chip pt-action-button" x-show="selectedCircle !== null" @click="removeCircle()" x-text="$t('score.circleRemove')">Retirer le cercle</button>
         </div>
         <footer>
           <button class="pt-chip pt-action-button is-primary" @click="validateFingering()" x-text="$t('score.fingeringValidate')">✓ Valider</button>
@@ -612,6 +629,7 @@
             </span>
           </template>
         </span>
+        <button type="button" class="pt-chip pt-keyhint__never" @click="setKeyHintAllowed(false)" x-text="$t('score.keyHintNever')">Ne plus l’afficher</button>
         <button type="button" class="pt-icon-button pt-keyhint__close" @click="dismissKeyHint()" :aria-label="$t('score.keyHintHide')">✕</button>
       </div>
       <div class="pt-keyhint__scroll">

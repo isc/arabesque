@@ -16,8 +16,9 @@
 -- a service-role key to hold, for what is one DELETE. A security definer
 -- function keeps it inside the SQL that is already applied by hand.
 --
--- Why deleting the auth user is enough: training_sessions, user_fingerings and
--- profiles all reference auth.users (id) ON DELETE CASCADE (supabase/sync.sql), so the
+-- Why deleting the auth user is enough: training_sessions, session_notes,
+-- user_fingerings and profiles all reference auth.users (id) ON DELETE CASCADE
+-- (supabase/sync.sql), so the
 -- row that authorises the data and the data itself go together. Feedback rows
 -- are deliberately NOT touched: they carry no user_id, are never readable by
 -- the client, and can be sent without ever having an account.
@@ -42,7 +43,8 @@ begin
   end if;
 
   -- auth.uid() reads the caller's own JWT, so this can only ever delete the
-  -- caller. Cascades through training_sessions, user_fingerings and profiles.
+  -- caller. Cascades through training_sessions, session_notes, user_fingerings
+  -- and profiles.
   delete from auth.users where id = uid;
 end;
 $$;

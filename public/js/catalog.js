@@ -12,6 +12,8 @@
 // of the catalog.
 let catalog = null
 
+// library.html and score.html preload the file, the fetch picking it up: a
+// page that stops reading it at boot drops its preload too.
 export function loadCatalog() {
   catalog ??= fetch('data/scores.json')
     .then((response) => response.json())

@@ -26,7 +26,7 @@ describe('the service worker shell', () => {
     expect(shell).toContain('js/version.js')
     expect(shell).toContain('js/swRegister.js')
     expect(shell).toContain('js/locales/fr.js')
-    expect(shell).toContain('vendor/opensheetmusicdisplay.2.2.0.min.js')
+    expect(shell).toContain('vendor/opensheetmusicdisplay.2.2.1.min.js')
     // Without the catalog, the library opens offline with no scores in it.
     expect(shell).toContain('data/scores.json')
     expect(shell).toContain('data/fingerprints.json')
@@ -80,6 +80,15 @@ describe('which pages install it', () => {
       expect(read(page)).toContain(`<meta name="theme-color" content="${manifest.theme_color}" />`)
     },
   )
+})
+
+// The ⚙️ menu is the way to every other page, to feedback and to the language
+// switch: an app page without it is a dead end. startAlpine() mounts it; the
+// page says where.
+describe('the ⚙️ menu', () => {
+  it.each(APP_PAGES)('%s has a place for it', (page) => {
+    expect(read(page)).toContain('<div data-menu-slot></div>')
+  })
 })
 
 describe('the install manifest', () => {

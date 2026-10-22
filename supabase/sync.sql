@@ -13,10 +13,17 @@
 --     immutable once ended; sync pushes ids the server lacks and pulls ids the
 --     client lacks. Aggregates are NOT stored here — they are recomputed locally
 --     from sessions after a pull.
+--   - session_notes: every key played in a session, a segment per row
+--     (public/js/noteLog.js has the format). Pushed once the session is on the
+--     server, never pulled: it is read by the analysis, not by another device.
 --   - user_fingerings: one row per (user, profile, score), stamped with
 --     updated_at (a JS epoch-ms value). A device sends or takes a row whole,
 --     and when both it and the server changed one since they last met, it
 --     merges the two note by note before sending (public/js/sync.js).
+--   - user_circles: the notes a player circled on a score, each with the few
+--     words of a reminder; rows like user_fingerings', synced the same way. A
+--     table of its own rather than a column there: public/js/storage.js says
+--     why.
 --   - profiles: the people sharing the account's devices (public/js/profiles.js).
 --     One row per (user, profile); the newest updated_at wins, and a removed
 --     profile keeps its row as a tombstone (deleted) so that a device that
@@ -53,6 +60,29 @@ create policy training_sessions_owner on public.training_sessions
   using (user_id = auth.uid())
   with check (user_id = auth.uid());
 
+create table if not exists public.session_notes (
+  user_id    uuid not null references auth.users (id) on delete cascade,
+  profile_id text not null default 'main',
+  id         text not null,          -- `<session id>:<segment number>`
+  session_id text not null,
+  started_at timestamptz,            -- the segment's first event
+  -- The segment's columns (noteLog.js). json rather than jsonb: nothing on
+  -- the server looks inside, and jsonb stores a small integer at about twice
+  -- the size of its text.
+  data       json not null,
+  created_at timestamptz not null default now(),
+  primary key (user_id, id)
+);
+create index if not exists session_notes_user_profile_session
+  on public.session_notes (user_id, profile_id, session_id);
+
+alter table public.session_notes enable row level security;
+drop policy if exists session_notes_owner on public.session_notes;
+create policy session_notes_owner on public.session_notes
+  for all to authenticated
+  using (user_id = auth.uid())
+  with check (user_id = auth.uid());
+
 create table if not exists public.user_fingerings (
   user_id    uuid not null references auth.users (id) on delete cascade,
   profile_id text not null default 'main',
@@ -70,6 +100,22 @@ alter table public.user_fingerings add primary key (user_id, profile_id, score_u
 alter table public.user_fingerings enable row level security;
 drop policy if exists user_fingerings_owner on public.user_fingerings;
 create policy user_fingerings_owner on public.user_fingerings
+  for all to authenticated
+  using (user_id = auth.uid())
+  with check (user_id = auth.uid());
+
+create table if not exists public.user_circles (
+  user_id    uuid not null references auth.users (id) on delete cascade,
+  profile_id text not null default 'main',
+  score_url  text not null,
+  circles    jsonb not null,         -- { <fingering key>: <reminder text, '' for none> }
+  updated_at bigint not null,        -- client updatedAt (epoch ms): which side changed (sync.js)
+  primary key (user_id, profile_id, score_url)
+);
+
+alter table public.user_circles enable row level security;
+drop policy if exists user_circles_owner on public.user_circles;
+create policy user_circles_owner on public.user_circles
   for all to authenticated
   using (user_id = auth.uid())
   with check (user_id = auth.uid());
@@ -102,7 +148,9 @@ set search_path = ''
 as $$
 begin
   delete from public.training_sessions where user_id = new.user_id and profile_id = new.id;
+  delete from public.session_notes where user_id = new.user_id and profile_id = new.id;
   delete from public.user_fingerings where user_id = new.user_id and profile_id = new.id;
+  delete from public.user_circles where user_id = new.user_id and profile_id = new.id;
   return new;
 end;
 $$;

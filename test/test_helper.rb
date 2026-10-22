@@ -580,12 +580,14 @@ class CapybaraTestBase < Minitest::Test
   # Helper to simulate MIDI input events
   # Example: simulate_midi_input("ON C4") or simulate_midi_input("OFF C4")
   def simulate_midi_input(notation)
-    data_array = parse_midi_notation(notation)
+    send_midi(parse_midi_notation(notation))
+  end
+
+  # One raw MIDI message through the mock input, e.g. [176, 64, 127] for the
+  # sustain pedal down.
+  def send_midi(data)
     page.execute_script(<<~JS)
-      const event = new CustomEvent('mock-midi-input', {
-        detail: { data: #{data_array.to_json} }
-      });
-      window.dispatchEvent(event);
+      window.dispatchEvent(new CustomEvent('mock-midi-input', { detail: { data: #{data.to_json} } }));
     JS
   end
 
@@ -720,9 +722,10 @@ class CapybaraTestBase < Minitest::Test
     assert_text "Départ à la mesure #{first} — cliquez sur la dernière mesure du passage."
   end
 
-  # The cursor moves a beat after the measure is finished (the engine pauses so
-  # the dot can be seen filling), so the next note has to wait for it — playing
-  # into a measure the cursor has not reached yet would count as a wrong note.
+  # At the end of a repetition the cursor moves a beat after the measure is
+  # finished (the engine pauses so the dot can be seen filling), so the next
+  # note has to wait for it — playing into a measure the cursor has not reached
+  # yet would count as a wrong note. A step further into a passage is immediate.
   def wait_for_training_cursor(measure_number)
     assert_selector %(svg rect.measure-click-area.selected[data-measure-index="#{measure_number - 1}"])
   end
@@ -733,6 +736,28 @@ class CapybaraTestBase < Minitest::Test
     notehead = all('svg g.vf-notehead')[notehead] if notehead.is_a?(Integer)
     notehead.click
     assert_selector 'dialog#fingeringModal[open]'
+  end
+
+  # The notehead of the first beat of `staff` at `rank` in pitch order (0 the
+  # lowest, -1 the highest), tagged so Capybara can click it.
+  def first_beat_notehead(staff, rank)
+    testid = "first-beat-#{staff}-#{rank}"
+    page.execute_script(<<~JS)
+      (() => {
+        const entry = osmdInstance.graphic.MeasureList[0][#{staff}].staffEntries[0]
+        const notes = entry.graphicalVoiceEntries
+          .flatMap((voiceEntry) => voiceEntry.notes)
+          .map((graphicalNote) => graphicalNote.sourceNote)
+          .sort((a, b) => a.Pitch.getHalfTone() - b.Pitch.getHalfTone())
+        const note = notes.at(#{rank})
+        osmdInstance.rules
+          .GNote(note)
+          .getSVGGElement()
+          .querySelectorAll('.vf-notehead')[note.ParentVoiceEntry.Notes.indexOf(note)]
+          .setAttribute('data-testid', #{testid.to_json})
+      })()
+    JS
+    find("[data-testid=\"#{testid}\"]")
   end
 
   # Enters `digit` on `notehead` and returns once the pad has closed: by then
@@ -751,11 +776,10 @@ class CapybaraTestBase < Minitest::Test
     assert_no_selector 'dialog#fingeringModal[open]'
   end
 
-  # repeat-endings.xml with measure 1 fumbled, a wrong note before the right
-  # one: what puts it on the list to reinforce.
-  # repeat-endings.xml with its second bar fumbled: E4 where it owes D4. Not
-  # the first bar: a run starts with its first right note, and a key tried
-  # before that is no part of it.
+  # repeat-endings.xml with the way into its second bar fumbled: E4 where it
+  # owes D4, the bar's one note — so the way in from bar 1 is what goes on the
+  # list to reinforce (fragments.js). Not the first bar: a run starts with its
+  # first right note, and a key tried before that is no part of it.
   def open_with_the_second_bar_fumbled
     visit '/score.html?url=/test-fixtures/repeat-endings.xml'
     wait_for_score_render(4)

@@ -6,37 +6,15 @@
 // — several wrong keys tried for it, or a long wait over it — and goes away
 // again once the notes are coming promptly and clean for a good stretch, the
 // way a teacher's hand leaves the keyboard. The ✕ puts it away for the rest of
-// the day, for the profile that closed it: a child playing with the strip
-// instead of listening to the teacher closes it once, not at every score
-// (feedback 4d8a81b9).
+// the day, and the player who never wants it puts it away for good
+// (keyHintSetting.js, which keeps both).
 //
 // hintStep is the whole of that decision, kept pure so it can be tested
 // without a clock or a page; initKeyboardHint wires it to a timer, the engine
 // and the DOM.
 import { noteName, spelledNote, handOfNote, cLabel } from './noteExtraction.js'
 import { t } from './i18n.js'
-import { localDayKey } from './days.js'
-import { scopedKey } from './profiles.js'
-
-// The day the ✕ was last clicked, per profile.
-const DISMISSED_KEY = scopedKey('arabesque:keyhint-dismissed')
-const today = () => localDayKey(new Date())
-
-function dismissedToday() {
-  try {
-    return localStorage.getItem(DISMISSED_KEY) === today()
-  } catch {
-    return false
-  }
-}
-
-function rememberDismissed() {
-  try {
-    localStorage.setItem(DISMISSED_KEY, today())
-  } catch {
-    /* storage refused: the ✕ holds for this page only */
-  }
-}
+import { keyHintPutAway, putKeyHintAwayForToday, KEY_HINT_SETTING_EVENT } from './keyHintSetting.js'
 
 // Wrong keys tried for the same note before it is shown.
 export const HINT_WRONG_NOTES = 3
@@ -76,11 +54,11 @@ const reveal = (state) => (state.visible || state.dismissed ? state : { ...state
 //         while nothing is asked of them (strict mode, listening, page hidden)
 //   press { now }                — a key went down
 //   wrong { now }                — and it was not the note owed
-//   dismiss                      — the ✕
 //   rest                         — the practice context changed (a new mode):
 //                                  the next wait counts from the next keypress
-//   restart                      — a run over or a piece opened: back to the
-//                                  start, only the ✕ kept
+//   restart { dismissed }        — a run over, a piece opened or the strip
+//                                  put away or let back: back to the start,
+//                                  put away or not as the setting stands
 export function hintStep(state, event) {
   switch (event.type) {
     case 'press':
@@ -111,12 +89,10 @@ export function hintStep(state, event) {
       if (state.engaged && key != null && now - state.since >= HINT_HESITATION_MS) return reveal(state)
       return state
     }
-    case 'dismiss':
-      return { ...state, visible: false, dismissed: true }
     case 'rest':
       return { ...state, engaged: false, wrongs: 0 }
     case 'restart':
-      return { ...initialHint(), dismissed: state.dismissed }
+      return { ...initialHint(), dismissed: event.dismissed }
     default:
       return state
   }
@@ -170,7 +146,7 @@ function caption(notes) {
 }
 
 export function initKeyboardHint({ owedGroup, eligible, onVisibleChange, onCaptionChange, now = () => performance.now() }) {
-  let state = { ...initialHint(), dismissed: dismissedToday() }
+  let state = { ...initialHint(), dismissed: keyHintPutAway() }
   // While the keyboard is up, the page follows the player at TICK_MS, so the
   // lit keys move with the cursor however it moved (the beat that ends a
   // measure, a click on another bar). While it is down, a single timer waits
@@ -198,11 +174,15 @@ export function initKeyboardHint({ owedGroup, eligible, onVisibleChange, onCapti
   }
 
   // Forgets the keys held and the wait under way, then rests or restarts.
-  function startOver(type) {
+  function startOver(event) {
     held.clear()
     clearTimeout(waiting)
-    dispatch({ type })
+    dispatch(event)
   }
+  // The setting is read again at every restart, so a ✕ from yesterday is over
+  // on the next piece, and the menu is followed on the page it was changed on.
+  const restart = () => startOver({ type: 'restart', dismissed: keyHintPutAway() })
+  window.addEventListener(KEY_HINT_SETTING_EVENT, restart)
 
   function tick() {
     const group = owedGroup()
@@ -295,7 +275,7 @@ export function initKeyboardHint({ owedGroup, eligible, onVisibleChange, onCapti
         keyElements.set(midi, { key, name })
         el.append(key)
       }
-      startOver('restart')
+      restart()
     },
     // After the engine has had the keypress (see app.js): whether it was a
     // wrong note is already known by then, through wrongNote.
@@ -324,15 +304,12 @@ export function initKeyboardHint({ owedGroup, eligible, onVisibleChange, onCapti
       if (state.visible) tick()
     },
     dismiss() {
-      rememberDismissed()
-      clearTimeout(waiting)
-      dispatch({ type: 'dismiss' })
+      putKeyHintAwayForToday()
+      restart()
     },
     rest() {
-      startOver('rest')
+      startOver({ type: 'rest' })
     },
-    restart() {
-      startOver('restart')
-    },
+    restart,
   }
 }

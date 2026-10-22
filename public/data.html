@@ -19,10 +19,13 @@
     </script>
   </head>
   <body>
-    <main class="container pt-data-page">
+    <main class="container pt-data-page" @keydown.escape.window="closeMenuLayer()">
       <div class="pt-page-header">
         <a href="library.html" class="pt-back" data-i18n="data.back">← Bibliothèque</a>
         <h1 x-text="$t('data.heading')">Données</h1>
+        <div class="pt-page-header__actions">
+          <div data-menu-slot></div>
+        </div>
       </div>
 
       <!-- Profiles: who the data on this device belongs to -->
@@ -189,9 +192,9 @@
         </div>
       </article>
 
-      <!-- This page is where someone comes to think about their data, so it is
-           where the two pages explaining it belong; the ⚙️ menu that carries
-           them elsewhere is not mounted here. -->
+      <!-- This page is where someone comes to think about their data, so the
+           two pages explaining it are in plain sight here, not only in the
+           ⚙️ menu. -->
       <footer class="pt-footer">
         <span class="pt-footer-links">
           <a href="privacy.html" data-i18n="common.privacy">Confidentialité</a>

@@ -7,10 +7,17 @@ const DB_BASE_NAME = 'arabesque'
 // moved over on first open (see readLegacyDatabase) so nobody has to re-import
 // a backup.
 const LEGACY_DB_NAME = 'piano-trainer'
-export const DB_VERSION = 3
+export const DB_VERSION = 6
 const FINGERINGS_STORE = 'fingerings'
+const CIRCLES_STORE = 'circles'
 const SESSIONS_STORE = 'sessions'
 const AGGREGATES_STORE = 'aggregates'
+const NOTE_LOGS_STORE = 'noteLogs'
+const KEPT_NOTE_LOGS_STORE = 'keptNoteLogs'
+
+// Without `synced` in a backup: it is this device's own exchange with the
+// server, as meaningless to another device as its last-sync time.
+const withoutSynced = ({ synced, ...record }) => record
 
 // The kinds of data a profile keeps, a store each: how its records are keyed,
 // what they are looked up by, and how a backup carries them, under the store's
@@ -22,15 +29,40 @@ const AGGREGATES_STORE = 'aggregates'
 // importBackup learn a new one. Backups made outside the app write the same
 // keys: landing-video/capture/fetch-backup.mjs and scripts/demo/seed.js.
 const STORE_DEFS = [
-  // Without `synced` in a backup: it is this device's own exchange with the
-  // server, as meaningless to another device as its last-sync time.
-  { name: FINGERINGS_STORE, keyPath: 'scoreUrl', toBackup: ({ synced, ...record }) => record },
+  { name: FINGERINGS_STORE, keyPath: 'scoreUrl', toBackup: withoutSynced },
+  // The notes circled on a score, each with the few words of a reminder ('' for
+  // none), kept as fingerings are (noteMaps below) but in a store of their own
+  // rather than as a second map in the fingering record. That record is written
+  // whole by code that knows only fingerings: by a build from before circles,
+  // which a branch preview's production twin is, on the same database, and so
+  // is an iPad that has not reloaded yet — its sync writes back what it read
+  // with its own fields alone, and would drop the circles. By the translation
+  // of keys from before #350 too (migrateFingeringRecord), which circles, born
+  // after, never need. And fingerings are what a score can be given
+  // (scripts/import-fingerings.mjs), where a circle is the player's own.
+  { name: CIRCLES_STORE, keyPath: 'scoreUrl', toBackup: withoutSynced },
   { name: SESSIONS_STORE, keyPath: 'id', indexes: ['scoreId', 'startedAt'] },
   // Derived from the sessions, and rebuilt from them on import: a backup's
   // copy only lends its names (sync.js).
   { name: AGGREGATES_STORE, keyPath: 'scoreId' },
+  // Every key played, a segment of a session's at a time (noteLog.js), until
+  // the server has it. Kept out of a backup: it is raw material for the
+  // analysis, megabytes of it, where a backup is the practice history — and
+  // this store only holds what is not on the server yet, the last weeks at
+  // most.
+  { name: NOTE_LOGS_STORE, keyPath: 'id', backup: false },
+  // Segments the server has, kept here for the analysis of the score they
+  // were played on (noteLogAnalysis.js): moved over once pushed, or fetched
+  // from the server for the sessions another device played. Out of a backup
+  // for the same reason, and only a score's last sessions' (keepScoreNoteLogs
+  // in noteLog.js).
+  { name: KEPT_NOTE_LOGS_STORE, keyPath: 'id', backup: false },
 ]
 export const STORES = STORE_DEFS.map((def) => def.name)
+// The stores kept as maps of notes per score (noteMaps), which sync.js
+// reconciles alike.
+export const NOTE_MAPS = [FINGERINGS_STORE, CIRCLES_STORE]
+const BACKUP_DEFS = STORE_DEFS.filter((def) => def.backup !== false)
 // What an operation fails with when the connection under it is gone rather
 // than the operation being wrong: InvalidStateError from transaction() on a
 // connection the browser has closed ("The database connection is closing"),
@@ -38,11 +70,22 @@ export const STORES = STORE_DEFS.map((def) => def.name)
 // Database server lost"). See withDb.
 const CONNECTION_LOST = new Set(['InvalidStateError', 'UnknownError'])
 
-// The version a fingering record new to this device last exchanged with the
+// The version a record of `field` new to this device last exchanged with the
 // server: none, and nothing in it. sync.js merges the server's copy against
 // it, so what was entered here joins what other devices entered first rather
 // than replacing it.
-export const NEVER_SYNCED = Object.freeze({ fingerings: Object.freeze({}), updatedAt: -1 })
+export const neverSynced = (field) => ({ [field]: {}, updatedAt: -1 })
+
+// A session's segments, by their ids — `<session id>:<n>` (noteLog.js): ';'
+// sorts right after ':'. Read back in their order, which a string key does
+// not keep past the ninth.
+const sessionRange = (sessionId) => IDBKeyRange.bound(`${sessionId}:`, `${sessionId};`, false, true)
+const segmentNumber = (id) => Number(id.slice(id.lastIndexOf(':') + 1))
+
+// The records of `store` under `keys`, a key with none left out.
+async function getMany(store, keys) {
+  return (await Promise.all(keys.map((key) => promisifyRequest(store.get(key))))).filter(Boolean)
+}
 
 function promisifyRequest(request) {
   return new Promise((resolve, reject) => {
@@ -109,6 +152,7 @@ async function openDatabase(name) {
 
       request.onerror = () => {
         if (abandoned) globalThis.addEventListener('pageshow', open, { once: true })
+        else if (request.error?.name === 'VersionError') openAsItStands()
         else reject(request.error)
       }
       request.onsuccess = () => resolve(request.result)
@@ -147,6 +191,17 @@ async function openDatabase(name) {
         upgrade.addEventListener('complete', settled)
         upgrade.addEventListener('abort', settled)
       }
+    }
+    // A newer build has upgraded the database past DB_VERSION: a branch
+    // preview, served from the same origin and so on the same database. A
+    // version only ever adds stores (STORE_DEFS), so every store this build
+    // knows is there: it is opened as it stands, rather than refused with a
+    // VersionError that left production without its data until the branch
+    // shipped.
+    const openAsItStands = () => {
+      const request = indexedDB.open(name)
+      request.onerror = () => reject(request.error)
+      request.onsuccess = () => resolve(request.result)
     }
     open()
   })
@@ -193,6 +248,12 @@ export function initStorage() {
     dbReady ??= openDatabase(scopedKey(DB_BASE_NAME))
       .then((db) => {
         pruneProfileStorage().catch(() => {})
+        // Storage left best-effort is what a browser clears first when the
+        // disk fills up, the whole origin at once: the journal of a player who
+        // never signed in, the fingerings not synced yet. Asked at every open,
+        // which costs nothing once granted; Chrome and Safari answer without a
+        // prompt, from how the site is used, and Firefox asks once.
+        globalThis.navigator?.storage?.persist?.().catch(() => {})
         return db
       })
       .catch((error) => {
@@ -242,71 +303,85 @@ export function initStorage() {
 
   // The records under `keys`, in one transaction; a key with none is left out.
   function dbGetMany(storeName, keys) {
-    return withStore(storeName, 'readonly', async (store) =>
-      (await Promise.all(keys.map((key) => promisifyRequest(store.get(key))))).filter(Boolean))
+    return withStore(storeName, 'readonly', (store) => getMany(store, keys))
+  }
+
+  // Both note log stores in one transaction — the segments still to send and
+  // those kept — resolved once it has committed, with what `operation` did.
+  function withNoteLogStores(mode, operation) {
+    return withDb(async (db) => {
+      const transaction = db.transaction([NOTE_LOGS_STORE, KEPT_NOTE_LOGS_STORE], mode)
+      const done = promisifyTransaction(transaction)
+      const result = await operation(transaction.objectStore(NOTE_LOGS_STORE), transaction.objectStore(KEPT_NOTE_LOGS_STORE))
+      await done
+      return result
+    })
   }
 
   function dbPut(storeName, data) {
     return withStore(storeName, 'readwrite', (store) => promisifyRequest(store.put(data)))
   }
 
+  // One record per score, `{ scoreUrl, [field]: { [note key]: value },
+  // updatedAt, synced }`, the field named as the store. A score with no record
+  // yet gets one that has never met the server (neverSynced). A fingering
+  // record written before `synced` existed carries none, and is left to its
+  // own rule (sync.js).
+  function noteMaps(field) {
+    const get = async (scoreUrl) => (await dbGet(field, scoreUrl)) || { scoreUrl, [field]: {}, synced: neverSynced(field) }
+
+    async function update(scoreUrl, updateFn) {
+      const record = await get(scoreUrl)
+      // Edited as a copy: a record a sync wrote back holds one map for both
+      // its notes and `synced` (IndexedDB stores the two references as one
+      // object), and an edit in place would move the version the next sync
+      // merges against along with it.
+      record[field] = { ...record[field] }
+      updateFn(record[field])
+      record.updatedAt = Date.now()
+      await dbPut(field, record)
+    }
+
+    return {
+      get,
+
+      set: (scoreUrl, noteKey, value) =>
+        update(scoreUrl, (notes) => {
+          notes[noteKey] = value
+        }),
+
+      remove: (scoreUrl, noteKey) =>
+        update(scoreUrl, (notes) => {
+          delete notes[noteKey]
+        }),
+
+      getAll: () => dbGetAll(field),
+
+      // Overwrite a whole record.
+      put: (record) => dbPut(field, record),
+
+      // Overwrite records, each only if the stored one still carries the stamp
+      // it was read with (`read`, 0 for none), all read and written in one
+      // transaction: a writer that read a record earlier — sync writing back
+      // what it exchanged, the score page translating old keys — must not
+      // write over a note entered since.
+      putIfUnchanged: (entries) =>
+        withStore(field, 'readwrite', (store) =>
+          Promise.all(entries.map(async ({ record, read }) => {
+            const stored = await promisifyRequest(store.get(record.scoreUrl))
+            if ((stored?.updatedAt ?? 0) === read) await promisifyRequest(store.put(record))
+          }))),
+    }
+  }
+
   return {
     init: ensureDb,
 
-    // Fingerings methods
-    //
-    // A score with no record yet gets one that has never met the server
-    // (NEVER_SYNCED). A record written before `synced` existed carries none,
-    // and is left to its own rule (sync.js).
-    async getFingerings(scoreUrl) {
-      return (await dbGet(FINGERINGS_STORE, scoreUrl)) || { scoreUrl, fingerings: {}, synced: NEVER_SYNCED }
-    },
-
-    async setFingering(scoreUrl, noteKey, finger) {
-      await this._updateFingerings(scoreUrl, (fingerings) => {
-        fingerings[noteKey] = finger
-      })
-    },
-
-    async removeFingering(scoreUrl, noteKey) {
-      await this._updateFingerings(scoreUrl, (fingerings) => {
-        delete fingerings[noteKey]
-      })
-    },
-
-    async _updateFingerings(scoreUrl, updateFn) {
-      const data = await this.getFingerings(scoreUrl)
-      // Edited as a copy: a record a sync wrote back holds one map for both
-      // its fingerings and `synced` (IndexedDB stores the two references as
-      // one object), and an edit in place would move the version the next
-      // sync merges against along with it.
-      data.fingerings = { ...data.fingerings }
-      updateFn(data.fingerings)
-      data.updatedAt = Date.now()
-      await dbPut(FINGERINGS_STORE, data)
-    },
-
-    async getAllFingerings() {
-      return dbGetAll(FINGERINGS_STORE)
-    },
-
-    // Overwrite a whole fingerings record ({ scoreUrl, fingerings, updatedAt }).
-    async putFingeringRecord(record) {
-      await dbPut(FINGERINGS_STORE, record)
-    },
-
-    // Overwrite records, each only if the stored one still carries the stamp
-    // it was read with (`read`, 0 for none), all read and written in one
-    // transaction: a writer that read a record earlier — sync writing back what
-    // it exchanged, the score page translating old keys — must not write over
-    // a fingering entered since.
-    putFingeringRecordsIfUnchanged(entries) {
-      return withStore(FINGERINGS_STORE, 'readwrite', (store) =>
-        Promise.all(entries.map(async ({ record, read }) => {
-          const stored = await promisifyRequest(store.get(record.scoreUrl))
-          if ((stored?.updatedAt ?? 0) === read) await promisifyRequest(store.put(record))
-        })))
-    },
+    // Per score, a map from a note's fingering key to what the player put on
+    // it — a fingering, a circle's reminder — in the store of that name, whose
+    // record carries it under the same name (noteMaps).
+    fingerings: noteMaps(FINGERINGS_STORE),
+    circles: noteMaps(CIRCLES_STORE),
 
     // Sessions methods
     async saveSession(session) {
@@ -358,10 +433,10 @@ export function initStorage() {
       return (await dbGetAll(AGGREGATES_STORE)) || []
     },
 
-    // Every store, each under its own name (see STORE_DEFS).
+    // Every store a backup carries, each under its own name (see STORE_DEFS).
     async exportBackup() {
       const backup = { exportDate: new Date().toISOString() }
-      for (const { name, toBackup = (record) => record } of STORE_DEFS) {
+      for (const { name, toBackup = (record) => record } of BACKUP_DEFS) {
         backup[name] = (await dbGetAll(name)).map(toBackup)
       }
       return backup
@@ -377,6 +452,81 @@ export function initStorage() {
         const imported = putAllToStore(transaction, SESSIONS_STORE, sessions.filter((s) => !here.has(s.id)))
         await promisifyTransaction(transaction)
         return imported
+      })
+    },
+
+    // Note logs methods (noteLog.js): every segment in NOTE_LOGS_STORE is one
+    // the server does not have yet, every one in KEPT_NOTE_LOGS_STORE one it
+    // has.
+    saveNoteLog(segment) {
+      return dbPut(NOTE_LOGS_STORE, segment)
+    },
+
+    // Unless one is held under the same id already: fails with a
+    // ConstraintError then.
+    addNoteLog(segment) {
+      return withStore(NOTE_LOGS_STORE, 'readwrite', (store) => promisifyRequest(store.add(segment)))
+    },
+
+    // The segments' ids, and nothing else of them: their sessions are in them.
+    getNoteLogIds() {
+      return withStore(NOTE_LOGS_STORE, 'readonly', (store) => promisifyRequest(store.getAllKeys()))
+    },
+
+    getNoteLogsById(ids) {
+      return dbGetMany(NOTE_LOGS_STORE, ids)
+    },
+
+    // The server has them: from the segments to send to those kept, in one
+    // transaction, so that none is ever in both or in neither.
+    keepNoteLogs(ids) {
+      return withNoteLogStores('readwrite', async (pending, kept) => {
+        for (const segment of await getMany(pending, ids)) kept.put(segment)
+        for (const id of ids) pending.delete(id)
+      })
+    },
+
+    // Segments fetched from the server.
+    saveKeptNoteLogs(segments) {
+      return withNoteLogStores('readwrite', (pending, kept) => {
+        for (const segment of segments) kept.put(segment)
+      })
+    },
+
+    // The segments of each of these sessions, sent or not, in order: an array
+    // per session, as noteLogAnalysis.js reads one.
+    getNoteLogsOfSessions(sessionIds) {
+      return withNoteLogStores('readonly', (pending, kept) => {
+        const read = (store, id) => promisifyRequest(store.getAll(sessionRange(id)))
+        return Promise.all(
+          sessionIds.map(async (id) =>
+            (await Promise.all([read(kept, id), read(pending, id)])).flat().sort((a, b) => segmentNumber(a.id) - segmentNumber(b.id)),
+          ),
+        )
+      })
+    },
+
+    // The ids of every segment held, sent or not.
+    getHeldNoteLogIds() {
+      return withNoteLogStores('readonly', async (pending, kept) =>
+        (await Promise.all([pending, kept].map((store) => promisifyRequest(store.getAllKeys())))).flat(),
+      )
+    },
+
+    // The kept segments of these sessions: the server still has them.
+    deleteKeptNoteLogsOfSessions(sessionIds) {
+      return withNoteLogStores('readwrite', (pending, kept) => {
+        for (const id of sessionIds) kept.delete(sessionRange(id))
+      })
+    },
+
+    // The segments of the sessions started before `epochMs`, sent or not, by
+    // their ids, which open on it (noteLog.js).
+    deleteNoteLogsBefore(epochMs) {
+      return withNoteLogStores('readwrite', (pending, kept) => {
+        const before = IDBKeyRange.upperBound(String(epochMs), true)
+        pending.delete(before)
+        kept.delete(before)
       })
     },
 

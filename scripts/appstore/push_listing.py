@@ -53,14 +53,18 @@ def find_ids():
     app_id = asc.app_id()
 
     _, d = asc.call("GET", f"/v1/apps/{app_id}/appStoreVersions?limit=10")
-    versions = [v for v in d.get("data", [])
-                if v["attributes"]["appStoreState"] in EDITABLE_STATES]
+    d_versions = d.get("data", [])
+    versions = [v for v in d_versions if v["attributes"]["appStoreState"] in EDITABLE_STATES]
     if not versions:
         raise SystemExit("no editable version — create one in App Store Connect first")
     version_id = versions[0]["id"]
 
+    # Once a version is on sale, its app info is locked and a second one takes
+    # the edits for the version under way: the first in the list is not it.
     _, d = asc.call("GET", f"/v1/apps/{app_id}/appInfos")
-    app_info_id = d["data"][0]["id"]
+    infos = d["data"]
+    editable = [i for i in infos if i["attributes"].get("state") != "READY_FOR_DISTRIBUTION"]
+    app_info_id = (editable or infos)[0]["id"]
 
     def localization(path, kind):
         _, got = asc.call("GET", path)
@@ -72,6 +76,9 @@ def find_ids():
     return {
         "app": app_id,
         "version": version_id,
+        # Apple takes "what's new" from an update only, and refuses it on a
+        # first version: there is nothing it could be new against.
+        "update": any(v["attributes"]["appStoreState"] not in EDITABLE_STATES for v in d_versions),
         "app_info": app_info_id,
         "version_loc": localization(f"/v1/appStoreVersions/{version_id}/appStoreVersionLocalizations",
                                     "version localization"),
@@ -90,6 +97,7 @@ def push_metadata(ids):
     asc.expect("description, keywords, URLs", *asc.call(
         "PATCH", f"/v1/appStoreVersionLocalizations/{ids['version_loc']}",
         {"data": {"type": "appStoreVersionLocalizations", "id": ids["version_loc"], "attributes": {
+            **({"whatsNew": copy.WHATS_NEW} if ids["update"] else {}),
             "description": copy.DESCRIPTION,
             "keywords": copy.KEYWORDS,
             "promotionalText": copy.PROMOTIONAL_TEXT,

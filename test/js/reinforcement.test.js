@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { measuresToReinforce, hasHotSpots } from '../../public/js/reinforcement.js'
+import { measuresToReinforce } from '../../public/js/reinforcement.js'
 
 describe('measures to reinforce', () => {
   // Sessions as the ranking takes them: oldest first, one entry per measure.
@@ -7,10 +7,11 @@ describe('measures to reinforce', () => {
     mode,
     measures: Object.entries(measures).map(([index, attempts]) => ({
       sourceMeasureIndex: Number(index),
-      attempts: attempts.map(([wrongNotes, durationMs = 100]) => ({
+      attempts: attempts.map(([wrongNotes, durationMs = 100, hesitations]) => ({
         wrongNotes,
         durationMs,
         clean: wrongNotes === 0,
+        ...(hesitations && { hesitations }),
       })),
     })),
   })
@@ -55,6 +56,70 @@ describe('measures to reinforce', () => {
     })
   })
 
+  // The right notes with a hole in them: the drill would not fill its dot.
+  it('offers a measure played with the right notes and a hesitation', () => {
+    const result = measuresToReinforce([session({ 0: [[0]], 1: [[0, 100, 1]] })])
+    expect(result.map((m) => m.sourceMeasureIndex)).toEqual([1])
+  })
+
+  it('does not retire a measure on passes with a hesitation in them', () => {
+    const fumbled = session({ 0: [[2]] })
+    expect(measuresToReinforce([fumbled, session({ 0: [[0, 100, 1], [0, 100, 1], [0, 100, 1]] })])).toHaveLength(1)
+    expect(measuresToReinforce([fumbled, session({ 0: [[0, 100, 1], [0], [0], [0]] }, 'training')])).toEqual([])
+    expect(measuresToReinforce([fumbled, session({ 0: [[0, 100, 1], [0], [0, 100, 2], [0]] }, 'training')])).toHaveLength(1)
+  })
+
+  it('ranks a hesitation with a wrong note', () => {
+    const result = measuresToReinforce([session({ 0: [[1, 100]], 1: [[1, 100, 2]], 2: [[0, 300, 1]] })])
+    expect(result.map((m) => m.sourceMeasureIndex)).toEqual([1, 2, 0])
+  })
+
+  // The way into a bar, which drilling the bar alone never plays.
+  describe('joins', () => {
+    const run = (bars, mode = 'free') => ({
+      mode,
+      measures: Object.entries(bars).map(([index, attempts]) => ({ sourceMeasureIndex: Number(index), attempts })),
+    })
+    const through = { wrongNotes: 0, clean: true, durationMs: 100, joined: true, entryRatio: 1 }
+    const stalled = { ...through, entryRatio: 3.8, entryHole: true }
+    const fumbledIn = { wrongNotes: 1, clean: false, durationMs: 100, joined: true, entryWrongNotes: 1 }
+    // A repetition of the bar alone: clean, and nothing said of its join.
+    const alone = { wrongNotes: 0, clean: true, durationMs: 100 }
+
+    it('offers a join stalled at, apart from its bar played clean', () => {
+      expect(measuresToReinforce([run({ 0: [through], 1: [stalled] })])).toEqual([
+        expect.objectContaining({ sourceMeasureIndex: 1, join: true, attempts: 1, faults: 1 }),
+      ])
+    })
+
+    // The leap into bar 33 of the C minor prelude, played an octave off.
+    it('gives a wrong note on the way into a bar to the join, the rest to the bar', () => {
+      const offered = (attempt) => measuresToReinforce([run({ 1: [attempt] })]).map((c) => [c.sourceMeasureIndex, !!c.join])
+      expect(offered(fumbledIn)).toEqual([[1, true]])
+      expect(offered({ ...fumbledIn, wrongNotes: 3 })).toEqual([[1, false], [1, true]])
+    })
+
+    it('counts a join played through even where its pace could not be judged', () => {
+      const unjudged = { wrongNotes: 0, clean: true, durationMs: 100, joined: true }
+      expect(measuresToReinforce([run({ 1: [fumbledIn] }), run({ 1: [unjudged, unjudged, unjudged] })])).toEqual([])
+    })
+
+    it('is not retired by drilling the bar alone, only by playing through it', () => {
+      const offered = (sessions) => measuresToReinforce(sessions).filter((c) => c.join)
+      expect(offered([run({ 1: [stalled] }), run({ 1: [alone, alone, alone] }, 'training')])).toHaveLength(1)
+      expect(offered([run({ 1: [stalled] }), run({ 1: [through, through, through] }, 'training')])).toEqual([])
+      expect(offered([run({ 1: [stalled] }), run({ 1: [through] }), run({ 1: [through] }), run({ 1: [through] })])).toEqual([])
+    })
+
+    it('ranks a join by the times it was fumbled, with the bars', () => {
+      const ranked = measuresToReinforce([
+        run({ 0: [{ ...alone, wrongNotes: 1, clean: false }], 2: [stalled] }),
+        run({ 2: [stalled] }),
+      ])
+      expect(ranked.map((c) => [c.sourceMeasureIndex, !!c.join])).toEqual([[2, true], [0, false]])
+    })
+  })
+
   it('sorts by wrong notes, then by duration', () => {
     const result = measuresToReinforce([
       session({ 0: [[2, 100]], 1: [[3, 100]], 2: [[2, 300]] }),
@@ -67,7 +132,7 @@ describe('measures to reinforce', () => {
       session({ 0: [[1, 100]] }),
       session({ 0: [[2, 300]] }),
     ])
-    expect(result[0]).toMatchObject({ wrongNotes: 3, durationMs: 300 })
+    expect(result[0]).toMatchObject({ faults: 3, durationMs: 300 })
   })
 
   it('respects the limit', () => {
@@ -129,49 +194,5 @@ describe('measures to reinforce', () => {
   it('needs three sessions before calling a measure stagnant', () => {
     const twoSessions = [session({ 0: [[1]] }), session({ 0: [[1]] })]
     expect(measuresToReinforce(twoSessions)[0].stagnant).toBe(false)
-  })
-
-  // The library's 🎯 chip: a bar reinforcement would offer that also stands
-  // out from the rest of the piece.
-  describe('hot spots', () => {
-    const clean = [[0], [0], [0]]
-
-    it('finds a bar fumbled far more often than the rest of the piece', () => {
-      expect(hasHotSpots([session({ 0: clean, 1: clean, 2: [[1], [1], [0]] })])).toBe(true)
-    })
-
-    it('finds none in a piece fumbled evenly, though reinforcement has bars to offer', () => {
-      const even = [session({ 0: [[1], [0], [1]], 1: [[1], [1], [0]], 2: [[0], [1], [1]] })]
-      expect(measuresToReinforce(even)).not.toEqual([])
-      expect(hasHotSpots(even)).toBe(false)
-    })
-
-    it('needs more than one unlucky attempt', () => {
-      expect(hasHotSpots([session({ 0: [[0]], 1: [[0]], 2: [[1]] })])).toBe(false)
-      expect(hasHotSpots([session({ 0: clean, 1: clean, 2: [[1], [1], [1]] })])).toBe(true)
-    })
-
-    it('lets a bar go once it has been played cleanly three times in a row', () => {
-      const steady = [[0], [0], [0], [0], [0], [0]]
-      expect(hasHotSpots([session({ 0: steady, 1: [[1], [1], [0], [0]] })])).toBe(true)
-      expect(hasHotSpots([session({ 0: steady, 1: [[1], [1], [0], [0], [0]] })])).toBe(false)
-    })
-
-    it('finds none without sessions or without a fumble', () => {
-      expect(hasHotSpots([])).toBe(false)
-      expect(hasHotSpots([session({ 0: clean })])).toBe(false)
-    })
-
-    it('asks of both hands unless told otherwise', () => {
-      const attempts = (wrongNotes, hands) => wrongNotes.map((w) => ({ wrongNotes: w, clean: w === 0, hands }))
-      const sessions = [{
-        measures: [
-          { sourceMeasureIndex: 0, attempts: [...attempts([0, 0, 0], 'both'), ...attempts([0, 0, 0], 'left')] },
-          { sourceMeasureIndex: 1, attempts: [...attempts([0, 0, 0], 'both'), ...attempts([1, 1, 1], 'left')] },
-        ],
-      }]
-      expect(hasHotSpots(sessions)).toBe(false)
-      expect(hasHotSpots(sessions, 'left')).toBe(true)
-    })
   })
 })

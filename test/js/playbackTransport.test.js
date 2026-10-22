@@ -168,6 +168,58 @@ describe('playback transport', () => {
     expect(pb.transport).toBe('stopped')
   })
 
+  // The MD / MG toggles say which hand is being worked, and so which one is
+  // heard (feedback 42499ee5).
+  describe('hands', () => {
+    // Each bar a right-hand note on the top staff over a left-hand one below.
+    function twoHands(measureCount = 4) {
+      const [allNotes, osmd] = score(measureCount)
+      for (const measure of allNotes) {
+        const [rh] = measure.notes
+        measure.notes = [
+          { ...rh, staffIndex: 0 },
+          { ...rh, midiNumber: rh.midiNumber - 24, staffIndex: 1 },
+        ]
+      }
+      return [allNotes, osmd]
+    }
+
+    it('plays only the hands ticked', async () => {
+      const pb = await load()
+      pb.setHands({ right: true, left: false })
+      await pb.play(...twoHands())
+
+      vi.advanceTimersByTime(2001)
+
+      expect(notesStarted()).toEqual([60, 61])
+    })
+
+    it('takes a hand changed mid-piece from the bar being played', async () => {
+      const pb = await load()
+      await pb.play(...twoHands())
+      vi.advanceTimersByTime(2000) // the second bar has just started
+      sent = []
+
+      pb.setHands({ right: false, left: true })
+      vi.advanceTimersByTime(2001)
+
+      expect(notesStarted()).toEqual([37, 38])
+    })
+
+    it('ends with the piece, not with the last note of the hand heard', async () => {
+      const pb = await load()
+      const [allNotes, osmd] = twoHands()
+      // The last bar is the left hand's alone.
+      allNotes.at(-1).notes = allNotes.at(-1).notes.filter((n) => n.staffIndex === 1)
+      pb.setHands({ right: true, left: false })
+      await pb.play(allNotes, osmd)
+
+      vi.advanceTimersByTime(7000) // into the last bar
+
+      expect(pb.transport).toBe('playing')
+    })
+  })
+
   // The page mirrors the transport and the bar it is held at. It is told from
   // the engine, once per move, rather than asking after every control it
   // offers — a control added later cannot forget to ask.

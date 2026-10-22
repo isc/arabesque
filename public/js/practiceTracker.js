@@ -57,6 +57,7 @@ export function initPracticeTracker(storageInstance = null) {
     toggleMode,
     startMeasureAttempt,
     recordWrongNote,
+    recordSteadiness,
     endMeasureAttempt,
     recordStrictRun,
     markScoreCompleted,
@@ -70,6 +71,7 @@ export function initPracticeTracker(storageInstance = null) {
     getPracticeCalendar,
     getScoreHistory,
     getAllPlaythroughs,
+    getScoreSessions: scoreSessions,
     rebuildAggregates,
     getCurrentSession: () => currentSession,
   }
@@ -304,7 +306,15 @@ export function initPracticeTracker(storageInstance = null) {
   // begins. Usually the first one, but not always: with one hand unticked the
   // score can open on a bar that hand rests through, and the cursor starts after
   // it — the score page knows which measure that is, the tracker doesn't.
-  function startMeasureAttempt(sourceMeasureIndex, startsPlaythrough = sourceMeasureIndex === 0, activeHands = { right: true, left: true }) {
+  // `partial` for a bar a drilled fragment covers only part of (musicxml.js):
+  // its attempt says nothing of the bar as a whole, and the bar's statuses and
+  // suggestions leave it out.
+  function startMeasureAttempt(
+    sourceMeasureIndex,
+    startsPlaythrough = sourceMeasureIndex === 0,
+    activeHands = { right: true, left: true },
+    { partial = false } = {},
+  ) {
     if (!currentSession) return null
 
     if (startsPlaythrough && !currentSession.playthroughStartedAt) {
@@ -318,6 +328,7 @@ export function initPracticeTracker(storageInstance = null) {
       wrongNotes: 0,
       clean: true,
       hands: handsKey(activeHands),
+      ...(partial && { partial }),
     }
     return currentMeasureAttempt
   }
@@ -326,6 +337,42 @@ export function initPracticeTracker(storageInstance = null) {
     if (!currentMeasureAttempt) return
     currentMeasureAttempt.wrongNotes++
     currentMeasureAttempt.clean = false
+  }
+
+  // What the engine judged of the pace (steadiness.js): `hesitations`, the
+  // holes inside the measure, and its join, the way in from the bar before —
+  // `joined` when the measure was entered from it, `entryRatio` as a multiple
+  // of the pace (1 for a bar line played through, 3 for one that cost two
+  // notes' worth of waiting), `entryHole` when that was a hole, and
+  // `entryWrongNotes` for the wrong keys played on the way in, before the
+  // measure's first note: among its wrongNotes, but the join's. A join is the
+  // bar line's, not the measure's: reinforcement drills the two bars together
+  // for it (reinforcement.js). None of them touches `clean`, which stays what
+  // it has always been, no wrong note, so that the history reads the same
+  // before and after. Attempts filed before joins were told apart count a hole
+  // at their join among their hesitations.
+  // A verdict can come once the measure is over — the first intervals of a
+  // run are only judged once there are enough of them — so it goes on the
+  // latest attempt at that measure, open or filed. Nothing is written here:
+  // a verdict always comes from playing the measure under way, whose filing
+  // writes the session with it.
+  function recordSteadiness({ sourceMeasureIndex, ratio, hole, entry, joined = false }) {
+    const target = currentMeasureAttempt?.sourceMeasureIndex === sourceMeasureIndex
+      ? currentMeasureAttempt
+      : currentSession?.measures.find((m) => m.sourceMeasureIndex === sourceMeasureIndex)?.attempts.at(-1)
+    if (!target) return
+    if (!entry) {
+      if (hole) target.hesitations = (target.hesitations ?? 0) + 1
+      return
+    }
+    if (joined) {
+      target.joined = true
+      // Entered with its first right note: everything wrong so far was on
+      // the way in.
+      if (target.wrongNotes) target.entryWrongNotes = target.wrongNotes
+    }
+    if (ratio != null) target.entryRatio = Math.round(ratio * 100) / 100
+    if (hole) target.entryHole = true
   }
 
   // Closes the attempt with its own verdict: clean unless recordWrongNote() was
@@ -356,7 +403,7 @@ export function initPracticeTracker(storageInstance = null) {
   // itself right after: filing a whole run would otherwise write the session,
   // growing as it goes, once per measure.
   function recordMeasureAttempt(
-    { sourceMeasureIndex, startedAt, durationMs, wrongNotes = 0, clean = true, hands = TWO_HANDS },
+    { sourceMeasureIndex, startedAt, durationMs, wrongNotes = 0, clean = true, hands = TWO_HANDS, hesitations, joined, entryRatio, entryHole, entryWrongNotes, partial },
     { persist = true } = {}
   ) {
     if (!currentSession) return
@@ -367,7 +414,19 @@ export function initPracticeTracker(storageInstance = null) {
       currentSession.measures.push(measureEntry)
     }
 
-    measureEntry.attempts.push({ startedAt, durationMs, wrongNotes, clean, hands })
+    measureEntry.attempts.push({
+      startedAt,
+      durationMs,
+      wrongNotes,
+      clean,
+      hands,
+      ...(hesitations && { hesitations }),
+      ...(joined && { joined }),
+      ...(entryRatio != null && { entryRatio }),
+      ...(entryHole && { entryHole }),
+      ...(entryWrongNotes && { entryWrongNotes }),
+      ...(partial && { partial }),
+    })
 
     // Save session incrementally (don't await - fire and forget)
     if (persist) storage.saveSession({ ...currentSession })

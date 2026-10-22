@@ -105,7 +105,16 @@ orders the queue only on a best-effort basis, so the deploy publishes the
 head of main when it runs, never the commit of its event, and it goes green
 only once `arabesque.app/.deploy-sha` says that commit is online. A preview is on the same origin as
 production, so it reads and writes the same IndexedDB and localStorage: runs
-played on a preview land in the real practice journal.
+played on a preview land in the real practice journal. A preview that raises
+`DB_VERSION` upgrades that database for production too, which opens it as it
+stands rather than refusing it (`openAsItStands` in `public/js/storage.js`):
+a version may only ever add stores.
+
+Previews run without the offline cache. `swRegister.js` registers no worker
+under `previews/`, production's worker leaves them to the network, and a worker
+a preview registered before that unregisters itself on its next update
+(`public/sw.js` says why). So a change to the worker is tried locally, as
+"New HTML pages" below describes, not on its preview.
 
 ## Library
 
@@ -276,6 +285,31 @@ Each new feedback also emails ivan.schneider@hey.com, so there is nothing to pol
 
 `supabase/feedback.sql` is the canonical DDL — the project has no migration
 system, so a schema change is applied by hand **and** written there.
+
+## Reading a player's practice
+
+Asked to look at a practice session ("regarde les données"), start from
+`scripts/practice-report.mjs` rather than writing queries: it reads the session
+records and the per-key note log (`session_notes`, `public/js/noteLog.js`) of a
+signed-in player through the same Management API token, and reads the log
+with `public/js/noteLogAnalysis.js`, which judges holes with the app's own
+`steadiness.js` — a run of the C minor prelude comes out with the 73 holes the
+app counted. Runs are cut from the log alone, though: a bar clicked or a hand
+toggled leaves no trace there.
+
+```bash
+node scripts/practice-report.mjs sessions --score BWV_847 --days 7  # ids, modes, counts
+node scripts/practice-report.mjs session <id>        # every bar or repetition: holes, wrong notes
+node scripts/practice-report.mjs trend --score BWV_847               # last full runs, bar by bar
+node scripts/practice-report.mjs repeats --score BWV_847             # wrong notes made the same way again and again
+```
+
+The player defaults to git's `user.email` (`--player`, `--profile` otherwise).
+The module's header says how attacks and traversals are rebuilt from the log.
+The log is the record and the analysis is recomputed from it, so a rule
+belongs in the module, where the app will read it too, and the script only
+prints. Extend them when an analysis needs something they do not give, so the
+next one starts from there.
 
 ## Mic-mode captures
 
