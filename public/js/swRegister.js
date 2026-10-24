@@ -8,6 +8,7 @@
 // the worker answers for the whole origin, whichever page did it.
 import { APP_VERSION } from './version.js'
 import { onForeground } from './utils.js'
+import { recordError } from './errorLog.js'
 
 // Reloading is how a page leaves the generation it was parsed with, and it is
 // safe only where nothing would be lost. An allow-list rather than a list of
@@ -21,7 +22,6 @@ const RELOAD_SAFE = ['library.html', 'practice.html']
 const UPDATE_CHECK_COOLDOWN_MS = 60_000
 
 let reloading = false
-let lastUpdateCheck = 0
 
 function registerServiceWorker() {
   // 'dev' is an unstamped checkout (see version.js). A cache-first worker over
@@ -51,7 +51,7 @@ function registerServiceWorker() {
   // is the staleness this whole mechanism exists to end.
   navigator.serviceWorker
     .register(new URL('sw.js', location.href), { updateViaCache: 'none' })
-    .then((registration) => watch(registration, reload))
+    .then((registration) => watch(registration, reload, mayReload))
     .catch(() => {
       /* Refused (private mode, storage full, a webview without support): the
          app keeps working straight off the network, and version.js stays the
@@ -59,7 +59,7 @@ function registerServiceWorker() {
     })
 }
 
-function watch(registration, reload) {
+function watch(registration, reload, checkNow) {
   navigator.serviceWorker.addEventListener('controllerchange', reload)
   // WebKit does not always fire controllerchange on an already-open page, which
   // with a cache-first worker would leave it on the old shell until every window
@@ -71,15 +71,23 @@ function watch(registration, reload) {
     })
   })
 
-  // register() runs at boot and never again, so a page left open for days — the
-  // iPad on the stand — would never learn about a deploy. Coming back to the app
-  // is the moment to ask, with a cooldown so a flurry of app switches is not a
-  // flurry of requests.
-  onForeground(() => {
-    if (Date.now() - lastUpdateCheck < UPDATE_CHECK_COOLDOWN_MS) return
-    lastUpdateCheck = Date.now()
-    registration.update().catch(() => {})
-  })
+  // register() never asks again once a worker is installed, so the page does:
+  // as a page that can take the update at once opens, and when the app comes
+  // back, since a page left open for days opens nothing. The cooldown keeps a
+  // flurry of app switches from being a flurry of requests. A failed check,
+  // often the network not back from sleep, lifts it: the iPad once spent an
+  // evening a deploy behind on its one failed check (feedback 59befcb6).
+  let lastCheck = 0
+  const check = () => {
+    if (!navigator.onLine || Date.now() - lastCheck < UPDATE_CHECK_COOLDOWN_MS) return
+    lastCheck = Date.now()
+    registration.update().catch((error) => {
+      lastCheck = 0
+      recordError(error, 'Service worker update check failed')
+    })
+  }
+  if (checkNow) check()
+  onForeground(check)
 }
 
 registerServiceWorker()
