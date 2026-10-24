@@ -39,7 +39,9 @@ export const VERSION_SCRIPT = '<script type="module" src="js/version.js"></scrip
 // home screen and the splash — never a page, so the worker is never asked for
 // them. Cached, they would be 16KB of the shell re-downloaded on every deploy
 // and served to nobody. Same argument as img/ above, one step further.
-const SHELL_SKIP = new Set(['video', 'scores', 'img', 'icons'])
+// dev/ holds developers' tools (the mic-mode capture page), linked from
+// nowhere: no player's device has any use for them offline.
+const SHELL_SKIP = new Set(['video', 'scores', 'img', 'icons', 'dev'])
 const SHELL_EXTENSIONS = /\.(html|css|js|json|svg|jpg|png|webmanifest)$/
 
 // The URL the iOS wrapper opens (ios/project.yml) and the one a bookmark keeps:

@@ -51,6 +51,11 @@ targets:
         NSBluetoothAlwaysUsageDescription: >-
           Arabesque se connecte aux claviers MIDI Bluetooth pour suivre ce
           que vous jouez.
+        # Mic mode (micInput.js): without it WebKit refuses getUserMedia
+        # outright, and the web app can only say the microphone is unavailable.
+        NSMicrophoneUsageDescription: >-
+          Sans clavier MIDI, Arabesque écoute votre piano par le microphone
+          pour suivre ce que vous jouez. Le son reste sur l'appareil.
         # Dev convenience: allows pointing PTWebAppURL at a local
         # (non-HTTPS) instance of the app, e.g. http://mac.local:4567
         NSAppTransportSecurity:
