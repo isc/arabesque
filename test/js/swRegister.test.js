@@ -2,7 +2,7 @@ import { describe, it, expect, afterEach, vi } from 'vitest'
 
 // A page with a service worker container the test drives: what it was asked to
 // register, and the two signals a new worker arriving can send.
-function fakePage({ pathname = '/library.html', controlled = false } = {}) {
+function fakePage({ pathname = '/library.html', controlled = false, online = true } = {}) {
   const listeners = new Map()
   const on = (type, fn) => listeners.set(type, [...(listeners.get(type) ?? []), fn])
   const fire = (map, type) => (map.get(type) ?? []).forEach((fn) => fn())
@@ -19,10 +19,12 @@ function fakePage({ pathname = '/library.html', controlled = false } = {}) {
     register,
     registration,
     reload: vi.fn(),
+    recordError: vi.fn(),
     install() {
       vi.stubGlobal('location', { pathname, href: `https://arabesque.app${pathname}`, reload: this.reload })
       vi.stubGlobal('document', { visibilityState: 'visible', addEventListener: on })
       vi.stubGlobal('navigator', {
+        onLine: online,
         serviceWorker: { register, controller: controlled ? {} : null, addEventListener: on },
       })
     },
@@ -42,6 +44,7 @@ async function load(page, { version = 'deadbeef' } = {}) {
   page.install()
   vi.resetModules()
   vi.doMock('../../public/js/version.js', () => ({ APP_VERSION: version, checkAppVersion: () => {} }))
+  vi.doMock('../../public/js/errorLog.js', () => ({ recordError: page.recordError }))
   await import('../../public/js/swRegister.js')
   await vi.waitFor(() => expect(page.register).toHaveBeenCalled(), { timeout: 100 }).catch(() => {})
 }
@@ -49,6 +52,7 @@ async function load(page, { version = 'deadbeef' } = {}) {
 describe('registering the service worker', () => {
   afterEach(() => {
     vi.doUnmock('../../public/js/version.js')
+    vi.doUnmock('../../public/js/errorLog.js')
   })
 
   it('registers past the HTTP cache, so a new worker is not hidden by max-age', async () => {
@@ -96,21 +100,49 @@ describe('registering the service worker', () => {
     },
   )
 
-  it('asks for an update when the app comes back, at most once a minute', async () => {
+  it('asks for an update as a page that can reload into it opens', async () => {
+    const library = fakePage({ controlled: true })
+    await load(library)
+    expect(library.registration.update).toHaveBeenCalledOnce()
+  })
+
+  it.each([
+    ['a first install, which has just fetched the worker', { controlled: false }],
+    ['the score page, in the middle of a session', { pathname: '/score.html', controlled: true }],
+    ['a page opened offline', { controlled: true, online: false }],
+  ])('does not ask as %s opens', async (_, options) => {
+    const page = fakePage(options)
+    await load(page)
+    expect(page.registration.update).not.toHaveBeenCalled()
+  })
+
+  it('asks again when the app comes back, at most once a minute', async () => {
     vi.useFakeTimers()
     try {
       const page = fakePage({ controlled: true })
       await load(page)
 
       page.comeBack()
-      page.comeBack()
       expect(page.registration.update).toHaveBeenCalledOnce()
 
       vi.advanceTimersByTime(61_000)
+      page.comeBack()
       page.comeBack()
       expect(page.registration.update).toHaveBeenCalledTimes(2)
     } finally {
       vi.useRealTimers()
     }
+  })
+
+  // The network is often not back yet as the app wakes up.
+  it('keeps a failed check for a report, and tries again on the next return', async () => {
+    const page = fakePage({ controlled: true })
+    const failure = new TypeError('Load failed')
+    page.registration.update.mockRejectedValueOnce(failure)
+    await load(page)
+    await vi.waitFor(() => expect(page.recordError).toHaveBeenCalledWith(failure, 'Service worker update check failed'))
+
+    page.comeBack()
+    expect(page.registration.update).toHaveBeenCalledTimes(2)
   })
 })
