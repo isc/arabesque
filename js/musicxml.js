@@ -574,10 +574,6 @@ async function renderScore({ reextract = true, rebuild = false, afterDraw = null
 // movement. We skip these notes during extraction, so they have no fingering entry and a click on
 // them silently does nothing. Clearing the attribute on the group and its tagged descendants lets
 // the click fall through to the visible note below.
-//
-// A note hidden only because another voice writes the same pitch at the same time — how MuseScore
-// asks for one head to serve both voices — shares the visible note's head since OSMD 2.2.0
-// (#1732), so the colouring of that head already shows both.
 function fixUpInvisibleNotes() {
   for (const measure of score.osmdInstance.Sheet.SourceMeasures) {
     for (const container of measure.verticalSourceStaffEntryContainers || []) {
