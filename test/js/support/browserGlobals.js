@@ -46,6 +46,17 @@ export function installDocument() {
   return { document, setVisibility, wake }
 }
 
+// The window's page lifecycle, with real event dispatch: `hide` fires
+// pagehide — `{ persisted: true }` when the page goes into the back/forward
+// cache rather than away — and `show` the pageshow of its coming back.
+export function installPage() {
+  const page = new EventTarget()
+  install('addEventListener', page.addEventListener.bind(page))
+  install('removeEventListener', page.removeEventListener.bind(page))
+  const fire = (type, persisted) => page.dispatchEvent(Object.assign(new Event(type), { persisted }))
+  return { hide: ({ persisted = false } = {}) => fire('pagehide', persisted), show: () => fire('pageshow', true) }
+}
+
 // A MIDI input as midi.js reads it.
 export const fakePort = (name) => ({ id: name, name, type: 'input', state: 'connected', onmidimessage: null })
 
