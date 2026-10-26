@@ -29,6 +29,11 @@
 // A report sent from the iOS app also carries its build and system
 // (context.native_app, see ios/README.md), which `list` shows.
 //
+// A report from a page a service worker is meant to serve carries where it
+// stood in the update cycle (context.service_worker), which `show` prints:
+// read it against app_version as updateReport() in public/js/swRegister.js
+// says.
+//
 // ⚠ That token is account-wide, not project-scoped: never print it, never copy
 // it anywhere else. See ~/.claude/SUPABASE.md.
 import { writeFileSync } from 'node:fs'

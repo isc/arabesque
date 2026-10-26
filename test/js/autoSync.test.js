@@ -31,6 +31,7 @@ vi.mock('../../public/js/sync.js', async (importOriginal) => {
 const recordError = vi.fn()
 vi.mock('../../public/js/errorLog.js', () => ({
   recordError: (...args) => recordError(...args),
+  watchStall: (promise) => promise,
 }))
 
 // The page globals sync.js and autoSync.js touch (the suite runs in node).
