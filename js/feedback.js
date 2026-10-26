@@ -15,6 +15,7 @@ import { getLang } from './i18n.js'
 import { KEY_PREFIX } from './legacyKeys.js'
 import { APP_VERSION as BUILD } from './version.js'
 import { recentErrors } from './errorLog.js'
+import { updateReport } from './swRegister.js'
 
 export const feedbackEnabled = Boolean(SUPABASE_URL && SUPABASE_PUBLISHABLE_KEY)
 
@@ -57,12 +58,14 @@ function rememberFeedbackEmail(address) {
 // carries the context to reproduce it. No personal data, no stored identifiers.
 // The errors the app ran into lately ride along (errorLog.js), and are left
 // out when there were none. So does the iOS app's build and system
-// (ios/README.md), out of a report sent from a browser. The form lists what
-// goes (feedback.privacy), and
+// (ios/README.md), out of a report sent from a browser, and where the page
+// stands in the update cycle (swRegister.js), out of one no worker serves. The
+// form lists what goes (feedback.privacy), and
 // so does the privacy policy (privacy.feedbackBody): both follow this.
-export function buildBaseContext() {
+export async function buildBaseContext() {
   const errors = recentErrors()
   const nativeApp = globalThis.__arabesqueApp
+  const serviceWorker = await updateReport()
   return {
     app_version: APP_VERSION,
     locale: getLang(),
@@ -72,6 +75,7 @@ export function buildBaseContext() {
         ? { w: window.innerWidth, h: window.innerHeight }
         : null,
     ...(nativeApp && { native_app: nativeApp }),
+    ...(serviceWorker && { service_worker: serviceWorker }),
     ...(errors.length > 0 && { errors }),
   }
 }
