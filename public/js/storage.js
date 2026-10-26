@@ -129,6 +129,8 @@ function promisifyTransaction(transaction) {
     // The failed request's error: transaction.error is only set by the abort
     // that follows this event, and withDb needs the name.
     transaction.onerror = (event) => reject(event.target.error)
+    // An abort with no request left to fail fires nothing else.
+    transaction.onabort = () => reject(transaction.error ?? new DOMException('The transaction was aborted', 'AbortError'))
   })
 }
 
@@ -295,6 +297,16 @@ export function initStorage() {
     return dbReady
   }
 
+  // What cuts each operation under way short, and a promise pending while the
+  // page is in the back/forward cache (see withDb).
+  const underWay = new Set()
+  let shown = Promise.resolve()
+  globalThis.addEventListener?.('pagehide', (event) => {
+    if (!event.persisted) return
+    shown = new Promise((resolve) => globalThis.addEventListener('pageshow', () => resolve(), { once: true }))
+    for (const cut of underWay) cut()
+  })
+
   // A page keeps its connection for as long as it lives, and in the iOS app
   // that is days: the app is suspended and woken, never reloaded. WebKit does
   // not keep a connection that long — when iOS reclaims the process serving
@@ -305,10 +317,45 @@ export function initStorage() {
   // connection drops it and runs once more on a fresh one; concurrent failures
   // on the same connection share that one reopen.
   //
+  // A page put in the back/forward cache is frozen as it stands, and so is
+  // any transaction it has under way: WebKit commits one only once its page
+  // has dispatched the events of its requests, which a page in the cache never
+  // does. And WebKit runs one transaction at a time over a whole database, so
+  // every other page waited behind it for as long as the page stayed there —
+  // the library, opened from a score that was still writing as it was left
+  // (endSession, the note log), never got its practice data until the app was
+  // quit (feedback 35e475a4, 0467f65c). So a page going into the cache aborts
+  // the operations it has under way and starts nothing more until it is shown
+  // again, when what was cut short runs again. A page being unloaded is left
+  // alone: its transactions end with it. (An upgrade is abandoned on any
+  // pagehide, by openDatabase, for a reason of Chrome's.)
+  //
   // `operation` is given a transaction over `stores` (a name or a list).
   async function withDb(stores, mode, operation) {
+    await shown
     const what = `${mode} ${[stores].flat().join(', ')}`
-    const run = (db) => watchStall(what, operation(db.transaction(stores, mode)))
+    const run = async (db) => {
+      const transaction = db.transaction(stores, mode)
+      let cutShort = false
+      const cut = () => {
+        try {
+          transaction.abort()
+          cutShort = true
+        } catch {
+          /* Over already: its requests answered, its commit on the way. */
+        }
+      }
+      underWay.add(cut)
+      try {
+        return await watchStall(what, operation(transaction))
+      } catch (error) {
+        if (!cutShort) throw error
+        await shown
+        return run(db)
+      } finally {
+        underWay.delete(cut)
+      }
+    }
     const ready = ensureDb()
     const db = await ready
     try {
@@ -346,9 +393,12 @@ export function initStorage() {
   // those kept — resolved once it has committed, with what `operation` did.
   function withNoteLogStores(mode, operation) {
     return withDb([NOTE_LOGS_STORE, KEPT_NOTE_LOGS_STORE], mode, async (transaction) => {
-      const done = promisifyTransaction(transaction)
-      const result = await operation(transaction.objectStore(NOTE_LOGS_STORE), transaction.objectStore(KEPT_NOTE_LOGS_STORE))
-      await done
+      // Together, so that when a request fails, the transaction's own failure
+      // that follows has somewhere to go.
+      const [result] = await Promise.all([
+        operation(transaction.objectStore(NOTE_LOGS_STORE), transaction.objectStore(KEPT_NOTE_LOGS_STORE)),
+        promisifyTransaction(transaction),
+      ])
       return result
     })
   }

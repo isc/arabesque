@@ -3,9 +3,17 @@ import 'fake-indexeddb/auto'
 import { initStorage, neverSynced, STORES, DB_VERSION } from '../../public/js/storage.js'
 import { initPracticeTracker } from '../../public/js/practiceTracker.js'
 import { importBackup } from '../../public/js/sync.js'
+import { installPage } from './support/browserGlobals.js'
 
 const measures = [{ sourceMeasureIndex: 0, attempts: [{ startedAt: '2026-06-10T10:00:00.000Z', durationMs: 60_000, wrongNotes: 0, clean: true }] }]
 const session = (id) => ({ id, scoreId: 'scores/a.mxl', startedAt: '2026-06-10T10:00:00.000Z', endedAt: '2026-06-10T10:01:00.000Z', measures })
+
+// Whether `promise` has settled yet, asked later.
+function settles(promise) {
+  let settled = false
+  promise.then(() => (settled = true), () => (settled = true))
+  return () => settled
+}
 
 // A device of its own: an empty database, and the tracker that reads it.
 async function aDevice() {
@@ -337,11 +345,7 @@ describe('a page left while the database is created', () => {
 
   beforeEach(() => {
     indexedDB = new IDBFactory()
-    const page = new EventTarget()
-    vi.stubGlobal('addEventListener', page.addEventListener.bind(page))
-    vi.stubGlobal('removeEventListener', page.removeEventListener.bind(page))
-    leave = () => page.dispatchEvent(new Event('pagehide'))
-    comeBack = () => page.dispatchEvent(new Event('pageshow'))
+    ;({ hide: leave, show: comeBack } = installPage())
     onUpgrade = () => {}
     const open = indexedDB.open.bind(indexedDB)
     indexedDB.open = (...args) => {
@@ -361,12 +365,11 @@ describe('a page left while the database is created', () => {
       upgrade.addEventListener('abort', () => (aborted = true))
       queueMicrotask(leave)
     }
-    let settled = false
     const opening = storage.init()
-    opening.then(() => (settled = true), () => (settled = true))
+    const opened = settles(opening)
     await vi.waitFor(() => expect(aborted).toBe(true))
     await new Promise((resolve) => setTimeout(resolve, 10))
-    expect(settled).toBe(false)
+    expect(opened()).toBe(false)
 
     comeBack()
     expect([...(await opening).objectStoreNames]).toEqual([...STORES].sort())
@@ -381,6 +384,64 @@ describe('a page left while the database is created', () => {
     onUpgrade = (upgrade) => upgrade.addEventListener('complete', leave)
 
     expect([...(await storage.init()).objectStoreNames]).toEqual([...STORES].sort())
+  })
+})
+
+// A page frozen in the back/forward cache with a transaction under way held up
+// every other page's, in WebKit, for as long as it stayed there (withDb).
+describe('a page put in the back/forward cache', () => {
+  let page
+  let storage
+  let db
+
+  // The sessions stored, as another page reads them.
+  const stored = () => initStorage().getSessionIds()
+
+  beforeEach(async () => {
+    indexedDB = new IDBFactory()
+    page = installPage()
+    storage = initStorage()
+    db = await storage.init()
+  })
+
+  it('aborts what it has under way, and runs it again once shown', async () => {
+    const transaction = db.transaction.bind(db)
+    let aborted = false
+    db.transaction = (...args) => {
+      const created = transaction(...args)
+      created.addEventListener('abort', () => (aborted = true))
+      queueMicrotask(() => page.hide({ persisted: true }))
+      db.transaction = transaction
+      return created
+    }
+    const saving = storage.saveSession(session('s1'))
+    const saved = settles(saving)
+
+    await vi.waitFor(() => expect(aborted).toBe(true))
+    expect(await stored()).toEqual([])
+    expect(saved()).toBe(false)
+
+    page.show()
+    await saving
+    expect(await stored()).toEqual(['s1'])
+  })
+
+  it('starts nothing while in the cache', async () => {
+    const transaction = vi.spyOn(db, 'transaction')
+    page.hide({ persisted: true })
+    const reading = storage.getSessions()
+
+    await new Promise((resolve) => setTimeout(resolve, 10))
+    expect(transaction).not.toHaveBeenCalled()
+
+    page.show()
+    expect(await reading).toEqual([])
+  })
+
+  it('leaves a page being unloaded alone', async () => {
+    page.hide()
+    await storage.saveSession(session('s1'))
+    expect(await stored()).toEqual(['s1'])
   })
 })
 
