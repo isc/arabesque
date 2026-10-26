@@ -144,6 +144,32 @@ export function recordError(error, where) {
   record(error, where)
 }
 
+// An operation that neither succeeds nor fails reaches no catch block, so a
+// page waiting on one has nothing to say in a report (feedback 35e475a4).
+// `what` is recorded once still pending after `ms`, and again if it ever
+// settles, which tells a hang from a slow disk or line. `gate`, an object
+// shared by operations that queue behind one another, keeps them to one such
+// record at a time: those behind a hung one would push the record that names
+// it out of the few a report keeps. Returns `promise`.
+export function watchStall(promise, { what, where, ms, gate = {} }) {
+  const report = (state) => recordError(new Error(`${what} ${state}`), where)
+  const startedAt = Date.now()
+  let reported = false
+  const timer = setTimeout(() => {
+    if (gate.stalled) return
+    gate.stalled = reported = true
+    report(`still pending after ${ms / 1000}s`)
+  }, ms)
+  const settled = () => {
+    clearTimeout(timer)
+    if (!reported) return
+    gate.stalled = false
+    report(`settled after ${Math.round((Date.now() - startedAt) / 1000)}s`)
+  }
+  promise.then(settled, settled)
+  return promise
+}
+
 // What feedback.js sends: the entries still within MAX_AGE_MS, least recently
 // seen first.
 export function recentErrors() {

@@ -165,7 +165,7 @@ export function headerMenu() {
           email: this.feedback.email,
           category: this.feedback.category,
           screenshot: this.feedbackShotWanted ? this.feedbackShot : null,
-          context: { ...buildBaseContext(), ...(this.feedbackContext?.() ?? {}) },
+          context: { ...(await buildBaseContext()), ...(this.feedbackContext?.() ?? {}) },
         })
         this.feedbackStatus = 'sent'
       } catch (err) {

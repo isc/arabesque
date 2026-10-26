@@ -1,5 +1,5 @@
 import { scopedKey, listProfiles, pruneRemovedProfileKeys, SCOPE_SEPARATOR } from './profiles.js'
-import { recordError } from './errorLog.js'
+import { recordError, watchStall } from './errorLog.js'
 
 // Each profile has a database of its own, named from this (profiles.js). The
 // main profile's is the bare name — the one this device had before profiles.
@@ -71,33 +71,14 @@ const BACKUP_DEFS = STORE_DEFS.filter((def) => def.backup !== false)
 // Database server lost"). See withDb.
 const CONNECTION_LOST = new Set(['InvalidStateError', 'UnknownError'])
 
-// An operation that neither succeeds nor fails reaches no catch block, so a
-// page waiting on one had nothing to say in a report (feedback 35e475a4). One
-// still pending after STALL_MS is recorded (errorLog.js), and again if it ever
-// settles, which tells a hang from a slow disk. Only one at a time: every
-// operation on the same stores queues behind a hung one, and their records
-// would push the one that names it out of the few a report keeps.
+// An operation that neither succeeds nor fails is recorded for a report once
+// it has stalled (errorLog.js). One at a time: every operation on the same
+// stores queues behind a hung one.
 const STALL_MS = 5000
-let stallReported = false
+const stalls = {}
 
-function watchStall(what, promise) {
-  const report = (state) => recordError(new Error(`IndexedDB ${what} ${state}`), 'Storage')
-  const startedAt = Date.now()
-  let reported = false
-  const timer = setTimeout(() => {
-    if (stallReported) return
-    stallReported = reported = true
-    report(`still pending after ${STALL_MS / 1000}s`)
-  }, STALL_MS)
-  const settled = () => {
-    clearTimeout(timer)
-    if (!reported) return
-    stallReported = false
-    report(`settled after ${Math.round((Date.now() - startedAt) / 1000)}s`)
-  }
-  promise.then(settled, settled)
-  return promise
-}
+const watched = (what, promise) =>
+  watchStall(promise, { what: `IndexedDB ${what}`, where: 'Storage', ms: STALL_MS, gate: stalls })
 
 // The version a record of `field` new to this device last exchanged with the
 // server: none, and nothing in it. sync.js merges the server's copy against
@@ -279,7 +260,7 @@ export function initStorage() {
   let dbReady = null
 
   function ensureDb() {
-    dbReady ??= watchStall('open', openDatabase(scopedKey(DB_BASE_NAME)))
+    dbReady ??= watched('open', openDatabase(scopedKey(DB_BASE_NAME)))
       .then((db) => {
         pruneProfileStorage().catch(() => {})
         // Storage left best-effort is what a browser clears first when the
@@ -347,7 +328,7 @@ export function initStorage() {
       }
       underWay.add(cut)
       try {
-        return await watchStall(what, operation(transaction))
+        return await watched(what, operation(transaction))
       } catch (error) {
         if (!cutShort) throw error
         await shown
