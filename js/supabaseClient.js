@@ -30,6 +30,19 @@ export const supabase = supabaseConfigured
         // flowType is left at the library's default: with no link to redeem, it
         // makes no difference which one is in force.
         detectSessionInUrl: false,
+        // No lock across pages. By default every auth call — getSession, which
+        // each sync starts with, included — waits on a Web Lock shared by the
+        // whole origin, with no time limit. WebKit lets go of a page's lock
+        // only once the page has run what follows the call holding it, and a
+        // page put in the back/forward cache runs nothing: the library, left
+        // for a score two seconds after refreshing the token, kept the lock,
+        // and the iPad synced nothing more until the app was quit (26 October;
+        // storage.js has the same freeze for IndexedDB). This is what the
+        // library runs where Web Locks don't exist, and what later versions do
+        // by default: calls on one page still queue behind each other
+        // (_acquireLock), and two pages refreshing at once get the same new
+        // token from the server.
+        lock: (name, acquireTimeout, fn) => fn(),
       },
     })
   : null
