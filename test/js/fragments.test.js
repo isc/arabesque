@@ -71,6 +71,22 @@ describe('fragmentsToReinforce', () => {
     expect(offered([fumbled, clean, spoiled, clean, clean])).toEqual([])
   })
 
+  it('offers and ranks spots by the runs alone, what a drill fumbles adding nothing', () => {
+    const drilled = traversal({ from: 2, to: 2, holes: ['2:5'], training: true })
+    expect(offered([drilled, drilled, drilled])).toEqual([])
+    const runs = [traversal({ holes: ['1:1', '2:5'] }), traversal({ holes: ['1:1'] })]
+    expect(offered([...runs, drilled, drilled, drilled, drilled])).toEqual([
+      [{ bar: 0, position: 0.75 }, { bar: 1, position: 0.25 }],
+      [{ bar: 2, position: 0.25 }, { bar: 2, position: 0.75 }],
+    ])
+  })
+
+  it('counts a note searched for over many keys as one fault', () => {
+    const searched = traversal({ wrong: ['2:5', '2:5', '2:5', '2:5', '2:5'] })
+    const stalled = traversal({ holes: ['1:1'] })
+    expect(offered([searched, stalled, stalled], { limit: 1 })).toEqual([[{ bar: 0, position: 0.75 }, { bar: 1, position: 0.25 }]])
+  })
+
   it('answers for one hand selection at a time', () => {
     const both = traversal({ holes: ['1:1'], hands: 'both' })
     expect(offered([both])).toEqual([])

@@ -1,10 +1,11 @@
 // What the score page offers to reinforce, read off the note logs: the
 // fragments of fragments.js, from the score's last sessions — the window
 // reinforcement reads (noteLogWindow) — and the one under way, recomputed at
-// every bar by the rule as it stands. A score whose history has no log at all —
-// played before the log existed, or elsewhere and never fetched
-// (keepScoreNoteLogs in noteLog.js) — gets the bar-and-join suggestions of
-// reinforcement.js, as fragments of whole bars: the page drills one kind.
+// every bar by the rule as it stands. A score whose log holds no run — played
+// before the log existed, or elsewhere and never fetched (keepScoreNoteLogs in
+// noteLog.js), and drilled since at most, which settles but offers nothing
+// (fragments.js) — gets the bar-and-join suggestions of reinforcement.js, as
+// fragments of whole bars: the page drills one kind.
 //
 // A past session is read and judged once per note model, and kept: only the
 // session under way changes from one bar to the next, and it is read from the
@@ -52,7 +53,7 @@ export function initFragmentSuggestions({ storage, practiceTracker, noteLog, get
       // The page's log can still hold the session it rolled over from.
       const liveSegments = live ? noteLog.liveSegments().filter((s) => s.sessionId === live.id) : []
       const all = [...(await pastTraversals(sessions, notes)), ...(live ? judged(liveSegments, live, notes) : [])]
-      if (all.length > 0) return fragmentsToReinforce(all, notes, { hands })
+      if (all.some((traversal) => !traversal.training)) return fragmentsToReinforce(all, notes, { hands })
       return measuresToReinforce(sessions, { hands }).map((item) => wholeBars(item, notes))
     },
     // The kept logs changed under the window: read them again.
