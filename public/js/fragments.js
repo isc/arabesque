@@ -56,17 +56,26 @@ const readings = new WeakMap()
 function readingOf(traversal, model) {
   let reading = readings.get(traversal)
   if (reading) return reading
-  // The spots it stumbled on, with how many times: a hole on the note it came
-  // late on, a wrong key on the note that was owed.
+  // The spots it stumbled on, with how many of their attacks went wrong: a
+  // hole on the note it came late on, a wrong key on the note that was owed.
+  // An attack counts once however many keys went astray on it: searching for
+  // a note is one fault, not the thirty keys tried on the way.
   const faults = new Map()
-  const add = (spot) => {
+  const fumbled = new Set()
+  const add = (bar, position) => {
+    const attack = attackId(bar, position)
+    if (fumbled.has(attack)) return
+    fumbled.add(attack)
+    const spot = spotAt(model, bar, position)
     const id = spotId(spot)
-    faults.set(id, { spot, count: (faults.get(id)?.count ?? 0) + 1 })
+    const counted = faults.get(id)
+    if (counted) counted.count++
+    else faults.set(id, { spot, count: 1 })
   }
-  for (const attack of traversal.attacks) if (attack.hole) add(spotAt(model, attack.sourceBar, attack.position))
+  for (const attack of traversal.attacks) if (attack.hole) add(attack.sourceBar, attack.position)
   for (const { key } of traversal.wrong) {
     const note = model.notes.get(key)
-    if (note) add(spotAt(model, note.bar, note.position))
+    if (note) add(note.bar, note.position)
   }
   reading = { faults, played: new Set(traversal.attacks.map((a) => attackId(a.sourceBar, a.position))) }
   readings.set(traversal, reading)
@@ -74,34 +83,39 @@ function readingOf(traversal, model) {
 }
 
 // What reinforcement offers, best first: the fragments of the spots fumbled in
-// these traversals and not played cleanly since, for one hand selection.
-// `traversals` are the window's (REINFORCEMENT_WINDOW_SESSIONS), in the order
-// they were played, each with `training` saying whether it was a drill and
-// `hands` the selection it was played with (handsKey).
+// these traversals outside a drill and not played cleanly since, for one hand
+// selection. `traversals` are the window's (REINFORCEMENT_WINDOW_SESSIONS), in
+// the order they were played, each with `training` saying whether it was a
+// drill and `hands` the selection it was played with (handsKey).
 //
-// A spot is settled by REINFORCEMENT_CLEAN_PASSES clean traversals of its
-// whole fragment since it was last fumbled — counted the drill's way in
+// A drill plays its passages ten times over: what it fumbles would outweigh
+// any run, and would put the passages of one drill back at the top of the
+// next, ahead of spots fumbled in every run but never drilled. So a drill only
+// settles. A spot is settled by REINFORCEMENT_CLEAN_PASSES clean traversals of
+// its whole fragment since it was last fumbled — counted the drill's way in
 // training, where a spoiled repetition leaves the dots already filled
-// (musicxml.js): a fumble there adds to the spot's faults without starting
-// its count over. Spots are ranked by faults, then by how recently they came;
-// the fragments of the `limit` best that overlap or touch are drilled as one.
+// (musicxml.js) and does not start the count over. Spots are ranked by faults,
+// then by how recently they came; the fragments of the `limit` best that
+// overlap or touch are drilled as one.
 export function fragmentsToReinforce(traversals, model, { hands, limit = 5 } = {}) {
   const spots = new Map()
   traversals.forEach((traversal, order) => {
     if (traversal.hands !== hands) return
     const { faults, played } = readingOf(traversal, model)
-    for (const [id, { spot, count }] of faults) {
-      let entry = spots.get(id)
-      if (!entry) {
-        const fragment = fragmentOf(model, spot)
-        spots.set(id, (entry = { fragment, ends: endsOf(model, fragment), faults: 0, clean: 0, last: 0 }))
-      }
-      entry.faults += count
-      entry.last = order
-      if (!traversal.training) entry.clean = 0
-    }
     for (const [id, entry] of spots) {
       if (!faults.has(id) && entry.ends?.every((end) => played.has(end))) entry.clean++
+    }
+    if (traversal.training) return
+    for (const [id, { spot, count }] of faults) {
+      const entry = spots.get(id)
+      if (entry) {
+        entry.faults += count
+        entry.last = order
+        entry.clean = 0
+      } else {
+        const fragment = fragmentOf(model, spot)
+        spots.set(id, { fragment, ends: endsOf(model, fragment), faults: count, clean: 0, last: order })
+      }
     }
   })
 

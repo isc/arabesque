@@ -181,8 +181,10 @@ class SteadinessTest < CapybaraTestBase
       play_evenly(%w[C4 D4])
       play_note('G4') # E4 is owed
       play_evenly(%w[E4 F4 G4 A4 B4 C5 C5 B4 A4 G4 F4 E4])
-      2.times { play_note('F4') } # D4 is owed
-      play_evenly(%w[D4 C4])
+      play_note('F4') # D4 is owed
+      play_evenly(%w[D4])
+      play_note('A4') # C4 is owed: two notes of that beat fumbled, against one
+      play_evenly(%w[C4])
     end
     find('dialog[open] button[aria-label="Close"]').click
 
