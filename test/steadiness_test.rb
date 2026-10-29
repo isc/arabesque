@@ -171,10 +171,10 @@ class SteadinessTest < CapybaraTestBase
     assert_text 'Tout ce qui était proposé a été renforcé avec succès.'
   end
 
-  # Two passages, drilled one after the other, the second before the first in
-  # the score: where it starts is where it owes a note, which the first
-  # fragment, still in place as the drill moved on, said was nowhere — and the
-  # drill started at the end of the score, nothing shaded.
+  # Two passages taking turns, each round going back up the score to the
+  # first: where it starts is where it owes a note, which the other fragment,
+  # still in place as the drill moved on, once said was nowhere — and the drill
+  # started at the end of the score, nothing shaded.
   def test_a_drill_moves_on_to_a_passage_earlier_in_the_score
     open_steady_quavers
     with_clock_control do
@@ -189,13 +189,15 @@ class SteadinessTest < CapybaraTestBase
     find('dialog[open] button[aria-label="Close"]').click
 
     click_on 'Renforcer 2 passages'
-    with_clock_control do
-      3.times { play_evenly(%w[F4 E4 D4 C4], first_after: 300) }
-      advance_clock(1_000)
-    end
-    assert_selector 'svg rect.fragment-range', count: 1
-    with_clock_control do
-      3.times { play_evenly(%w[C4 D4 E4 F4], first_after: 300) }
+    3.times do |round|
+      with_clock_control do
+        play_evenly(%w[C4 D4 E4 F4], first_after: 300)
+        play_evenly(%w[F4 E4 D4 C4], first_after: 300)
+        advance_clock(1_000)
+      end
+      # Back up to the first passage, shaded — but for the last round, which
+      # ends the drill.
+      assert_selector 'svg rect.fragment-range', count: 1 if round < 2
     end
     assert_text 'Tout ce qui était proposé a été renforcé avec succès.'
   end

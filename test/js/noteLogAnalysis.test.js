@@ -60,6 +60,13 @@ function played(pace, delays = {}) {
   return events
 }
 
+// `events` with a wrong key played 100 ms before the note `key` it was owed for.
+function withWrongKeyBefore(events, key) {
+  const owedAt = events.findIndex(([, , owed]) => owed === key)
+  const [at, , , bar] = events[owedAt]
+  return events.toSpliced(owedAt, 0, [at - 100, 'w', key, bar])
+}
+
 describe('eventsOf', () => {
   it('puts the columns of several segments back together, in time order', () => {
     const segment = (startedAt, t) => ({
@@ -103,12 +110,20 @@ describe('traversals', () => {
   })
 
   it('counts the time a wrong note took as the mistake’s, not a hole', () => {
-    const events = played(500, { '1:1': 1500 })
-    const owedAt = events.findIndex(([, , key]) => key === 'm1:0:0:1')
-    events.splice(owedAt, 0, [events[owedAt][0] - 100, 'w', 'm1:0:0:1', 1])
-    const [run] = traversals(log(events), model)
+    const [run] = traversals(log(withWrongKeyBefore(played(500, { '1:1': 1500 }), 'm1:0:0:1')), model)
     expect(run.wrong).toHaveLength(1)
     expect(run.attacks.find((a) => a.position === 0.25 && a.bar === 1)).toMatchObject({ faulted: true, hole: false })
+  })
+
+  // A crotchet every 500 ms: what reinforcement ranks its spots by.
+  it('says how long each fault held the traversal up, beyond the pace', () => {
+    const [stalled] = traversals(log(played(500, { '1:1': 1500 })), model)
+    expect(stalled.attacks.filter((a) => a.lost > 0)).toMatchObject([{ sourceBar: 1, position: 0.25, lost: 1500 }])
+
+    const [searched] = traversals(log(withWrongKeyBefore(played(500, { '1:1': 1500 }), 'm1:0:0:1')), model)
+    expect(searched.attacks.filter((a) => a.lost > 0)).toMatchObject([
+      { sourceBar: 1, position: 0.25, faulted: true, lost: 1500 },
+    ])
   })
 
   it('says the hands ticked as each traversal began, both when the log does not say', () => {

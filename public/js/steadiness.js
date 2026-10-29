@@ -40,6 +40,10 @@ export const WINDOW = 32
 // a grace note and its main note, the notes an ornament is spelled out into.
 const MIN_WRITTEN = 1 / 128
 
+// Where the score itself lets go of the pace between two attacks — an
+// ornament's notes, a fermata — so that there is nothing to hold the player to.
+export const outOfPace = (from, next) => from.decorative || next.decorative || from.fermata
+
 // What the score writes between two attacks, in whole notes: within a bar, or
 // across the line into the bar played next. Null for any other pair — a bar
 // skipped by the hands ticked, or one with nothing to play — whose distance
@@ -57,9 +61,10 @@ export function writtenBetween(from, to) {
 // note, an ornament, a trill) and whether it is held under a fermata. `ref` is
 // the caller's, handed back with the verdict on the interval that ends on it.
 //
-// Every call returns the verdicts it reached, as { ref, ratio, hole, entry }:
-// the interval as a multiple of the reference, whether that is a hole, and
-// whether it crosses a bar line — the join into the bar `ref` is in. A bar
+// Every call returns the verdicts it reached, as { ref, ratio, hole, entry,
+// pace }: the interval as a multiple of the reference, whether that is a hole,
+// whether it crosses a bar line — the join into the bar `ref` is in — and the
+// reference itself, in ms per whole note. A bar
 // entered from the one before also says so as it is entered, judged or not:
 // { ref, entry, joined: true, ratio: null } — with a wrong note on the way in,
 // never judged at all.
@@ -79,6 +84,7 @@ export function createSteadiness() {
       ratio: reference > 0 ? interval.value / reference : null,
       hole: interval.ms > HOLE_FACTOR * expected && interval.ms - expected > HOLE_MIN_EXCESS_MS,
       entry: interval.entry,
+      pace: reference,
     })
   }
 
@@ -114,11 +120,11 @@ export function createSteadiness() {
       settle(verdicts)
       return verdicts
     }
-    // Where the score itself lets go of the pace — an ornament's notes, a
-    // fermata — there is nothing to hold the player to. Nor where a wrong
-    // note was played: the time it took is that mistake's, already counted
-    // as one, and the note that came late after it is no hesitation.
-    if (from.decorative || next.decorative || from.fermata || afterFault) return verdicts
+    // Nothing to hold the player to where the score lets go of the pace. Nor
+    // where a wrong note was played: the time it took is that mistake's,
+    // already counted as one, and the note that came late after it is no
+    // hesitation.
+    if (outOfPace(from, next) || afterFault) return verdicts
     const written = writtenBetween(from, next)
     if (written == null || written < MIN_WRITTEN) return verdicts
 
