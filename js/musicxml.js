@@ -102,9 +102,13 @@ const training = {
   clean: true,
 }
 
-// Reinforcement: the passages it drills one after the other, each worked as a
-// picked training passage is — a fragment, or else a bar alone or the two bars
-// of a join — as playback indices, and which of them is under way.
+// Reinforcement: the passages it drills, each worked as a picked training
+// passage is — a fragment, or else a bar alone or the two bars of a join — as
+// playback indices, with the dots it has banked, and the one whose turn it is.
+// They take turns, a dot earned moving the drill on to the next (passTheTurn):
+// three clean repetitions in a row only ever showed what the hand had just
+// played, and the runs went on stalling where the drill had been clean. Each
+// passage now comes back to it cold, the way a run does.
 const reinforcement = {
   on: false,
   passages: [],
@@ -333,7 +337,12 @@ export function initMusicXML() {
     // `items` as the page offers them: fragments, { from, until } as source
     // bars and positions (fragmentSuggestions.js).
     setReinforcementMode: (items) => {
-      const passages = (items ?? []).map(reinforcementPassage).filter(Boolean)
+      // In the order of the score, which each round of turns goes down once.
+      const passages = (items ?? [])
+        .map(reinforcementPassage)
+        .filter(Boolean)
+        .map((passage) => ({ ...passage, banked: 0 }))
+        .sort((a, b) => a.fragment.from - b.fragment.from)
       if (passages.length === 0) return
 
       // From a clean sheet, as setTrainingMode starts from one — which also
@@ -379,24 +388,49 @@ function setPassage(start, end, fragment = null) {
   training.end = end == null ? null : Math.max(training.start, end)
 }
 
-// The passage under way becomes the training passage, from its first bar with
-// no dot banked, as a passage picked on the sheet would.
-function startReinforcementPassage() {
-  const { start, end, fragment } = reinforcement.passages[reinforcement.index]
+// The passage whose turn it is becomes the training passage, from its first
+// bar, with the dots it banked on its turns before. The one whose turn it
+// takes, `leaving`, goes dark; the bars between, which the drill never lit,
+// are left as they are.
+function startReinforcementPassage(leaving = null) {
+  const { start, end, fragment, banked } = reinforcement.passages[reinforcement.index]
+  if (leaving) resetNotesFromIndex(leaving.start, leaving.end)
   setPassage(start, end, fragment)
-  jumpToMeasure(training.start)
+  jumpToMeasure(training.start, training.end)
+  training.banked = banked
+  updateRepeatIndicators()
   scrollToMeasure(training.start)
 }
 
-// The passage under way is done: on to the next, or the drill is over.
-function nextReinforcementPassage() {
-  reinforcement.index++
-  if (reinforcement.index < reinforcement.passages.length) {
-    afterTheBeat(startReinforcementPassage)
-    return
+// Whose turn it is once the passage at `index` has earned a dot, `banked`
+// listing the dots of each: the next one round the list with dots still to
+// fill — `index` itself when it is alone or the last one left — or null once
+// every one has `target`.
+export function nextTurn(banked, index, target) {
+  for (let k = 1; k <= banked.length; k++) {
+    const turn = (index + k) % banked.length
+    if (banked[turn] < target) return turn
   }
-  resetReinforcementState()
-  callbacks.onReinforcementComplete?.()
+  return null
+}
+
+// A dot earned ends the passage's turn (nextTurn): on to the next one, a beat
+// later, or the drill is over. False when the turn comes back to the passage
+// under way, which starts over in place as a spoiled repetition does.
+function passTheTurn() {
+  const { passages, index } = reinforcement
+  const leaving = passages[index]
+  leaving.banked = training.banked
+  const turn = nextTurn(passages.map((p) => p.banked), index, targetRepeatCount)
+  if (turn === index) return false
+  if (turn === null) {
+    resetReinforcementState()
+    callbacks.onReinforcementComplete?.()
+  } else {
+    reinforcement.index = turn
+    afterTheBeat(() => startReinforcementPassage(leaving))
+  }
+  return true
 }
 
 // Back to the default passage: the single measure under the cursor, the work
@@ -1039,11 +1073,13 @@ function removeMeasureClickHandlers() {
   measureClickRectangles.clear()
 }
 
-function jumpToMeasure(measureIndex) {
+// `clearTo` bounds what is cleared ahead of the measure, the rest of the score
+// by default.
+function jumpToMeasure(measureIndex, clearTo) {
   if (measureIndex < 0 || measureIndex >= score.allNotes.length) return
   dropPendingBeat()
   cursor.measureIndex = cursorMeasureFor(measureIndex)
-  resetNotesFromIndex(measureIndex)
+  resetNotesFromIndex(measureIndex, clearTo)
   resetMeasureProgress()
   updateMeasureCursor()
   updateRepeatIndicators()
@@ -1411,6 +1447,7 @@ function advanceTraining(next) {
   })
   // Set before the pause below, so the dot that has just been earned fills
   // where the player can see it rather than after the score has moved on.
+  const earned = banked > training.banked
   training.banked = banked
   updateRepeatIndicators()
 
@@ -1419,7 +1456,7 @@ function advanceTraining(next) {
     backToTheTopAfterTheBeat()
     return
   }
-  if (action === 'passageDone' && reinforcement.on) return nextReinforcementPassage()
+  if (reinforcement.on && earned && passTheTurn()) return
   if (action === 'passageDone') callbacks.onTrainingComplete?.()
 
   // A step further into the passage leaves the measures behind it lit and the

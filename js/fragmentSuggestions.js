@@ -42,8 +42,8 @@ export function initFragmentSuggestions({ storage, practiceTracker, noteLog, get
   }
 
   return {
-    // The fragments for `hands` (handsKey), best first: { from, until, hands,
-    // faults }, from and until as source bars and positions.
+    // The fragments for `hands` (handsKey): { from, until, hands }, from and
+    // until as source bars and positions.
     async suggestions(scoreId, hands) {
       const allNotes = getAllNotes()
       if (!scoreId || !allNotes?.length) return []
@@ -65,7 +65,7 @@ export function initFragmentSuggestions({ storage, practiceTracker, noteLog, get
 
 // A bar to reinforce, or the join into it, as the fragment of whole bars it is
 // drilled as: the bar, from the downbeat of the one before for a join.
-function wholeBars({ sourceMeasureIndex: bar, join, hands, faults }, { bars }) {
+function wholeBars({ sourceMeasureIndex: bar, join, hands }, { bars }) {
   const from = join && bar > 0 ? bar - 1 : bar
-  return { from: { bar: from, position: 0 }, until: { bar, position: bars[bar]?.duration ?? 1 }, hands, faults }
+  return { from: { bar: from, position: 0 }, until: { bar, position: bars[bar]?.duration ?? 1 }, hands }
 }

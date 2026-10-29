@@ -29,7 +29,7 @@
 //
 // Positions are compared exactly: whoever builds the model rounds them with
 // roundPosition, so that both hands on a beat share one.
-import { createSteadiness } from './steadiness.js'
+import { createSteadiness, outOfPace, writtenBetween } from './steadiness.js'
 import { TWO_HANDS, handsKey } from './hands.js'
 
 // How finely positions are told apart, in whole notes: far below any note,
@@ -60,10 +60,10 @@ const RESTART = 0.25
 export const handsOfBits = (bits) => handsKey({ right: Boolean(bits & 1), left: Boolean(bits & 2) })
 
 // The log cut into traversals, each judged: per traversal, its attacks in
-// score order — { bar (playback), sourceBar, position, at, ms, ratio, hole,
-// entry, joined, faulted } — the wrong keys played during it, { at, bar, key,
-// pitch }, `key` the note that was owed, and the hands ticked as it began
-// (handsKey).
+// score order — { bar (playback), sourceBar, position, at, ms, ratio, pace,
+// hole, entry, joined, faulted, written, lost } — the wrong keys played during
+// it, { at, bar, key, pitch }, `key` the note that was owed, and the hands
+// ticked as it began (handsKey).
 export function traversals(events, model) {
   const runs = []
   let run = null
@@ -109,8 +109,9 @@ function judge({ attacks, wrong, hands }, model) {
   const ordered = [...attacks.values()].sort((a, b) => a.bar - b.bar || a.position - b.position || a.grace - b.grace)
   const steadiness = createSteadiness()
   const apply = (verdicts) => {
-    for (const { ref, ratio, hole, entry, joined } of verdicts) {
+    for (const { ref, ratio, hole, entry, joined, pace } of verdicts) {
       ref.ratio = ratio
+      ref.pace = pace
       ref.hole ||= hole
       ref.entry ||= entry
       ref.joined ||= joined
@@ -118,30 +119,51 @@ function judge({ attacks, wrong, hands }, model) {
   }
   let previous = null
   for (const attack of ordered) {
+    const bar = model.bars[attack.sourceBar]
+    const point = {
+      at: attack.at,
+      measure: attack.bar,
+      position: attack.position,
+      measureDuration: bar.duration,
+      tempo: bar.tempo,
+      decorative: attack.grace,
+      fermata: attack.fermata,
+      ref: attack,
+    }
     if (previous) {
       attack.ms = attack.at - previous.at
       if (wrong.some((w) => w.at > previous.at && w.at <= attack.at)) {
         steadiness.fault()
         attack.faulted = true
+        // What the score writes over the interval the mistake took, where the
+        // pace would have judged it but for the mistake (weighLosses).
+        if (previous.tempo === point.tempo && !outOfPace(previous, point)) {
+          attack.written = writtenBetween(previous, point)
+        }
       }
     }
-    const bar = model.bars[attack.sourceBar]
-    apply(
-      steadiness.attack({
-        at: attack.at,
-        measure: attack.bar,
-        position: attack.position,
-        measureDuration: bar.duration,
-        tempo: bar.tempo,
-        decorative: attack.grace,
-        fermata: attack.fermata,
-        ref: attack,
-      }),
-    )
-    previous = attack
+    apply(steadiness.attack(point))
+    previous = point
   }
   apply(steadiness.close())
+  weighLosses(ordered)
   return { attacks: ordered, wrong, hands }
+}
+
+// What each fault held the traversal up, in ms, as `lost`: a hole, its excess
+// over the pace; an interval a wrong key fell in — which the pace never judges,
+// the time being the mistake's — how much longer it took than the pace of the
+// judged interval nearest before it, or after it, early in a traversal. What
+// reinforcement ranks its spots by (fragments.js). Nothing for an attack that
+// was no fault.
+function weighLosses(attacks) {
+  let pace = attacks.find((a) => a.pace)?.pace
+  for (const attack of attacks) {
+    pace = attack.pace ?? pace
+    if (attack.hole) attack.lost = excess(attack)
+    else if (attack.written != null && pace) attack.lost = Math.max(0, attack.ms - attack.written * pace)
+    else attack.lost = 0
+  }
 }
 
 // The attack at `position` in source bar `bar`, numbered from 1: the downbeat
