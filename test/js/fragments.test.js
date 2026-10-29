@@ -10,11 +10,16 @@ const model = {
 }
 
 // A traversal of bars `from` to `to`, holes on the notes listed as
-// "bar:attack", wrong keys owed for those listed in `wrong`.
-function traversal({ from = 0, to = 2, holes = [], wrong = [], hands = 'right', training = false } = {}) {
+// "bar:attack", wrong keys owed for those listed in `wrong`, each of those
+// attacks holding the run up 500 ms unless `lost` says otherwise.
+function traversal({ from = 0, to = 2, holes = [], wrong = [], lost = {}, hands = 'right', training = false } = {}) {
   const attacks = []
   for (let bar = from; bar <= to; bar++) {
-    POSITIONS.forEach((position, i) => attacks.push({ sourceBar: bar, position, hole: holes.includes(`${bar}:${i}`) }))
+    POSITIONS.forEach((position, i) => {
+      const at = `${bar}:${i}`
+      const [hole, faulted] = [holes.includes(at), wrong.includes(at)]
+      attacks.push({ sourceBar: bar, position, hole, faulted, lost: hole || faulted ? (lost[at] ?? 500) : 0 })
+    })
   }
   return { attacks, wrong: wrong.map((at) => ({ key: `m${at.replace(':', ':0:0:')}` })), hands, training }
 }
@@ -81,10 +86,13 @@ describe('fragmentsToReinforce', () => {
     ])
   })
 
-  it('counts a note searched for over many keys as one fault', () => {
-    const searched = traversal({ wrong: ['2:5', '2:5', '2:5', '2:5', '2:5'] })
+  it('ranks spots by the time they lost the runs, however many keys were tried', () => {
+    const searched = (ms) => traversal({ wrong: ['2:5', '2:5', '2:5', '2:5', '2:5'], lost: { '2:5': ms } })
     const stalled = traversal({ holes: ['1:1'] })
-    expect(offered([searched, stalled, stalled], { limit: 1 })).toEqual([[{ bar: 0, position: 0.75 }, { bar: 1, position: 0.25 }]])
+    const join = [{ bar: 0, position: 0.75 }, { bar: 1, position: 0.25 }]
+    const owed = [{ bar: 2, position: 0.25 }, { bar: 2, position: 0.75 }]
+    expect(offered([searched(600), stalled, stalled], { limit: 1 })).toEqual([join])
+    expect(offered([searched(3000), stalled, stalled], { limit: 1 })).toEqual([owed])
   })
 
   it('answers for one hand selection at a time', () => {
@@ -93,11 +101,11 @@ describe('fragmentsToReinforce', () => {
     expect(offered([both], { hands: 'both' })).toHaveLength(1)
   })
 
-  it('drills fragments that overlap as one, the most fumbled first', () => {
+  it('drills fragments that overlap as one, in the order of the score', () => {
     const traversals = [traversal({ holes: ['1:1', '1:3', '2:5'] }), traversal({ holes: ['2:5'] }), traversal({ wrong: ['2:4'] })]
     expect(fragmentsToReinforce(traversals, model, { hands: 'right' })).toEqual([
-      { from: { bar: 2, position: 0.25 }, until: { bar: 2, position: 0.75 }, hands: 'right', faults: 3 },
-      { from: { bar: 0, position: 0.75 }, until: { bar: 1, position: 0.5 }, hands: 'right', faults: 2 },
+      { from: { bar: 0, position: 0.75 }, until: { bar: 1, position: 0.5 }, hands: 'right' },
+      { from: { bar: 2, position: 0.25 }, until: { bar: 2, position: 0.75 }, hands: 'right' },
     ])
   })
 

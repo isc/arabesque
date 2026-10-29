@@ -139,6 +139,37 @@ class ReinforcementTest < CapybaraTestBase
     assert_text 'Renforcement terminé'
   end
 
+  # The passages take turns: a dot earned hands the drill on to the next one
+  # down the score, a repetition spoiled keeps it on the passage, and each comes
+  # back round with the dots it had until every one has its three, in the
+  # order of the score whatever the order they were handed over in.
+  def test_the_passages_of_a_drill_take_turns
+    visit '/score.html?url=/test-fixtures/repeat-endings.xml'
+    wait_for_score_render(4)
+    reinforce_bars(2, 1)
+
+    assert_drilling 1, dots: 0
+    play_note('C4')
+    assert_drilling 2, dots: 0
+    play_note('D4')
+    assert_drilling 1, dots: 1
+
+    play_note('E4')
+    assert_selector 'svg circle.repeat-indicator.spoiled', count: 1
+    play_note('C4')
+    assert_no_selector 'svg g.vf-notehead.played-note'
+    assert_drilling 1, dots: 1
+    play_note('C4')
+    assert_drilling 2, dots: 1
+
+    play_note('D4')
+    assert_drilling 1, dots: 2
+    play_note('C4')
+    assert_drilling 2, dots: 2
+    play_note('D4')
+    assert_text 'Renforcement terminé'
+  end
+
   # The dots hang over a passage's first notes, where a hand changes shape and
   # a fingering is most often written: they clear it rather than cover it
   # (feedback 65537b34). Bar 19 of the C minor prelude: the right hand's first
@@ -154,7 +185,7 @@ class ReinforcementTest < CapybaraTestBase
 
     execute_script(<<~JS)
       Alpine.$data(document.querySelector('[x-data]'))
-        .setMode('reinforcement', [{ from: { bar: 18, position: 0 }, until: { bar: 18, position: 0.25 }, hands: 'both', faults: 1 }])
+        .setMode('reinforcement', [{ from: { bar: 18, position: 0 }, until: { bar: 18, position: 0.25 }, hands: 'both' }])
     JS
     assert_selector 'svg circle.repeat-indicator', count: 3
     clearance = evaluate_script(<<~JS)
@@ -172,6 +203,22 @@ class ReinforcementTest < CapybaraTestBase
   end
 
   private
+
+  # A drill of whole bars of repeat-endings.xml, handed to the page in that
+  # order, as it would offer them.
+  def reinforce_bars(*bars)
+    passages = bars.map do |bar|
+      { from: { bar: bar - 1, position: 0 }, until: { bar: bar - 1, position: 1 }, hands: 'both' }
+    end
+    execute_script("Alpine.$data(document.querySelector('[x-data]')).setMode('reinforcement', #{passages.to_json})")
+  end
+
+  # The drill is on bar `bar` — its fragment shaded beside the bar's click
+  # area — with `dots` of its dots filled.
+  def assert_drilling(bar, dots:)
+    assert_selector %(svg rect.measure-click-area[data-measure-index="#{bar - 1}"] + rect.fragment-range)
+    assert_selector 'svg circle.repeat-indicator.filled', count: dots
+  end
 
   # The three clean repetitions of bars 1 and 2 that finish a drill of the
   # join, each waited out until the passage is cleared for the next.
