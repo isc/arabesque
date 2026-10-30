@@ -17,7 +17,7 @@ const model = {
       ]),
     ]),
   ),
-  bars: [0, 1].map(() => ({ duration: 1, tempo: null, positions: POSITIONS })),
+  bars: [0, 1].map(() => ({ duration: 1, tempo: null, positions: POSITIONS, beat: 0.5 })),
 }
 
 // The keys each attack of a bar is completed by, in score order.
@@ -131,6 +131,17 @@ describe('traversals', () => {
     const again = once.map(([at, ...rest]) => [at + 5000, ...rest])
     const runs = traversals(log([...once, [4900, 'h', null, -1, 1], ...again]), model)
     expect(runs.map((r) => r.hands)).toEqual(['both', 'right'])
+  })
+
+  // With a minim beat here: the bar's two halves, each one chord.
+  it('reads a traversal played in block chords beat by beat, as one of its own', () => {
+    const once = played(500)
+    const chords = [0, 1].flatMap((b) =>
+      [attackKeys(b).slice(0, 2), attackKeys(b).slice(2)].map((beat, i) => beat.flat().map((key) => [6000 + 1000 * (2 * b + i), 'd', key, b])),
+    )
+    const runs = traversals(log([...once, [5500, 'c', null, -1, 1], ...chords.flat()]), model)
+    expect(runs.map((r) => r.blockChords)).toEqual([false, true])
+    expect(runs[1].attacks.map((a) => [a.sourceBar, a.position])).toEqual([[0, 0], [0, 0.5], [1, 0], [1, 0.5]])
   })
 
   it('starts a new traversal where the player went back to repeat', () => {

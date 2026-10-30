@@ -327,12 +327,15 @@ async function showSession(player, id) {
   for (const run of runs) {
     const start = run.attacks[0].at
     const bars = new Set(run.attacks.map((a) => a.bar)).size
+    // Played in block chords, a beat at a time (musicxml.js): its attacks'
+    // `#n` are those of the notes its beats start on.
+    const heading = `${clock(start)}  ${run.blockChords ? 'block chords  ' : ''}`
     if (bars === 1) {
-      console.log(barLines(run, model, `${clock(start)}  `)[0])
+      console.log(barLines(run, model, heading)[0])
       continue
     }
     console.log(
-      `\n${clock(start)}  ${bars} bars in ${minutes(run.attacks.at(-1).at - start)}, ${seconds(totalExcess(run.attacks))} over the pace`,
+      `\n${heading}${bars} bars in ${minutes(run.attacks.at(-1).at - start)}, ${seconds(totalExcess(run.attacks))} over the pace`,
     )
     for (const line of barLines(run, model, '  ')) console.log(line)
   }
