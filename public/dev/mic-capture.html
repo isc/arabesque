@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="fr" data-theme="light">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="robots" content="noindex" />
+    <title>Arabesque · Capture mode micro</title>
+    <link rel="stylesheet" href="../styles.css" />
+    <script type="module" src="micCapture.js"></script>
+  </head>
+  <body>
+    <main class="container pt-stack">
+      <h1>Capture mode micro</h1>
+      <p class="pt-hint">
+        Enregistre à la fois le son du micro, les notes envoyées par le clavier MIDI et ce que le
+        mode micro a entendu. Le clavier doit sonner par ses haut-parleurs tout en envoyant son MIDI à
+        cette page. Connecté (page Données), la capture part dans un espace privé ; sinon elle est
+        téléchargée.
+      </p>
+      <article class="pt-card">
+        <p>Clavier MIDI : <strong id="midi">…</strong></p>
+        <p>Micro : <strong id="device">—</strong> · niveau <strong id="level">—</strong></p>
+        <p>Dernière note MIDI : <strong id="lastMidi">—</strong> · entendue par le micro : <strong id="lastHeard">—</strong></p>
+        <p><span id="elapsed"></span> <span id="counts"></span></p>
+        <button id="toggle" class="pt-chip pt-action-button is-primary">● Enregistrer</button>
+        <p id="result" class="pt-hint"></p>
+      </article>
+      <article class="pt-card">
+        <p class="pt-hint">Une bonne prise, une à deux minutes :</p>
+        <ol class="pt-hint">
+          <li>quelques secondes sans jouer (le bruit de la pièce) ;</li>
+          <li>des notes isolées, lentement, du grave à l'aigu ;</li>
+          <li>une même touche répétée, doucement puis fort ;</li>
+          <li>une mélodie simple, sans pédale.</li>
+        </ol>
+      </article>
+    </main>
+  </body>
+</html>
