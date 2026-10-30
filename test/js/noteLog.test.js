@@ -93,6 +93,23 @@ describe('the note log', () => {
     ])
   })
 
+  it('writes block chords as they change, and at the head of every segment while they are on', async () => {
+    page.log.keyDown(60, 70)
+    page.log.blockChords(true)
+    page.log.keyDown(62, 70)
+    await page.log.flush()
+    page.log.keyDown(64, 70)
+    page.log.blockChords(false)
+    await page.log.flush()
+    page.log.keyDown(65, 70)
+    await page.log.flush()
+    expect(page.saved().map((s) => [s.e, s.p])).toEqual([
+      ['hxcx', [3, 60, 1, 62]],
+      ['hcxc', [3, 1, 64, 0]],
+      ['hx', [3, 65]],
+    ])
+  })
+
   // A continuous pedal sends dozens of values a press.
   it('keeps the pedal from one band to the next, and at both ends', async () => {
     for (const value of [0, 3, 9, 20, 25, 70, 126, 127, 127, 60, 1, 0]) page.log.pedal(value)

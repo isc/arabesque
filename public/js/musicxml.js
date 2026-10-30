@@ -8,13 +8,14 @@ import {
   svgNoteheadFor,
   carryOverNoteStates,
   isOrnamentOrGrace,
+  isStruck,
 } from './noteExtraction.js'
 import { scrollSystemIntoView, isUnderStickyBars } from './utils.js'
 import { arrayBufferToXml, isMusicXml } from './mxlLoader.js'
 import { stripPlaybackTempoMarks } from './tempoMarks.js'
 import { recordError } from './errorLog.js'
 import { REINFORCEMENT_CLEAN_PASSES } from './reinforcement.js'
-import { POSITION_EPSILON } from './noteLogAnalysis.js'
+import { POSITION_EPSILON, beatStartOf } from './noteLogAnalysis.js'
 import { createSteadiness } from './steadiness.js'
 
 // The score on the stand: the sheet OSMD holds, and the note model built from
@@ -100,6 +101,8 @@ const training = {
   // Whether the traversal of the passage under way is still flawless — one
   // measure's worth of it by default, the whole passage when a range is picked.
   clean: true,
+  // Block chords, plaqué: the notes of each beat owed as one (inBlockChords).
+  blockChords: false,
 }
 
 // Reinforcement: the passages it drills, each worked as a picked training
@@ -253,6 +256,16 @@ export function initMusicXML() {
       if (landing === cursor.measureIndex || landing >= score.allNotes.length) return
       cursor.measureIndex = landing
       updateMeasureCursor()
+    },
+    // Block chords on or off (inBlockChords). The repetition under way starts
+    // over from the top of its passage, its notes owed another way; the dots
+    // stay.
+    setBlockChords: (on) => {
+      training.blockChords = on
+      if (!training.on) return
+      dropPendingBeat()
+      const { first } = trainingPassage()
+      moveTrainingCursorTo(first, { keepRepeats: true, clearFrom: first })
     },
     getOsmdInstance: () => score.osmdInstance,
     getAllNotes: () => score.allNotes,
@@ -496,9 +509,30 @@ function setCallbacks(cbs) {
 }
 
 // A note the player owes: one of the hands ticked, inside the fragment drilled
-// when there is one (training.fragment).
+// when there is one (training.fragment) — and, in block chords, one a key
+// strikes. A chord takes no ornament, so an ornamented note is left out of its
+// beat's, which spares the trill handling below a time it would misread.
 function isNoteOwed(noteData) {
-  return isNoteActiveForHandsShared(noteData, activeHands) && inFragment(noteData)
+  return (
+    isNoteActiveForHandsShared(noteData, activeHands) &&
+    inFragment(noteData) &&
+    (!inBlockChords() || isStruck(noteData))
+  )
+}
+
+// Block chords — plaqué, which only training has: each beat struck as one
+// chord, every note of it held down at once, where the beat starts. The hand
+// takes the shape the beat needs in one go, and at the bar line it has to know
+// the next one: where a run stalls once the downbeat is down, the hand looking
+// for where to go (BWV 847, October 2026). A rehearsal of the passage, not the
+// passage: it fills no dot, and the dots are earned playing it as written.
+const inBlockChords = () => training.on && training.blockChords
+
+// Where a note of `measure` is owed: at its timestamp, or in block chords at
+// the start of its beat, with the rest of the beat.
+function stampOf(noteData, { measureIndex, beat }) {
+  if (!inBlockChords()) return noteData.timestamp
+  return measureIndex + beatStartOf(noteData.timestamp - measureIndex, beat)
 }
 
 // Only training drills a fragment: free play or strict mode, left to from a
@@ -716,11 +750,11 @@ function resetMeasureProgress({ keepRepeats = false, keepRepetition = false, not
 }
 
 // Opens the journal's attempt at a measure (onMeasureStarted): `partial` when
-// a fragment leaves out notes of it the hands would otherwise owe, so that it
-// says nothing of the bar as a whole.
+// a fragment leaves out notes of it the hands would otherwise owe, or when it
+// is played in block chords, so that it says nothing of the bar as written.
 function startAttempt(measureData) {
   attempt.open = true
-  const partial = measureData.notes.some((n) => isNoteActiveForHandsShared(n, activeHands) && !inFragment(n))
+  const partial = inBlockChords() || measureData.notes.some((n) => isNoteActiveForHandsShared(n, activeHands) && !inFragment(n))
   callbacks.onMeasureStarted?.(measureData.sourceMeasureIndex, atScoreStart(), { partial })
 }
 
@@ -1166,15 +1200,16 @@ function pendingNotes() {
   return score.allNotes[cursor.measureIndex]?.notes.filter((n) => isNoteOwed(n) && !n.played) ?? []
 }
 
-// The notes at the earliest of these timestamps, keyed by where they sit so a
-// caller can tell one wait from the next.
+// The notes owed at the earliest of the times these are (stampOf), keyed by
+// where they sit so a caller can tell one wait from the next.
 function firstGroupOf(notes) {
   if (notes.length === 0) return null
-  const timestamp = Math.min(...notes.map((n) => n.timestamp))
+  const measure = score.allNotes[cursor.measureIndex]
+  const timestamp = Math.min(...notes.map((n) => stampOf(n, measure)))
   return {
     key: `${cursor.measureIndex}:${timestamp}`,
     timestamp,
-    notes: notes.filter((n) => n.timestamp === timestamp),
+    notes: notes.filter((n) => stampOf(n, measure) === timestamp),
   }
 }
 
@@ -1228,7 +1263,8 @@ function activateNote(midiNote) {
     if (!expectedNote) return null
   }
 
-  const chord = activeNotes.filter((n) => n.timestamp === expectedNote.timestamp)
+  const owedAt = stampOf(expectedNote, measureData)
+  const chord = activeNotes.filter((n) => stampOf(n, measureData) === owedAt)
   const pressed = chord.filter((n) => awaitsKey(n) && n.midiNumber === midiNote)
   const { measureIndex } = measureData
   if (pressed.length === 0) {
@@ -1367,9 +1403,7 @@ function cascadeHeldTieValidations() {
     const next = expectedGroup()
     if (!next) return
 
-    const group = measureData.notes.filter(
-      (n) => isNoteOwed(n) && n.timestamp === next.timestamp,
-    )
+    const group = measureData.notes.filter((n) => isNoteOwed(n) && stampOf(n, measureData) === next.timestamp)
     // Only auto-advance when every note is already held by a tie - otherwise the
     // player still owes a fresh keypress for this group.
     if (!group.every((n) => n.played || isHeldByTie(n, group, heldMidiNotes))) return
@@ -1452,7 +1486,8 @@ function advanceTraining(next) {
     ...passage,
     banked: training.banked,
     target: targetRepeatCount,
-    clean: training.clean,
+    // A repetition in block chords fills no dot (inBlockChords).
+    clean: training.clean && !inBlockChords(),
     measureCount: score.allNotes.length,
   })
   // Set before the pause below, so the dot that has just been earned fills
@@ -1460,10 +1495,14 @@ function advanceTraining(next) {
   const earned = banked > training.banked
   training.banked = banked
   updateRepeatIndicators()
+  // A turn's first repetition, played cold: one in block chords spends it
+  // without saying anything of the passage as written.
   if (reinforcement.firstTry && action !== 'step') {
     reinforcement.firstTry = false
-    reinforcement.firstTries.played++
-    if (earned) reinforcement.firstTries.clean++
+    if (!inBlockChords()) {
+      reinforcement.firstTries.played++
+      if (earned) reinforcement.firstTries.clean++
+    }
   }
 
   if (action === 'scoreDone') {
@@ -1558,13 +1597,13 @@ function runsOn(next) {
 // that judged.
 function registerAttack(measureData, group) {
   if (!steadiness.underway) clearVerdictMarks()
-  const [{ timestamp, note }] = group
+  const [first] = group
   const verdicts = steadiness.attack({
     at: performance.now(),
     measure: measureData.measureIndex,
-    position: timestamp - measureData.measureIndex,
+    position: stampOf(first, measureData) - measureData.measureIndex,
     measureDuration: measureData.duration,
-    tempo: note?.SourceMeasure?.TempoInBPM,
+    tempo: first.note?.SourceMeasure?.TempoInBPM,
     decorative: group.some(isOrnamentOrGrace),
     fermata: group.some((n) => n.fermata),
     ref: { notes: group, sourceMeasureIndex: measureData.sourceMeasureIndex },

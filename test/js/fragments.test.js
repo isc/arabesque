@@ -12,7 +12,7 @@ const model = {
 // A traversal of bars `from` to `to`, holes on the notes listed as
 // "bar:attack", wrong keys owed for those listed in `wrong`, each of those
 // attacks holding the run up 500 ms unless `lost` says otherwise.
-function traversal({ from = 0, to = 2, holes = [], wrong = [], lost = {}, hands = 'right', training = false } = {}) {
+function traversal({ from = 0, to = 2, holes = [], wrong = [], lost = {}, hands = 'right', training = false, blockChords = false } = {}) {
   const attacks = []
   for (let bar = from; bar <= to; bar++) {
     POSITIONS.forEach((position, i) => {
@@ -21,7 +21,7 @@ function traversal({ from = 0, to = 2, holes = [], wrong = [], lost = {}, hands 
       attacks.push({ sourceBar: bar, position, hole, faulted, lost: hole || faulted ? (lost[at] ?? 500) : 0 })
     })
   }
-  return { attacks, wrong: wrong.map((at) => ({ key: `m${at.replace(':', ':0:0:')}` })), hands, training }
+  return { attacks, wrong: wrong.map((at) => ({ key: `m${at.replace(':', ':0:0:')}` })), hands, training, blockChords }
 }
 
 const offered = (traversals, options = {}) =>
@@ -74,6 +74,15 @@ describe('fragmentsToReinforce', () => {
     expect(offered([fumbled, clean, clean, fumbled, clean])).toHaveLength(1)
     const spoiled = { ...fumbled, training: true }
     expect(offered([fumbled, clean, spoiled, clean, clean])).toEqual([])
+  })
+
+  // Block chords strike each beat as one chord: no traversal of the passage
+  // as written, whatever it went through.
+  it('neither offers nor settles anything by what was played in block chords', () => {
+    const fumbled = traversal({ holes: ['1:1'] })
+    const chords = traversal({ training: true, blockChords: true })
+    expect(offered([fumbled, chords, chords, chords])).toHaveLength(1)
+    expect(offered([traversal({ holes: ['1:1'], blockChords: true })])).toEqual([])
   })
 
   it('offers and ranks spots by the runs alone, what a drill fumbles adding nothing', () => {

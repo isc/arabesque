@@ -215,6 +215,9 @@ export function midiApp() {
     // filled (`end` null) — or a range picked with 🔁, whose measures are then
     // drilled as one, joins and slurs between them included.
     trainingPassage: passage(0),
+    // 🎹 in the training band: each beat played as one chord (setBlockChords
+    // in musicxml.js). For the stint of training it is switched on in.
+    blockChords: false,
 
     // Read off the flag score.html's head script raised during parsing, so
     // Alpine agrees with the CSS about whether a score is on its way. Without
@@ -999,6 +1002,19 @@ export function midiApp() {
       musicxml.markStrictRange(show ? this.strictPassage.start : null, this.strictPassage.end)
     },
 
+    toggleBlockChords() {
+      this.setBlockChords(!this.blockChords)
+    },
+
+    // The note log says it too: what is played in block chords is no run of
+    // the passage as written, and its analysis has to know
+    // (noteLogAnalysis.js).
+    setBlockChords(on) {
+      this.blockChords = on
+      musicxml.setBlockChords(on)
+      noteLog.blockChords(on)
+    },
+
     // 🔁 in the training band, strict mode's loop button in its own: it arms
     // the second click that closes a passage. Either way round, toggling it
     // puts the work back on a single measure at the top of what was selected —
@@ -1049,6 +1065,8 @@ export function midiApp() {
       // listening takes it over (see barClickOwner).
       const clickIsTraining = this.barClickOwner === 'training'
       if (this.trainingPassage.armed) return armedRangeText(from, clickIsTraining)
+      if (this.blockChords) return t('score.blockChordsHint')
+      if (this.mode === 'reinforcement') return t('score.reinforcementHint', { times })
       // A passage of one bar is allowed, and "bars 5 to 5" is not a sentence.
       if (this.trainingPassage.end != null) return passageText('score.trainingPassage', this.trainingPassage, { times })
       if (this.trainingPassage.loop && clickIsTraining) return t('score.loopHint')
@@ -1136,6 +1154,7 @@ export function midiApp() {
         await strictRunRecorded
       }
       if (this.mode === 'strict') this.resetStrictRange()
+      if (this.blockChords) this.setBlockChords(false)
       // A mode is entered on the whole piece: a passage picked in a previous
       // stint of training is not what the player asked for by tapping a tab.
       this.resetTrainingRange()
