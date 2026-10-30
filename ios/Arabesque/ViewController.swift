@@ -222,7 +222,14 @@ final class ViewController: UIViewController {
   // MARK: - Bluetooth MIDI pairing
 
   /// Presented at the page's request: shim `pairBluetooth()` → `{type: 'pair'}`.
+  ///
+  /// Nothing is made unless it can be shown. `present` fails quietly when a
+  /// sheet is already up — the page asks again as the app comes back with its
+  /// earlier sheet still open — and a CABTMIDICentralViewController freed
+  /// without ever having been on screen takes the app down: its dealloc removes
+  /// a KVO observer it never added (TestFlight crash of 2026-10-24, build 15).
   private func presentBluetoothMIDIPairing() {
+    guard presentedViewController == nil, view.window != nil else { return }
     let central = CABTMIDICentralViewController()
     central.navigationItem.rightBarButtonItem = UIBarButtonItem(
       barButtonSystemItem: .done, target: self, action: #selector(dismissPresented))
