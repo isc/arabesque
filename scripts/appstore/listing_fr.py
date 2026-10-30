@@ -90,12 +90,11 @@ pratique.
 # what an update changes for someone who has the app. Rewrite it for each
 # release. 4000 max.
 WHATS_NEW = """\
-L'export de sauvegarde fonctionne enfin dans l'app : il ouvre le partage \
-d'iOS, pour enregistrer le fichier dans Fichiers ou l'envoyer par AirDrop ou \
-Mail.
+L'app ne se ferme plus en revenant au premier plan quand la fenêtre de \
+connexion Bluetooth était restée ouverte.
 
-« Connecter clavier MIDI » ouvre directement le jumelage Bluetooth d'iOS, et la \
-fenêtre se referme d'elle-même dès que le clavier est connecté.
+Si le clavier n'est pas connecté quand vous revenez dans l'app, la fenêtre de \
+connexion Bluetooth vous est de nouveau proposée.
 """
 
 REVIEW_NOTES = """\

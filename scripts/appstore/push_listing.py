@@ -7,7 +7,9 @@
 
 Idempotent: it looks everything up by bundle id rather than carrying pasted
 identifiers, so it still works on version 1.1, and re-running overwrites rather
-than duplicating. Screenshots replace what is already in each set.
+than duplicating. Screenshots replace what is already in each set. With
+--attach-build and no version being prepared, it makes the one the build was
+made as, which Apple fills from the version before.
 
 It never submits for review — that stays a deliberate human act.
 
@@ -49,14 +51,16 @@ EDITABLE_STATES = {
 }
 
 
-def find_ids():
+def find_ids(create_version):
     app_id = asc.app_id()
 
     _, d = asc.call("GET", f"/v1/apps/{app_id}/appStoreVersions?limit=10")
     d_versions = d.get("data", [])
     versions = [v for v in d_versions if v["attributes"]["appStoreState"] in EDITABLE_STATES]
+    if not versions and create_version:
+        versions = [version_of_newest_build(app_id)]
     if not versions:
-        raise SystemExit("no editable version — create one in App Store Connect first")
+        raise SystemExit("no editable version — pass --attach-build to make the newest build's")
     version_id = versions[0]["id"]
 
     # Once a version is on sale, its app info is locked and a second one takes
@@ -85,6 +89,17 @@ def find_ids():
         "info_loc": localization(f"/v1/appInfos/{app_info_id}/appInfoLocalizations",
                                  "app info localization"),
     }
+
+
+def version_of_newest_build(app_id):
+    build = asc.newest_build(app_id)
+    _, pre = asc.call("GET", f"/v1/builds/{build['id']}/preReleaseVersion")
+    number = pre["data"]["attributes"]["version"]
+    created = asc.expect(f"create version {number}", *asc.call("POST", "/v1/appStoreVersions", {
+        "data": {"type": "appStoreVersions",
+                 "attributes": {"platform": "IOS", "versionString": number},
+                 "relationships": {"app": {"data": {"type": "apps", "id": app_id}}}}}))
+    return created["data"]
 
 
 def push_metadata(ids):
@@ -256,14 +271,15 @@ def main():
     parser.add_argument("--screenshots", type=pathlib.Path, metavar="DIR",
                         help="upload the PNGs in DIR (see scripts/demo/capture.sh)")
     parser.add_argument("--attach-build", action="store_true",
-                        help="attach the newest valid build to the version")
+                        help="attach the newest valid build to the version, "
+                             "making the version if none is being prepared")
     parser.add_argument("--price-free", action="store_true",
                         help="create the free price schedule (only needed once)")
     parser.add_argument("--skip-metadata", action="store_true")
     args = parser.parse_args()
 
     try:
-        ids = find_ids()
+        ids = find_ids(create_version=args.attach_build)
     except asc.ConfigError as e:
         raise SystemExit(f"error: {e}")
 
