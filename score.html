@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="app-version" content="1910f9045b20" />
+    <meta name="app-version" content="0f185e62b581" />
     <title data-i18n="score.pageTitle">Arabesque</title>
     <link rel="icon" href="favicon.svg" type="image/svg+xml" />
     <link rel="manifest" href="manifest.webmanifest" />
@@ -466,9 +466,16 @@
             </div>
           </template>
 
-          <!-- Reinforcement: brief acknowledgement -->
+          <!-- Reinforcement: done, and how its turns went on the first try -->
           <template x-if="resultMode === 'reinforcement'">
-            <p class="pt-modal-note" x-text="$t('score.reinforcementDone')">Tout ce qui était proposé a été renforcé avec succès.</p>
+            <div>
+              <p class="pt-modal-note pt-modal-note--lead" x-text="$t('score.reinforcementDone')">Tout ce qui était proposé a été renforcé avec succès.</p>
+              <p class="pt-modal-stat">
+                <strong x-text="$t('score.reinforcementFirstTries', reinforcementFirstTries)"></strong>
+                <span x-text="$t('score.reinforcementFirstTriesLabel')"></span>
+              </p>
+              <p class="pt-modal-note" x-text="$t('score.reinforcementFirstTriesWhy')"></p>
+            </div>
           </template>
         </div>
 
