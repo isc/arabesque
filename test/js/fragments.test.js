@@ -113,9 +113,20 @@ describe('fragmentsToReinforce', () => {
   it('drills fragments that overlap as one, in the order of the score', () => {
     const traversals = [traversal({ holes: ['1:1', '1:3', '2:5'] }), traversal({ holes: ['2:5'] }), traversal({ wrong: ['2:4'] })]
     expect(fragmentsToReinforce(traversals, model, { hands: 'right' })).toEqual([
-      { from: { bar: 0, position: 0.75 }, until: { bar: 1, position: 0.5 }, hands: 'right' },
-      { from: { bar: 2, position: 0.25 }, until: { bar: 2, position: 0.75 }, hands: 'right' },
+      { from: { bar: 0, position: 0.75 }, until: { bar: 1, position: 0.5 }, hands: 'right', stalledAtBarLine: true },
+      { from: { bar: 2, position: 0.25 }, until: { bar: 2, position: 0.75 }, hands: 'right', stalledAtBarLine: false },
     ])
+  })
+
+  // The hand stopped on the downbeat or just after it, looking for the next
+  // position: what block chords work on. Not a wrong note, nor a hole further in.
+  it('says which fragments lost their time mostly in stalls at the bar line', () => {
+    const stalls = (traversals) => fragmentsToReinforce(traversals, model, { hands: 'right' }).map((f) => f.stalledAtBarLine)
+    expect(stalls([traversal({ holes: ['1:0'] })])).toEqual([true])
+    expect(stalls([traversal({ holes: ['1:1'] })])).toEqual([true])
+    expect(stalls([traversal({ holes: ['1:2'] })])).toEqual([false])
+    expect(stalls([traversal({ wrong: ['1:1'] })])).toEqual([false])
+    expect(stalls([traversal({ holes: ['1:1'], wrong: ['1:0'], lost: { '1:0': 2000 } })])).toEqual([false])
   })
 
   it('keeps to the best `limit` spots', () => {

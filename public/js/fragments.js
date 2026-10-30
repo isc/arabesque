@@ -11,7 +11,7 @@
 // filed with a session. The bar-and-join suggestions (reinforcement.js) are
 // for sessions with no log.
 import { REINFORCEMENT_CLEAN_PASSES } from './reinforcement.js'
-import { POSITION_EPSILON, beatIndex } from './noteLogAnalysis.js'
+import { POSITION_EPSILON, attackNumber, beatIndex } from './noteLogAnalysis.js'
 
 // Fragments are compared and merged as (bar, position) pairs, source bars
 // and whole notes.
@@ -62,22 +62,25 @@ function readingOf(traversal, model) {
   // astray on it: searching for a note costs the seconds the search took, not
   // the thirty keys tried on the way. Ranking by the time rather than by the
   // count is what tells a three-second stall at a leap from a slip of the
-  // finger, which the count put level.
+  // finger, which the count put level. Of that time, `atBarLine` is what
+  // holes on a bar's first two attacks took: the hand stopped at the bar
+  // line, or once the downbeat was down, looking for where to go next.
   const attacks = new Map(traversal.attacks.filter((a) => !a.grace).map((a) => [attackId(a.sourceBar, a.position), a]))
   const faults = new Map()
   const fumbled = new Set()
-  const add = (bar, position) => {
+  const add = (bar, position, hole = false) => {
     const attack = attackId(bar, position)
     if (fumbled.has(attack)) return
     fumbled.add(attack)
     const lost = attacks.get(attack)?.lost ?? 0
     const spot = spotAt(model, bar, position)
     const id = spotId(spot)
+    if (!faults.has(id)) faults.set(id, { spot, lost: 0, atBarLine: 0 })
     const counted = faults.get(id)
-    if (counted) counted.lost += lost
-    else faults.set(id, { spot, lost })
+    counted.lost += lost
+    if (hole && attackNumber(model, bar, position) <= 2) counted.atBarLine += lost
   }
-  for (const attack of traversal.attacks) if (attack.hole) add(attack.sourceBar, attack.position)
+  for (const attack of traversal.attacks) if (attack.hole) add(attack.sourceBar, attack.position, true)
   for (const { key } of traversal.wrong) {
     const note = model.notes.get(key)
     if (note) add(note.bar, note.position)
@@ -87,7 +90,7 @@ function readingOf(traversal, model) {
   return reading
 }
 
-// The spots a traversal stumbled on, by spot id: { spot, lost }, as
+// The spots a traversal stumbled on, by spot id: { spot, lost, atBarLine }, as
 // reinforcement ranks them — for scripts/practice-report.mjs to print.
 export const faultsOf = (traversal, model) => readingOf(traversal, model).faults
 
@@ -105,7 +108,9 @@ export const faultsOf = (traversal, model) => readingOf(traversal, model).faults
 // training, where a spoiled repetition leaves the dots already filled
 // (musicxml.js) and does not start the count over. Spots are ranked by the
 // time they lost the runs, then by how recently they came; the fragments of
-// the `limit` best that overlap or touch are drilled as one.
+// the `limit` best that overlap or touch are drilled as one. A fragment is
+// `stalledAtBarLine` when most of what one of its spots lost went in stalls at
+// the bar line — what block chords are for (musicxml.js).
 export function fragmentsToReinforce(traversals, model, { hands, limit = 5 } = {}) {
   const spots = new Map()
   traversals.forEach((traversal, order) => {
@@ -117,16 +122,16 @@ export function fragmentsToReinforce(traversals, model, { hands, limit = 5 } = {
       if (!faults.has(id) && entry.ends?.every((end) => played.has(end))) entry.clean++
     }
     if (traversal.training) return
-    for (const [id, { spot, lost }] of faults) {
-      const entry = spots.get(id)
-      if (entry) {
-        entry.lost += lost
-        entry.last = order
-        entry.clean = 0
-      } else {
+    for (const [id, { spot, lost, atBarLine }] of faults) {
+      if (!spots.has(id)) {
         const fragment = fragmentOf(model, spot)
-        spots.set(id, { fragment, ends: endsOf(model, fragment), lost, clean: 0, last: order })
+        spots.set(id, { fragment, ends: endsOf(model, fragment), lost: 0, atBarLine: 0 })
       }
+      const entry = spots.get(id)
+      entry.lost += lost
+      entry.atBarLine += atBarLine
+      entry.last = order
+      entry.clean = 0
     }
   })
 
@@ -137,12 +142,14 @@ export function fragmentsToReinforce(traversals, model, { hands, limit = 5 } = {
     .sort((a, b) => (before(a.fragment.from, b.fragment.from) ? -1 : 1))
 
   const merged = []
-  for (const { fragment } of chosen) {
+  for (const { fragment, lost, atBarLine } of chosen) {
+    const stalled = atBarLine > 0 && atBarLine * 2 >= lost
     const open = merged.at(-1)
     if (open && !before(open.until, fragment.from)) {
       if (before(open.until, fragment.until)) open.until = fragment.until
+      open.stalledAtBarLine ||= stalled
     } else {
-      merged.push({ from: { ...fragment.from }, until: { ...fragment.until }, hands })
+      merged.push({ from: { ...fragment.from }, until: { ...fragment.until }, hands, stalledAtBarLine: stalled })
     }
   }
   return merged

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { nextTurn, trainingStep } from '../../public/js/musicxml.js'
+import { nextTurn, suitsBlockChords, trainingStep } from '../../public/js/musicxml.js'
 
 // A passage of one measure, which is what training mode works on until the
 // player picks a range — so these cases are the behaviour training has always
@@ -73,5 +73,32 @@ describe('nextTurn', () => {
 
   it('is done once every passage has its dots', () => {
     expect(nextTurn([3, 3], 1, 3)).toBeNull()
+  })
+})
+
+// A beat as suitsBlockChords takes it: [right, left], each the MIDI notes that
+// hand plays in it, in order.
+describe('suitsBlockChords', () => {
+  const C4 = 60
+  it('takes a broken chord in each hand, that comes back to a note', () => {
+    // BWV 847, bar 11 beat 1: Bb4 G4 F4 G4 over G2 Eb3 D3 Eb3.
+    expect(suitsBlockChords([[[70, 67, 65, 67], [43, 51, 50, 51]]])).toBe(true)
+    expect(suitsBlockChords([[[C4, C4 + 4, C4 + 7, C4 + 4], []]])).toBe(true)
+  })
+
+  it('leaves out a line, which has no chord to find', () => {
+    expect(suitsBlockChords([[[C4, C4 + 2, C4 + 4, C4 + 5], []]])).toBe(false)
+  })
+
+  it('leaves out a hand that would have to hold more than an octave', () => {
+    // BWV 847, bar 31 beat 1: the left hand leaps Eb3 to G4.
+    expect(suitsBlockChords([[[72, 75, 74, 75], [51, 67, 65, 67]]])).toBe(false)
+  })
+
+  it('wants every beat of the passage to suit, and a passage to judge', () => {
+    const chord = [[C4, C4 + 4, C4 + 7, C4 + 4], []]
+    const line = [[C4, C4 + 2, C4 + 4, C4 + 5], []]
+    expect(suitsBlockChords([chord, line])).toBe(false)
+    expect(suitsBlockChords([])).toBe(false)
   })
 })
