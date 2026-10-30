@@ -381,8 +381,10 @@ submits for review, and App Privacy has no API and stays manual.
 
 `scripts/appstore/testflight_invite.py <email>` invites a TestFlight tester,
 making the external group, build attachment and beta review submission it needs
-on the way; `--status` reports where the review is. Credentials for both live
-outside the repo; see `scripts/appstore/README.md`.
+on the way; `--status` reports where the review is.
+`scripts/appstore/downloads.py` counts the App Store downloads, day by day
+(`--since`, `--by-country`). Credentials live outside the repo;
+see `scripts/appstore/README.md`.
 
 ## New HTML pages
 

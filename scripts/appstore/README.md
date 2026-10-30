@@ -1,8 +1,8 @@
 # App Store Connect from the command line
 
 `push_listing.py` writes the store listing, `testflight_invite.py` puts a tester
-on TestFlight. Both talk to the App Store Connect API through `asc.py` and read
-the same credentials.
+on TestFlight, `downloads.py` counts who installed the app. All talk to the App
+Store Connect API through `asc.py` and read the same credentials.
 
 ## Pushing the App Store listing
 
@@ -53,6 +53,18 @@ be a user of the App Store Connect account. That is not something to hand to
 someone who only wants to try the app — and on an individual membership there is
 no one to add anyway.
 
+## How many people installed it
+
+```bash
+python3 scripts/appstore/downloads.py                       # the last 30 days
+python3 scripts/appstore/downloads.py --since 2026-08-01 --by-country
+```
+
+First downloads, re-downloads and updates, day by day, from the daily Sales
+reports App Store Connect's Trends page is built on. Yesterday's is filed in
+the course of the morning, Paris time; until then it reads as nothing.
+TestFlight installs are not in them.
+
 ## Certificates left by TestFlight builds
 
 ```bash
@@ -84,6 +96,7 @@ Nothing here is committed. The client reads:
 |---|---|---|
 | Private key | `~/.appstoreconnect/private_keys/AuthKey_<KEYID>.p8` | Where altool and xcodebuild look too. The key id is read off the filename. |
 | Issuer id | `$ASC_ISSUER_ID` or `~/.appstoreconnect/issuer_id` | Same for the whole team; on the same page as the key. |
+| Vendor number | `$ASC_VENDOR_NUMBER` or `~/.appstoreconnect/vendor_number` | What sales reports are filed under, for `downloads.py`. No API gives it: it is at the top left of Payments and Financial Reports. |
 | Review contact | `~/.appstoreconnect/review_contact.json` | `{"firstName","lastName","email","phone"}` — personal data, so out of the repo. Apple wants the phone as `+33 …`. |
 
 The key must have the **Admin** role. App Manager can create certificates but
@@ -99,15 +112,16 @@ rejected outright.
 ## From another machine
 
 Everything here is HTTPS to Apple and nothing else, so it runs anywhere with
-`python3`, `cryptography` and those three files — the whole API surface, not
-just the parts these two scripts use today: listing, pricing, TestFlight groups
+`python3`, `cryptography` and those files — the whole API surface, not
+just the parts these scripts use today: listing, pricing, TestFlight groups
 and testers, builds and their beta state, review submissions. A Linux box drives
 App Store Connect as well as the Mac does.
 
 ```bash
 rsync -a ~/.appstoreconnect/ HOST:.appstoreconnect/
 ssh HOST 'chmod 700 ~/.appstoreconnect ~/.appstoreconnect/private_keys
-          chmod 600 ~/.appstoreconnect/issuer_id ~/.appstoreconnect/review_contact.json \
+          chmod 600 ~/.appstoreconnect/issuer_id ~/.appstoreconnect/vendor_number \
+                    ~/.appstoreconnect/review_contact.json \
                     ~/.appstoreconnect/private_keys/*.p8'
 ```
 
