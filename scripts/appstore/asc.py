@@ -6,12 +6,14 @@ Credentials are never committed. Everything is read from ~/.appstoreconnect:
     private_keys/AuthKey_<KEYID>.p8   the key; the key id is read off the name
     issuer_id                         or $ASC_ISSUER_ID
     review_contact.json               name, email and phone for App Review
+    vendor_number                     or $ASC_VENDOR_NUMBER, for sales reports
 
-That is the directory altool and xcodebuild already use for the key, and the
-three files are all a machine needs to drive this API.
+That is the directory altool and xcodebuild already use for the key, and these
+files are all a machine needs to drive this API.
 """
 import base64
 import glob
+import gzip
 import json
 import os
 import pathlib
@@ -44,17 +46,24 @@ def _key_path() -> pathlib.Path:
     return pathlib.Path(found[0])
 
 
-def _issuer_id() -> str:
-    from_env = os.environ.get("ASC_ISSUER_ID")
+def _setting(env, name, where):
+    from_env = os.environ.get(env)
     if from_env:
         return from_env.strip()
-    stored = KEY_DIR / "issuer_id"
+    stored = KEY_DIR / name
     if stored.exists():
         return stored.read_text().strip()
-    raise ConfigError(
-        "no issuer id: set ASC_ISSUER_ID, or write it to ~/.appstoreconnect/issuer_id.\n"
-        "It is on the same App Store Connect page as the key, and is the same for the whole team."
-    )
+    raise ConfigError(f"no {name.replace('_', ' ')}: set {env}, or write it to ~/.appstoreconnect/{name}.\n{where}")
+
+
+def _issuer_id() -> str:
+    return _setting("ASC_ISSUER_ID", "issuer_id",
+                    "It is on the same App Store Connect page as the key, and is the same for the whole team.")
+
+
+def vendor_number() -> str:
+    return _setting("ASC_VENDOR_NUMBER", "vendor_number",
+                    "It is at the top left of Payments and Financial Reports in App Store Connect.")
 
 
 def review_contact():
@@ -121,22 +130,47 @@ def call(method, path, body=None):
     """Returns (status, parsed-json). Errors come back rather than raising, so a
     caller can report which step of a long sequence failed."""
     url = path if path.startswith("http") else BASE + path
-    headers = {
-        "Authorization": f"Bearer {token()}",
-        # Apple's edge rejects urllib's default agent with an opaque 403.
-        "User-Agent": "arabesque-listing/1.0",
-    }
+    headers = _headers()
     data = None
     if body is not None:
         data = json.dumps(body).encode()
         headers["Content-Type"] = "application/json"
-    req = urllib.request.Request(url, data=data, headers=headers, method=method)
+    status, raw = _send(urllib.request.Request(url, data=data, headers=headers, method=method))
+    text = raw.decode()
+    if status >= 400:
+        return status, {"raw": text}
+    return status, (json.loads(text) if text.strip() else {})
+
+
+def _send(req):
+    """(status, body bytes), an HTTP error included rather than raised."""
     try:
         with urllib.request.urlopen(req) as resp:
-            text = resp.read().decode()
-            return resp.status, (json.loads(text) if text.strip() else {})
+            return resp.status, resp.read()
     except urllib.error.HTTPError as e:
-        return e.code, {"raw": e.read().decode()}
+        return e.code, e.read()
+
+
+def _headers():
+    return {
+        "Authorization": f"Bearer {token()}",
+        # Apple's edge rejects urllib's default agent with an opaque 403.
+        "User-Agent": "arabesque-listing/1.0",
+    }
+
+
+def get_report(path):
+    """Returns (status, text). Sales reports come back gzipped, and only to a
+    client that says it takes gzip: any other Accept is a 406. Apple answers
+    the odd one with a 500 the same request a moment later does not get, and a
+    GET is safe to send again."""
+    for attempt in range(3):
+        status, raw = _send(urllib.request.Request(
+            BASE + path, headers={**_headers(), "Accept": "application/a-gzip"}))
+        if status < 500 or attempt == 2:
+            break
+        time.sleep(1 + attempt)
+    return status, (gzip.decompress(raw) if status == 200 else raw).decode()
 
 
 def put_bytes(operation, chunk):
@@ -144,13 +178,8 @@ def put_bytes(operation, chunk):
     carries its own headers — adding our Authorization to it is what an
     otherwise unexplained 400 means."""
     headers = {h["name"]: h["value"] for h in operation["requestHeaders"]}
-    req = urllib.request.Request(operation["url"], data=chunk, headers=headers,
-                                 method=operation["method"])
-    try:
-        with urllib.request.urlopen(req) as resp:
-            return resp.status
-    except urllib.error.HTTPError as e:
-        return e.code
+    return _send(urllib.request.Request(operation["url"], data=chunk, headers=headers,
+                                        method=operation["method"]))[0]
 
 
 def errors_of(payload):
