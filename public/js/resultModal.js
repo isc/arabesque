@@ -3,8 +3,7 @@
 // loop — its body switching on `resultMode`. A mixin the score page's
 // component spreads (app.js), as it does headerMenu(). It reads nothing of the
 // component's: each end hands over what the modal reports, through the show…
-// method made for it (openResultModal('reinforcement') for the one with
-// nothing to report).
+// method made for it.
 import { t } from './i18n.js'
 import { TWO_HANDS } from './hands.js'
 import { withHands, passageText } from './utils.js'
@@ -33,10 +32,11 @@ export function resultModal({ onOpen }) {
     resultWrongMeasures: '',
     resultHands: TWO_HANDS,
     // A strict run's verdict, a tempo trainer's summary, a training passage's
-    // line.
+    // line, a reinforcement's first tries (musicxml.js).
     strictResult: null,
     trainerSummary: null,
     resultTrainingText: '',
+    reinforcementFirstTries: null,
 
     // `allPlaythroughs` comes most recent first (getAllPlaythroughs).
     showScoreComplete(allPlaythroughs) {
@@ -64,6 +64,11 @@ export function resultModal({ onOpen }) {
         ? t('score.trainingDone')
         : passageText('score.trainingPassageDone', { start, end }, { times })
       this.openResultModal('training')
+    },
+
+    showReinforcementDone(firstTries) {
+      this.reinforcementFirstTries = firstTries
+      this.openResultModal('reinforcement')
     },
 
     openResultModal(mode) {

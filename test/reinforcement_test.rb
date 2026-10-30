@@ -142,7 +142,9 @@ class ReinforcementTest < CapybaraTestBase
   # The passages take turns: a dot earned hands the drill on to the next one
   # down the score, a repetition spoiled keeps it on the passage, and each comes
   # back round with the dots it had until every one has its three, in the
-  # order of the score whatever the order they were handed over in.
+  # order of the score whatever the order they were handed over in. The end
+  # says how many turns came out clean on their first try: all six but the
+  # one spoiled.
   def test_the_passages_of_a_drill_take_turns
     visit '/score.html?url=/test-fixtures/repeat-endings.xml'
     wait_for_score_render(4)
@@ -168,6 +170,7 @@ class ReinforcementTest < CapybaraTestBase
     assert_drilling 2, dots: 2
     play_note('D4')
     assert_text 'Renforcement terminé'
+    assert_selector '.pt-modal-stat strong', text: '5 sur 6'
   end
 
   # The dots hang over a passage's first notes, where a hand changes shape and

@@ -434,9 +434,9 @@ export function midiApp() {
         // A run that reached the end is over, results or not (one started from
         // a bar further on has none): the next starts as the piece did.
         onBackToTop: () => keyHint.restart(),
-        onReinforcementComplete: async () => {
+        onReinforcementComplete: async (firstTries) => {
           await this.setMode('free')
-          this.openResultModal('reinforcement')
+          this.showReinforcementDone(firstTries)
         },
         onMeasureClicked: (measureIndex) => {
           // A bar clicked while listening seeks playback there instead of
