@@ -14,7 +14,9 @@
 // ahead. That is read off the attacks alone: a bar clicked, which makes the
 // page start its count over, leaves nothing in the log. The hands ticked do
 // (the `h` events), and a traversal is played with those ticked as it began —
-// both, in a log from before they were written.
+// both, in a log from before they were written. So do block chords (the `c`
+// events), which start a traversal of their own: its attacks are its beats,
+// each struck as one chord, as the page judged them (stampOf in musicxml.js).
 //
 // Pure: segments and a note model in, verdicts out. The model is the score's,
 // by source bar:
@@ -36,6 +38,12 @@ import { TWO_HANDS, handsKey } from './hands.js'
 // far above the error of summing durations.
 export const POSITION_EPSILON = 1e-6
 export const roundPosition = (wholeNotes) => Math.round(wholeNotes / POSITION_EPSILON) / (1 / POSITION_EPSILON)
+
+// The beat a position in a bar falls in, `beat` long, counted from 0 — what a
+// fragment is cut in (fragments.js) — and where that beat starts, which is
+// where block chords strike it (musicxml.js).
+export const beatIndex = (position, beat) => Math.floor(position / beat + POSITION_EPSILON)
+export const beatStartOf = (position, beat) => roundPosition(beatIndex(position, beat) * beat)
 
 // A session's note log as one list of events in time order: { at (epoch ms),
 // code, pitch, key, bar }, `bar` the playback index — the columns of a segment
@@ -62,16 +70,18 @@ export const handsOfBits = (bits) => handsKey({ right: Boolean(bits & 1), left: 
 // The log cut into traversals, each judged: per traversal, its attacks in
 // score order — { bar (playback), sourceBar, position, at, ms, ratio, pace,
 // hole, entry, joined, faulted, written, lost } — the wrong keys played during
-// it, { at, bar, key, pitch }, `key` the note that was owed, and the hands
-// ticked as it began (handsKey).
+// it, { at, bar, key, pitch }, `key` the note that was owed, the hands ticked
+// as it began (handsKey), and `blockChords` when it was played in block chords.
 export function traversals(events, model) {
   const runs = []
   let run = null
   let last = -Infinity
   let lastBar = -Infinity
   let hands = TWO_HANDS
+  let blockChords = false
   for (const event of events) {
     if (event.code === 'h') hands = handsOfBits(event.pitch)
+    if (event.code === 'c') blockChords = event.pitch === 1
     const note = event.key && model.notes.get(event.key)
     if (!note || event.bar < 0) continue
     if (event.code === 'w') {
@@ -79,17 +89,22 @@ export function traversals(events, model) {
       continue
     }
     if (event.code !== 'd') continue
-    const where = event.bar + note.position / (model.bars[note.bar].duration || 1)
-    if (!run || where < last - RESTART || event.bar > lastBar + 1) runs.push((run = { attacks: new Map(), wrong: [], hands }))
+    const { duration, beat } = model.bars[note.bar]
+    // In block chords, a note is struck with its beat.
+    const position = blockChords ? beatStartOf(note.position, beat) : note.position
+    const where = event.bar + position / (duration || 1)
+    if (!run || where < last - RESTART || event.bar > lastBar + 1 || run.blockChords !== blockChords) {
+      runs.push((run = { attacks: new Map(), wrong: [], hands, blockChords }))
+    }
     last = where
     lastBar = event.bar
-    const id = `${event.bar}@${note.position}${note.grace ? 'g' : ''}`
+    const id = `${event.bar}@${position}${note.grace ? 'g' : ''}`
     let attack = run.attacks.get(id)
     if (!attack) {
       attack = {
         bar: event.bar,
         sourceBar: note.bar,
-        position: note.position,
+        position,
         grace: note.grace,
         fermata: note.fermata,
         hole: false,
@@ -105,7 +120,7 @@ export function traversals(events, model) {
   return runs.map((r) => judge(r, model))
 }
 
-function judge({ attacks, wrong, hands }, model) {
+function judge({ attacks, wrong, hands, blockChords }, model) {
   const ordered = [...attacks.values()].sort((a, b) => a.bar - b.bar || a.position - b.position || a.grace - b.grace)
   const steadiness = createSteadiness()
   const apply = (verdicts) => {
@@ -147,7 +162,7 @@ function judge({ attacks, wrong, hands }, model) {
   }
   apply(steadiness.close())
   weighLosses(ordered)
-  return { attacks: ordered, wrong, hands }
+  return { attacks: ordered, wrong, hands, blockChords }
 }
 
 // What each fault held the traversal up, in ms, as `lost`: a hole, its excess

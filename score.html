@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="app-version" content="0f185e62b581" />
+    <meta name="app-version" content="ee39bc3c8721" />
     <title data-i18n="score.pageTitle">Arabesque</title>
     <link rel="icon" href="favicon.svg" type="image/svg+xml" />
     <link rel="manifest" href="manifest.webmanifest" />
@@ -315,16 +315,25 @@
 
     <!-- Training band: the same shape as the strict one — its controls, then
          what the mode has to say — so 🔁 picks a passage in both the same way. -->
-    <div class="pt-context pt-context--training" x-show="mode === 'training' && !!osmdInstance" x-cloak>
+    <div class="pt-context pt-context--training" x-show="currentMode === 'training' && !!osmdInstance" x-cloak>
       <strong x-text="$t('score.trainingBand')">🎯 Entraînement</strong>
       <div class="pt-band-controls">
+        <!-- A reinforcement brings its own passages. -->
         <button
           class="pt-band-button"
+          x-show="mode === 'training'"
           :aria-pressed="trainingPassage.loop"
           :title="$t('score.trainingLoopTitle')"
           @click="toggleTrainingLoop"
           x-text="$t('score.loopBtn')"
         >🔁 Boucle</button>
+        <button
+          class="pt-band-button"
+          :aria-pressed="blockChords"
+          :title="$t('score.blockChordsTitle')"
+          @click="toggleBlockChords"
+          x-text="$t('score.blockChordsBtn')"
+        >🎹 Plaqué</button>
       </div>
       <span class="pt-context__row" x-text="trainingBandText()">Chaque mesure doit être jouée 3× sans erreur ni hésitation.</span>
     </div>
@@ -470,11 +479,17 @@
           <template x-if="resultMode === 'reinforcement'">
             <div>
               <p class="pt-modal-note pt-modal-note--lead" x-text="$t('score.reinforcementDone')">Tout ce qui était proposé a été renforcé avec succès.</p>
-              <p class="pt-modal-stat">
-                <strong x-text="$t('score.reinforcementFirstTries', reinforcementFirstTries)"></strong>
-                <span x-text="$t('score.reinforcementFirstTriesLabel')"></span>
-              </p>
-              <p class="pt-modal-note" x-text="$t('score.reinforcementFirstTriesWhy')"></p>
+              <!-- None when every turn opened in block chords, which spend
+                   the cold try without playing the passage as written. -->
+              <template x-if="reinforcementFirstTries.played > 0">
+                <div>
+                  <p class="pt-modal-stat">
+                    <strong x-text="$t('score.reinforcementFirstTries', reinforcementFirstTries)"></strong>
+                    <span x-text="$t('score.reinforcementFirstTriesLabel')"></span>
+                  </p>
+                  <p class="pt-modal-note" x-text="$t('score.reinforcementFirstTriesWhy')"></p>
+                </div>
+              </template>
             </div>
           </template>
         </div>

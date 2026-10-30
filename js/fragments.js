@@ -11,14 +11,14 @@
 // filed with a session. The bar-and-join suggestions (reinforcement.js) are
 // for sessions with no log.
 import { REINFORCEMENT_CLEAN_PASSES } from './reinforcement.js'
-import { POSITION_EPSILON } from './noteLogAnalysis.js'
+import { POSITION_EPSILON, beatIndex } from './noteLogAnalysis.js'
 
 // Fragments are compared and merged as (bar, position) pairs, source bars
 // and whole notes.
 const before = (a, b) => a.bar < b.bar || (a.bar === b.bar && a.position < b.position)
 
 // A beat of a bar: its index, where it starts and where it ends.
-const beatOf = (bar, position) => Math.floor(position / bar.beat + POSITION_EPSILON)
+const beatOf = (bar, position) => beatIndex(position, bar.beat)
 const beatStart = (bar, beat) => beat * bar.beat
 const beatEnd = (bar, beat) => Math.min((beat + 1) * bar.beat, bar.duration)
 
@@ -109,7 +109,9 @@ export const faultsOf = (traversal, model) => readingOf(traversal, model).faults
 export function fragmentsToReinforce(traversals, model, { hands, limit = 5 } = {}) {
   const spots = new Map()
   traversals.forEach((traversal, order) => {
-    if (traversal.hands !== hands) return
+    // Block chords are no traversal of the passage as written: they neither
+    // rank nor settle anything.
+    if (traversal.hands !== hands || traversal.blockChords) return
     const { faults, played } = readingOf(traversal, model)
     for (const [id, entry] of spots) {
       if (!faults.has(id) && entry.ends?.every((end) => played.has(end))) entry.clean++

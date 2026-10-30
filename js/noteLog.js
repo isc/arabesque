@@ -22,7 +22,10 @@
 //         h  the hands ticked, `p` holding 1 for the right, 2 for the left, 3
 //            for both: at the head of every segment, and whenever they change.
 //            A log from before it was written was played with both
-//   p   the MIDI note (or the pedal's value, or the hands ticked)
+//         c  block chords, plaqué (musicxml.js), `p` 1 on and 0 off:
+//            whenever they change, and after the `h` at the head of a segment
+//            while they are on
+//   p   the MIDI note (or the pedal's value, the hands ticked, block chords)
 //   v   the velocity, 0 for a key up and the pedal
 //   n   an index into `keys`, the notes' fingering keys (fingeringKeys.js),
 //       or -1
@@ -101,14 +104,29 @@ export function initNoteLog({ storage, sessionId }) {
   let written = []
   // The hands ticked, as an `h` event writes them: both until told otherwise.
   let handsBits = 3
+  // Block chords, as a `c` event writes them.
+  let blockChordsOn = false
   let pedalBand = null
 
   function open(id) {
     if (last.sessionId !== id) written = []
     last = { sessionId: id, seq: last.sessionId === id ? last.seq + 1 : 0 }
     origin = performance.now()
-    // Opening on the hands ticked: a segment read on its own still says them.
-    return { id: `${id}:${last.seq}`, sessionId: id, startedAt: new Date().toISOString(), keys: [], t: [0], e: 'h', p: [handsBits], v: [0], n: [-1], b: [-1] }
+    // Opening on the hands ticked, and block chords when on: a segment read
+    // on its own still says them.
+    const opened = { id: `${id}:${last.seq}`, sessionId: id, startedAt: new Date().toISOString(), keys: [], t: [], e: '', p: [], v: [], n: [], b: [] }
+    append(opened, 0, 'h', handsBits)
+    if (blockChordsOn) append(opened, 0, 'c', 1)
+    return opened
+  }
+
+  function append(to, t, code, pitch, velocity = 0, index = -1, bar = -1) {
+    to.t.push(t)
+    to.e += code
+    to.p.push(pitch)
+    to.v.push(velocity)
+    to.n.push(index)
+    to.b.push(bar)
   }
 
   function record(code, pitch, velocity = 0, taken = null) {
@@ -123,12 +141,7 @@ export function initNoteLog({ storage, sessionId }) {
       index = segment.keys.indexOf(key)
       if (index < 0) index = segment.keys.push(key) - 1
     }
-    segment.t.push(Math.round(performance.now() - origin))
-    segment.e += code
-    segment.p.push(pitch)
-    segment.v.push(velocity)
-    segment.n.push(index)
-    segment.b.push(taken?.measureIndex ?? -1)
+    append(segment, Math.round(performance.now() - origin), code, pitch, velocity, index, taken?.measureIndex ?? -1)
     if (segment.e.length >= SEGMENT_EVENTS) flush()
   }
 
@@ -157,6 +170,11 @@ export function initNoteLog({ storage, sessionId }) {
       if (bits === handsBits) return
       handsBits = bits
       if (segment) record('h', bits)
+    },
+    blockChords(on) {
+      if (on === blockChordsOn) return
+      blockChordsOn = on
+      if (segment) record('c', on ? 1 : 0)
     },
     pedal(value) {
       const band = Math.floor(value / PEDAL_BAND)

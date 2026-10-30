@@ -643,6 +643,10 @@ export function isOrnamentOrGrace(noteData) {
   )
 }
 
+// A note a key strikes: not one that decorates another, nor a tie holding on
+// what was struck before it.
+export const isStruck = (noteData) => !isOrnamentOrGrace(noteData) && !noteData.isTieContinuation
+
 // What this note asks the player for, in whole-note fractions throughout: the
 // pitches in order, how long after its own timestamp the first of them is due,
 // how long the whole of it has to be played in, and whether it may go on
@@ -670,8 +674,7 @@ export function isOrnamentOrGrace(noteData) {
 // its own change; until then the divergence is deliberate, not overlooked.
 export function requiredSequence(noteData) {
   if (noteData.ornamentAsk) return noteData.ornamentAsk
-  const held = isOrnamentOrGrace(noteData) || noteData.isTieContinuation
-  return { sequence: held ? [] : [noteData.midiNumber], delayTs: 0, holdTs: 0, alternating: false }
+  return { sequence: isStruck(noteData) ? [noteData.midiNumber] : [], delayTs: 0, holdTs: 0, alternating: false }
 }
 
 // The top staff is the right hand's, every staff below it the left's -- except
@@ -700,29 +703,27 @@ export function isNoteActiveForHands(noteData, activeHands) {
 export function analysisModel(allNotes) {
   const notes = new Map()
   const bars = []
-  for (const { measureIndex, sourceMeasureIndex: bar, notes: measureNotes, duration } of allNotes) {
+  for (const { measureIndex, sourceMeasureIndex: bar, notes: measureNotes, duration, beat } of allNotes) {
     if (bars[bar]) continue
     const positions = new Set()
     for (const noteData of measureNotes) {
       if (noteData.noteheadIndex < 0 && notes.has(noteData.fingeringKey)) continue
       const position = roundPosition(noteData.timestamp - measureIndex)
-      const decorative = isOrnamentOrGrace(noteData)
       notes.set(noteData.fingeringKey, {
         bar,
         staff: noteData.staffIndex,
         position,
         midi: noteData.midiNumber,
-        grace: decorative,
+        grace: isOrnamentOrGrace(noteData),
         fermata: noteData.fermata,
       })
-      if (!decorative && !noteData.isTieContinuation) positions.add(position)
+      if (isStruck(noteData)) positions.add(position)
     }
-    const sourceMeasure = measureNotes[0]?.note?.SourceMeasure
     bars[bar] = {
       duration,
-      tempo: sourceMeasure?.TempoInBPM,
+      tempo: measureNotes[0]?.note?.SourceMeasure?.TempoInBPM,
       positions: [...positions].sort((a, b) => a - b),
-      beat: beatLength(sourceMeasure?.ActiveTimeSignature),
+      beat,
     }
   }
   return { notes, bars }
@@ -865,6 +866,9 @@ export function extractNotesFromScore(osmdInstance) {
       cursorStops: cursorStopsByMeasure.get(barIndex) ?? [],
       // In whole notes, as the bar's timestamps are.
       duration: bars[barIndex].duration,
+      // How long a beat of it is, in whole notes: what a fragment is cut in
+      // (fragments.js) and what plaqué strikes as one chord (musicxml.js).
+      beat: beatLength(bars[barIndex].measures[0]?.measure.ActiveTimeSignature),
     })
   })
 
