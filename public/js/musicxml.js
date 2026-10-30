@@ -113,6 +113,12 @@ const reinforcement = {
   on: false,
   passages: [],
   index: 0,
+  // The first repetition of each turn, the one played cold: how many there
+  // were and how many came out clean, which the drill reports at its end. A
+  // dot earned after three misses says the passage is not there yet.
+  firstTries: { played: 0, clean: 0 },
+  // Whether the repetition under way is the first of its turn.
+  firstTry: false,
 }
 
 // Whether the journal's attempt at the measure under the cursor is open
@@ -361,6 +367,8 @@ function resetReinforcementState() {
   reinforcement.on = false
   reinforcement.passages = []
   reinforcement.index = 0
+  reinforcement.firstTries = { played: 0, clean: 0 }
+  reinforcement.firstTry = false
   training.fragment = null
 }
 
@@ -398,6 +406,7 @@ function startReinforcementPassage(leaving = null) {
   setPassage(start, end, fragment)
   jumpToMeasure(training.start, training.end)
   training.banked = banked
+  reinforcement.firstTry = true
   updateRepeatIndicators()
   scrollToMeasure(training.start)
 }
@@ -424,8 +433,9 @@ function passTheTurn() {
   const turn = nextTurn(passages.map((p) => p.banked), index, targetRepeatCount)
   if (turn === index) return false
   if (turn === null) {
+    const { firstTries } = reinforcement
     resetReinforcementState()
-    callbacks.onReinforcementComplete?.()
+    callbacks.onReinforcementComplete?.(firstTries)
   } else {
     reinforcement.index = turn
     afterTheBeat(() => startReinforcementPassage(leaving))
@@ -1450,6 +1460,11 @@ function advanceTraining(next) {
   const earned = banked > training.banked
   training.banked = banked
   updateRepeatIndicators()
+  if (reinforcement.firstTry && action !== 'step') {
+    reinforcement.firstTry = false
+    reinforcement.firstTries.played++
+    if (earned) reinforcement.firstTries.clean++
+  }
 
   if (action === 'scoreDone') {
     callbacks.onTrainingComplete?.()

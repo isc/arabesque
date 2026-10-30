@@ -29,10 +29,6 @@ export function initFragmentSuggestions({ storage, practiceTracker, noteLog, get
     return model.value
   }
 
-  // A session's traversals, each saying whether it was a drill.
-  const judged = (segments, session, notes) =>
-    traversals(eventsOf(segments), notes).map((traversal) => ({ ...traversal, training: session.mode === 'training' }))
-
   async function pastTraversals(sessions, notes) {
     const window = noteLogWindow(sessions)
     const unread = window.filter((s) => !judgedSessions.has(s.id))
@@ -53,14 +49,25 @@ export function initFragmentSuggestions({ storage, practiceTracker, noteLog, get
       // The page's log can still hold the session it rolled over from.
       const liveSegments = live ? noteLog.liveSegments().filter((s) => s.sessionId === live.id) : []
       const all = [...(await pastTraversals(sessions, notes)), ...(live ? judged(liveSegments, live, notes) : [])]
-      if (all.some((traversal) => !traversal.training)) return fragmentsToReinforce(all, notes, { hands })
-      return measuresToReinforce(sessions, { hands }).map((item) => wholeBars(item, notes))
+      return reinforcementOffer(all, sessions, notes, hands)
     },
     // The kept logs changed under the window: read them again.
     forget() {
       judgedSessions = new Map()
     },
   }
+}
+
+// A session's traversals, each saying whether it was a drill.
+export const judged = (segments, session, notes) =>
+  traversals(eventsOf(segments), notes).map((traversal) => ({ ...traversal, training: session.mode === 'training' }))
+
+// What to offer for `hands`, from the traversals of the window (`all`): their
+// fragments, or the bars and joins of the score's `sessions` when not one of
+// them is a run. Pure, for scripts/practice-report.mjs to say the same.
+export function reinforcementOffer(all, sessions, notes, hands) {
+  if (all.some((traversal) => !traversal.training)) return fragmentsToReinforce(all, notes, { hands })
+  return measuresToReinforce(sessions, { hands }).map((item) => wholeBars(item, notes))
 }
 
 // A bar to reinforce, or the join into it, as the fragment of whole bars it is

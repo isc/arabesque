@@ -40,6 +40,18 @@ describe('scoreModel', () => {
     expect(bars[0].positions).toEqual([0, 0.75])
   })
 
+  // A beat is what reinforcement drills a spot in (fragments.js).
+  it('reads the beat off the time signature, kept until the next one, as the app does', () => {
+    const time = (beats, type) => `<attributes><time><beats>${beats}</beats><beat-type>${type}</beat-type></time></attributes>`
+    const xml = `<score-partwise><part id="P1">
+      <measure number="1"><attributes><divisions>2</divisions></attributes>${time(6, 8)}${note('C', 4, { duration: 6 })}</measure>
+      <measure number="2">${note('D', 4, { duration: 6 })}</measure>
+      <measure number="3">${time(3, 4)}${note('E', 4, { duration: 6 })}</measure>
+    </part></score-partwise>`
+    expect(scoreModel(xml).bars.map((b) => b.beat)).toEqual([3 / 8, 3 / 8, 1 / 4])
+    expect(scoreModel(XML).bars.map((b) => b.beat)).toEqual([1 / 4, 1 / 4])
+  })
+
   // The keys are what the note log names its notes by: a walk that counts
   // differently files every key after the first difference under another note.
   it('names every note of every score the way fingerings and the note log do', () => {

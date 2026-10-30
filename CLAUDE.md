@@ -301,6 +301,7 @@ toggled leaves no trace there.
 node scripts/practice-report.mjs sessions --score BWV_847 --days 7  # ids, modes, counts
 node scripts/practice-report.mjs session <id>        # every bar or repetition: holes, wrong notes
 node scripts/practice-report.mjs trend --score BWV_847               # last full runs, bar by bar
+node scripts/practice-report.mjs losses --score BWV_847              # time each beat lost those runs, and what reinforcement offers now
 node scripts/practice-report.mjs repeats --score BWV_847             # wrong notes made the same way again and again
 ```
 

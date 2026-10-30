@@ -59,13 +59,15 @@ export function midiOf(note) {
 
 // Besides the notes, what times them, for a walk that places each note in its
 // bar: the measures, what moves the cursor back and forth between voices, what
-// scales a duration, and the tempo marked. `TOKEN` has no group of its own, so
-// the backreference counts from here.
+// scales a duration, the time signature and the tempo marked. `TOKEN` has no
+// group of its own, so the backreference counts from here.
 export const TIMED_TOKEN = new RegExp(
-  `${TOKEN.source}|<(backup|forward)>[\\s\\S]*?<\\/\\1>|<divisions>[^<]*<\\/divisions>|<sound\\s[^>]*\\btempo=["'][^"']*["']`,
+  `${TOKEN.source}|<(backup|forward)>[\\s\\S]*?<\\/\\1>|<divisions>[^<]*<\\/divisions>|<time[\\s>][\\s\\S]*?<\\/time>|<sound\\s[^>]*\\btempo=["'][^"']*["']`,
   'g',
 )
 export const DURATION = /<duration>\s*([\d.]+)\s*<\/duration>/
 export const DIVISIONS = /<divisions>\s*([\d.]+)/
+export const BEATS = /<beats>\s*(\d+)/
+export const BEAT_TYPE = /<beat-type>\s*(\d+)/
 export const TEMPO = /\btempo=["']([^"']*)["']/
 export const FERMATA = /<fermata[\s/>]/

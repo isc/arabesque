@@ -87,6 +87,10 @@ function readingOf(traversal, model) {
   return reading
 }
 
+// The spots a traversal stumbled on, by spot id: { spot, lost }, as
+// reinforcement ranks them — for scripts/practice-report.mjs to print.
+export const faultsOf = (traversal, model) => readingOf(traversal, model).faults
+
 // What reinforcement offers, in the order of the score: the fragments of the
 // spots fumbled in these traversals outside a drill and not played cleanly
 // since, for one hand selection. `traversals` are the window's (REINFORCEMENT_WINDOW_SESSIONS), in
