@@ -72,6 +72,14 @@ export function openNativePairing() {
   if (nativePairingAvailable()) globalThis.__pianoTrainerMIDI.pairBluetooth()
 }
 
+// Wrappers up to build 15 — the 1.1 on the App Store among them, which names
+// no build — crash when asked for the sheet while theirs is still up
+// (ViewController.swift says why), which is what offering it again as the app
+// came back did. They are only offered it as the app opens.
+function wrapperTakesASecondRequest() {
+  return Number(globalThis.__arabesqueApp?.build) >= 16
+}
+
 // A keyboard has been connected on this device: the player has one.
 const KEYBOARD_SEEN_KEY = 'arabesque:midi-keyboard-seen'
 // The keyboard has been looked for since the app opened. sessionStorage lasts
@@ -90,7 +98,7 @@ export const PAIRING_GRACE_MS = 2000
 function offerPairingWhenMissing() {
   if (!nativePairingAvailable() || !keyboardSeen()) return
   if (!checkedThisLaunch()) offerPairingSoon()
-  onForeground(offerPairingSoon)
+  if (wrapperTakesASecondRequest()) onForeground(offerPairingSoon)
 }
 
 function keyboardSeen() {

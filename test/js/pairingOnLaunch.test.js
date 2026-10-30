@@ -19,6 +19,13 @@ describe('the pairing sheet offered when the keyboard is missing', () => {
     return midi
   }
 
+  function comeBack() {
+    setVisibility('hidden')
+    setVisibility('visible')
+    wake()
+    vi.runAllTimers()
+  }
+
   beforeEach(() => {
     vi.useFakeTimers()
     ;({ setVisibility, wake } = installDocument())
@@ -79,15 +86,25 @@ describe('the pairing sheet offered when the keyboard is missing', () => {
   })
 
   it('comes up again when the app comes back without it, once however it is told', async () => {
+    vi.stubGlobal('__arabesqueApp', { build: '16' })
     installLocalStorage(SEEN)
     await openPage()
     vi.runAllTimers()
 
-    setVisibility('hidden')
-    setVisibility('visible')
-    wake()
-    vi.runAllTimers()
+    comeBack()
     expect(pairBluetooth).toHaveBeenCalledTimes(2)
+  })
+
+  // The TestFlight crash of 2026-10-24: the app came back to the sheet it had
+  // left open, and was asked for another.
+  it('comes up only as the app opens in a build that crashes on a second one', async () => {
+    vi.stubGlobal('__arabesqueApp', { build: '15' })
+    installLocalStorage(SEEN)
+    await openPage()
+    vi.runAllTimers()
+
+    comeBack()
+    expect(pairBluetooth).toHaveBeenCalledOnce()
   })
 
   it('remembers that the device has a keyboard once one connects', async () => {
