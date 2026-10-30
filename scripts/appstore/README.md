@@ -13,7 +13,7 @@ version gets the same words.
 ```bash
 python3 scripts/appstore/push_listing.py                              # text, URLs, categories, age rating
 python3 scripts/appstore/push_listing.py --screenshots tmp/appstore-screenshots
-python3 scripts/appstore/push_listing.py --attach-build               # newest valid build
+python3 scripts/appstore/push_listing.py --attach-build               # newest valid build, and its version
 python3 scripts/appstore/push_listing.py --price-free                 # once, unless the price changes
 ```
 
