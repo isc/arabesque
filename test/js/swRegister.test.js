@@ -1,4 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
+import { VERSION_STAMP, versionLine } from '../../scripts/stamp-version.mjs'
+import { replacedOnce } from '../../scripts/replace-once.mjs'
 
 // A page with a service worker container the test drives: what it was asked to
 // register, and the two signals a new worker arriving can send.
@@ -19,7 +23,7 @@ function fakePage({ pathname = '/library.html', controlled = false, online = tru
   // The caches on the device: the page's own deploy's shell, and the one that
   // outlives deploys.
   const cacheNames = ['arabesque-shell-deadbeef', 'arabesque-lasting']
-  const caches = { keys: vi.fn(async () => cacheNames) }
+  const caches = { keys: vi.fn(async () => cacheNames), match: vi.fn(async () => undefined) }
 
   return {
     register,
@@ -173,8 +177,22 @@ describe('where a page stands in the update cycle', () => {
       controlled: true,
       workers: '-/-/activated',
       caches: ['arabesque-shell-deadbeef', 'arabesque-lasting'],
+      shell_scripts: null,
       last_check: { seconds_ago: 0, outcome: 'nothing new', page: '/library.html' },
     })
+  })
+
+  // A shell holding another deploy's scripts than the one it is named after.
+  it('says which deploy the cached scripts are from, read the way a deploy stamps them', async () => {
+    const page = library()
+    const source = readFileSync(join(import.meta.dirname, '..', '..', 'public', 'js', 'version.js'), 'utf8')
+    page.caches.match.mockImplementation(async (url) =>
+      String(url).endsWith('/js/version.js')
+        ? new Response(replacedOnce(source, VERSION_STAMP, versionLine('cafebabe')))
+        : undefined,
+    )
+    const { updateReport } = await load(page)
+    expect((await updateReport()).shell_scripts).toBe('cafebabe')
   })
 
   it('says when the last check found a worker, and that one is still installing', async () => {

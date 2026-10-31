@@ -154,6 +154,9 @@ function watch(registration, reload, checkNow) {
 //     the page's own: no newer worker was found. A newer one too: one is
 //     installing, or stuck there (workers). Only a newer one: it activated and
 //     this page never reloaded.
+//   - shell_scripts: the stamp of the copy of version.js the caches hold. Not
+//     the shell's own: the cache itself holds another deploy's scripts, which
+//     a reload cannot get past (version.js).
 //   - workers: installing/waiting/active, each one's state or '-'; null if
 //     register() never answered.
 //   - controlled: whether a worker serves this page at all.
@@ -172,6 +175,12 @@ export async function updateReport() {
     .finally(() => clearTimeout(timer))
 }
 
+// The stamp a deploy wrote into the cached version.js (scripts/stamp-version.mjs).
+async function cachedStamp() {
+  const cached = await caches.match(new URL('version.js', import.meta.url), { ignoreVary: true })
+  return cached ? ((await cached.text()).match(/^export const APP_VERSION = '([^']*)'$/m)?.[1] ?? null) : null
+}
+
 async function readUpdateState() {
   const registration = watchedRegistration
   const last = lastUpdateCheck()
@@ -179,6 +188,7 @@ async function readUpdateState() {
     controlled: Boolean(navigator.serviceWorker.controller),
     workers: registration && ['installing', 'waiting', 'active'].map((slot) => registration[slot]?.state ?? '-').join('/'),
     caches: (await caches.keys()).filter((key) => key.startsWith('arabesque-')),
+    shell_scripts: await cachedStamp(),
     last_check: last && { seconds_ago: Math.round((Date.now() - last.at) / 1000), outcome: last.outcome, page: last.page },
   }
 }
