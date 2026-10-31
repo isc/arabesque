@@ -32,15 +32,13 @@ export const APP_VERSION = 'dev'
 // legacyKeys.js owns this prefix; inlined rather than imported, see above.
 const RELOAD_KEY = 'arabesque:version-reload'
 
+// Under a service worker as well. A worker answers a page and its scripts out
+// of one deploy's cache, and this check used to leave pages it serves alone —
+// until an iPad ran a day-old deploy's scripts under the new score page, behind
+// the new deploy's worker, for half an hour (feedback 13c5d005). WebKit's
+// memory cache does that: it hands a page a copy it still holds without asking
+// the worker, and a reload is what makes it ask.
 export function checkAppVersion() {
-  // A service worker controlling this page owns freshness: it answers the
-  // document and its scripts out of one generation's cache, and js/swRegister.js
-  // decides when to move to the next. Two reload authorities with two policies
-  // would spend each other's single attempt. This one covers every page no
-  // worker answers for — before the first install, where registration was
-  // refused or evicted, and the pages that deliberately never register.
-  if (typeof navigator !== 'undefined' && navigator.serviceWorker?.controller) return
-
   const pageVersion = document.querySelector('meta[name="app-version"]')?.getAttribute('content')
   if (!pageVersion || pageVersion === APP_VERSION) return
 
@@ -64,7 +62,13 @@ export function checkAppVersion() {
     return
   }
 
-  location.reload()
+  // Into the error log first, for the next report to show. The log is imported
+  // here rather than at the top (see there): it is the first script of every
+  // page, so this reaches a module already running.
+  return import('./errorLog.js')
+    .then(({ recordError }) => recordError(new Error(`page ${pageVersion}, scripts ${APP_VERSION}`), 'Stale assets'))
+    .catch(() => {})
+    .finally(() => location.reload())
 }
 
 // Runs on import, the way legacyKeys.js does: pages load this module for the

@@ -72,12 +72,14 @@ export function htmlPages() {
 export const SW_SHELL = /^const SHELL = \[[^\]]*\]$/m
 export const shellLine = (shell) => `const SHELL = ${JSON.stringify(shell)}`
 
+// The line of public/js/version.js holding the stamp, as a deploy writes it.
+// swRegister.js reads it back from the worker's cache for a report
+// (updateReport), and the tests stamp a copy the same way.
+export const VERSION_STAMP = /^export const APP_VERSION = '[^']*'$/m
+export const versionLine = (version) => `export const APP_VERSION = '${version}'`
+
 function stamp(version) {
-  replaceOnce(
-    join(PUBLIC_DIR, 'js', 'version.js'),
-    /^export const APP_VERSION = '[^']*'$/m,
-    `export const APP_VERSION = '${version}'`,
-  )
+  replaceOnce(join(PUBLIC_DIR, 'js', 'version.js'), VERSION_STAMP, versionLine(version))
 
   const pages = htmlPages()
   for (const page of pages) {
