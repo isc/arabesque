@@ -40,6 +40,25 @@ describe('scoreModel', () => {
     expect(bars[0].positions).toEqual([0, 0.75])
   })
 
+  // Where a passage may start (fragments.js): not under a note still sounding.
+  it('says how long each struck note sounds, a tie running on across the bar line', () => {
+    const xml = `<score-partwise><part id="P1"><measure number="1">
+      <attributes><divisions>1</divisions><staves>2</staves></attributes>
+      ${note('C', 4, { duration: 2 })}${note('D', 4, { duration: 2, extra: '<tie type="start"/>' })}
+      <backup><duration>4</duration></backup>
+      ${note('C', 3, { duration: 4, voice: 5, staff: 2 })}
+    </measure><measure number="2">
+      ${note('D', 4, { duration: 1, extra: '<tie type="stop"/>' })}${note('E', 4, { duration: 3 })}
+    </measure></part></score-partwise>`
+    const { bars } = scoreModel(xml)
+    expect(bars[0].struck).toEqual([
+      { position: 0, until: 0.5, hand: 'right' },
+      { position: 0.5, until: 1.25, hand: 'right' },
+      { position: 0, until: 1, hand: 'left' },
+    ])
+    expect(bars[1].struck).toEqual([{ position: 0.25, until: 1, hand: 'right' }])
+  })
+
   // A beat is what reinforcement drills a spot in (fragments.js).
   it('reads the beat off the time signature, kept until the next one, as the app does', () => {
     const time = (beats, type) => `<attributes><time><beats>${beats}</beats><beat-type>${type}</beat-type></time></attributes>`

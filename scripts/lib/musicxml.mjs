@@ -30,6 +30,7 @@ export const VOICE = /<voice>\s*([^<]*)<\/voice>/
 export const REST = /<rest(?:[\s/>])/
 export const GRACE = /<grace(?:[\s/>])/
 export const CHORD = /<chord(?:[\s/>])/
+export const STEM_UP = /<stem[^>]*>\s*up\s*<\/stem>/
 export const TIE_START = /<tie\s[^>]*type=["']start["']/
 export const TIE_STOP = /<tie\s[^>]*type=["']stop["']/
 // A note nobody plays: a cue note (OSMD takes both <cue/> and a cue-sized

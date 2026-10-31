@@ -696,8 +696,9 @@ export function isNoteActiveForHands(noteData, activeHands) {
 }
 
 // The score as noteLogAnalysis.js reads it, from the note model: the notes by
-// fingering key, and per source bar its length, tempo, attack positions and
-// beat (fragments.js). A bar is read on its first pass, its positions being
+// fingering key, and per source bar its length, tempo, attack positions, beat,
+// and the notes struck in it with the hand and how long they sound, ties
+// included (fragments.js). A bar is read on its first pass, its positions being
 // the same on every one; a note expanded into an ornament's is read on the
 // note drawn, the ornament's notes making one decorative attack with it.
 export function analysisModel(allNotes) {
@@ -705,7 +706,7 @@ export function analysisModel(allNotes) {
   const bars = []
   for (const { measureIndex, sourceMeasureIndex: bar, notes: measureNotes, duration, beat } of allNotes) {
     if (bars[bar]) continue
-    const positions = new Set()
+    const struck = []
     for (const noteData of measureNotes) {
       if (noteData.noteheadIndex < 0 && notes.has(noteData.fingeringKey)) continue
       const position = roundPosition(noteData.timestamp - measureIndex)
@@ -717,17 +718,21 @@ export function analysisModel(allNotes) {
         grace: isOrnamentOrGrace(noteData),
         fermata: noteData.fermata,
       })
-      if (isStruck(noteData)) positions.add(position)
+      if (isStruck(noteData)) struck.push({ position, until: position + noteData.soundTs, hand: handOfNote(noteData) })
     }
     bars[bar] = {
       duration,
       tempo: measureNotes[0]?.note?.SourceMeasure?.TempoInBPM,
-      positions: [...positions].sort((a, b) => a - b),
+      positions: positionsOf(struck),
       beat,
+      struck,
     }
   }
   return { notes, bars }
 }
+
+// The attack positions of a bar, in order: where its struck notes fall.
+export const positionsOf = (struck) => [...new Set(struck.map((n) => n.position))].sort((a, b) => a - b)
 
 // A beat in whole notes: the time signature's unit, or three of them in a
 // compound metre — a dotted crotchet in 6/8. A crotchet when the bar says

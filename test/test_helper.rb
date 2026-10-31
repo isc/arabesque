@@ -612,6 +612,16 @@ class CapybaraTestBase < Minitest::Test
     end
   end
 
+  # Attacks played one after the other on a driven clock (with_clock_control):
+  # the first `first_after` ms on, each next one `gap` ms after it. An attack is
+  # a note, or the notes of a chord, struck together.
+  def play_evenly(attacks, first_after: 120, gap: 120)
+    attacks.each_with_index do |attack, i|
+      advance_clock(i.zero? ? first_after : gap)
+      attack.is_a?(Array) ? play_chord(attack) : play_note(attack)
+    end
+  end
+
   # Dispatch a chord (all notes ON, then all OFF) in a single JS turn so the
   # engine sees them at virtually the same instant. Useful for strict-tempo
   # tests where consecutive simulate_midi_input round-trips would smear notes

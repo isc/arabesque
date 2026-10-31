@@ -250,11 +250,4 @@ class SteadinessTest < CapybaraTestBase
     end
     assert_text 'Tout ce qui était proposé a été renforcé avec succès.'
   end
-
-  def play_evenly(notes, first_after: GAP)
-    notes.each_with_index do |note, i|
-      advance_clock(i.zero? ? first_after : GAP)
-      play_note(note)
-    end
-  end
 end
