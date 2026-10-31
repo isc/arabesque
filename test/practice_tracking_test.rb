@@ -65,6 +65,24 @@ class PracticeTrackingTest < CapybaraTestBase
     JS
   end
 
+  # A drill's clock starts with each repetition's first note, not as the
+  # passage comes back up: minutes spent looking at it are no practice — nine
+  # of them once, for ten seconds of playing (feedback 13c5d005).
+  def test_a_drill_is_timed_from_its_first_note
+    open_two_measures
+    enter_training_mode
+    play_note('C4')
+    assert_selector 'svg circle.repeat-indicator.filled', count: 1
+    assert_no_selector 'svg g.vf-notehead.played-note'
+
+    looked_until = page.evaluate_script('Date.now()')
+    play_note('C4')
+    wait_for_records('sessions', where: <<~JS.strip)
+      record.mode === 'training'
+      && record.measures.some((m) => m.attempts.length === 2 && new Date(m.attempts[1].startedAt).getTime() >= #{looked_until})
+    JS
+  end
+
   def test_history_modal_shows_playthrough_evolution_chart
     # Inject 3 completed playthroughs with decreasing durations into IndexedDB,
     # then open the history modal and verify the chart renders.
