@@ -283,6 +283,7 @@ export default {
     reinforcementHint: 'Each passage must be played {times}× without a mistake or a hesitation; a dot earned moves on to the next.',
     blockChordsBtn: '🎹 Block chords',
     blockChordsTitle: 'Play each beat as one chord',
+    blockChordsAdvice: 'This passage stalls just after the bar line: play it in block chords first (🎹), then as written.',
     blockChordsHint: 'Block chords: each beat is played as one chord, all its notes held down together. Dots are earned playing the passage as written.',
     trainingLoopTitle: 'Work a whole passage: click its first bar, then its last',
     trainingPassage: 'Bars {from} to {to}: the whole passage must be played {times}× without a mistake or a hesitation.',

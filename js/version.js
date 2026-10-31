@@ -27,7 +27,7 @@
 //
 // Left at 'dev' in the repo, which is what both sides say when the app is
 // served from a checkout, so the check never fires in development or in tests.
-export const APP_VERSION = 'ee39bc3c8721'
+export const APP_VERSION = '8e877015f2e1'
 
 // legacyKeys.js owns this prefix; inlined rather than imported, see above.
 const RELOAD_KEY = 'arabesque:version-reload'
