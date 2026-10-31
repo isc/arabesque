@@ -128,8 +128,10 @@ const reinforcement = {
 // Whether the journal's attempt at the measure under the cursor is open
 // (onMeasureStarted, onMeasureCompleted). The tracker keeps the attempt itself —
 // its clock, its wrong notes, its verdict — and the engine only says when it
-// opens and closes. Free play opens one with the first thing played in a
-// measure.
+// opens and closes. It opens with the first thing played in the measure, in
+// every mode: a drill used to open it as the passage came up, and the minutes
+// spent looking at a passage before playing a note of it went into the journal
+// as practice — nine of them in a session of ten seconds' playing.
 const attempt = {
   open: false,
 }
@@ -815,16 +817,13 @@ function extractNotesFromScore() {
 function resetMeasureProgress({ keepRepeats = false, keepRepetition = false, notesCleared = false } = {}) {
   if (cursor.measureIndex >= score.allNotes.length) return
 
-  const measureData = score.allNotes[cursor.measureIndex]
-  if (!measureData) return
-
   if (!notesCleared) resetNotesFromIndex(cursor.measureIndex, cursor.measureIndex)
 
   if (!keepRepeats) training.banked = 0
   if (!keepRepetition) startRepetition()
 
   sayBlockChords()
-  startAttempt(measureData)
+  attempt.open = false
 }
 
 // Opens the journal's attempt at a measure (onMeasureStarted): `partial` when
@@ -1536,8 +1535,8 @@ function scrollToNextMeasureIfNeeded(nextIndex) {
 // passage lit is wiped first, from `clearFrom` to wherever the cursor had got
 // to — a step further into a passage passes no `clearFrom` and leaves the
 // measures behind it lit, the way free mode does. The cursor lands before the
-// reset, so the attempt the journal opens is against the measure about to be
-// played rather than the one just finished.
+// reset, which works on the measure under it: the one about to be played
+// rather than the one just finished.
 function moveTrainingCursorTo(to, { keepRepeats = false, clearFrom = null } = {}) {
   // The range always reaches `to`, so the landing measure is cleared here.
   const cleared = clearFrom != null
