@@ -15,7 +15,6 @@ class PlaqueTest < CapybaraTestBase
   # The join into bar 2, as reinforcement drills it: bar 1's last beat and
   # bar 2's first.
   JOIN = (BAR_1_BEATS.last + BAR_2_BEATS.first).freeze
-  GAP = 120
 
   def test_each_beat_is_played_as_one_chord
     open_score('broken-chords', 32)
@@ -31,13 +30,13 @@ class PlaqueTest < CapybaraTestBase
       assert_no_selector 'svg g.vf-notehead.played-note'
 
       # The bar played, and no dot for it.
-      play_chords(BAR_1_BEATS.map(&:uniq))
+      play_evenly(BAR_1_BEATS.map(&:uniq))
       assert_selector 'svg g.vf-notehead.played-note', count: 16
       assert_no_selector 'svg circle.repeat-indicator.filled'
       advance_clock(300)
 
       # A key the beat does not hold is a wrong note, the repetition spoiled.
-      play_chords([%w[C4 D4]])
+      play_evenly([%w[C4 D4]])
       assert_selector 'svg circle.repeat-indicator.spoiled', count: 1
     end
     # The bar was not played as written: the journal files it as partial,
@@ -77,7 +76,7 @@ class PlaqueTest < CapybaraTestBase
     assert_no_selector 'button.is-advised'
     with_clock_control do
       2.times do
-        play_chords([BAR_1_BEATS.last.uniq, BAR_2_BEATS.first.uniq])
+        play_evenly([BAR_1_BEATS.last.uniq, BAR_2_BEATS.first.uniq])
         advance_clock(300)
       end
       assert_no_selector 'svg circle.repeat-indicator.filled'
@@ -98,19 +97,5 @@ class PlaqueTest < CapybaraTestBase
   def open_score(name, notes)
     visit "/score.html?url=/test-fixtures/#{name}.xml"
     wait_for_score_render(notes)
-  end
-
-  def play_chords(chords)
-    chords.each do |chord|
-      advance_clock(GAP)
-      play_chord(chord)
-    end
-  end
-
-  def play_evenly(notes, first_after: GAP)
-    notes.each_with_index do |note, i|
-      advance_clock(i.zero? ? first_after : GAP)
-      play_note(note)
-    end
   end
 end

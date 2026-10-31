@@ -54,7 +54,7 @@ import {
   sessionAttempts,
 } from '../public/js/practiceTime.js'
 import { attackNumber, eventsOf, excess, roundPosition, traversals } from '../public/js/noteLogAnalysis.js'
-import { beatLength } from '../public/js/noteExtraction.js'
+import { beatLength, handOfNote, positionsOf } from '../public/js/noteExtraction.js'
 import { faultsOf } from '../public/js/fragments.js'
 import { judged, reinforcementOffer } from '../public/js/fragmentSuggestions.js'
 import { noteLogWindow } from '../public/js/noteLog.js'
@@ -72,6 +72,8 @@ import {
   REST,
   GRACE,
   CHORD,
+  STEM_UP,
+  TIE_START,
   TIE_STOP,
   CUE_OR_HIDDEN,
   DURATION,
@@ -95,13 +97,17 @@ const durationOf = (token, divisions) => parseFloat(DURATION.exec(token)?.[1] ??
 // — the tied-on half of a tie, a cue or hidden note. Next to them, per source
 // bar, how long it is (as far as its notes reach, which a pickup shortens),
 // the tempo it is judged at, how long a beat of it is (beatLength, as the app
-// reads it), and its attack positions in order, which number the `#n`.
+// reads it), its attack positions in order, which number the `#n`, and the
+// notes struck in it with their hand and how long they sound, ties included
+// (analysisModel, as the app reads it).
 export function scoreModel(xml) {
   const numbering = fileNumbering()
   const notes = new Map()
   const bars = []
   for (const [partXml] of xml.matchAll(PART)) {
-    numbering.part([...partXml.matchAll(STAVES)].map((match) => parseInt(match[1], 10)))
+    const declared = [...partXml.matchAll(STAVES)].map((match) => parseInt(match[1], 10))
+    numbering.part(declared)
+    const partStaves = Math.max(1, ...declared.filter(Number.isFinite))
     let divisions = 1
     let tempo = null
     let beat = beatLength()
@@ -110,6 +116,8 @@ export function scoreModel(xml) {
     let tempoMarked = false
     let at = 0
     let onset = 0
+    // The struck note each tie under way goes on sounding, by staff and pitch.
+    const tied = new Map()
     for (const [token] of partXml.matchAll(TIMED_TOKEN)) {
       if (token.startsWith('<measure')) {
         const { number, implicit } = measureOf(token)
@@ -118,7 +126,7 @@ export function scoreModel(xml) {
         if (!continues) at = 0
         if (index !== barIndex) tempoMarked = false
         barIndex = index
-        bar = bars[index] ??= { duration: 0, tempo, beat, positions: new Set() }
+        bar = bars[index] ??= { duration: 0, tempo, beat, struck: [] }
       } else if (token.startsWith('<divisions')) {
         divisions = parseFloat(DIVISIONS.exec(token)[1])
       } else if (token.startsWith('<time')) {
@@ -135,29 +143,35 @@ export function scoreModel(xml) {
         const grace = GRACE.test(token)
         const chord = CHORD.test(token)
         const start = chord ? onset : at
+        const length = durationOf(token, divisions)
         if (!chord) {
           onset = at
-          if (!grace) at += durationOf(token, divisions)
+          if (!grace) at += length
         }
         bar.duration = Math.max(bar.duration, roundPosition(at))
         if (REST.test(token)) continue
         const { key, staff } = numbering.note(numberOf(token, STAFF), numberOf(token, VOICE))
-        const sounded = !TIE_STOP.test(token) && !CUE_OR_HIDDEN.test(token)
+        const tieStop = TIE_STOP.test(token)
+        const sounded = !tieStop && !CUE_OR_HIDDEN.test(token)
         const position = roundPosition(start)
-        notes.set(key, {
-          bar: barIndex,
-          staff,
-          position,
-          midi: midiOf(token),
-          grace,
-          fermata: FERMATA.test(token),
-          sounded,
-        })
-        if (sounded && !grace) bar.positions.add(position)
+        const midi = midiOf(token)
+        notes.set(key, { bar: barIndex, staff, position, midi, grace, fermata: FERMATA.test(token), sounded })
+        if (grace) continue
+        const pitch = `${staff}:${midi}`
+        let held = tied.get(pitch)
+        if (held && tieStop) held.until += length
+        else if (sounded) {
+          const inPart = numberOf(token, STAFF) - 1
+          const innerStaff = inPart > 0 && inPart < partStaves - 1
+          held = { position, until: position + length, hand: handOfNote({ staffIndex: staff, innerStaff, stemUp: STEM_UP.test(token) }) }
+          bar.struck.push(held)
+        }
+        if (TIE_START.test(token)) tied.set(pitch, held)
+        else tied.delete(pitch)
       }
     }
   }
-  for (const bar of bars) bar.positions = [...bar.positions].sort((a, b) => a - b)
+  for (const bar of bars) bar.positions = positionsOf(bar.struck)
   return { notes, bars }
 }
 

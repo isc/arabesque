@@ -6,7 +6,7 @@ import { fragmentOf, fragmentsToReinforce } from '../../public/js/fragments.js'
 const POSITIONS = [0, 0.125, 0.25, 0.375, 0.5, 0.625, 0.75, 0.875]
 const model = {
   notes: new Map([0, 1, 2].flatMap((bar) => POSITIONS.map((position, i) => [`m${bar}:0:0:${i}`, { bar, position, hand: 'right' }]))),
-  bars: [0, 1, 2].map(() => ({ duration: 1, beat: 0.25, positions: POSITIONS })),
+  bars: [0, 1, 2].map(() => ({ duration: 1, beat: 0.25, positions: POSITIONS, struck: [] })),
 }
 
 // A traversal of bars `from` to `to`, holes on the notes listed as
@@ -37,12 +37,38 @@ describe('fragmentOf', () => {
   })
 
   it('reaches back to the last note played when the beat before holds none', () => {
-    const held = { ...model, bars: [{ duration: 1, beat: 0.25, positions: [0] }, model.bars[1]] }
+    const held = { ...model, bars: [{ duration: 1, beat: 0.25, positions: [0], struck: [] }, model.bars[1]] }
     expect(fragmentOf(held, { bar: 1, beat: 0 })).toEqual({ from: { bar: 0, position: 0 }, until: { bar: 1, position: 0.25 } })
   })
 
   it('has nothing before the first bar to reach back to', () => {
     expect(fragmentOf(model, { bar: 0, beat: 0 })).toEqual({ from: { bar: 0, position: 0 }, until: { bar: 0, position: 0.25 } })
+  })
+
+  // The C major prelude's figures (feedback b2ca2ed3): a half note in the bass
+  // on beat 3, the tenor tied in from the quaver after it, both still sounding
+  // on beat 4. A passage starting there would come in on half a chord.
+  describe('under notes struck before it and still sounding', () => {
+    const struck = [
+      { position: 0.5, until: 1, hand: 'left' },
+      { position: 0.5625, until: 1, hand: 'left' },
+      { position: 0.75, until: 0.875, hand: 'right' },
+    ]
+    const held = { ...model, bars: [{ ...model.bars[0], struck }, model.bars[1], model.bars[2]] }
+
+    it('starts at the beat they are struck in', () => {
+      expect(fragmentOf(held, { bar: 1, beat: 0 }).from).toEqual({ bar: 0, position: 0.5 })
+    })
+
+    it('leaves out what the hands not drilled hold', () => {
+      expect(fragmentOf(held, { bar: 1, beat: 0 }, 'right').from).toEqual({ bar: 0, position: 0.75 })
+    })
+
+    it('reaches back as far as a chain of them goes', () => {
+      const chained = [...struck, { position: 0.125, until: 0.625, hand: 'right' }]
+      const bars = [{ ...model.bars[0], struck: chained }, model.bars[1], model.bars[2]]
+      expect(fragmentOf({ ...model, bars }, { bar: 1, beat: 0 }).from).toEqual({ bar: 0, position: 0 })
+    })
   })
 })
 
