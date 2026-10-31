@@ -970,6 +970,9 @@ a:hover { text-decoration: underline; }
 .pt-band-button:hover { background: color-mix(in srgb, var(--pt-band-bg) 70%, var(--pt-band) 12%); }
 .pt-band-button.is-playing { background: var(--pt-band); color: var(--pt-text-inverse); }
 .pt-band-button[aria-pressed="true"] { background: color-mix(in srgb, var(--pt-band) 18%, transparent); }
+/* What the band advises doing on the passage under way (🎹 on a stall at the
+   bar line): ringed, until it is pressed. */
+.pt-band-button.is-advised { box-shadow: inset 0 0 0 2px var(--pt-band); }
 /* Sized to its longest option, so a progression reads in full, the chevron
    close by; hovered and focused like the buttons beside it, with their
    tint rather than the base ring. No height here: a definite one opts the box

@@ -280,6 +280,7 @@ export default {
     reinforcementHint: 'Chaque passage doit être joué {times}× sans erreur ni hésitation ; un rond gagné, on passe au suivant.',
     blockChordsBtn: '🎹 Plaqué',
     blockChordsTitle: 'Jouer chaque temps en un seul accord',
+    blockChordsAdvice: 'Ce passage cale juste après la barre de mesure : plaquez-le d’abord (🎹), puis jouez-le tel qu’écrit.',
     blockChordsHint: 'Plaqué : chaque temps se joue en un accord, toutes ses notes enfoncées ensemble. Les ronds se gagnent en jouant le passage tel qu’écrit.',
     trainingLoopTitle: 'Travailler un passage entier : cliquez sur sa première puis sa dernière mesure',
     trainingPassage: 'Mesures {from} à {to} : le passage entier doit être joué {times}× sans erreur ni hésitation.',

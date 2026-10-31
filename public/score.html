@@ -269,8 +269,12 @@
           @click="toggleTrainingLoop"
           x-text="$t('score.loopBtn')"
         >🔁 Boucle</button>
+        <!-- Offered on a passage that suits it, advised where the runs
+             stalled at the bar line (sayBlockChords in musicxml.js). -->
         <button
           class="pt-band-button"
+          x-show="blockChordsFit"
+          :class="{ 'is-advised': blockChordsAdvised }"
           :aria-pressed="blockChords"
           :title="$t('score.blockChordsTitle')"
           @click="toggleBlockChords"

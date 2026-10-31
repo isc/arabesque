@@ -216,8 +216,12 @@ export function midiApp() {
     // drilled as one, joins and slurs between them included.
     trainingPassage: passage(0),
     // 🎹 in the training band: each beat played as one chord (setBlockChords
-    // in musicxml.js). For the stint of training it is switched on in.
+    // in musicxml.js). For the stint of training it is switched on in, and
+    // offered only on a passage that suits it — advised on one whose runs
+    // stalled at the bar line (sayBlockChords).
     blockChords: false,
+    blockChordsFit: false,
+    blockChordsAdvised: false,
 
     // Read off the flag score.html's head script raised during parsing, so
     // Alpine agrees with the CSS about whether a score is on its way. Without
@@ -437,6 +441,15 @@ export function midiApp() {
         // A run that reached the end is over, results or not (one started from
         // a bar further on has none): the next starts as the piece did.
         onBackToTop: () => keyHint.restart(),
+        // Whether block chords are on is the engine's to say — it turns them
+        // off itself on a passage they do not suit — and the note log hears
+        // it from here, once per change.
+        onBlockChords: ({ fit, advised, on }) => {
+          this.blockChordsFit = fit
+          this.blockChordsAdvised = advised
+          this.blockChords = on
+          noteLog.blockChords(on)
+        },
         onReinforcementComplete: async (firstTries) => {
           await this.setMode('free')
           this.showReinforcementDone(firstTries)
@@ -1006,13 +1019,11 @@ export function midiApp() {
       this.setBlockChords(!this.blockChords)
     },
 
-    // The note log says it too: what is played in block chords is no run of
-    // the passage as written, and its analysis has to know
-    // (noteLogAnalysis.js).
+    // The engine answers through onBlockChords, which the note log hears:
+    // what is played in block chords is no run of the passage as written,
+    // and its analysis has to know (noteLogAnalysis.js).
     setBlockChords(on) {
-      this.blockChords = on
       musicxml.setBlockChords(on)
-      noteLog.blockChords(on)
     },
 
     // 🔁 in the training band, strict mode's loop button in its own: it arms
@@ -1066,6 +1077,7 @@ export function midiApp() {
       const clickIsTraining = this.barClickOwner === 'training'
       if (this.trainingPassage.armed) return armedRangeText(from, clickIsTraining)
       if (this.blockChords) return t('score.blockChordsHint')
+      if (this.blockChordsAdvised) return t('score.blockChordsAdvice')
       if (this.mode === 'reinforcement') return t('score.reinforcementHint', { times })
       // A passage of one bar is allowed, and "bars 5 to 5" is not a sentence.
       if (this.trainingPassage.end != null) return passageText('score.trainingPassage', this.trainingPassage, { times })

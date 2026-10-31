@@ -9,6 +9,7 @@ import {
   carryOverNoteStates,
   isOrnamentOrGrace,
   isStruck,
+  handOfNote,
 } from './noteExtraction.js'
 import { scrollSystemIntoView, isUnderStickyBars } from './utils.js'
 import { arrayBufferToXml, isMusicXml } from './mxlLoader.js'
@@ -218,6 +219,9 @@ let callbacks = {
   onPlaythroughRestart: null,
   onReinforcementComplete: null,
   onBackToTop: null,
+  // Whether the passage under way suits block chords, whether its stalls call
+  // for them, and whether they are on (sayBlockChords).
+  onBlockChords: null,
   // A join between two bars, or a hole, judged (steadiness.js): `entry` and
   // `hole` say which, `ratio` how long the interval was against the pace;
   // `joined` says a bar was just entered from the one before.
@@ -253,19 +257,24 @@ export function initMusicXML() {
       // than park on the last measure, where it stayed once the hand came back
       // (feedback 65538ec6).
       const landing = nextPlayable(cursor.measureIndex)
-      if (landing === cursor.measureIndex || landing >= score.allNotes.length) return
-      cursor.measureIndex = landing
-      updateMeasureCursor()
+      if (landing !== cursor.measureIndex && landing < score.allNotes.length) {
+        cursor.measureIndex = landing
+        updateMeasureCursor()
+      }
+      // What the hands left play may not suit block chords: off, and the
+      // passage from its top, as switching them off by hand does — a
+      // traversal begun in chords must not bank a dot as written.
+      const wasOn = training.blockChords
+      sayBlockChords()
+      if (wasOn && !training.blockChords) restartPassage()
     },
     // Block chords on or off (inBlockChords). The repetition under way starts
     // over from the top of its passage, its notes owed another way; the dots
     // stay.
     setBlockChords: (on) => {
       training.blockChords = on
-      if (!training.on) return
-      dropPendingBeat()
-      const { first } = trainingPassage()
-      moveTrainingCursorTo(first, { keepRepeats: true, clearFrom: first })
+      if (training.on) restartPassage()
+      sayBlockChords()
     },
     getOsmdInstance: () => score.osmdInstance,
     getAllNotes: () => score.allNotes,
@@ -316,6 +325,7 @@ export function initMusicXML() {
         clearFragmentShade()
         document.getElementById('repeat-indicators')?.remove()
       }
+      sayBlockChords()
     },
     // The passage to work: from `start` to `end` inclusive, or — with `end`
     // null — the single measure at `start`, the work then moving on down the
@@ -358,9 +368,10 @@ export function initMusicXML() {
     setReinforcementMode: (items) => {
       // In the order of the score, which each round of turns goes down once.
       const passages = (items ?? [])
-        .map(reinforcementPassage)
-        .filter(Boolean)
-        .map((passage) => ({ ...passage, banked: 0 }))
+        .flatMap((item) => {
+          const passage = reinforcementPassage(item)
+          return passage ? [{ ...passage, stalledAtBarLine: item.stalledAtBarLine, banked: 0 }] : []
+        })
         .sort((a, b) => a.fragment.from - b.fragment.from)
       if (passages.length === 0) return
 
@@ -513,10 +524,16 @@ function setCallbacks(cbs) {
 // strikes. A chord takes no ornament, so an ornamented note is left out of its
 // beat's, which spares the trill handling below a time it would misread.
 function isNoteOwed(noteData) {
+  return owes(noteData, inBlockChords())
+}
+
+// Passed to filters as it is, isNoteOwed takes nothing but the note: what
+// block chords would owe is asked here (passageBeats).
+function owes(noteData, blockChords) {
   return (
     isNoteActiveForHandsShared(noteData, activeHands) &&
     inFragment(noteData) &&
-    (!inBlockChords() || isStruck(noteData))
+    (!blockChords || isStruck(noteData))
   )
 }
 
@@ -528,11 +545,71 @@ function isNoteOwed(noteData) {
 // passage: it fills no dot, and the dots are earned playing it as written.
 const inBlockChords = () => training.on && training.blockChords
 
+// Whether notes can be struck as block chords, given as the pitches each hand
+// plays in each beat — [[right…], [left…]] per beat: every beat held under
+// each hand at once, an octave at most, and every beat a figure that comes
+// back to a note it played, the broken chord plaquer is for. Not a line, which
+// has no chord to find, nor a leap past the octave, which no hand holds and
+// which block chords would only turn into a stretch.
+const OCTAVE = 12
+export function suitsBlockChords(beats) {
+  return (
+    beats.length > 0 &&
+    beats.every((hands) => {
+      const played = hands.filter((pitches) => pitches.length > 0)
+      return (
+        played.every((pitches) => Math.max(...pitches) - Math.min(...pitches) <= OCTAVE) &&
+        played.some((pitches) => new Set(pitches).size < pitches.length)
+      )
+    })
+  )
+}
+
+// The passage under way as suitsBlockChords takes it: the notes it would owe
+// in block chords, by beat and hand.
+function passageBeats() {
+  const { first, last } = trainingPassage()
+  const beats = new Map()
+  for (const measure of score.allNotes.slice(first, last + 1)) {
+    for (const noteData of measure.notes) {
+      if (!owes(noteData, true)) continue
+      const at = beatStampOf(noteData, measure)
+      if (!beats.has(at)) beats.set(at, { right: [], left: [] })
+      beats.get(at)[handOfNote(noteData)].push(noteData.midiNumber)
+    }
+  }
+  return [...beats.values()].map(Object.values)
+}
+
+// Tells the page what it shows of block chords (onBlockChords): `fit`, the
+// passage under way suits them — the 🎹 button is offered on it alone, and
+// they go off on one that does not; `advised`, they are off on a drill
+// passage whose runs stalled at the bar line, where they help the hand find
+// its next position; and whether they are on. Called wherever the passage or
+// the hands may have changed, before the attempt there is opened, so that it
+// is filed as played (startAttempt).
+function sayBlockChords() {
+  const fit = training.on && cursor.measureIndex < score.allNotes.length && suitsBlockChords(passageBeats())
+  if (!fit) training.blockChords = false
+  const advised = fit && !training.blockChords && !!reinforcement.passages[reinforcement.index]?.stalledAtBarLine
+  callbacks.onBlockChords?.({ fit, advised, on: training.blockChords })
+}
+
+// The repetition under way starts over from the top of its passage, the dots
+// as they are: what block chords switched on or off do.
+function restartPassage() {
+  dropPendingBeat()
+  const { first } = trainingPassage()
+  moveTrainingCursorTo(first, { keepRepeats: true, clearFrom: first })
+}
+
+// Where block chords strike a note of `measure`: the start of its beat.
+const beatStampOf = (noteData, { measureIndex, beat }) => measureIndex + beatStartOf(noteData.timestamp - measureIndex, beat)
+
 // Where a note of `measure` is owed: at its timestamp, or in block chords at
 // the start of its beat, with the rest of the beat.
-function stampOf(noteData, { measureIndex, beat }) {
-  if (!inBlockChords()) return noteData.timestamp
-  return measureIndex + beatStartOf(noteData.timestamp - measureIndex, beat)
+function stampOf(noteData, measure) {
+  return inBlockChords() ? beatStampOf(noteData, measure) : noteData.timestamp
 }
 
 // Only training drills a fragment: free play or strict mode, left to from a
@@ -746,6 +823,7 @@ function resetMeasureProgress({ keepRepeats = false, keepRepetition = false, not
   if (!keepRepeats) training.banked = 0
   if (!keepRepetition) startRepetition()
 
+  sayBlockChords()
   startAttempt(measureData)
 }
 
