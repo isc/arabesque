@@ -4,14 +4,16 @@
 // second semiquaver plays fourteen notes already known for each go at the one
 // that is not, and never plays the way in from the bar before, which is where
 // a hand changes shape (feedback 534a800b). Drilling the beat before with it
-// plays exactly that.
+// plays exactly that — from further back when a note held there was struck
+// earlier, so that the passage does not come in on half a chord.
 //
 // Pure: judged traversals in (noteLogAnalysis.js), fragments out. Recomputed
 // from the log whenever asked, by the rule as it stands, so nothing of it is
 // filed with a session. The bar-and-join suggestions (reinforcement.js) are
 // for sessions with no log.
 import { REINFORCEMENT_CLEAN_PASSES } from './reinforcement.js'
-import { POSITION_EPSILON, attackNumber, beatIndex } from './noteLogAnalysis.js'
+import { POSITION_EPSILON, attackNumber, beatIndex, beatStartOf, roundPosition } from './noteLogAnalysis.js'
+import { TWO_HANDS } from './hands.js'
 
 // Fragments are compared and merged as (bar, position) pairs, source bars
 // and whole notes.
@@ -27,11 +29,12 @@ const spotAt = (model, sourceBar, position) => ({ bar: sourceBar, beat: beatOf(m
 const spotId = ({ bar, beat }) => `${bar}:${beat}`
 const attackId = (bar, position) => `${bar}@${position}`
 
-// The fragment a spot is worked as: from the start of the beat of the last
-// attack before the spot's beat — the beat before, unless it holds no note,
-// over a long one — to the end of the spot's beat. A spot on the first beat
-// reaches back into the bar before.
-export function fragmentOf(model, { bar, beat }) {
+// The fragment a spot is worked as: from the latest beat start before the
+// spot's beat where a note is struck and none struck earlier still sounds —
+// the beat before, unless it holds no note, over a long one, or lies under a
+// held one — to the end of the spot's beat. A spot on the first beat reaches
+// back into the bar before. The hands are those drilled (handsKey).
+export function fragmentOf(model, { bar, beat }, hands = TWO_HANDS) {
   const here = model.bars[bar]
   const start = beatStart(here, beat)
   const until = { bar, position: beatEnd(here, beat) }
@@ -39,7 +42,21 @@ export function fragmentOf(model, { bar, beat }) {
   const [fromBar, positions] = earlier.length > 0 ? [bar, earlier] : [bar - 1, model.bars[bar - 1]?.positions ?? []]
   if (positions.length === 0) return { from: { bar, position: start }, until }
   const previous = model.bars[fromBar]
-  return { from: { bar: fromBar, position: beatStart(previous, beatOf(previous, positions.at(-1))) }, until }
+  const from = beatStartOf(positions.at(-1), previous.beat)
+  return { from: { bar: fromBar, position: clearOfHeldNotes(previous, from, hands) }, until }
+}
+
+// Where a passage starting at `position` starts once it is clear of what was
+// struck before it and still sounds: a beat further back each time. Under such
+// a note the passage would come in on a chord half played, the bass already
+// down — in the C major prelude, a beat after the half note and the tied tenor
+// of each figure (feedback b2ca2ed3). Within the bar: a tie into it from the
+// bar before is not followed back.
+function clearOfHeldNotes(bar, position, hands) {
+  const sounding = (n) =>
+    (hands === TWO_HANDS || n.hand === hands) && n.position < position - POSITION_EPSILON && n.until > position + POSITION_EPSILON
+  while (bar.struck.some(sounding)) position = roundPosition(position - bar.beat)
+  return position
 }
 
 // The first and the last attack of a fragment, which a traversal has to play
@@ -124,7 +141,7 @@ export function fragmentsToReinforce(traversals, model, { hands, limit = 5 } = {
     if (traversal.training) return
     for (const [id, { spot, lost, atBarLine }] of faults) {
       if (!spots.has(id)) {
-        const fragment = fragmentOf(model, spot)
+        const fragment = fragmentOf(model, spot, hands)
         spots.set(id, { fragment, ends: endsOf(model, fragment), lost: 0, atBarLine: 0 })
       }
       const entry = spots.get(id)

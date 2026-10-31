@@ -205,6 +205,28 @@ class ReinforcementTest < CapybaraTestBase
     assert_operator clearance, :>=, 0
   end
 
+  # A passage does not come in under a note still sounding. In held-bass.xml
+  # the left hand's half note struck on beat 3 rings through beat 4, so a stall
+  # on the way into bar 2 is drilled from beat 3, bass and all, rather than
+  # from beat 4 with the bass already down (feedback b2ca2ed3).
+  def test_a_passage_starts_where_the_held_bass_is_struck
+    visit '/score.html?url=/test-fixtures/held-bass.xml'
+    wait_for_score_render(36)
+    bars = [%w[G4 C5 E5 C5], %w[A4 D5 F5 D5]].zip(%w[C3 D3]).map do |figure, bass|
+      (figure * 4).each_with_index.map { |note, i| (i % 8).zero? ? [note, bass] : note }
+    end
+    with_clock_control do
+      play_evenly(bars[0] + bars[1].take(1))
+      play_evenly(bars[1].drop(1), first_after: 1_400)
+    end
+    find('dialog[open] button[aria-label="Close"]').click
+
+    click_on 'Renforcer 1 passage'
+    play_chord(%w[G4 C3])
+    assert_selector 'svg g.vf-notehead.played-note', count: 2
+    assert_no_selector 'svg circle.repeat-indicator.spoiled'
+  end
+
   private
 
   # A drill of whole bars of repeat-endings.xml, handed to the page in that
