@@ -12,6 +12,11 @@
 // so that bar is four eighths. Its second verse goes another way, down from high
 // C, so it is written out rather than left as words under the first.
 //
+// "Promenons-nous dans les bois" is the exception among the twelve: the book keeps
+// it to C and D for a first lesson. It has the tune's real notes here, moved to
+// the same hand position from published scores in F (singing-bell.com,
+// ukulelepotato.com), the low G in the left hand and the rest in the right.
+//
 // IMPORTANT: the order of this list is the file numbering — song 13 is
 // written to Chansons_13_…, and practice aggregates and fingerings are keyed
 // to that name. A new song goes at the END, whatever its page in the book.
@@ -66,9 +71,11 @@ export const SONGS = [
     slug: 'promenons-nous-dans-les-bois',
     title: 'Promenons-nous dans les bois',
     time: '2/4',
-    showTime: false,
-    rh: 'D4q-2 D4q | C4h | D4q D4q | C4h | D4q D4q | C4q C4q | D4q D4q | C4h | R | R | C4h | D4h | R | D4h | D4h | C4h | R | R | C4h | D4h | R | D4h | D4h | @4/4 R',
-    lh: 'R | R | R | R | R | R | R | R | C4q-1 C4q | C4h | R | R | C4q C4q | R | R | R | C4q C4q | C4h | R | R | C4q C4q | R | R | C4w',
+    showTime: true,
+    rh: "C4e-1 C4e | C4q D4e-2 D4e | rq C4e C4e | C4e C4e D4e D4e | rq C4e C4e | C4q D4q | E4q-3 D4e C4e | D4q G4q-5 | E4q C4e C4e | C4q D4q | E4q D4e C4e | D4q G4q | C4q G4e-5 G4e | G4q rq | rq G4e G4e | G4q rq | rq G4e G4e | G4q rq | rq",
+    lh: 'rq | R | G3q-4 rq | R | G3q rq | R | R | R | R | R | R | R | R | rq G3e G3e | G3q rq | rq G3e G3e | G3q rq | rq G3e G3e | G3q',
+    rhWords: "Prom'- nons- | nous dans les | pen- dant | que le loup n'y_est | si le | loup y_é- | tait il nous | man- ge- | rait mais comme | il n'y_est | pas il nous | mang'- ra | pas Loup y_es- | tu_? | Que fais- | tu_? | En- tends- | tu_?",
+    lhWords: '| | bois | | pas | | | | | | | | | (loup y_es- | tu) | (que fais- | tu) | (en- tends- | tu)',
   },
   {
     slug: 'sors-sors-escargot',
