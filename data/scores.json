@@ -91,7 +91,8 @@
       { "title": "Sur le chemin de l'école", "file": "Chansons_14_sur-le-chemin-de-l-ecole.musicxml" },
       { "title": "C'est la bagarre", "file": "Chansons_15_c-est-la-bagarre.musicxml" },
       { "title": "La leçon", "file": "Chansons_16_la-lecon.musicxml" },
-      { "title": "Entraîne-toi", "file": "Chansons_17_entraine-toi.musicxml" }
+      { "title": "Entraîne-toi", "file": "Chansons_17_entraine-toi.musicxml" },
+      { "title": "Do, ré, mi, la perdrix", "file": "Chansons_18_do-re-mi-la-perdrix.musicxml" }
     ] },
     { "title": "Le Pianiste virtuose (1re partie)", "composer": "Hanon", "parts": [
       { "title": "Exercice 1", "file": "Hanon_Le_Pianiste_Virtuose_Ex_01.mxl" },
