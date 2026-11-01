@@ -89,7 +89,9 @@
       { "title": "Le roi Dagobert", "file": "Chansons_12_le-roi-dagobert.musicxml" },
       { "title": "Trompette et tambour", "file": "Chansons_13_trompette-et-tambour.musicxml" },
       { "title": "Sur le chemin de l'école", "file": "Chansons_14_sur-le-chemin-de-l-ecole.musicxml" },
-      { "title": "C'est la bagarre", "file": "Chansons_15_c-est-la-bagarre.musicxml" }
+      { "title": "C'est la bagarre", "file": "Chansons_15_c-est-la-bagarre.musicxml" },
+      { "title": "La leçon", "file": "Chansons_16_la-lecon.musicxml" },
+      { "title": "Entraîne-toi", "file": "Chansons_17_entraine-toi.musicxml" }
     ] },
     { "title": "Le Pianiste virtuose (1re partie)", "composer": "Hanon", "parts": [
       { "title": "Exercice 1", "file": "Hanon_Le_Pianiste_Virtuose_Ex_01.mxl" },
