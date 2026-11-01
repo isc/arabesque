@@ -1,0 +1,352 @@
+// Cloud sync of training data (sessions, fingerings, circles) for the signed-in user.
+//
+// Why it's conflict-free: you can't play two piano sessions at once, so sessions
+// across devices are disjoint in time with unique ids — sync is a plain union by
+// id. Fingerings are one record per score, which goes up or comes down whole,
+// and are merged note by note when both sides changed since they last met
+// (mergeNoteMap); the notes circled on a score are the same, in a table of
+// their own (storage.js says why). Aggregates are never synced: they're
+// recomputed locally from sessions after a pull. A session a player takes back
+// leaves its id as a tombstone, and those are a plain union by id as well.
+//
+// One sync covers one profile — the one whose database the page has open —
+// plus the list of profiles itself, which every device keeps in step
+// (profiles.js): a profile added on the iPad reaches the phone with the next
+// sync there, a profile removed anywhere is dropped everywhere, and its rows
+// on the server go with it.
+//
+// What goes up — sessions and the notes played in them, the ids of the sessions
+// deleted, fingerings, circled notes and their reminders, each profile's name
+// and avatar — is what the privacy policy says the account holds
+// (privacy.accountBody): sync anything more and that text has to say so too.
+//
+// runSync() takes its dependencies (the supabase client, storage,
+// practiceTracker) so it stays page-agnostic.
+import { currentProfileId, listProfiles, mergeProfiles, scopedKey } from './profiles.js'
+import { NOTE_MAPS, neverSynced } from './storage.js'
+import { sessionOfSegment } from './noteLog.js'
+import { knownNames } from './aggregates.js'
+
+// Per profile: the throttle in autoSync.js reads it, and a profile just
+// switched to has its own catching up to do.
+const lastSyncKey = (profileId) => scopedKey('arabesque:last-sync', profileId)
+const CHUNK = 200
+// A note log segment is up to a few dozen kilobytes (noteLog.js).
+const NOTE_LOG_CHUNK = 50
+// PostgREST answers a request with at most max_rows rows (1000 on this
+// project, Supabase's default) and says nothing of the rest. A profile's
+// session ids outgrow that, one a run, and every id past the cut read as
+// missing on the server: pushed again at each sync, and never pulled by a new
+// device. So they are read a page at a time, in a fixed order, until a page
+// comes back short. Not more than max_rows, or the first one always would.
+const PAGE = 1000
+
+export function lastSyncAt(profileId = currentProfileId()) {
+  try {
+    return localStorage.getItem(lastSyncKey(profileId))
+  } catch {
+    return null
+  }
+}
+
+function setLastSync(iso, profileId) {
+  try {
+    localStorage.setItem(lastSyncKey(profileId), iso)
+  } catch {
+    /* ignore */
+  }
+}
+
+function chunk(arr, size) {
+  const out = []
+  for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size))
+  return out
+}
+
+// Every row `query()` matches, a PAGE at a time; answers as a query does.
+async function selectAll(query) {
+  const rows = []
+  for (;;) {
+    const { data, error } = await query().range(rows.length, rows.length + PAGE - 1)
+    if (error) return { data: null, error }
+    rows.push(...data)
+    if (data.length < PAGE) return { data: rows, error: null }
+  }
+}
+
+// A backup brought to this device joins what it holds, the way a pull does:
+// the sessions it lacks go in, its fingerings and circles are entered as if
+// made here (importNoteMaps), and the aggregates are replayed from every
+// session. The backup's own aggregates only lend their names, to scores
+// nothing on this device can name.
+export async function importBackup({ storage, practiceTracker }, backup) {
+  if (!backup?.sessions) throw new Error('Invalid backup data format')
+  const importedSessions = await storage.importSessions(backup.sessions)
+  const importedFingerings = await importNoteMaps(storage, 'fingerings', backup.fingerings ?? [])
+  const importedCircles = await importNoteMaps(storage, 'circles', backup.circles ?? [])
+  const names = knownNames(backup.aggregates ?? [])
+  await practiceTracker.rebuildAggregates(names)
+  return { importedSessions, importedFingerings, importedCircles }
+}
+
+// A backup's records of `field`, entered here as if on this device: merged
+// note by note into a score's record already here — the newer side keeping a
+// note both hold — and stamped now, so the next sync sends what they added. A
+// score with no record here takes the backup's, with the base a record new to
+// this device starts from, so the next sync merges it into the server's copy
+// rather than over it. With no version in common, a fingering cleared since the
+// backup was made comes back: visible, and one × away. Resolves to how many
+// scores changed.
+async function importNoteMaps(storage, field, records) {
+  const here = new Map((await storage[field].getAll()).map((f) => [f.scoreUrl, f]))
+  const writes = []
+  for (const { scoreUrl, [field]: notes, updatedAt = 0 } of records) {
+    const local = here.get(scoreUrl)
+    if (!local) {
+      writes.push({ record: { scoreUrl, [field]: notes, updatedAt, synced: neverSynced(field) }, read: 0 })
+      continue
+    }
+    const merged = mergeNoteMap(field, { [field]: notes, updatedAt, synced: neverSynced(field) }, { [field]: local[field], updatedAt: local.updatedAt || 0 })
+    const keys = Object.keys(merged)
+    if (keys.length === Object.keys(local[field]).length && keys.every((key) => merged[key] === local[field][key])) continue
+    writes.push({ record: { ...local, [field]: merged, updatedAt: Date.now() }, read: local.updatedAt ?? 0 })
+  }
+  await storage[field].putIfUnchanged(writes)
+  return writes.length
+}
+
+// Pull missing sessions, push local-only sessions, reconcile fingerings and
+// circles, then recompute aggregates if anything was pulled. Returns a
+// summary; throws on a hard error so the caller can surface it.
+// `userId` comes from the caller's local session when it has one: getUser() is
+// a network round-trip against /auth/v1/user, and at the automatic trigger rate
+// that would be one wasted request per playthrough and per tab switch.
+export async function runSync({ supabase, storage, practiceTracker, userId = null, profileId = currentProfileId() }) {
+  let uid = userId
+  if (!uid) {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+    if (!user) throw new Error('Not signed in')
+    uid = user.id
+  }
+
+  // The reads are independent; the pushes below wait on all of them.
+  const [profilesRead, idsRead, deletedRead, ...stampsReads] = await Promise.all([
+    supabase.from('profiles').select('id, name, avatar, updated_at, deleted'),
+    selectAll(() => supabase.from('training_sessions').select('id').eq('profile_id', profileId).order('id')),
+    selectAll(() => supabase.from('deleted_sessions').select('id').eq('profile_id', profileId).order('id')),
+    // Stamps only. The blobs are fetched below for the scores that have to come
+    // down or be merged, which is usually none: selecting '*' here meant
+    // re-downloading the entire fingering corpus on every sync, and syncs are
+    // no longer rare.
+    ...NOTE_MAPS.map((field) => supabase.from(`user_${field}`).select('score_url, updated_at').eq('profile_id', profileId)),
+  ])
+  for (const { error } of [profilesRead, idsRead, deletedRead, ...stampsReads]) if (error) throw error
+
+  // --- Profiles (last-write-wins, tombstones for removals) ---
+  // A tombstone pushed takes the profile's rows with it: the server drops
+  // them itself (supabase/sync.sql), for every client that ever pushes one.
+  const { toPush: profilesToPush, changed: profilesChanged } = mergeProfiles(profilesRead.data)
+  if (profilesToPush.length) {
+    const { error } = await supabase.from('profiles').upsert(profilesToPush.map((row) => ({ ...row, user_id: uid })))
+    if (error) throw error
+  }
+  if (!listProfiles().some((p) => p.id === profileId)) {
+    // The profile this page is on was removed — on another device, as the
+    // merge just learnt, or in another tab: its data is not to be pushed, on
+    // this sync or any later one the page runs, and what the page holds goes
+    // when it closes.
+    setLastSync(new Date().toISOString(), profileId)
+    return { pushed: 0, pulled: 0, fingeringsPushed: 0, fingeringsPulled: 0, circlesPushed: 0, circlesPulled: 0, profilesChanged }
+  }
+
+  // --- Deleted sessions (union by id), ahead of the sessions they take away ---
+  const removed = await syncDeletedSessions({ supabase, storage, uid, profileId, remoteIds: deletedRead.data.map((r) => r.id) })
+
+  // --- Sessions (union by id) ---
+  const remoteIdRows = idsRead.data
+  const remoteIdList = remoteIdRows.map((r) => r.id)
+  const remoteIds = new Set(remoteIdList)
+
+  // By id: what the server lacks is read in full, and nothing else. Reading
+  // every session to compare ids cost the whole history, megabytes of it, at
+  // every sync — which runs after every run.
+  const localIds = new Set(await storage.getSessionIds())
+  const toPush = (await storage.getSessionsById([...localIds].filter((id) => !remoteIds.has(id))))
+    .filter((s) => s.endedAt && s.measures?.length)
+  for (const part of chunk(toPush, CHUNK)) {
+    const rows = part.map((s) => ({ user_id: uid, profile_id: profileId, id: s.id, data: s, ended_at: s.endedAt }))
+    const { error } = await supabase.from('training_sessions').upsert(rows)
+    if (error) throw error
+  }
+
+  const missingIds = remoteIdList.filter((id) => !localIds.has(id))
+  let pulled = 0
+  for (const part of chunk(missingIds, CHUNK)) {
+    const { data: rows, error } = await supabase.from('training_sessions').select('data').eq('profile_id', profileId).in('id', part)
+    if (error) throw error
+    // One transaction per chunk: one per session made a new device's first
+    // sync hundreds of transactions in a row.
+    pulled += await storage.importSessions(rows.map((row) => row.data))
+  }
+
+  // --- Fingerings and circles ---
+  const noteMapCounts = Object.assign(
+    {},
+    ...(await Promise.all(
+      NOTE_MAPS.map((field, i) => syncNoteMaps({ supabase, storage, uid, profileId, field, remoteStamps: stampsReads[i].data })),
+    )),
+  )
+
+  // --- Note logs (up only) ---
+  const onServer = new Set([...remoteIds, ...toPush.map((s) => s.id)])
+  const notesPushed = await pushNoteLogs({ supabase, storage, uid, profileId, onServer })
+
+  // --- Recompute aggregates locally if the sessions here changed ---
+  const sessionsChanged = pulled > 0 || removed > 0
+  if (sessionsChanged) await practiceTracker.rebuildAggregates()
+
+  setLastSync(new Date().toISOString(), profileId)
+  return { pushed: toPush.length, pulled, sessionsChanged, ...noteMapCounts, notesPushed, profilesChanged }
+}
+
+// A union by id has no way to lose a row: a session gone from the server alone
+// comes back from the first device still holding it. So what a player takes back
+// leaves its id, here and there, for good. The server drops the session's rows
+// as the id reaches it (supabase/sync.sql); a device does as the id reaches it.
+// Resolves to how many are news to this device.
+async function syncDeletedSessions({ supabase, storage, uid, profileId, remoteIds }) {
+  const localIds = await storage.getDeletedSessionIds()
+  const [here, there] = [new Set(localIds), new Set(remoteIds)]
+  for (const part of chunk(localIds.filter((id) => !there.has(id)), CHUNK)) {
+    const { error } = await supabase.from('deleted_sessions').upsert(part.map((id) => ({ user_id: uid, profile_id: profileId, id })))
+    if (error) throw error
+  }
+  const arrived = remoteIds.filter((id) => !here.has(id))
+  if (arrived.length) await storage.deleteSessions(arrived)
+  return arrived.length
+}
+
+// The notes played in a session go up once the session is on the server — the
+// one under way waits for its end, and a session never filed (nothing played
+// in it worth keeping) never sends its own. Each chunk moves to the segments
+// kept as soon as the server has it, so a sync cut short sends only the rest
+// next time. They come down only for a score being opened (pullNoteLogs), not
+// with a sync: what reads them is that score's analysis.
+async function pushNoteLogs({ supabase, storage, uid, profileId, onServer }) {
+  const ready = (await storage.getNoteLogIds()).filter((id) => onServer.has(sessionOfSegment(id)))
+  for (const ids of chunk(ready, NOTE_LOG_CHUNK)) {
+    const part = await storage.getNoteLogsById(ids)
+    const rows = part.map(({ id, sessionId, startedAt, ...data }) => ({
+      user_id: uid,
+      profile_id: profileId,
+      id,
+      session_id: sessionId,
+      started_at: startedAt,
+      data,
+    }))
+    const { error } = await supabase.from('session_notes').upsert(rows)
+    if (error) throw error
+    await storage.keepNoteLogs(ids)
+  }
+  return ready.length
+}
+
+// The segments of these sessions on the server, kept on this device for the
+// analysis of the score they were played on (keepScoreNoteLogs in
+// noteLog.js): a few sessions at a time, one score's, so well short of a page.
+export async function pullNoteLogs({ supabase, storage, profileId = currentProfileId(), sessionIds }) {
+  const { data: rows, error } = await supabase
+    .from('session_notes')
+    .select('id, session_id, started_at, data')
+    .eq('profile_id', profileId)
+    .in('session_id', sessionIds)
+  if (error) throw error
+  await storage.saveKeptNoteLogs(rows.map(({ id, session_id, started_at, data }) => ({ id, sessionId: session_id, startedAt: started_at, ...data })))
+}
+
+// A score's fingerings travel as one record, and each side used to replace the
+// other's whole, the newer winning. That lost notes whenever both had changed:
+// an edit made on a stale copy — an iPad left open on the stand for days, its
+// score page never pulling — went up with the stale copy and erased what the
+// phone had added in the meantime. So a record keeps the version it last
+// exchanged with the server (`synced`): whichever side changed since then is
+// the one that moves, and when both did, the two are merged note by note. The
+// circles on a score travel the same way, as records of their own, each map in
+// the table `user_<field>`. Resolves to `<field>Pushed` and `<field>Pulled`
+// (fingeringsPushed…), as runSync reports them.
+async function syncNoteMaps({ supabase, storage, uid, profileId, field, remoteStamps }) {
+  const table = `user_${field}`
+  // A record from before stamps carries none: 0, the oldest there is.
+  const localByUrl = new Map((await storage[field].getAll()).map((f) => [f.scoreUrl, { ...f, updatedAt: f.updatedAt || 0 }]))
+  const moves = new Map([...localByUrl.keys()].map((url) => [url, 'push']))
+  for (const r of remoteStamps) moves.set(r.score_url, noteMapMove(localByUrl.get(r.score_url), Number(r.updated_at)))
+  const urlsFor = (...kinds) => [...moves].filter(([, move]) => kinds.includes(move)).map(([url]) => url)
+
+  const outgoing = urlsFor('push').map((url) => localByUrl.get(url))
+  const incoming = []
+  let merged = 0
+  for (const part of chunk(urlsFor('pull', 'merge'), CHUNK)) {
+    const { data: rows, error } = await supabase
+      .from(table)
+      .select(`score_url, ${field}, updated_at`)
+      .eq('profile_id', profileId)
+      .in('score_url', part)
+    if (error) throw error
+    for (const row of rows) {
+      const remote = { scoreUrl: row.score_url, [field]: row[field], updatedAt: Number(row.updated_at) }
+      const local = localByUrl.get(row.score_url)
+      if (moves.get(row.score_url) !== 'merge') incoming.push(remote)
+      else {
+        const updatedAt = Math.max(Date.now(), local.updatedAt + 1, remote.updatedAt + 1)
+        outgoing.push({ scoreUrl: row.score_url, [field]: mergeNoteMap(field, local, remote), updatedAt })
+        merged++
+      }
+    }
+  }
+
+  if (outgoing.length) {
+    const rows = outgoing.map((f) => ({ user_id: uid, profile_id: profileId, score_url: f.scoreUrl, [field]: f[field], updated_at: f.updatedAt }))
+    const { error } = await supabase.from(table).upsert(rows)
+    if (error) throw error
+  }
+
+  // Each record is then kept as the version the server holds — once the server
+  // does, or it would read as unchanged and never be sent. Written only over
+  // the record as it was read: an edit made while the sync was out stays, for
+  // the next sync to find both sides changed and merge them.
+  const settled = [...outgoing, ...incoming, ...urlsFor('settle').map((url) => localByUrl.get(url))]
+  await storage[field].putIfUnchanged(settled.map(({ scoreUrl, [field]: notes, updatedAt }) => ({
+    record: { scoreUrl, [field]: notes, updatedAt, synced: { [field]: notes, updatedAt } },
+    read: localByUrl.get(scoreUrl)?.updatedAt ?? 0,
+  })))
+  return { [`${field}Pushed`]: outgoing.length, [`${field}Pulled`]: incoming.length + merged }
+}
+
+// A record from before `synced` existed has only its stamp, and the newer side
+// wins, as it always had; the exchange then gives it a `synced` ('settle' when
+// the two already agree). A score only the server holds comes down.
+function noteMapMove(record, remote) {
+  if (!record) return 'pull'
+  const base = record.synced?.updatedAt
+  if (base === undefined) return record.updatedAt > remote ? 'push' : remote > record.updatedAt ? 'pull' : 'settle'
+  const [mine, theirs] = [record.updatedAt !== base, remote !== base]
+  return mine && theirs ? 'merge' : mine ? 'push' : theirs ? 'pull' : null
+}
+
+// Note by note, against the version both sides last had: a note one side left
+// as it was takes the other's (a value, or its absence — a fingering cleared
+// there stays cleared here), and a note both changed goes to the newer record.
+// A value is a fingering's number or a circle's text, compared as it is.
+export function mergeNoteMap(field, local, remote) {
+  const base = local.synced?.[field] ?? {}
+  const newer = local.updatedAt > remote.updatedAt ? local[field] : remote[field]
+  const merged = {}
+  for (const key of new Set([...Object.keys(local[field]), ...Object.keys(remote[field])])) {
+    const [mine, theirs, was] = [local[field][key], remote[field][key], base[key]]
+    const value = mine === was ? theirs : theirs === was ? mine : newer[key]
+    if (value !== undefined) merged[key] = value
+  }
+  return merged
+}
