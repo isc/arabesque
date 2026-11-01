@@ -11,6 +11,7 @@ import { t, tn, locale } from './i18n.js'
 const PLAYTHROUGH_LIST_FORMATTER = new Intl.ListFormat(locale(), { style: 'long', type: 'conjunction' })
 const CHART_DATE_FULL = new Intl.DateTimeFormat(locale())
 const CHART_DATE_AXIS = new Intl.DateTimeFormat(locale(), { day: 'numeric', month: 'short' })
+const RUN_TIME = new Intl.DateTimeFormat(locale(), { hour: '2-digit', minute: '2-digit' })
 
 // How many measures the result modal names before it only counts them.
 const WRONG_MEASURES_LISTED = 6
@@ -84,14 +85,30 @@ export function wrongMeasuresText(measures) {
 }
 
 // A day of the history, with a line under it for each kind of run and hand
-// selection it holds.
+// selection it holds, and the runs of that line one by one, each by the
+// session that holds it: what the line opens on, to take one back.
 export function withRunLines(day) {
-  return { ...day, runLines: playthroughGroups(day.fullPlaythroughs).map((group) => ({ key: group.key, text: playthroughsSummary(group) })) }
+  return {
+    ...day,
+    runLines: playthroughGroups(day.fullPlaythroughs).map((group) => ({
+      key: group.key,
+      text: playthroughsSummary(group),
+      runs: chronological(group).map((pt) => ({
+        sessionId: pt.sessionId,
+        time: RUN_TIME.format(new Date(pt.startedAt)),
+        label: runKind(group.strict).label(pt),
+      })),
+    })),
+  }
+}
+
+// Groups hold their runs most recent first.
+function chronological(group) {
+  return [...group.playthroughs].reverse()
 }
 
 function playthroughsSummary(group) {
-  // Reverse to show chronological order (oldest first)
-  const runs = [...group.playthroughs].reverse()
+  const runs = chronological(group)
   const list = runs.map(runKind(group.strict).label)
   const summary = t('score.playthroughsSummary', { n: runs.length, list: PLAYTHROUGH_LIST_FORMATTER.format(list) })
   return withRunKind(summary, group)

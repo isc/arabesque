@@ -127,10 +127,7 @@ class PracticeTrackingTest < CapybaraTestBase
   def test_history_modal_lists_each_run_with_its_wrong_notes
     open_two_measures
 
-    # Noon UTC two days ago, and ten minutes later: the same day in any
-    # time zone the browser may run in.
-    day = Time.now.utc - (2 * 86_400)
-    noon = Time.utc(day.year, day.month, day.day, 12)
+    noon = noon_two_days_ago
     seed_store('sessions', [
       session_record('clean-run', 'free', noon, 60_000),
       session_record('stumbling-run', 'free', noon + 600, 90_000, clean: false, wrong_notes: 4),
@@ -138,6 +135,38 @@ class PracticeTrackingTest < CapybaraTestBase
 
     click_on 'Historique'
     assert_text '2× en entier : 1m 0s (sans faute) et 1m 30s (4 fausses notes)'
+  end
+
+  # A demo played on someone's profile would stand as their best time for good.
+  def test_a_run_can_be_taken_out_of_the_history
+    open_two_measures
+
+    noon = noon_two_days_ago
+    seed_store('sessions', [
+      session_record('theirs', 'free', noon, 60_000),
+      session_record('demo', 'free', noon + 600, 30_000),
+    ])
+
+    click_on 'Historique'
+    assert_text '2× en entier : 1m 0s (sans faute) et 30s (sans faute)'
+
+    find('.pt-history-runs summary').click
+    within(all('.pt-history-run', count: 2).last) do
+      assert_text '30s (sans faute)'
+      click_on 'Supprimer'
+      assert_text 'Supprimer cette lecture ?'
+      click_on 'Annuler'
+      assert_no_text 'Supprimer cette lecture ?'
+      click_on 'Supprimer'
+      click_on 'Oui, supprimer'
+    end
+
+    assert_text '1× en entier : 1m 0s (sans faute)'
+    assert_selector '.pt-history-run', count: 1
+
+    open_two_measures
+    click_on 'Historique'
+    assert_text '1× en entier : 1m 0s (sans faute)'
   end
 
   def test_daily_log_shows_practiced_score
@@ -183,6 +212,13 @@ class PracticeTrackingTest < CapybaraTestBase
     [[7, 8], [4, 7], [1, 6]].each_with_index.map do |(days_ago, duration_min), index|
       session_record("chart-test-#{index}", 'free', now - (days_ago * 86_400), duration_min * 60_000)
     end
+  end
+
+  # Noon UTC two days ago: that and the ten minutes after are the same day in
+  # any time zone the browser may run in.
+  def noon_two_days_ago
+    day = Time.now.utc - (2 * 86_400)
+    Time.utc(day.year, day.month, day.day, 12)
   end
 
   # A finished session of the two-measure fixture, played through in one

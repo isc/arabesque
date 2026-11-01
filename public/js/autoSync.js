@@ -19,8 +19,9 @@ import { recordError } from './errorLog.js'
 // How long each trigger waits behind the previous sync. A tab coming back or a
 // page opening brings nothing new of our own, so one round-trip a minute is
 // plenty. A session that just ended *is* new data: push it right away, only
-// collapsing bursts (a run of short Hanon playthroughs).
-const MIN_INTERVAL_MS = { 'session ended': 5000 }
+// collapsing bursts (a run of short Hanon playthroughs). A session deleted is
+// too, and comes one click at a time.
+const MIN_INTERVAL_MS = { 'session ended': 5000, 'session deleted': 0 }
 const DEFAULT_MIN_INTERVAL_MS = 60000
 
 let deps = null

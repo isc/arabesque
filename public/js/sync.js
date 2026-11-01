@@ -6,7 +6,8 @@
 // and are merged note by note when both sides changed since they last met
 // (mergeNoteMap); the notes circled on a score are the same, in a table of
 // their own (storage.js says why). Aggregates are never synced: they're
-// recomputed locally from sessions after a pull.
+// recomputed locally from sessions after a pull. A session a player takes back
+// leaves its id as a tombstone, and those are a plain union by id as well.
 //
 // One sync covers one profile — the one whose database the page has open —
 // plus the list of profiles itself, which every device keeps in step
@@ -14,10 +15,10 @@
 // sync there, a profile removed anywhere is dropped everywhere, and its rows
 // on the server go with it.
 //
-// What goes up — sessions and the notes played in them, fingerings, circled
-// notes and their reminders, each profile's name and avatar — is what the
-// privacy policy says the account holds (privacy.accountBody): sync anything
-// more and that text has to say so too.
+// What goes up — sessions and the notes played in them, the ids of the sessions
+// deleted, fingerings, circled notes and their reminders, each profile's name
+// and avatar — is what the privacy policy says the account holds
+// (privacy.accountBody): sync anything more and that text has to say so too.
 //
 // runSync() takes its dependencies (the supabase client, storage,
 // practiceTracker) so it stays page-agnostic.
@@ -131,16 +132,17 @@ export async function runSync({ supabase, storage, practiceTracker, userId = nul
   }
 
   // The reads are independent; the pushes below wait on all of them.
-  const [profilesRead, idsRead, ...stampsReads] = await Promise.all([
+  const [profilesRead, idsRead, deletedRead, ...stampsReads] = await Promise.all([
     supabase.from('profiles').select('id, name, avatar, updated_at, deleted'),
     selectAll(() => supabase.from('training_sessions').select('id').eq('profile_id', profileId).order('id')),
+    selectAll(() => supabase.from('deleted_sessions').select('id').eq('profile_id', profileId).order('id')),
     // Stamps only. The blobs are fetched below for the scores that have to come
     // down or be merged, which is usually none: selecting '*' here meant
     // re-downloading the entire fingering corpus on every sync, and syncs are
     // no longer rare.
     ...NOTE_MAPS.map((field) => supabase.from(`user_${field}`).select('score_url, updated_at').eq('profile_id', profileId)),
   ])
-  for (const { error } of [profilesRead, idsRead, ...stampsReads]) if (error) throw error
+  for (const { error } of [profilesRead, idsRead, deletedRead, ...stampsReads]) if (error) throw error
 
   // --- Profiles (last-write-wins, tombstones for removals) ---
   // A tombstone pushed takes the profile's rows with it: the server drops
@@ -158,6 +160,9 @@ export async function runSync({ supabase, storage, practiceTracker, userId = nul
     setLastSync(new Date().toISOString(), profileId)
     return { pushed: 0, pulled: 0, fingeringsPushed: 0, fingeringsPulled: 0, circlesPushed: 0, circlesPulled: 0, profilesChanged }
   }
+
+  // --- Deleted sessions (union by id), ahead of the sessions they take away ---
+  const removed = await syncDeletedSessions({ supabase, storage, uid, profileId, remoteIds: deletedRead.data.map((r) => r.id) })
 
   // --- Sessions (union by id) ---
   const remoteIdRows = idsRead.data
@@ -198,11 +203,29 @@ export async function runSync({ supabase, storage, practiceTracker, userId = nul
   const onServer = new Set([...remoteIds, ...toPush.map((s) => s.id)])
   const notesPushed = await pushNoteLogs({ supabase, storage, uid, profileId, onServer })
 
-  // --- Recompute aggregates locally if we pulled any sessions ---
-  if (pulled > 0) await practiceTracker.rebuildAggregates()
+  // --- Recompute aggregates locally if the sessions here changed ---
+  const sessionsChanged = pulled > 0 || removed > 0
+  if (sessionsChanged) await practiceTracker.rebuildAggregates()
 
   setLastSync(new Date().toISOString(), profileId)
-  return { pushed: toPush.length, pulled, ...noteMapCounts, notesPushed, profilesChanged }
+  return { pushed: toPush.length, pulled, sessionsChanged, ...noteMapCounts, notesPushed, profilesChanged }
+}
+
+// A union by id has no way to lose a row: a session gone from the server alone
+// comes back from the first device still holding it. So what a player takes back
+// leaves its id, here and there, for good. The server drops the session's rows
+// as the id reaches it (supabase/sync.sql); a device does as the id reaches it.
+// Resolves to how many are news to this device.
+async function syncDeletedSessions({ supabase, storage, uid, profileId, remoteIds }) {
+  const localIds = await storage.getDeletedSessionIds()
+  const [here, there] = [new Set(localIds), new Set(remoteIds)]
+  for (const part of chunk(localIds.filter((id) => !there.has(id)), CHUNK)) {
+    const { error } = await supabase.from('deleted_sessions').upsert(part.map((id) => ({ user_id: uid, profile_id: profileId, id })))
+    if (error) throw error
+  }
+  const arrived = remoteIds.filter((id) => !here.has(id))
+  if (arrived.length) await storage.deleteSessions(arrived)
+  return arrived.length
 }
 
 // The notes played in a session go up once the session is on the server — the
