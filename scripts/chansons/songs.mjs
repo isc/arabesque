@@ -5,7 +5,12 @@
 // hand positions, same fingerings. The twelve tunes are traditional and in the
 // public domain, and their bass is the one-note kind there is only one way to
 // write. The five after them look like the method's own teaching pieces, words
-// included, rather than traditional tunes.
+// included, rather than traditional tunes. "Do, ré, mi, la perdrix" is not from
+// the book: a traditional tune, melody only, whose published scores and words
+// vary. Here each line of words stays on the last note named: E E E on "la
+// perdrix". "Au bord de l'eau" has one syllable too many for the bar's pattern,
+// so that bar is four eighths. Its second verse goes another way, down from high
+// C, so it is written out rather than left as words under the first.
 //
 // IMPORTANT: the order of this list is the file numbering — song 13 is
 // written to Chansons_13_…, and practice aggregates and fingerings are keyed
@@ -212,5 +217,13 @@ export const SONGS = [
     lh: 'R | R | C4e B3e A3e C4e B3e A3e | B3e A3e G3e Sq. | R | R | F3e E3e D3e F3e E3e D3e | E3e D3e C3e Sq. | C3e-3 D3e E3e D3e-3 E3e F3e | E3e-3 F3e G3e Sq. | R | R | A3e-1 G3e F3e A3e-1 G3e F3e | G3e-1 F3e E3e Sq. | R | R',
     rhWords: "En- traî- ne- toi et compt' | jus- qu'à 3 (1_2_3) | | | la pro- chain' fois tu n'ou- | blie- ras pas | | | | | on con- ti- nue mais tout | à l'en- vers | | | c'est la main droite qui fi- | nit la der- nière",
     lhWords: '| | 1 2 3 1 2 3 | 1 2 3 | | | 1 2 3 1 2 3 | 1 2 3',
+  },
+  {
+    slug: 'do-re-mi-la-perdrix',
+    title: 'Do, ré, mi, la perdrix',
+    time: '2/4',
+    showTime: true,
+    rh: 'C4e-1 D4e E4q | E4e-3 E4e E4q | E4e-3 F4e G4q | G4e-5 G4e G4q | F4e-4 E4e D4q | D4e-2 D4e D4q | E4e-3 D4e C4q | C4e-1 C4e C4e C4e | C5e-5 B4e A4q | A4e-3 A4e A4q | B4e-4 A4e G4q | G4e-2 G4e G4q | A4e-3 G4e F4q | F4e-1 F4e F4q | E4e-3 D4e C4q | C4e-1 C4e C4e C4e',
+    rhWords: "Do ré mi | la per- drix | mi fa sol | elle s'en- vole | fa mi ré | dans un pré | mi ré do | au bord de l'eau | Do si la | la voi- là | si la sol | dans son vol | la sol fa | près du bois | mi ré do | au bord de l'eau",
   },
 ]
