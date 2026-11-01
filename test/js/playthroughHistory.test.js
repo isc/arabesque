@@ -69,6 +69,24 @@ describe('the words for a run', () => {
   })
 })
 
+describe('a line of the history', () => {
+  it('holds its runs one by one, oldest first, each by its session', () => {
+    const late = new Date(2026, 8, 1, 18, 37).toISOString()
+    const early = new Date(2026, 8, 1, 9, 5).toISOString()
+    const day = withRunLines({
+      date: '2026-09-01',
+      fullPlaythroughs: [run(1, 18_000, { sessionId: 'demo', startedAt: late, wrongNotes: 1 }), run(1, 60_000, { sessionId: 'mine', startedAt: early })],
+    })
+
+    expect(day.runLines).toHaveLength(1)
+    const [first, second] = day.runLines[0].runs
+    expect(first).toMatchObject({ sessionId: 'mine', label: '1m 0s (no wrong note)' })
+    expect(first.time).toMatch(/09.05/)
+    expect(second).toMatchObject({ sessionId: 'demo', label: '18s (1 wrong note)' })
+    expect(second.time).toMatch(/06.37/)
+  })
+})
+
 describe('hotMeasures', () => {
   it('keeps the measures fumbled most often over two attempts or more, worst first', () => {
     const aggregate = {

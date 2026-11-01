@@ -76,7 +76,7 @@ export function practiceApp() {
       initAutoSync({ storage, practiceTracker }, {
         syncOnOpen: true,
         onSynced: (summary) => {
-          if (summary.pulled) this.reload()
+          if (summary.sessionsChanged) this.reload()
         },
       })
 

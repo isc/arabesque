@@ -14,16 +14,18 @@ const MAIN = 'main'
 const MAX_ROWS = 1000
 const KEYS = {
   training_sessions: (r) => `${r.profile_id ?? MAIN}|${r.id}`,
+  deleted_sessions: (r) => `${r.profile_id ?? MAIN}|${r.id}`,
   user_fingerings: (r) => `${r.profile_id ?? MAIN}|${r.score_url}`,
   user_circles: (r) => `${r.profile_id ?? MAIN}|${r.score_url}`,
   profiles: (r) => r.id,
   session_notes: (r) => r.id,
 }
 
-function makeFakeSupabase({ sessions = [], fingerings = [], circles = [], profiles = [] } = {}) {
+function makeFakeSupabase({ sessions = [], deleted = [], fingerings = [], circles = [], profiles = [] } = {}) {
   const tables = Object.fromEntries(Object.keys(KEYS).map((name) => [name, new Map()]))
   const seed = (name, rows) => rows.forEach((r) => tables[name].set(KEYS[name]({ profile_id: MAIN, ...r }), { profile_id: MAIN, ...r }))
   seed('training_sessions', sessions)
+  seed('deleted_sessions', deleted)
   seed('user_fingerings', fingerings)
   seed('user_circles', circles)
   seed('profiles', profiles)
@@ -46,7 +48,13 @@ function makeFakeSupabase({ sessions = [], fingerings = [], circles = [], profil
       return {
         select: (cols = '*') => result([...table.values()], cols),
         upsert(rows) {
-          for (const r of rows) table.set(KEYS[name](r), { ...table.get(KEYS[name](r)), ...r })
+          for (const r of rows) {
+            // What the triggers of supabase/sync.sql do: a tombstone takes the
+            // session's row with it, and a session under one is not taken.
+            if (name === 'deleted_sessions') tables.training_sessions.delete(KEYS.training_sessions(r))
+            if (name === 'training_sessions' && tables.deleted_sessions.has(KEYS.deleted_sessions(r))) continue
+            table.set(KEYS[name](r), { ...table.get(KEYS[name](r)), ...r })
+          }
           return { error: null }
         },
       }
@@ -172,6 +180,64 @@ describe('runSync', () => {
 
     expect(r.pushed).toBe(0)
     expect(r.pulled).toBe(0)
+  })
+
+  // A union by id cannot lose a row: without a tombstone, the first device
+  // still holding a session pushes it back.
+  describe('a deleted session', () => {
+    const onServer = (id) => ({ user_id: USER, id, data: endedSession(id, '/s/1.xml'), ended_at: 'x' })
+    const tombstone = (id) => ({ user_id: USER, id })
+
+    it('goes to the server as an id, and takes its row there with it', async () => {
+      await storage.saveSession(endedSession('a', '/s/1.xml'))
+      const supabase = makeFakeSupabase({ sessions: [onServer('a')] })
+      await storage.deleteSessions(['a'])
+
+      const r = await runSync({ supabase, storage, practiceTracker })
+
+      expect(r).toMatchObject({ pushed: 0, pulled: 0, sessionsChanged: false })
+      expect(supabase._rows('deleted_sessions')).toEqual([{ user_id: USER, profile_id: MAIN, id: 'a' }])
+      expect(supabase._sessions.keys()).toEqual([])
+      expect(await storage.getSessionIds()).toEqual([])
+    })
+
+    it('leaves another device with the news, its aggregates rebuilt', async () => {
+      await storage.saveSession(endedSession('a', '/s/1.xml'))
+      await storage.saveSession(endedSession('b', '/s/1.xml'))
+      await storage.saveNoteLog({ id: 'a:0', sessionId: 'a', startedAt: '2026-01-01T10:00:00.000Z' })
+      await practiceTracker.rebuildAggregates()
+      expect((await storage.getAggregate('/s/1.xml')).totalSessions).toBe(2)
+      const supabase = makeFakeSupabase({ sessions: [onServer('b')], deleted: [tombstone('a')] })
+
+      const r = await runSync({ supabase, storage, practiceTracker })
+
+      expect(r).toMatchObject({ pushed: 0, pulled: 0, sessionsChanged: true, notesPushed: 0 })
+      expect(await storage.getSessionIds()).toEqual(['b'])
+      expect(await storage.getHeldNoteLogIds()).toEqual([])
+      expect((await storage.getAggregate('/s/1.xml')).totalSessions).toBe(1)
+      expect(supabase._sessions.keys()).toEqual(['b'])
+    })
+
+    it('stays gone on the next sync, with nothing more to send or rebuild', async () => {
+      const supabase = makeFakeSupabase({ deleted: [tombstone('a')] })
+      await runSync({ supabase, storage, practiceTracker })
+      const rebuilding = vi.spyOn(practiceTracker, 'rebuildAggregates')
+
+      const r = await runSync({ supabase, storage, practiceTracker })
+
+      expect(r.sessionsChanged).toBe(false)
+      expect(rebuilding).not.toHaveBeenCalled()
+    })
+
+    it("does not reach another profile's", async () => {
+      await storage.saveSession(endedSession('a', '/s/1.xml'))
+      const supabase = makeFakeSupabase({ sessions: [onServer('a')], deleted: [{ ...tombstone('a'), profile_id: 'other' }] })
+
+      const r = await runSync({ supabase, storage, practiceTracker })
+
+      expect(r.sessionsChanged).toBe(false)
+      expect(await storage.getSessionIds()).toEqual(['a'])
+    })
   })
 
   // The whole history reads as megabytes, and a sync runs after every run:

@@ -130,6 +130,7 @@ function playthroughRun(session) {
 export function playthroughOf(session) {
   const { start, end, attempts } = playthroughRun(session)
   return {
+    sessionId: session.id,
     startedAt: session.playthroughStartedAt,
     durationMs: attempts.length === 0 ? end - start : normalizedPlayingTime(attempts, start, end),
     hands: playthroughHands(attempts),

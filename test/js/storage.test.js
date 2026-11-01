@@ -168,6 +168,7 @@ describe('a backup restored on another device', () => {
     4: ['aggregates', 'fingerings', 'noteLogs', 'sessions'],
     5: ['aggregates', 'fingerings', 'keptNoteLogs', 'noteLogs', 'sessions'],
     6: ['aggregates', 'circles', 'fingerings', 'keptNoteLogs', 'noteLogs', 'sessions'],
+    7: ['aggregates', 'circles', 'deletedSessions', 'fingerings', 'keptNoteLogs', 'noteLogs', 'sessions'],
   }
 
   it('raises the database version with every store added', () => {
@@ -279,6 +280,32 @@ describe('note logs', () => {
     await storage.saveNoteLog({ ...noteLog('s1:0'), e: 'du' })
     await expect(storage.addNoteLog(noteLog('s1:0'))).rejects.toMatchObject({ name: 'ConstraintError' })
     expect((await storage.getNoteLogsById(['s1:0']))[0].e).toBe('du')
+  })
+})
+
+describe('a session taken back', () => {
+  it('goes with the notes played in it, sent or not, and no other', async () => {
+    const { storage } = await aDevice()
+    await storage.saveSession(session('a'))
+    await storage.saveSession(session('b'))
+    await storage.saveNoteLog(noteLog('a:0'))
+    await storage.saveNoteLog(noteLog('a:1'))
+    await storage.keepNoteLogs(['a:1'])
+    await storage.saveNoteLog(noteLog('b:0'))
+
+    await storage.deleteSessions(['a'])
+
+    expect(await storage.getSessionIds()).toEqual(['b'])
+    expect(await storage.getHeldNoteLogIds()).toEqual(['b:0'])
+    expect(await storage.getDeletedSessionIds()).toEqual(['a'])
+  })
+
+  it('does not come back with a backup or a pull', async () => {
+    const { storage } = await aDevice()
+    await storage.deleteSessions(['a'])
+
+    expect(await storage.importSessions([session('a'), session('b')])).toBe(1)
+    expect(await storage.getSessionIds()).toEqual(['b'])
   })
 })
 

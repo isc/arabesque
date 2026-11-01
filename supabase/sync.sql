@@ -13,6 +13,10 @@
 --     immutable once ended; sync pushes ids the server lacks and pulls ids the
 --     client lacks. Aggregates are NOT stored here — they are recomputed locally
 --     from sessions after a pull.
+--   - deleted_sessions: the sessions a player took back from their history, by
+--     id, for good. Without it a union by id has no way to lose a row: any
+--     device still holding the session would push it back. A plain union by id
+--     too, and the only thing kept of the session.
 --   - session_notes: every key played in a session, a segment per row
 --     (public/js/noteLog.js has the format). Pushed once the session is on the
 --     server, never pulled: it is read by the analysis, not by another device.
@@ -56,6 +60,21 @@ create index if not exists training_sessions_user_profile_ended
 alter table public.training_sessions enable row level security;
 drop policy if exists training_sessions_owner on public.training_sessions;
 create policy training_sessions_owner on public.training_sessions
+  for all to authenticated
+  using (user_id = auth.uid())
+  with check (user_id = auth.uid());
+
+create table if not exists public.deleted_sessions (
+  user_id    uuid not null references auth.users (id) on delete cascade,
+  profile_id text not null default 'main',
+  id         text not null,          -- the session's id, its rows gone (below)
+  deleted_at timestamptz not null default now(),
+  primary key (user_id, id)
+);
+
+alter table public.deleted_sessions enable row level security;
+drop policy if exists deleted_sessions_owner on public.deleted_sessions;
+create policy deleted_sessions_owner on public.deleted_sessions
   for all to authenticated
   using (user_id = auth.uid())
   with check (user_id = auth.uid());
@@ -149,6 +168,7 @@ as $$
 begin
   delete from public.training_sessions where user_id = new.user_id and profile_id = new.id;
   delete from public.session_notes where user_id = new.user_id and profile_id = new.id;
+  delete from public.deleted_sessions where user_id = new.user_id and profile_id = new.id;
   delete from public.user_fingerings where user_id = new.user_id and profile_id = new.id;
   delete from public.user_circles where user_id = new.user_id and profile_id = new.id;
   return new;
@@ -159,3 +179,59 @@ create trigger profiles_drop_rows
   after insert or update of deleted on public.profiles
   for each row when (new.deleted)
   execute function public.drop_profile_rows();
+
+-- A deleted session has no data either: its tombstone takes its rows with it,
+-- for the same reason.
+create or replace function public.drop_deleted_session_rows()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  delete from public.training_sessions where user_id = new.user_id and id = new.id;
+  delete from public.session_notes where user_id = new.user_id and session_id = new.id;
+  return new;
+end;
+$$;
+drop trigger if exists deleted_sessions_drop_rows on public.deleted_sessions;
+create trigger deleted_sessions_drop_rows
+  after insert on public.deleted_sessions
+  for each row
+  execute function public.drop_deleted_session_rows();
+
+-- And a device that has not heard yet cannot bring them back: a build from
+-- before tombstones, or a sync already under way, pushes what it holds of the
+-- session, and the row is dropped without a word. A row's id is read off the
+-- column itself: to_jsonb(new) would serialise a whole segment of notes at
+-- every insert.
+create or replace function public.skip_deleted_session()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  session_id text;
+begin
+  if tg_table_name = 'session_notes' then
+    session_id := new.session_id;
+  else
+    session_id := new.id;
+  end if;
+  if exists (select 1 from public.deleted_sessions where user_id = new.user_id and id = session_id) then
+    return null;
+  end if;
+  return new;
+end;
+$$;
+drop trigger if exists training_sessions_skip_deleted on public.training_sessions;
+create trigger training_sessions_skip_deleted
+  before insert on public.training_sessions
+  for each row
+  execute function public.skip_deleted_session();
+drop trigger if exists session_notes_skip_deleted on public.session_notes;
+create trigger session_notes_skip_deleted
+  before insert on public.session_notes
+  for each row
+  execute function public.skip_deleted_session();
