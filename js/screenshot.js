@@ -28,8 +28,8 @@
 // three things depend on it. Each is put back below, from measurements of the
 // live page: the window's scroll offset, the scroll offset of any inner
 // scroller (the library's list is one), and the offset stickiness gives a
-// pinned element (the score page's whole header/mode/playback stack is sticky,
-// and it is the most diagnostic thing on the page).
+// pinned element (the score page's whole stack of header, modes and bands is
+// sticky, and it is the most diagnostic thing on the page).
 
 import { recordError } from './errorLog.js'
 

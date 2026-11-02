@@ -399,14 +399,15 @@ function resetReinforcementState() {
 }
 
 // The bars a fragment is drilled in, and what of them: from the first pass of
-// the bar it starts in to the first pass of the bar it ends in, which must
+// the bar it starts in to the first pass of the bar it ends in, however many
+// bars fragments that touch were merged over (fragments.js). Those passes must
 // follow one another for it to reach back — one that would reach back over a
 // repeat starts on its last bar's downbeat instead.
 function reinforcementPassage({ from, until }) {
   const end = firstPassIndexOf(score.allNotes, until.bar)
   if (end < 0) return null
   const start = firstPassIndexOf(score.allNotes, from.bar)
-  if (start === end || start === end - 1) return { start, end, fragment: { from: start + from.position, until: end + until.position } }
+  if (end - start === until.bar - from.bar) return { start, end, fragment: { from: start + from.position, until: end + until.position } }
   return { start: end, end, fragment: { from: end, until: end + until.position } }
 }
 
@@ -552,11 +553,12 @@ const inBlockChords = () => training.on && training.blockChords
 // each hand at once, an octave at most, and every beat a figure that comes
 // back to a note it played, the broken chord plaquer is for. Not a line, which
 // has no chord to find, nor a leap past the octave, which no hand holds and
-// which block chords would only turn into a stretch.
+// which block chords would only turn into a stretch, nor a single beat, which
+// has no next position to go to.
 const OCTAVE = 12
 export function suitsBlockChords(beats) {
   return (
-    beats.length > 0 &&
+    beats.length > 1 &&
     beats.every((hands) => {
       const played = hands.filter((pitches) => pitches.length > 0)
       return (

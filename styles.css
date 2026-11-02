@@ -780,8 +780,9 @@ a:hover { text-decoration: underline; }
    Topbar (sticky page header on score.html)
    ========================================================================== */
 
-/* Both bars stick as one block, so the modebar never needs to know the
-   topbar's exact height (which varies with content / viewport width). */
+/* The bars and the mode's band stick as one block, so none of them needs to
+   know the height of the ones above (which varies with content / viewport
+   width). */
 .pt-stickybars {
   position: sticky;
   top: 0;
