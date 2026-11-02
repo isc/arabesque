@@ -186,10 +186,7 @@ class ReinforcementTest < CapybaraTestBase
     visit "/score.html?url=#{url}"
     wait_for_score_render
 
-    execute_script(<<~JS)
-      Alpine.$data(document.querySelector('[x-data]'))
-        .setMode('reinforcement', [{ from: { bar: 18, position: 0 }, until: { bar: 18, position: 0.25 }, hands: 'both' }])
-    JS
+    reinforce([{ from: { bar: 18, position: 0 }, until: { bar: 18, position: 0.25 }, hands: 'both' }])
     assert_selector 'svg circle.repeat-indicator', count: 3
     clearance = evaluate_script(<<~JS)
       (() => {
@@ -227,14 +224,47 @@ class ReinforcementTest < CapybaraTestBase
     assert_no_selector 'svg circle.repeat-indicator.spoiled'
   end
 
+  # Fragments that touch are drilled as one, over all the bars they reach. The
+  # joins into bars 4 and 5 of the C minor prelude, merged, used to come down
+  # to the downbeat of bar 5 alone (feedback 5110eacb).
+  def test_a_passage_merged_over_three_bars_is_drilled_whole
+    visit '/score.html?url=/test-fixtures/repeat-endings.xml'
+    wait_for_score_render(4)
+    reinforce_bars(1..3)
+
+    assert_selector 'svg rect.fragment-range', count: 3
+    play_note('C4')
+    assert_selector 'svg g.vf-notehead.played-note', count: 1
+    play_note('D4')
+    assert_selector 'svg g.vf-notehead.played-note', count: 2
+    play_note('E4')
+    assert_selector 'svg circle.repeat-indicator.filled', count: 1
+  end
+
+  # Bars 3 and 4 are the two endings: bar 4 is not played after bar 3, so there
+  # is no way in to drill, and the passage starts on its last bar's downbeat.
+  def test_a_passage_that_would_reach_back_over_a_repeat_starts_on_its_last_bar
+    visit '/score.html?url=/test-fixtures/repeat-endings.xml'
+    wait_for_score_render(4)
+    reinforce_bars(3..4)
+
+    assert_selector 'svg rect.fragment-range', count: 1
+    play_note('F4')
+    assert_selector 'svg circle.repeat-indicator.filled', count: 1
+  end
+
   private
 
-  # A drill of whole bars of repeat-endings.xml, handed to the page in that
-  # order, as it would offer them.
-  def reinforce_bars(*bars)
-    passages = bars.map do |bar|
-      { from: { bar: bar - 1, position: 0 }, until: { bar: bar - 1, position: 1 }, hands: 'both' }
-    end
+  # A drill of whole bars of repeat-endings.xml, each passage a bar or a range
+  # of them, handed to the page in that order, as it would offer them.
+  def reinforce_bars(*passages)
+    reinforce(passages.map do |bars|
+      first, last = Array(bars).values_at(0, -1)
+      { from: { bar: first - 1, position: 0 }, until: { bar: last - 1, position: 1 }, hands: 'both' }
+    end)
+  end
+
+  def reinforce(passages)
     execute_script("Alpine.$data(document.querySelector('[x-data]')).setMode('reinforcement', #{passages.to_json})")
   end
 

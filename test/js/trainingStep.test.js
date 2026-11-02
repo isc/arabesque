@@ -80,25 +80,26 @@ describe('nextTurn', () => {
 // hand plays in it, in order.
 describe('suitsBlockChords', () => {
   const C4 = 60
-  it('takes a broken chord in each hand, that comes back to a note', () => {
+  const chord = [[C4, C4 + 4, C4 + 7, C4 + 4], []]
+
+  it('takes broken chords in each hand, that come back to a note', () => {
     // BWV 847, bar 11 beat 1: Bb4 G4 F4 G4 over G2 Eb3 D3 Eb3.
-    expect(suitsBlockChords([[[70, 67, 65, 67], [43, 51, 50, 51]]])).toBe(true)
-    expect(suitsBlockChords([[[C4, C4 + 4, C4 + 7, C4 + 4], []]])).toBe(true)
+    const bothHands = [[70, 67, 65, 67], [43, 51, 50, 51]]
+    expect(suitsBlockChords([bothHands, bothHands])).toBe(true)
+    expect(suitsBlockChords([chord, chord])).toBe(true)
   })
 
   it('leaves out a line, which has no chord to find', () => {
-    expect(suitsBlockChords([[[C4, C4 + 2, C4 + 4, C4 + 5], []]])).toBe(false)
+    expect(suitsBlockChords([chord, [[C4, C4 + 2, C4 + 4, C4 + 5], []]])).toBe(false)
   })
 
   it('leaves out a hand that would have to hold more than an octave', () => {
     // BWV 847, bar 31 beat 1: the left hand leaps Eb3 to G4.
-    expect(suitsBlockChords([[[72, 75, 74, 75], [51, 67, 65, 67]]])).toBe(false)
+    expect(suitsBlockChords([chord, [[72, 75, 74, 75], [51, 67, 65, 67]]])).toBe(false)
   })
 
-  it('wants every beat of the passage to suit, and a passage to judge', () => {
-    const chord = [[C4, C4 + 4, C4 + 7, C4 + 4], []]
-    const line = [[C4, C4 + 2, C4 + 4, C4 + 5], []]
-    expect(suitsBlockChords([chord, line])).toBe(false)
+  it('wants two beats at least: one chord has no next position to go to', () => {
+    expect(suitsBlockChords([chord])).toBe(false)
     expect(suitsBlockChords([])).toBe(false)
   })
 })
