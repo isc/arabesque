@@ -5,7 +5,7 @@ import { fingeringPad } from './fingeringPad.js'
 import { initNoteCircles } from './noteCircles.js'
 import { initPracticeTracker } from './practiceTracker.js'
 import { TWO_HANDS, handsKey } from './hands.js'
-import { formatDuration, formatDate, applyStickyOffset, scorePageUrl, onForeground, onBackground, onIdle, withHands, passage, pickPassageMeasure, passageText } from './utils.js'
+import { formatDuration, formatDate, statusLabel, applyStickyOffset, scorePageUrl, onForeground, onBackground, onIdle, withHands, passage, pickPassageMeasure, passageText } from './utils.js'
 import { initStorage } from './storage.js'
 import { initNoteLog, keepScoreNoteLogs } from './noteLog.js'
 import { initFragmentSuggestions } from './fragmentSuggestions.js'
@@ -26,6 +26,8 @@ import { t, tn } from './i18n.js'
 import { recordError } from './errorLog.js'
 import { loadCatalog, fileUrl, isCollection } from './catalog.js'
 import { playthroughCharts, withRunLines, hotMeasures } from './playthroughHistory.js'
+import { goalLines, goalNews, goalsHint, pieceFigures, pieceGoals, statusProgress } from './pieceGoals.js'
+import { firstPassIndexOf, runSize } from './noteExtraction.js'
 
 // What the strict and training bands say once a passage's first bar is picked
 // and its last is awaited: to click that bar, while a click would reach the
@@ -265,9 +267,14 @@ export function midiApp() {
     scoreHistory: [],
     // The session of the run whose delete is being confirmed.
     deletingRunId: null,
-    historyTotalMs: 0,
     historyHotMeasures: [],
     historyCharts: [],
+    historyFigures: [],
+    historyPieceStatus: null,
+    statusLabel,
+    historyStatus: null,
+    historyGoals: [],
+    goalsHint,
     measuresToReinforce: [],
     showMidiHelpModal: false,
     showNoMidiModal: false,
@@ -417,7 +424,7 @@ export function midiApp() {
 
           const allPlaythroughs = this.scoreUrl ? await practiceTracker.getAllPlaythroughs(this.scoreUrl) : []
           window.scrollTo({ top: 0, behavior: 'smooth' })
-          this.showScoreComplete(allPlaythroughs)
+          this.showScoreComplete(allPlaythroughs, goalNews(allPlaythroughs, runSize(musicxml.getAllNotes())))
 
           await this.refreshReinforcementSuggestions()
         },
@@ -1156,6 +1163,10 @@ export function midiApp() {
       // The tab already pressed changes nothing — the training one included,
       // which a reinforcement keeps pressed.
       if (name === this.mode || name === this.currentMode) return
+      return this.enterMode(name, measuresToReinforce)
+    },
+
+    async enterMode(name, measuresToReinforce = []) {
       // A piece playing itself competes with the player's hands.
       this.stopListening()
       if (this.isStrictPlaying) {
@@ -1267,9 +1278,27 @@ export function midiApp() {
         storage.getAggregate(this.scoreUrl),
       ])
       this.scoreHistory = history.map(withRunLines)
-      this.historyTotalMs = history.reduce((sum, d) => sum + (d.totalPracticeTimeMs || 0), 0)
-      this.historyCharts = playthroughCharts(history.flatMap((d) => d.fullPlaythroughs))
+      const runs = history.flatMap((d) => d.fullPlaythroughs)
+      this.historyFigures = pieceFigures(aggregate, history.reduce((sum, d) => sum + (d.totalPracticeTimeMs || 0), 0))
+      this.historyPieceStatus = aggregate?.status ?? null
+      this.historyCharts = playthroughCharts(runs)
       this.historyHotMeasures = hotMeasures(aggregate)
+      // A row is written as soon as a title is known: a piece not played yet
+      // has no history to set anything against.
+      const played = history.length > 0
+      const size = runSize(musicxml.getAllNotes())
+      this.historyStatus = played ? statusProgress(aggregate, size.bars) : null
+      this.historyGoals = played ? goalLines(pieceGoals(runs, size)) : []
+    },
+
+    // A bar short of the next status, from the history: drilled on its own, in
+    // training, where a clean pass of it counts. Out of a reinforcement too,
+    // which keeps the training tab pressed for setMode.
+    async workOnBar(bar) {
+      this.showHistoryModal = false
+      if (this.mode !== 'training') await this.enterMode('training')
+      const index = firstPassIndexOf(musicxml.getAllNotes(), bar)
+      this.setTrainingRange(index, index)
     },
 
     async deleteRun(sessionId) {

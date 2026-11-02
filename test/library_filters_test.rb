@@ -125,6 +125,17 @@ class LibraryFiltersTest < CapybaraTestBase
     assert_selector '.pt-criteria', text: /pour passer en répertoire/i
   end
 
+  # Close to the répertoire is close to its bar, ten clean passes of each measure,
+  # and not to the three of the status below it.
+  def test_near_repertoire_is_judged_by_the_repertoire_bar
+    almost = (1..4).to_h { |i| [i.to_s, { totalAttempts: 9, cleanAttempts: 9, errorRate: 0 }] }
+    seed_aggregates([aggregate_rows.find { |row| row[:status] == 'perfectionnement' }.merge(measures: almost)])
+    visit '/library.html'
+
+    assert_selector 'tbody tr', minimum: 4
+    assert_no_selector 'button.pt-focus__chip[data-focus="near-mastery"]'
+  end
+
   # The point of the change: a filter you click never bounces off one you set
   # earlier. Only the Nocturne Op. 9 is close to the répertoire, and it is in
   # Perfectionnement, so no Déchiffrage row can ever be in both sets.
@@ -335,7 +346,7 @@ class LibraryFiltersTest < CapybaraTestBase
         practiceDays: ['2026-02-13', '2026-02-14', '2026-02-15'],
         # Every measure played clean often enough: the one score the
         # "⭐ Proches du répertoire" chip has to offer.
-        measures: (1..4).to_h { |i| [i.to_s, { totalAttempts: 5, cleanAttempts: 5, errorRate: 0 }] },
+        measures: (1..4).to_h { |i| [i.to_s, { totalAttempts: 10, cleanAttempts: 10, errorRate: 0 }] },
       },
       {
         scoreId: 'scores/Waltz_in_A_MinorChopin.mxl',

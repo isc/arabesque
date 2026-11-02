@@ -137,6 +137,69 @@ class PracticeTrackingTest < CapybaraTestBase
     assert_text '2× en entier : 1m 0s (sans faute) et 1m 30s (4 fausses notes)'
   end
 
+  # The history says where the piece stands against the next status, and a bar
+  # short of it is one click from being drilled (feedback 9e9ca6df).
+  def test_history_names_what_the_next_status_lacks_and_works_a_bar_short_of_it
+    open_two_measures
+    seed_store('sessions', [session_record('a-run', 'free', noon_two_days_ago, 60_000)])
+    seed_aggregates([{
+      scoreId: '/test-fixtures/two-measures.xml',
+      status: 'perfectionnement',
+      timesCompleted: 4,
+      practiceDays: %w[2026-10-01 2026-10-02 2026-10-03],
+      measures: {
+        '0' => { totalAttempts: 10, cleanAttempts: 10, errorRate: 0 },
+        '1' => { totalAttempts: 10, cleanAttempts: 9, errorRate: 0.1 },
+      },
+    }])
+
+    click_on 'Historique'
+    within('[data-testid="history-status"]') do
+      assert_text 'Pour passer en Répertoire'
+      assert_text '4/10'
+      assert_text '1/2'
+      assert_selector 'button.pt-barmap__bar.is-done', count: 1
+      assert_selector 'button.pt-barmap__bar[aria-label="Mesure 2 : 9/10"]'
+      click_on 'Travailler la mesure 2 (9/10)'
+    end
+
+    assert_no_selector 'dialog[open]'
+    assert_text 'Mode Entraînement Actif'
+    assert_text 'Mesure 2 seule'
+    wait_for_training_cursor(2)
+  end
+
+  # Répertoire has no status above it: the goals are what is left.
+  def test_history_lists_the_goals_read_off_the_runs
+    open_two_measures
+    seed_store('sessions', [session_record('a-run', 'free', noon_two_days_ago, 60_000, clean: false, wrong_notes: 1)])
+
+    click_on 'Historique'
+    within('[data-testid="history-goals"]') do
+      assert_text 'Justesse'
+      assert_text '1 fausse note'
+      assert_text 'Prochaine étoile : sans faute'
+      # Nothing in that run says how it was entered: its steadiness is unknown.
+      assert_text 'Régularité'
+      assert_text 'Se mesure au prochain jeu complet'
+    end
+  end
+
+  # The end of a run says what it did for the goals: the next star, then the
+  # star it earned.
+  def test_the_end_of_a_run_speaks_of_the_goals
+    open_two_measures
+    news = '[data-testid="result-goal-news"]'
+
+    play_notes(%w[C4 E4 D4])
+    assert_selector news, text: 'Prochaine étoile : Justesse ★☆☆, sans faute (record : 1 fausse note).'
+    find('button[aria-label="Close"]').click
+    wait_for_records('sessions', where: 'record.completedAt')
+
+    play_notes(%w[C4 D4])
+    assert_selector news, text: '⭐ Justesse ★★★'
+  end
+
   # A demo played on someone's profile would stand as their best time for good.
   def test_a_run_can_be_taken_out_of_the_history
     open_two_measures

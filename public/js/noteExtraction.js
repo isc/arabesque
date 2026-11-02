@@ -731,6 +731,19 @@ export function analysisModel(allNotes) {
   return { notes, bars }
 }
 
+// What a run through the score holds with both hands, repeats included: the
+// notes it strikes and the attacks they make, a chord being one. And the bars
+// with something to play, each once, in the order of the score.
+export function runSize(allNotes) {
+  const struck = allNotes.flatMap((measure) => measure.notes.filter(isStruck))
+  return {
+    notes: struck.length,
+    attacks: new Set(struck.map((noteData) => roundPosition(noteData.timestamp))).size,
+    bars: [...new Set(allNotes.filter((measure) => measure.notes.some(isStruck)).map((measure) => measure.sourceMeasureIndex))]
+      .sort((a, b) => a - b),
+  }
+}
+
 // The attack positions of a bar, in order: where its struck notes fall.
 export const positionsOf = (struck) => [...new Set(struck.map((n) => n.position))].sort((a, b) => a - b)
 

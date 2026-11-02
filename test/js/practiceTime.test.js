@@ -5,14 +5,15 @@ const BASE = new Date('2026-06-10T10:00:00.000Z').getTime()
 
 // Lay out {dur, gapBefore} segments on a timeline starting at BASE: the cursor
 // advances by each gap, then by each measure duration. Both duration functions
-// now share one normalization, so their fixtures share one builder.
+// now share one normalization, so their fixtures share one builder. Anything
+// else in a segment lands on its attempt.
 function buildMeasures(segments) {
   let cursor = BASE
-  const measures = segments.map(({ dur, gapBefore = 0 }, i) => {
+  const measures = segments.map(({ dur, gapBefore = 0, ...attempt }, i) => {
     cursor += gapBefore
     const startedAt = new Date(cursor).toISOString()
     cursor += dur
-    return { sourceMeasureIndex: i, attempts: [{ startedAt, durationMs: dur, clean: true }] }
+    return { sourceMeasureIndex: i, attempts: [{ startedAt, durationMs: dur, clean: true, ...attempt }] }
   })
   return { measures, endedAt: cursor }
 }
@@ -144,5 +145,26 @@ describe('computeSessionDuration (practice time credited to a session)', () => {
       { dur: 12000, gapBefore: 3000 },
     ])
     expect(computeSessionDuration(session)).toBe(42000)
+  })
+})
+
+describe('playthroughOf: holes', () => {
+  const holesOf = (...segments) => {
+    const { measures, endedAt } = buildMeasures(segments.map((attempt) => ({ dur: 1000, ...attempt })))
+    return playthroughOf({
+      id: 'run',
+      playthroughStartedAt: new Date(BASE).toISOString(),
+      completedAt: new Date(endedAt).toISOString(),
+      measures,
+    }).holes
+  }
+
+  it('counts those inside the bars and at their joins', () => {
+    expect(holesOf({ hesitations: 2 }, { entryRatio: 3, entryHole: true, hesitations: 1 }, { entryRatio: 1 })).toBe(4)
+  })
+
+  it('reads none on a steady run, and cannot say of one from before the pace was judged', () => {
+    expect(holesOf({}, { entryRatio: 1 })).toBe(0)
+    expect(holesOf({}, {})).toBe(null)
   })
 })
