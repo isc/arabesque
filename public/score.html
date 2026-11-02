@@ -507,7 +507,24 @@
                   <small x-show="day.fullPlaythroughs.length === 0 && day.measuresWorked.length > 0" x-text="$tn('score.measuresPlayed', day.measuresWorked.length)"></small>
                   <small x-show="day.measuresReinforced.length > 0" x-text="$tn('score.measuresReinforced', day.measuresReinforced.length)"></small>
                   <template x-for="line in day.runLines" :key="line.key">
-                    <small x-text="line.text"></small>
+                    <details class="pt-history-runs">
+                      <summary x-text="line.text"></summary>
+                      <ul>
+                        <template x-for="run in line.runs" :key="run.sessionId">
+                          <li class="pt-history-run">
+                            <small x-text="`${run.time} · ${run.label}`"></small>
+                            <button type="button" class="pt-chip" x-show="deletingRunId !== run.sessionId" @click="deletingRunId = run.sessionId" x-text="$t('score.deleteRun')">Supprimer</button>
+                            <div class="pt-history-run__confirm pt-stack pt-stack--tight" x-show="deletingRunId === run.sessionId">
+                              <p role="alert" class="pt-feedback-error" x-text="$t('score.deleteRunWarning')"></p>
+                              <div class="pt-data-actions">
+                                <button type="button" class="pt-chip danger" @click="deleteRun(run.sessionId)" x-text="$t('score.deleteRunConfirm')">Oui, supprimer</button>
+                                <button type="button" class="pt-chip" @click="deletingRunId = null" x-text="$t('common.cancel')">Annuler</button>
+                              </div>
+                            </div>
+                          </li>
+                        </template>
+                      </ul>
+                    </details>
                   </template>
                 </div>
               </div>

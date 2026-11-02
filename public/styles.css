@@ -630,6 +630,9 @@ a:hover { text-decoration: underline; }
 /* For a list of like items rather than a card's mixed contents: the journal's
    days, and the entries of a day. */
 .pt-stack--tight { gap: var(--pt-space-2); }
+/* A row of buttons answering what stands above them. */
+.pt-data-actions { display: flex; flex-wrap: wrap; gap: var(--pt-space-2); align-items: center; }
+.pt-data-actions button, .pt-data-actions [role="button"] { margin: 0; }
 
 /* --- Controls -------------------------------------------------------------- */
 /* A square button holding one glyph: the ⚙️ menu, the calendar's year arrows
@@ -1159,8 +1162,6 @@ a:hover { text-decoration: underline; }
 /* =============================================================================
    Data page (backup + account)
    ========================================================================== */
-.pt-data-actions { display: flex; flex-wrap: wrap; gap: var(--pt-space-2); align-items: center; }
-.pt-data-actions button, .pt-data-actions [role="button"] { margin: 0; }
 .pt-account-form { display: flex; flex-wrap: wrap; gap: var(--pt-space-2); align-items: center; }
 /* Any input, not just the email one: the sign-in code field is type="text" and
    would otherwise keep the base full width and bottom margin, wrapping the
@@ -1828,6 +1829,13 @@ dialog > article > footer {
 .pt-history-day__header strong { font-weight: 500; }
 .pt-history-day__header small { color: var(--pt-text-muted); font-variant-numeric: tabular-nums; }
 .pt-history-day__body small { color: var(--pt-text-muted); display: block; font-size: var(--pt-font-size-xs); margin-top: 2px; }
+.pt-history-runs summary { color: var(--pt-text-muted); font-size: var(--pt-font-size-xs); margin-top: 2px; }
+.pt-history-runs ul { margin: var(--pt-space-1) 0 var(--pt-space-2); padding: 0; list-style: none; }
+.pt-history-run { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--pt-space-1) var(--pt-space-2); padding-block: 2px; }
+.pt-history-run__confirm { flex: 1 0 100%; }
+.pt-history-run__confirm p { font-size: var(--pt-font-size-xs); }
+/* .danger is in the base layer, under the chip's own colours. */
+.pt-history-run__confirm .danger { border-color: var(--pt-error); color: var(--pt-error); }
 
 .pt-fingering-display {
   font-size: var(--pt-font-size-4xl);

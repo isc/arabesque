@@ -1057,6 +1057,22 @@ describe('practiceTracker', () => {
     await tracker.endSession()
   }
 
+  describe('deleteSession', () => {
+    it('takes the session out of what the score counts and ranks', async () => {
+      await playSession('/scores/test.xml', [0, 1], 'free', true)
+      await playSession('/scores/test.xml', [0, 1], 'free', true)
+      const [kept, deleted] = await storage.getSessions('/scores/test.xml')
+      expect((await storage.getAggregate('/scores/test.xml')).timesCompleted).toBe(2)
+      // The history already read, as the end of a piece reads it.
+      expect(await tracker.getAllPlaythroughs('/scores/test.xml')).toHaveLength(2)
+
+      await tracker.deleteSession(deleted.id)
+
+      expect((await tracker.getAllPlaythroughs('/scores/test.xml')).map((pt) => pt.sessionId)).toEqual([kept.id])
+      expect((await storage.getAggregate('/scores/test.xml')).timesCompleted).toBe(1)
+    })
+  })
+
   // Cloud sync replays every stored session to rebuild the aggregates, and
   // sessions stored before #371 carry no title — so what the rebuild is given
   // is what the practice journal shows afterwards.
