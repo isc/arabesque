@@ -30,6 +30,8 @@ export function resultModal({ onOpen }) {
     previousPlaythroughs: [],
     resultChart: '',
     resultWrongMeasures: '',
+    // What the run did for the piece's goals (goalNews in pieceGoals.js).
+    resultGoalNews: '',
     resultHands: TWO_HANDS,
     // A strict run's verdict, a tempo trainer's summary, a training passage's
     // line, a reinforcement's first tries (musicxml.js).
@@ -39,10 +41,11 @@ export function resultModal({ onOpen }) {
     reinforcementFirstTries: null,
 
     // `allPlaythroughs` comes most recent first (getAllPlaythroughs).
-    showScoreComplete(allPlaythroughs) {
+    showScoreComplete(allPlaythroughs, goalNews) {
       this.previousPlaythroughs = rankingOf(allPlaythroughs)
       this.resultChart = playthroughChartSvg(this.previousPlaythroughs)
       this.resultWrongMeasures = wrongMeasuresText(allPlaythroughs[0]?.wrongMeasures ?? [])
+      this.resultGoalNews = goalNews
       this.resultHands = this.previousPlaythroughs[0]?.hands ?? TWO_HANDS
       this.openResultModal('free')
     },

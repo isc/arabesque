@@ -15,16 +15,40 @@ import { computeSessionDuration, getLastMeasureEndTime, playedInFull } from './p
 //   3 — a practice day is the player's own day, not the UTC date (days.js)
 export const AGGREGATES_VERSION = 3
 
-// What a score has to clear to earn each status, read by computeScoreStatus()
-// below and by the library, which spells the same numbers out to the player
-// under a filtered list. Written down once so the two can't drift apart.
-// `measureRatio` is the share of the score's measures that must each have been
-// played clean `cleanAttempts` times with both hands (see cleanMeasureRatio);
-// `practiceDays` and `timesCompleted` are counted over the score's whole
-// history, playthroughs in full only.
+// What a score has to clear to earn each status, from the lowest up, read by
+// statusRules() below and by the library, which spells the same numbers out to
+// the player under a filtered list. Written down once so the two can't drift
+// apart. `measureRatio` is the share of the score's measures that must each have
+// been played clean `cleanAttempts` times with both hands (see cleanMeasureRatio);
+// `practiceDays` and `timesCompleted` are counted over the score's whole history,
+// playthroughs in full only.
 export const STATUS_THRESHOLDS = {
   perfectionnement: { cleanAttempts: 3, measureRatio: 0.5, timesCompleted: 1 },
   repertoire: { cleanAttempts: 10, measureRatio: 1, practiceDays: 3, timesCompleted: 10 },
+}
+
+// The status worth working for above `status`, null at the top. Below the first
+// of them, or with none yet, that first one: the floor under Déchiffrage is a
+// matter of a minute's playing.
+const EARNED_BY_RULES = Object.keys(STATUS_THRESHOLDS)
+export const nextStatus = (status) => EARNED_BY_RULES[EARNED_BY_RULES.indexOf(status) + 1] ?? null
+
+// How far a piece is along each rule of `status`, `have` against `need`: what
+// computeScoreStatus() grades by and a score's history shows (pieceGoals.js).
+// `bars` also says how many clean passes each asks. Over the bars the row holds,
+// one at least: a bar with nothing to play never gets one, and cannot be asked
+// of the player.
+export function statusRules(aggregate, status) {
+  const { cleanAttempts, measureRatio, practiceDays = 0, timesCompleted } = STATUS_THRESHOLDS[status]
+  return {
+    runs: { have: aggregate.timesCompleted || 0, need: timesCompleted },
+    days: { have: (aggregate.practiceDays || []).length, need: practiceDays },
+    bars: {
+      have: cleanMeasures(aggregate, cleanAttempts).length,
+      need: Math.max(1, Math.ceil(measureRatio * Object.keys(aggregate.measures ?? {}).length)),
+      times: cleanAttempts,
+    },
+  }
 }
 
 // The floor under the lowest status. An aggregate row is born the moment a
@@ -48,8 +72,10 @@ export function hasMinimumPractice(aggregate) {
 export function cleanMeasureRatio(aggregate, times) {
   const measures = Object.values(aggregate?.measures || {})
   if (measures.length === 0) return 0
-  return measures.filter((m) => m.cleanAttempts >= times).length / measures.length
+  return cleanMeasures(aggregate, times).length / measures.length
 }
+
+const cleanMeasures = (aggregate, times) => Object.values(aggregate?.measures || {}).filter((m) => m.cleanAttempts >= times)
 
 // The name a session or an aggregate row carries for its score, in the shape
 // foldSession() takes it.
@@ -149,13 +175,10 @@ export function foldSession(aggregate, session, meta) {
 }
 
 function computeScoreStatus(aggregate) {
-  const meets = ({ cleanAttempts, measureRatio, practiceDays = 0, timesCompleted }) =>
-    (aggregate.timesCompleted || 0) >= timesCompleted &&
-    (aggregate.practiceDays || []).length >= practiceDays &&
-    cleanMeasureRatio(aggregate, cleanAttempts) >= measureRatio
+  const meets = (status) => Object.values(statusRules(aggregate, status)).every(({ have, need }) => have >= need)
 
-  if (meets(STATUS_THRESHOLDS.repertoire)) return 'repertoire'
-  if (meets(STATUS_THRESHOLDS.perfectionnement)) return 'perfectionnement'
+  if (meets('repertoire')) return 'repertoire'
+  if (meets('perfectionnement')) return 'perfectionnement'
 
   // The bottom rung is the only one the floor can bite: the two above it ask
   // for whole playthroughs, which cannot be had in under a minute anyway.
