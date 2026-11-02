@@ -104,6 +104,19 @@ class AutoscrollTest < CapybaraTestBase
            "Repeat dots should sit below the sticky bars (dots: #{dots_top}, reserved: #{offset})"
   end
 
+  # The training band travels with the sticky bars: a drill scrolls to its
+  # passage, which took the band and its 🎹 out of sight (feedback 5110eacb).
+  def test_the_training_band_stays_in_view_as_the_score_scrolls
+    page.current_window.resize_to(500, 500)
+    load_score('high-note-measure.xml', 24)
+    enter_training_mode
+
+    page.execute_script('window.scrollTo(0, 300)')
+    assert_operator settled_scroll, :>, 0
+    band_top = page.evaluate_script("document.querySelector('.pt-context--training').getBoundingClientRect().top")
+    assert_operator band_top, :>=, 0
+  end
+
   # Auto-scroll works even when jumping to a measure > 0 (regression test:
   # currentSystemIndex was null when not starting from measure 0).
   def test_training_mode_autoscroll_works_when_starting_from_non_first_measure

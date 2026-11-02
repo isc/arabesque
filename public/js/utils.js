@@ -56,21 +56,16 @@ export function onBackground(fn) {
   })
 }
 
-// Pixel offset for the currently-visible sticky bars (topbar + modebar +
-// optional mode-context band), used both by scrollToMeasure() and by the
-// CSS scroll-margin-top via the --pt-sticky-offset variable.
+// Pixel offset for the sticky block (topbar, modebar and whichever band is up),
+// used both by scrollToMeasure() and by the CSS scroll-margin-top via the
+// --pt-sticky-offset variable.
 // Headroom kept above the auto-scrolled measure. Has to cover the fingering
 // numerals that hover above the top staff line (~20px) plus a few pixels
 // breathing — otherwise the modebar clips them right where the eyes look.
 const STICKY_BREATHING_PX = 28
 
 function getStickyOffset() {
-  let offset = STICKY_BREATHING_PX
-  for (const el of document.querySelectorAll('.pt-topbar, .pt-modebar, .pt-context')) {
-    if (getComputedStyle(el).display === 'none') continue
-    offset += el.getBoundingClientRect().height
-  }
-  return offset
+  return STICKY_BREATHING_PX + document.querySelector('.pt-stickybars').getBoundingClientRect().height
 }
 
 // True when something at viewport y `top` falls inside the headroom the sticky
