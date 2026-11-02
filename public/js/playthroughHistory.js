@@ -38,6 +38,7 @@ const RUN_KINDS = {
     title: 'score.playtimeEvolution',
     aria: 'score.chartAria',
     value: (pt) => pt.durationMs,
+    best: Math.min,
     format: formatDuration,
     label: (pt) => `${formatDuration(pt.durationMs)} (${wrongNotesText(pt.wrongNotes)})`,
     ceiling: Infinity,
@@ -46,6 +47,7 @@ const RUN_KINDS = {
     title: 'score.accuracyEvolution',
     aria: 'score.strictChartAria',
     value: (pt) => strictAccuracy(pt.strict),
+    best: Math.max,
     format: (pct) => t('score.percent', { pct: Math.round(pct) }),
     label: (pt) => t('score.strictRunSummary', { pct: strictAccuracy(pt.strict), bpm: pt.strict.bpm }),
     ceiling: 100,
@@ -119,11 +121,21 @@ function chartTitle(group) {
 }
 
 // One evolution chart per kind of run and hand selection — play time for free
-// runs, hit rate for strict ones — each with its `title` and `svg`. A group
-// with too few runs to plot simply drops out.
+// runs, hit rate for strict ones — each with its `title`, its `svg` and its
+// `best` figure, the point it marks. A group with too few runs to plot simply
+// drops out.
 export function playthroughCharts(playthroughs) {
   return playthroughGroups(playthroughs)
-    .map((group) => ({ key: group.key, title: chartTitle(group), svg: playthroughChartSvg(group.playthroughs) }))
+    .map((group) => {
+      const metric = runKind(group.strict)
+      const best = metric.best(...group.playthroughs.map(metric.value))
+      return {
+        key: group.key,
+        title: chartTitle(group),
+        svg: playthroughChartSvg(group.playthroughs),
+        best: t('score.chartBest', { value: metric.format(best) }),
+      }
+    })
     .filter((chart) => chart.svg)
 }
 
@@ -145,7 +157,7 @@ export function playthroughChartSvg(playthroughs) {
   const yMax = Math.min(metric.ceiling, (dMax + (dMax - dMin) * 0.1) || dMax * 1.1)
 
   const W = 600
-  const H = 200
+  const H = 170
   const PAD = { top: 12, right: 12, bottom: 28, left: 56 }
   const innerW = W - PAD.left - PAD.right
   const innerH = H - PAD.top - PAD.bottom
@@ -175,15 +187,24 @@ export function playthroughChartSvg(playthroughs) {
     `<text x="${xMin}" y="${H - 8}" text-anchor="start" class="chart-label">${fmtAxis(sorted[0].startedAt)}</text>`,
     `<text x="${xMax}" y="${H - 8}" text-anchor="end" class="chart-label">${fmtAxis(sorted[n - 1].startedAt)}</text>`,
   ].join('')
+  // The best run and the latest stand out from the others, which thin out as
+  // they crowd the line.
+  const bestIndex = values.indexOf(metric.best(...values))
+  const radius = n > 24 ? 2.5 : 3.5
   const circles = points
-    .map(
-      (p) =>
-        `<circle cx="${p.x}" cy="${p.y}" r="4" class="chart-point"><title>${p.date} — ${p.label}</title></circle>`,
-    )
+    .map((p, i) => {
+      const r = i === bestIndex || i === n - 1 ? radius + 2 : radius
+      const marks = `${i === n - 1 ? ' is-latest' : ''}${i === bestIndex ? ' is-best' : ''}`
+      return `<circle cx="${p.x}" cy="${p.y}" r="${r}" class="chart-point${marks}"><title>${p.date} — ${p.label}</title></circle>`
+    })
     .join('')
+  const line = points.map((p) => `${p.x},${p.y}`).join(' ')
 
   return `<svg viewBox="0 0 ${W} ${H}" class="playthrough-chart" role="img" aria-label="${t(metric.aria)}">
+    <line x1="${xMin}" x2="${xMax}" y1="${yScale(yMax)}" y2="${yScale(yMax)}" class="chart-guide" />
     <line x1="${xMin}" x2="${xMax}" y1="${axisY}" y2="${axisY}" class="chart-axis" />
+    <polygon points="${xMin},${axisY} ${line} ${xMax},${axisY}" class="chart-area" />
+    <polyline points="${line}" class="chart-line" />
     ${yLabels}
     ${xLabels}
     ${circles}

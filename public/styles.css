@@ -63,6 +63,9 @@
   --pt-status-repertoire: #16a34a;
   --pt-status-repertoire-bg: #ecfdf5;
 
+  /* A piece's stars and best run */
+  --pt-record: var(--pt-status-perfectionnement);
+
   /* Practice mode colors */
   --pt-mode-training: #7c3aed;
   --pt-mode-training-bg: #f3efff;
@@ -678,6 +681,15 @@ a:hover { text-decoration: underline; }
 }
 :where(button, a).pt-chip:hover { background-color: var(--pt-surface-2); border-color: var(--pt-border-strong); }
 .pt-chip:disabled { opacity: 0.4; cursor: default; }
+
+/* A row of figures that wraps rather than scrolls: a year's totals, a piece's. */
+.pt-statrow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--pt-space-3) var(--pt-space-6);
+  margin: 0;
+}
+.pt-stat dd { margin: 2px 0 0; font-size: var(--pt-font-size-xl); font-weight: 600; font-variant-numeric: tabular-nums; }
 
 /* Compact dropdown, at the height of the chips it sits among rather than of a
    form column's field — the composer and period filters, and the
@@ -1412,15 +1424,6 @@ a:hover { text-decoration: underline; }
 .pt-yearnav { display: inline-flex; align-items: center; gap: var(--pt-space-2); }
 .pt-yearnav__year { font-variant-numeric: tabular-nums; min-width: 4ch; text-align: center; }
 
-/* Year totals: a row of figures that wraps rather than scrolls. */
-.pt-statrow {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--pt-space-3) var(--pt-space-6);
-  margin: 0;
-}
-.pt-stat dd { margin: 2px 0 0; font-size: var(--pt-font-size-xl); font-weight: 600; font-variant-numeric: tabular-nums; }
-
 /* 53 columns don't fit a phone, so the grid scrolls inside its own box and the
    page never scrolls sideways. */
 .pt-calendar-scroll { overflow-x: auto; padding-bottom: var(--pt-space-1); }
@@ -1817,26 +1820,130 @@ dialog > article > footer {
 
 .pt-strict-breakdown { list-style: none; padding: 0; margin: var(--pt-space-3) 0; color: var(--pt-text-muted); font-size: var(--pt-font-size-sm); }
 
-.pt-hot-measures { list-style: none; padding: 0; margin: 0; }
-.pt-hot-measures li { display: flex; justify-content: space-between; padding: 4px 0; font-size: var(--pt-font-size-sm); border-bottom: 1px solid var(--pt-border); }
-.pt-hot-measures li small { color: var(--pt-text-muted); }
+/* Score history: a summary, the next status, the goals, the charts, the bars
+   to work and the journal, each section one step of the same column. */
+.pt-history-dialog > article { max-width: 860px; }
+.pt-history { display: flex; flex-direction: column; gap: var(--pt-space-6); }
+.pt-history h3 { margin: 0; }
+.pt-history section > h3 { margin-bottom: var(--pt-space-3); }
 
-.pt-history-day {
-  padding: var(--pt-space-2) 0;
-  border-bottom: 1px solid var(--pt-border);
+.pt-history-summary {
+  padding: var(--pt-space-3) var(--pt-space-4);
+  border-radius: var(--pt-radius-lg);
+  background: var(--pt-surface-2);
 }
-.pt-history-day:last-child { border-bottom: none; }
-.pt-history-day__header { display: flex; justify-content: space-between; font-size: var(--pt-font-size-sm); }
-.pt-history-day__header strong { font-weight: 500; }
+
+/* The next status: its colour, --pt-quest, runs through the map of the bars. */
+.pt-quest__count { font-size: var(--pt-font-size-xl); font-variant-numeric: tabular-nums; }
+.pt-quest__count.is-done { color: var(--pt-quest); }
+.pt-quest .pt-hint { margin: 0; }
+.pt-quest .pt-row-between { flex-wrap: nowrap; }
+.pt-quest__rules { list-style: none; margin: var(--pt-space-1) 0 0; padding: 0; }
+.pt-quest__rules li { display: flex; align-items: baseline; gap: var(--pt-space-2); padding-block: 2px; font-size: var(--pt-font-size-sm); }
+.pt-quest__rules li::before { content: "○"; color: var(--pt-text-subtle); }
+.pt-quest__rules li.is-done::before { content: "✓"; color: var(--pt-success); }
+.pt-quest__rules small { margin-left: auto; color: var(--pt-text-muted); font-variant-numeric: tabular-nums; }
+.pt-quest__work { display: flex; flex-wrap: wrap; align-items: center; gap: var(--pt-space-2) var(--pt-space-3); margin-top: var(--pt-space-2); }
+.pt-quest__work .pt-hint { flex: 1 1 260px; font-size: var(--pt-font-size-xs); }
+
+/* A cell per bar, filling from the bottom with its clean passes. */
+.pt-barmap { display: grid; grid-template-columns: repeat(auto-fill, minmax(24px, 1fr)); gap: 3px; margin-block: var(--pt-space-1); }
+.pt-barmap__bar {
+  height: 28px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 1px solid color-mix(in srgb, var(--pt-quest) 35%, var(--pt-border));
+  border-radius: var(--pt-radius-sm);
+  background: linear-gradient(to top, color-mix(in srgb, var(--pt-quest) 40%, var(--pt-surface)) calc(var(--fill) * 100%), var(--pt-surface) 0);
+  color: var(--pt-text);
+  font-size: var(--pt-font-size-2xs);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.pt-barmap__bar:hover:not(:disabled) { border-color: var(--pt-accent); box-shadow: 0 0 0 1px var(--pt-accent); }
+.pt-barmap__bar.is-done { opacity: 1; cursor: default; border-color: var(--pt-quest); background: var(--pt-quest); }
+
+.pt-goals { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: var(--pt-space-3); }
+.pt-goal { gap: var(--pt-space-3); }
+.pt-goal__stars { color: var(--pt-border-strong); font-size: var(--pt-font-size-lg); line-height: 1; letter-spacing: 0.06em; }
+.pt-goal__stars .is-earned { color: var(--pt-record); }
+.pt-goal__value { margin-top: 2px; font-size: var(--pt-font-size-lg); font-weight: 600; font-variant-numeric: tabular-nums; }
+.pt-goal__note { color: var(--pt-text-muted); font-size: var(--pt-font-size-xs); }
+.pt-goals + .pt-modal-note { font-size: var(--pt-font-size-xs); }
+
+.pt-meter { display: block; height: 6px; overflow: hidden; border-radius: var(--pt-radius-pill); background: var(--pt-surface-2); }
+.pt-meter > span { display: block; height: 100%; border-radius: inherit; background: var(--pt-accent); transition: width var(--pt-transition-med); }
+.pt-meter--error > span { background: color-mix(in srgb, var(--pt-error) 70%, var(--pt-surface)); }
+
+.pt-history-charts { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: var(--pt-space-6); }
+/* The piece played as written across the whole width, the other kinds of run
+   side by side under it. */
+.pt-history-charts > section:first-of-type { grid-column: 1 / -1; }
+.pt-history-charts h3 { margin-bottom: var(--pt-space-2); }
+.pt-history-chart__best { display: inline-flex; align-items: center; gap: var(--pt-space-1); flex: none; color: var(--pt-text-muted); font-size: var(--pt-font-size-xs); font-variant-numeric: tabular-nums; }
+.pt-history-chart__best::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--pt-record); }
+
+.pt-hot-measures { list-style: none; margin: 0; padding: 0; }
+.pt-hot-measure {
+  display: grid;
+  grid-template-columns: 6.5em minmax(60px, 1fr) minmax(0, auto);
+  align-items: center;
+  gap: var(--pt-space-3);
+  width: 100%;
+  margin: 0;
+  padding: 6px var(--pt-space-2);
+  border: none;
+  border-radius: var(--pt-radius-md);
+  background: transparent;
+  color: var(--pt-text);
+  font-size: var(--pt-font-size-sm);
+  font-weight: 400;
+  text-align: left;
+}
+.pt-hot-measure:hover { background: var(--pt-surface-2); }
+.pt-hot-measure small { color: var(--pt-text-muted); font-size: var(--pt-font-size-xs); font-variant-numeric: tabular-nums; }
+
+/* The journal, down a rail with a dot for each day. */
+.pt-history-day {
+  position: relative;
+  margin-left: 4px;
+  padding: 0 0 var(--pt-space-4) var(--pt-space-4);
+  border-left: 2px solid var(--pt-border);
+}
+.pt-history-day:last-child { padding-bottom: 0; border-left-color: transparent; }
+.pt-history-day::before {
+  content: "";
+  position: absolute;
+  top: 5px;
+  left: -5px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--pt-accent);
+}
+.pt-history-day__header { display: flex; justify-content: space-between; gap: var(--pt-space-3); font-size: var(--pt-font-size-sm); }
+.pt-history-day__header strong { font-weight: 600; }
 .pt-history-day__header small { color: var(--pt-text-muted); font-variant-numeric: tabular-nums; }
 .pt-history-day__body small { color: var(--pt-text-muted); display: block; font-size: var(--pt-font-size-xs); margin-top: 2px; }
-.pt-history-runs summary { color: var(--pt-text-muted); font-size: var(--pt-font-size-xs); margin-top: 2px; }
+.pt-history-runs summary { color: var(--pt-text-muted); font-size: var(--pt-font-size-xs); margin-top: 2px; cursor: pointer; }
 .pt-history-runs ul { margin: var(--pt-space-1) 0 var(--pt-space-2); padding: 0; list-style: none; }
 .pt-history-run { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--pt-space-1) var(--pt-space-2); padding-block: 2px; }
 .pt-history-run__confirm { flex: 1 0 100%; }
 .pt-history-run__confirm p { font-size: var(--pt-font-size-xs); }
 /* .danger is in the base layer, under the chip's own colours. */
 .pt-history-run__confirm .danger { border-color: var(--pt-error); color: var(--pt-error); }
+
+/* What a run did for the goals, at the head of its result. */
+.pt-goal-news {
+  margin: 0 0 var(--pt-space-3);
+  padding: var(--pt-space-2) var(--pt-space-3);
+  border-radius: var(--pt-radius-md);
+  background: var(--pt-accent-soft);
+  color: var(--pt-accent-strong);
+  font-size: var(--pt-font-size-sm);
+  font-weight: 500;
+}
 
 .pt-fingering-display {
   font-size: var(--pt-font-size-4xl);
@@ -2129,7 +2236,12 @@ img[id^="cursorImg"] { scroll-margin-top: var(--pt-sticky-offset, 100px); }
 .playthrough-chart { width: 100%; height: auto; display: block; }
 .playthrough-chart .chart-axis { stroke: var(--pt-border-strong); stroke-width: 1; }
 .playthrough-chart .chart-label { fill: var(--pt-text-muted); font-size: 11px; font-family: var(--pt-font-ui); }
+.playthrough-chart .chart-guide { stroke: var(--pt-border); stroke-width: 1; stroke-dasharray: 3 4; }
+.playthrough-chart .chart-line { fill: none; stroke: var(--pt-accent); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.playthrough-chart .chart-area { fill: var(--pt-accent); fill-opacity: 0.07; stroke: none; }
 .playthrough-chart .chart-point { fill: var(--pt-accent); }
+.playthrough-chart .chart-point.is-latest { fill: var(--pt-surface); stroke: var(--pt-accent); stroke-width: 2.5; }
+.playthrough-chart .chart-point.is-best { fill: var(--pt-record); stroke: var(--pt-surface); stroke-width: 2; }
 
 /* Responsive tweaks */
 @media (max-width: 600px) {

@@ -135,10 +135,20 @@ export function playthroughOf(session) {
     durationMs: attempts.length === 0 ? end - start : normalizedPlayingTime(attempts, start, end),
     hands: playthroughHands(attempts),
     ...playthroughWrongNotes(attempts),
+    holes: playthroughHoles(attempts),
     // The strict engine's verdict on the run, for a run played to the
     // metronome; a free run has none.
     strict: session.strict ?? null,
   }
+}
+
+// The holes a run left, inside its bars and at its joins (steadiness.js). Null
+// for a run from before the pace was judged: an attempt only records a hole,
+// never the lack of one, so such a run would read as having none. What every
+// run since has is how its bars were entered.
+function playthroughHoles(attempts) {
+  if (!attempts.some((a) => a.entryRatio != null)) return null
+  return attempts.reduce((holes, a) => holes + a.hesitations + (a.entryHole ? 1 : 0), 0)
 }
 
 // The wrong notes a run took, and the measures they fell in (source indices,

@@ -224,6 +224,20 @@ class ReinforcementTest < CapybaraTestBase
     assert_no_selector 'svg circle.repeat-indicator.spoiled'
   end
 
+  # A bar short of the next status is worked from the history (pieceGoals.js),
+  # whatever is under way: a drill keeps the training tab pressed, and is put
+  # away for the bar.
+  def test_a_bar_worked_from_the_history_puts_a_drill_away
+    open_with_the_second_bar_fumbled
+    click_on 'Renforcer 1 passage'
+    assert_selector 'svg rect.fragment-range'
+
+    execute_script("Alpine.$data(document.querySelector('[x-data]')).workOnBar(0)")
+    assert_no_selector 'svg rect.fragment-range'
+    assert_text 'Mesure 1 seule'
+    wait_for_training_cursor(1)
+  end
+
   # Fragments that touch are drilled as one, over all the bars they reach. The
   # joins into bars 4 and 5 of the C minor prelude, merged, used to come down
   # to the downbeat of bar 5 alone (feedback 5110eacb).

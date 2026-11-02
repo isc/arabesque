@@ -345,6 +345,7 @@
           <template x-if="resultMode === 'free'">
             <div>
               <p x-show="resultWrongMeasures" class="pt-modal-note pt-modal-note--lead" x-text="resultWrongMeasures"></p>
+              <p x-show="resultGoalNews" class="pt-goal-news" data-testid="result-goal-news" x-text="resultGoalNews"></p>
               <div class="pt-result-cols">
                 <div class="pt-playthrough-scroll" x-show="previousPlaythroughs.length > 0">
                   <table class="pt-playthrough-table">
@@ -455,82 +456,167 @@
     </dialog>
 
     <!-- History modal -->
-    <dialog id="scoreHistoryModal" :open="showHistoryModal">
+    <dialog id="scoreHistoryModal" class="pt-history-dialog" :open="showHistoryModal">
       <article>
         <header>
-          <p>
-            <strong x-text="$t('score.historyTitle')">📜 Historique de pratique</strong>
-            <small x-show="historyTotalMs > 0" class="pt-modal-note pt-modal-note--inline">
-              <span x-text="$t('score.total')">Total : </span><span x-text="formatDuration(historyTotalMs)"></span>
-            </small>
-          </p>
+          <p><strong x-text="$t('score.historyTitle')">📜 Historique de pratique</strong></p>
           <button aria-label="Close" rel="prev" @click="showHistoryModal = false"></button>
         </header>
 
-        <template x-if="scoreHistory.length === 0">
-          <p class="pt-modal-note" x-text="$t('score.noHistory')">Aucun historique pour cette partition.</p>
-        </template>
+        <div class="pt-modal-body pt-history">
+          <template x-if="scoreHistory.length === 0">
+            <p class="pt-modal-note" x-text="$t('score.noHistory')">Aucun historique pour cette partition.</p>
+          </template>
 
-        <template x-for="chart in historyCharts" :key="chart.key">
-          <div class="pt-modal-section">
-            <h4 x-text="chart.title">Évolution du temps de jeu</h4>
-            <div x-html="chart.svg"></div>
-          </div>
-        </template>
+          <template x-if="scoreHistory.length > 0">
+            <div class="pt-row-between pt-history-summary">
+              <dl class="pt-statrow">
+                <template x-for="figure in historyFigures" :key="figure.label">
+                  <div class="pt-stat">
+                    <dt class="pt-eyebrow" x-text="figure.label"></dt>
+                    <dd x-text="figure.value"></dd>
+                  </div>
+                </template>
+              </dl>
+              <span x-show="historyPieceStatus" class="pt-pill" :class="'pt-pill--' + historyPieceStatus" x-text="statusLabel(historyPieceStatus)"></span>
+            </div>
+          </template>
 
-        <template x-if="historyHotMeasures.length > 0">
-          <div class="pt-modal-section">
-            <h4 x-text="$t('score.measuresToWork')">Mesures à travailler</h4>
-            <ul class="pt-hot-measures">
-              <template x-for="m in historyHotMeasures" :key="m.index">
-                <li>
-                  <span><span x-text="$t('score.measureLabel')">Mesure</span> <strong x-text="m.index + 1"></strong></span>
-                  <small>
-                    <span x-text="Math.round(m.errorRate * 100)"></span><span x-text="$t('score.errorPercent')">% d'erreur</span> · <span x-text="m.attempts"></span> <span x-text="$t('score.attempts')">tentatives</span>
-                  </small>
-                </li>
-              </template>
-            </ul>
-          </div>
-        </template>
-
-        <template x-if="scoreHistory.length > 0">
-          <div class="pt-modal-section">
-            <h4 x-text="$t('score.dailyJournal')">Journal jour par jour</h4>
-            <template x-for="day in scoreHistory" :key="day.date">
-              <div class="pt-history-day">
-                <div class="pt-history-day__header">
-                  <strong x-text="formatDate(day.date)"></strong>
-                  <small x-text="formatDuration(day.totalPracticeTimeMs)"></small>
-                </div>
-                <div class="pt-history-day__body">
-                  <small x-show="day.fullPlaythroughs.length === 0 && day.measuresWorked.length > 0" x-text="$tn('score.measuresPlayed', day.measuresWorked.length)"></small>
-                  <small x-show="day.measuresReinforced.length > 0" x-text="$tn('score.measuresReinforced', day.measuresReinforced.length)"></small>
-                  <template x-for="line in day.runLines" :key="line.key">
-                    <details class="pt-history-runs">
-                      <summary x-text="line.text"></summary>
-                      <ul>
-                        <template x-for="run in line.runs" :key="run.sessionId">
-                          <li class="pt-history-run">
-                            <small x-text="`${run.time} · ${run.label}`"></small>
-                            <button type="button" class="pt-chip" x-show="deletingRunId !== run.sessionId" @click="deletingRunId = run.sessionId" x-text="$t('score.deleteRun')">Supprimer</button>
-                            <div class="pt-history-run__confirm pt-stack pt-stack--tight" x-show="deletingRunId === run.sessionId">
-                              <p role="alert" class="pt-feedback-error" x-text="$t('score.deleteRunWarning')"></p>
-                              <div class="pt-data-actions">
-                                <button type="button" class="pt-chip danger" @click="deleteRun(run.sessionId)" x-text="$t('score.deleteRunConfirm')">Oui, supprimer</button>
-                                <button type="button" class="pt-chip" @click="deletingRunId = null" x-text="$t('common.cancel')">Annuler</button>
-                              </div>
-                            </div>
-                          </li>
-                        </template>
-                      </ul>
-                    </details>
-                  </template>
-                </div>
+          <!-- The next status as a map of the piece, one cell a bar, filling up
+               with its clean passes. A bar short of it can be worked from here. -->
+          <template x-if="historyStatus">
+            <section class="pt-card pt-quest" :style="`--pt-quest: var(--pt-status-${historyStatus.status})`" data-testid="history-status">
+              <div class="pt-row-between">
+                <h3 x-text="historyStatus.heading"></h3>
+                <strong class="pt-quest__count" :class="{ 'is-done': historyStatus.bars.done }" x-text="historyStatus.bars.progress"></strong>
               </div>
-            </template>
-          </div>
-        </template>
+              <p class="pt-hint" x-text="historyStatus.bars.text"></p>
+              <div class="pt-barmap">
+                <template x-for="cell in historyStatus.map" :key="cell.bar">
+                  <button
+                    type="button"
+                    class="pt-barmap__bar"
+                    :class="{ 'is-done': cell.done }"
+                    :style="`--fill: ${cell.fill}`"
+                    :disabled="cell.done"
+                    :title="cell.label"
+                    :aria-label="cell.label"
+                    @click="workOnBar(cell.bar)"
+                    x-text="cell.done ? '' : cell.bar + 1"
+                  ></button>
+                </template>
+              </div>
+              <ul class="pt-quest__rules">
+                <template x-for="rule in historyStatus.rules" :key="rule.text">
+                  <li :class="{ 'is-done': rule.done }">
+                    <span x-text="rule.text"></span>
+                    <small x-text="rule.progress"></small>
+                  </li>
+                </template>
+              </ul>
+              <template x-if="historyStatus.closest">
+                <div class="pt-quest__work">
+                  <button type="button" class="pt-chip pt-action-button is-primary" @click="workOnBar(historyStatus.closest.bar)" x-text="historyStatus.closest.label"></button>
+                  <p class="pt-hint" x-text="$t('goals.barsHint')"></p>
+                </div>
+              </template>
+            </section>
+          </template>
+
+          <template x-if="historyGoals.length > 0">
+            <section data-testid="history-goals">
+              <h3 x-text="$t('goals.title')">Objectifs</h3>
+              <div class="pt-goals">
+                <template x-for="goal in historyGoals" :key="goal.key">
+                  <div class="pt-card pt-goal">
+                    <div class="pt-row-between">
+                      <strong x-text="goal.title"></strong>
+                      <span class="pt-goal__stars"><span class="is-earned" x-text="goal.earned"></span><span x-text="goal.left"></span></span>
+                    </div>
+                    <div>
+                      <div class="pt-eyebrow" x-text="goal.caption"></div>
+                      <div class="pt-goal__value" x-text="goal.value"></div>
+                    </div>
+                    <div class="pt-meter"><span :style="`width: ${goal.progress * 100}%`"></span></div>
+                    <small class="pt-goal__note" x-text="goal.note"></small>
+                  </div>
+                </template>
+              </div>
+              <p class="pt-modal-note" x-text="goalsHint()"></p>
+            </section>
+          </template>
+
+          <template x-if="historyCharts.length > 0">
+            <div class="pt-history-charts">
+              <template x-for="chart in historyCharts" :key="chart.key">
+                <section>
+                  <div class="pt-row-between">
+                    <h3 x-text="chart.title">Évolution du temps de jeu</h3>
+                    <small class="pt-history-chart__best" x-text="chart.best"></small>
+                  </div>
+                  <div x-html="chart.svg"></div>
+                </section>
+              </template>
+            </div>
+          </template>
+
+          <template x-if="historyHotMeasures.length > 0">
+            <section>
+              <h3 x-text="$t('score.measuresToWork')">Mesures à travailler</h3>
+              <ul class="pt-hot-measures">
+                <template x-for="m in historyHotMeasures" :key="m.index">
+                  <li>
+                    <button type="button" class="pt-hot-measure" @click="workOnBar(m.index)">
+                      <span><span x-text="$t('score.measureLabel')">Mesure</span> <strong x-text="m.index + 1"></strong></span>
+                      <span class="pt-meter pt-meter--error"><span :style="`width: ${m.errorRate * 100}%`"></span></span>
+                      <small>
+                        <span x-text="Math.round(m.errorRate * 100)"></span><span x-text="$t('score.errorPercent')">% d'erreur</span> · <span x-text="m.attempts"></span> <span x-text="$t('score.attempts')">tentatives</span>
+                      </small>
+                    </button>
+                  </li>
+                </template>
+              </ul>
+            </section>
+          </template>
+
+          <template x-if="scoreHistory.length > 0">
+            <section>
+              <h3 x-text="$t('score.dailyJournal')">Journal jour par jour</h3>
+              <template x-for="day in scoreHistory" :key="day.date">
+                <div class="pt-history-day">
+                  <div class="pt-history-day__header">
+                    <strong x-text="formatDate(day.date)"></strong>
+                    <small x-text="formatDuration(day.totalPracticeTimeMs)"></small>
+                  </div>
+                  <div class="pt-history-day__body">
+                    <small x-show="day.fullPlaythroughs.length === 0 && day.measuresWorked.length > 0" x-text="$tn('score.measuresPlayed', day.measuresWorked.length)"></small>
+                    <small x-show="day.measuresReinforced.length > 0" x-text="$tn('score.measuresReinforced', day.measuresReinforced.length)"></small>
+                    <template x-for="line in day.runLines" :key="line.key">
+                      <details class="pt-history-runs">
+                        <summary x-text="line.text"></summary>
+                        <ul>
+                          <template x-for="run in line.runs" :key="run.sessionId">
+                            <li class="pt-history-run">
+                              <small x-text="`${run.time} · ${run.label}`"></small>
+                              <button type="button" class="pt-chip" x-show="deletingRunId !== run.sessionId" @click="deletingRunId = run.sessionId" x-text="$t('score.deleteRun')">Supprimer</button>
+                              <div class="pt-history-run__confirm pt-stack pt-stack--tight" x-show="deletingRunId === run.sessionId">
+                                <p role="alert" class="pt-feedback-error" x-text="$t('score.deleteRunWarning')"></p>
+                                <div class="pt-data-actions">
+                                  <button type="button" class="pt-chip danger" @click="deleteRun(run.sessionId)" x-text="$t('score.deleteRunConfirm')">Oui, supprimer</button>
+                                  <button type="button" class="pt-chip" @click="deletingRunId = null" x-text="$t('common.cancel')">Annuler</button>
+                                </div>
+                              </div>
+                            </li>
+                          </template>
+                        </ul>
+                      </details>
+                    </template>
+                  </div>
+                </div>
+              </template>
+            </section>
+          </template>
+        </div>
       </article>
     </dialog>
 

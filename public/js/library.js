@@ -1,6 +1,7 @@
 import { initMidi } from './midi.js'
 import { initPracticeTracker } from './practiceTracker.js'
-import { STATUS_THRESHOLDS, cleanMeasureRatio, hasMinimumPractice, MIN_PRACTICE_MS_FOR_STATUS } from './aggregates.js'
+import { STATUS_THRESHOLDS, cleanMeasureRatio, hasMinimumPractice, nextStatus, MIN_PRACTICE_MS_FOR_STATUS } from './aggregates.js'
+import { statusCriteria } from './statusCriteria.js'
 import { initStorage } from './storage.js'
 import { formatDate, formatRelativeDate, statusLabel, scorePageUrl, searchWords, matchesSearch } from './utils.js'
 import { journalEntryHelpers } from './journalEntries.js'
@@ -10,7 +11,7 @@ import { listProfiles, currentProfile, profileName, switchProfile } from './prof
 import { initAutoSync } from './autoSync.js'
 import { onDayChange } from './dayRollover.js'
 import { daysBetween } from './days.js'
-import { t, tn, locale } from './i18n.js'
+import { t, locale } from './i18n.js'
 import { recordError } from './errorLog.js'
 import { MIN_MATCH } from './fingerprints.js'
 import { loadCatalog, partsOf, fileUrl, isCollection } from './catalog.js'
@@ -556,7 +557,7 @@ export function libraryApp() {
       if (focus === 'near-mastery') {
         return (
           agg.status === 'perfectionnement' &&
-          cleanMeasureRatio(agg, STATUS_THRESHOLDS.perfectionnement.cleanAttempts) >= 0.8
+          cleanMeasureRatio(agg, STATUS_THRESHOLDS.repertoire.cleanAttempts) >= 0.8
         )
       }
       if (focus === 'stale') {
@@ -601,21 +602,11 @@ export function libraryApp() {
       // "Proches du répertoire" is a subset of Perfectionnement, so it asks the
       // same question about the same next step.
       const from = this.focusFilter === 'near-mastery' ? 'perfectionnement' : this.statusFilter
-      // With no filter `from` is '', so STATUS_RANK[from] is undefined and the
-      // index NaN — the lookup yields undefined and the getter returns null.
-      const target = STATUS_ORDER[STATUS_RANK[from] + 1]
+      const target = from && nextStatus(from)
       if (!target) return null
 
-      const { cleanAttempts, measureRatio, practiceDays, timesCompleted } = STATUS_THRESHOLDS[target]
-      const items = [
-        measureRatio === 1
-          ? t('criteria.cleanMeasuresAll', { n: cleanAttempts })
-          : t('criteria.cleanMeasures', { percent: Math.round(measureRatio * 100), n: cleanAttempts }),
-        tn('criteria.completed', timesCompleted),
-      ]
-      if (practiceDays) items.push(t('criteria.practiceDays', { n: practiceDays }))
-
-      return { heading: t('criteria.heading', { status: statusLabel(target) }), items }
+      const { heading, bars, runs, days } = statusCriteria(target)
+      return { heading, items: [bars, runs, days].filter(Boolean) }
     },
 
     // A collection ("recueil", e.g. les 20 exercices de Hanon) is a single
