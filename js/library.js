@@ -236,7 +236,7 @@ export function libraryApp() {
       initAutoSync({ storage, practiceTracker }, {
         syncOnOpen: true,
         onSynced: (summary) => {
-          if (summary.pulled) this.refreshPracticeViews()
+          if (summary.sessionsChanged) this.refreshPracticeViews()
           if (summary.profilesChanged) {
             this.profiles = listProfiles()
             // Removed on another device, it keeps the name it had here.

@@ -73,6 +73,7 @@ export function initPracticeTracker(storageInstance = null) {
     getAllPlaythroughs,
     getScoreSessions: scoreSessions,
     rebuildAggregates,
+    deleteSession,
     getCurrentSession: () => currentSession,
   }
 
@@ -242,6 +243,13 @@ export function initPracticeTracker(storageInstance = null) {
       rebuilt.set(session.scoreId, foldSession(rebuilt.get(session.scoreId), session, nameFor(session)))
     }
     await storage.replaceAggregates([...rebuilt.values()])
+  }
+
+  // A session taken back from the history, say a demo played on the wrong
+  // profile: everything counted from it goes with it.
+  async function deleteSession(id) {
+    await storage.deleteSessions([id])
+    await rebuildAggregates()
   }
 
   // Every run through the score, most recent first: the ranking at the end of

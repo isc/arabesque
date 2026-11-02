@@ -8,13 +8,14 @@ const DB_BASE_NAME = 'arabesque'
 // moved over on first open (see readLegacyDatabase) so nobody has to re-import
 // a backup.
 const LEGACY_DB_NAME = 'piano-trainer'
-export const DB_VERSION = 6
+export const DB_VERSION = 7
 const FINGERINGS_STORE = 'fingerings'
 const CIRCLES_STORE = 'circles'
 const SESSIONS_STORE = 'sessions'
 const AGGREGATES_STORE = 'aggregates'
 const NOTE_LOGS_STORE = 'noteLogs'
 const KEPT_NOTE_LOGS_STORE = 'keptNoteLogs'
+const DELETED_SESSIONS_STORE = 'deletedSessions'
 
 // Without `synced` in a backup: it is this device's own exchange with the
 // server, as meaningless to another device as its last-sync time.
@@ -58,6 +59,10 @@ const STORE_DEFS = [
   // for the same reason, and only a score's last sessions' (keepScoreNoteLogs
   // in noteLog.js).
   { name: KEPT_NOTE_LOGS_STORE, keyPath: 'id', backup: false },
+  // The ids of the sessions a player took back (deleteSessions), kept for good
+  // so that no sync, pull or backup brings one back. Out of a backup: what a
+  // backup is made from no longer holds them.
+  { name: DELETED_SESSIONS_STORE, keyPath: 'id', backup: false },
 ]
 export const STORES = STORE_DEFS.map((def) => def.name)
 // The stores kept as maps of notes per score (noteMaps), which sync.js
@@ -365,6 +370,12 @@ export function initStorage() {
     return withStore(storeName, 'readonly', (store) => promisifyRequest((index ? store.index(index) : store).getAll(query)))
   }
 
+  // A store's keys, and nothing else of it: the whole history reads as
+  // megabytes, its keys as a few kilobytes.
+  function dbGetAllKeys(storeName) {
+    return withStore(storeName, 'readonly', (store) => promisifyRequest(store.getAllKeys()))
+  }
+
   // The records under `keys`, in one transaction; a key with none is left out.
   function dbGetMany(storeName, keys) {
     return withStore(storeName, 'readonly', (store) => getMany(store, keys))
@@ -463,10 +474,8 @@ export function initStorage() {
       return dbGetAll(SESSIONS_STORE, scoreId ? { index: 'scoreId', query: scoreId } : {})
     },
 
-    // Every session's id, and nothing else of it: the whole history reads as
-    // megabytes, its keys as a few kilobytes.
     getSessionIds() {
-      return withStore(SESSIONS_STORE, 'readonly', (store) => promisifyRequest(store.getAllKeys()))
+      return dbGetAllKeys(SESSIONS_STORE)
     },
 
     // The sessions of `ids`; an id with none is left out.
@@ -499,6 +508,24 @@ export function initStorage() {
       return (await dbGetAll(AGGREGATES_STORE)) || []
     },
 
+    // Sessions taken back, gone with the notes played in them. Their ids stay,
+    // for sync.js to carry to the other devices.
+    deleteSessions(ids) {
+      return withDb([SESSIONS_STORE, NOTE_LOGS_STORE, KEPT_NOTE_LOGS_STORE, DELETED_SESSIONS_STORE], 'readwrite', (transaction) => {
+        for (const id of ids) {
+          transaction.objectStore(SESSIONS_STORE).delete(id)
+          transaction.objectStore(NOTE_LOGS_STORE).delete(sessionRange(id))
+          transaction.objectStore(KEPT_NOTE_LOGS_STORE).delete(sessionRange(id))
+          transaction.objectStore(DELETED_SESSIONS_STORE).put({ id })
+        }
+        return promisifyTransaction(transaction)
+      })
+    },
+
+    getDeletedSessionIds() {
+      return dbGetAllKeys(DELETED_SESSIONS_STORE)
+    },
+
     // Every store a backup carries, each under its own name (see STORE_DEFS).
     async exportBackup() {
       const backup = { exportDate: new Date().toISOString() }
@@ -509,12 +536,13 @@ export function initStorage() {
     },
 
     // Sessions from elsewhere — a backup's, a sync's pull — that this device
-    // does not have yet, by id, in one transaction. Resolves to how many were
-    // new.
+    // neither has yet nor had taken back, by id, in one transaction. Resolves
+    // to how many were new.
     importSessions(sessions) {
-      return withDb(SESSIONS_STORE, 'readwrite', async (transaction) => {
-        const here = new Set(await promisifyRequest(transaction.objectStore(SESSIONS_STORE).getAllKeys()))
-        const imported = putAllToStore(transaction, SESSIONS_STORE, sessions.filter((s) => !here.has(s.id)))
+      return withDb([SESSIONS_STORE, DELETED_SESSIONS_STORE], 'readwrite', async (transaction) => {
+        const keys = (name) => promisifyRequest(transaction.objectStore(name).getAllKeys())
+        const known = new Set((await Promise.all([keys(SESSIONS_STORE), keys(DELETED_SESSIONS_STORE)])).flat())
+        const imported = putAllToStore(transaction, SESSIONS_STORE, sessions.filter((s) => !known.has(s.id)))
         await promisifyTransaction(transaction)
         return imported
       })
@@ -535,7 +563,7 @@ export function initStorage() {
 
     // The segments' ids, and nothing else of them: their sessions are in them.
     getNoteLogIds() {
-      return withStore(NOTE_LOGS_STORE, 'readonly', (store) => promisifyRequest(store.getAllKeys()))
+      return dbGetAllKeys(NOTE_LOGS_STORE)
     },
 
     getNoteLogsById(ids) {

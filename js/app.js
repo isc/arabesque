@@ -263,6 +263,8 @@ export function midiApp() {
 
     showHistoryModal: false,
     scoreHistory: [],
+    // The session of the run whose delete is being confirmed.
+    deletingRunId: null,
     historyTotalMs: 0,
     historyHotMeasures: [],
     historyCharts: [],
@@ -1250,9 +1252,16 @@ export function midiApp() {
       this.refreshReinforcementSuggestions()
     },
 
-    // Everything the modal shows is made here, once, as it opens.
     async openScoreHistory() {
       if (!this.scoreUrl) return
+      await this.loadScoreHistory()
+      this.deletingRunId = null
+      this.showHistoryModal = true
+    },
+
+    // Everything the modal shows is made here, once, as it opens and again as
+    // a run leaves it.
+    async loadScoreHistory() {
       const [history, aggregate] = await Promise.all([
         practiceTracker.getScoreHistory(this.scoreUrl),
         storage.getAggregate(this.scoreUrl),
@@ -1261,7 +1270,12 @@ export function midiApp() {
       this.historyTotalMs = history.reduce((sum, d) => sum + (d.totalPracticeTimeMs || 0), 0)
       this.historyCharts = playthroughCharts(history.flatMap((d) => d.fullPlaythroughs))
       this.historyHotMeasures = hotMeasures(aggregate)
-      this.showHistoryModal = true
+    },
+
+    async deleteRun(sessionId) {
+      await practiceTracker.deleteSession(sessionId)
+      triggerSync('session deleted')
+      await Promise.all([this.loadScoreHistory(), this.refreshReinforcementSuggestions()])
     },
 
     // Attaches the current score to the shared feedback submission (see
