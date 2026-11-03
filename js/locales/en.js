@@ -102,7 +102,7 @@ export default {
     firstGoCountOne: '{n} day of {days}',
     firstGoRule: "The day's first full run, with {percent}% of the notes right",
     firstGoDone: '⭐ First go achieved',
-    nextStar: 'Next star: {goal} {stars}, {target} (record: {record}).',
+    nextStar: 'Next star: {goal} {stars}, {target}. Best run: {record}.',
   },
   period: {
     baroque: 'Baroque',
