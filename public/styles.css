@@ -1679,6 +1679,10 @@ html:has(dialog[open])::before {
   z-index: calc(var(--pt-z-modal) - 1);
 }
 html:has(dialog[open]) { overflow: hidden; }
+/* What a page whose scripts never ran shows (js/version.js): opaque, over markup
+   nothing has bound. */
+dialog.pt-boot-failure[open] { background: var(--pt-bg); }
+.pt-boot-failure > article { max-width: 480px; }
 dialog > article {
   margin: 0;
   max-width: 700px;

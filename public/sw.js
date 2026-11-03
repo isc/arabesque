@@ -144,22 +144,28 @@ function onFetch(event) {
     event.respondWith(staleWhileRevalidate(request, cacheFor(url.pathname), (work) => event.waitUntil(work)))
     return
   }
-  // score.html?url=… is the same document whichever score it is about, so a
-  // navigation ignores the query.
-  event.respondWith(cacheFirst(request, cacheFor(url.pathname), request.mode === 'navigate'))
+  event.respondWith(cacheFirst(request, cacheFor(url.pathname)))
 }
 
+// A file is kept and looked up under its bare URL: score.html?url=… is the same
+// document whichever score it is about, and a module's ?v= only names its deploy
+// for the browser's memory cache (scripts/stamp-version.mjs), where this cache
+// holds one deploy. An exact lookup rather than ignoreSearch, which has Chromium
+// walk the whole cache for each request: some 20ms of the score page's load.
+//
 // ignoreVary as well: Pages answers with Vary headers that a navigation request
 // does not reproduce, and a cached entry that cannot be matched is a cache miss
 // with extra steps.
-async function cacheFirst(request, cacheName, ignoreSearch = false) {
+async function cacheFirst(request, cacheName) {
   const cache = await caches.open(cacheName)
-  const cached = await cache.match(request, { ignoreSearch, ignoreVary: true })
+  const { origin, pathname } = new URL(request.url)
+  const bare = origin + pathname
+  const cached = await cache.match(bare, { ignoreVary: true })
   if (cached) return cached
 
   const response = await fetch(request)
   // A 404 or a 5xx is not worth keeping; both are passed through and retried.
-  if (response.ok) cache.put(request, response.clone())
+  if (response.ok) cache.put(bare, response.clone())
   return response
 }
 

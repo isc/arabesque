@@ -420,6 +420,13 @@ new page goes into one of its two lists. The precache list is generated from
 listed anywhere; add a new top-level directory to `SHELL_SKIP` in
 `scripts/stamp-version.mjs` if it must stay out.
 
+The stamp also puts `?v=<version>` on the URL of the app's own scripts and
+stylesheet, `js/version.js` excepted, wherever a page or a module names them
+(`withVersionedUrls` in `scripts/stamp-version.mjs` says why). A module is only
+ever imported by a relative path, statically or with `import()`:
+`test/js/stampVersion.test.js` fails on a reference the stamp would miss, which
+would load that module twice.
+
 Neither mechanism runs from a checkout: both sides say `dev` there, so the
 version check never fires and the worker is never registered. To exercise the
 worker, stamp a version in (`node scripts/stamp-version.mjs testsha`), serve
