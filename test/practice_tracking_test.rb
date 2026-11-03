@@ -192,7 +192,7 @@ class PracticeTrackingTest < CapybaraTestBase
     news = '[data-testid="result-goal-news"]'
 
     play_notes(%w[C4 E4 D4])
-    assert_selector news, text: 'Prochaine étoile : Justesse ★☆☆, sans faute (record : 1 fausse note).'
+    assert_selector news, text: 'Prochaine étoile : Justesse ★☆☆, sans faute. Meilleur jeu : 1 fausse note.'
     find('button[aria-label="Close"]').click
     wait_for_records('sessions', where: 'record.completedAt')
 
