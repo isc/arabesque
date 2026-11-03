@@ -124,7 +124,7 @@ describe('goalNews', () => {
   it('otherwise names the star closest to hand', () => {
     const runs = [run('2026-10-02T18:00:00Z', 108, { holes: 40 }), run('2026-10-02T12:00:00Z', 29, { holes: 31 })]
     // One hole past its star, where the notes are eight wrong past theirs.
-    expect(goalNews(runs, PRELUDE)).toBe('Next star: Steadiness ★☆☆, 30 holes at most (record: 31 holes).')
+    expect(goalNews(runs, PRELUDE)).toBe('Next star: Steadiness ★☆☆, 30 holes at most. Best run: 31 holes.')
   })
 
   it('says nothing of a run no goal reads, or once every star is in', () => {
