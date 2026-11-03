@@ -16,6 +16,7 @@
 // it to C and D for a first lesson. It has the tune's real notes here, moved to
 // the same hand position from published scores in F (singing-bell.com,
 // ukulelepotato.com), the low G in the left hand and the rest in the right.
+// "Fais dodo" follows the song as it is sung: "Colas" starts on C, not on D.
 //
 // IMPORTANT: the order of this list is the file numbering — song 13 is
 // written to Chansons_13_…, and practice aggregates and fingerings are keyed
@@ -106,7 +107,7 @@ export const SONGS = [
     title: 'Fais dodo',
     time: '3/4',
     showTime: true,
-    rh: 'E4h-3 D4q | C4h D4q | D4q C4q D4q | E4h C4q | E4h D4q | C4h C4q | D4q E4q D4q | C4h E4q | E4q F4q G4q-5 | D4h-2 E4q | E4q F4q G4q | D4h E4q | E4q E4q G4q | D4q E4q E4q | E4q F4q G4q | D4h. | E4h-3 D4q | C4h D4q | D4q C4q D4q | E4h C4q | E4h D4q | C4h C4q | D4q E4q D4q | C4h.',
+    rh: 'E4h-3 D4q | C4h C4q | D4q C4q D4q | E4h C4q | E4h D4q | C4h C4q | D4q E4q D4q | C4h E4q | E4q F4q G4q-5 | D4h-2 E4q | E4q F4q G4q | D4h E4q | E4q E4q G4q | D4q E4q E4q | E4q F4q G4q | D4h. | E4h-3 D4q | C4h C4q | D4q C4q D4q | E4h C4q | E4h D4q | C4h C4q | D4q E4q D4q | C4h.',
   },
   {
     slug: 'ah-vous-dirai-je-maman',
