@@ -3,6 +3,7 @@ import { readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { PERIODS, getPeriodForComposer } from '../../public/js/musicalPeriods.js'
 import { partsOf } from '../../public/js/catalog.js'
+import { searchWords, partsAnswering } from '../../public/js/utils.js'
 
 // public/data/scores.json is the catalog, and things are kept beside it by
 // hand: the files, and a period for each composer here; the fingerprints in
@@ -21,6 +22,41 @@ describe('the score catalog', () => {
   it('gives every composer a musical period', () => {
     const composers = [...new Set(scores.map((score) => score.composer))]
     expect(composers.filter((composer) => !PERIODS.includes(getPeriodForComposer(composer)))).toEqual([])
+  })
+})
+
+describe('partsAnswering', () => {
+  const chansons = scores.find((score) => score.title === 'Chansons')
+  const moonlight = scores.find((score) => score.title.startsWith('Moonlight'))
+  const answering = (score, query) => partsAnswering(score, searchWords(query)).map((part) => part.title)
+
+  it('finds a part by its title, whatever the accents and the case', () => {
+    expect(answering(chansons, 'Fais dodo')).toEqual(['Fais dodo'])
+    expect(answering(chansons, 'la lecon')).toEqual(['La leçon'])
+  })
+
+  it('finds every part when the search names the entry itself', () => {
+    expect(answering(chansons, 'chansons')).toHaveLength(chansons.parts.length)
+    expect(answering(chansons, 'traditionnel')).toHaveLength(chansons.parts.length)
+  })
+
+  it('weighs the entry and one part together', () => {
+    expect(answering(chansons, 'traditionnel dodo')).toEqual(['Fais dodo'])
+  })
+
+  it('does not piece a search together from two parts', () => {
+    expect(answering(chansons, 'dodo maman')).toEqual([])
+  })
+
+  it('prefers the parts whose own title answers the whole search', () => {
+    const hanon = scores.find((score) => score.title === 'Le Pianiste virtuose (1re partie)')
+    expect(answering(hanon, 'exercice 1')[0]).toBe('Exercice 1')
+    expect(answering(hanon, 'exercice 1')).not.toContain('Exercice 2')
+  })
+
+  it('takes an entry without parts as its own one part', () => {
+    expect(partsAnswering(moonlight, searchWords('moonlight'))).toEqual([moonlight])
+    expect(partsAnswering(moonlight, searchWords('dodo'))).toEqual([])
   })
 })
 

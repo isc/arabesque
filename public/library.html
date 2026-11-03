@@ -192,8 +192,8 @@
               <template x-for="score in filteredScores" :key="score.file || score.title">
                 <tr>
                   <td>
-                    <a :href="scorePageUrl(getScoreUrl(score))" x-text="score.title"></a>
-                    <small x-show="isCollection(score)" x-text="$t('library.exercises', { n: score.parts?.length })"></small>
+                    <a :href="scorePageUrl(rowUrl(score))" x-text="score.title"></a>
+                    <small x-show="isCollection(score)" x-text="searchedPart(score)?.title ?? $t('library.exercises', { n: score.parts?.length })"></small>
                   </td>
                   <td>
                     <a href="#" @click.prevent="setComposerFilter(score.composer)" x-text="score.composer"></a>
