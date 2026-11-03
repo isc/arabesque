@@ -65,6 +65,7 @@
 
   /* A piece's stars and best run */
   --pt-record: var(--pt-status-perfectionnement);
+  --pt-record-bg: var(--pt-status-perfectionnement-bg);
 
   /* Practice mode colors */
   --pt-mode-training: #7c3aed;
@@ -1939,7 +1940,7 @@ dialog > article > footer {
 /* .danger is in the base layer, under the chip's own colours. */
 .pt-history-run__confirm .danger { border-color: var(--pt-error); color: var(--pt-error); }
 
-/* What a run did for the goals, at the head of its result. */
+/* The next star to win, after a run that earned none. */
 .pt-goal-news {
   margin: 0 0 var(--pt-space-3);
   padding: var(--pt-space-2) var(--pt-space-3);
@@ -1948,6 +1949,28 @@ dialog > article > footer {
   color: var(--pt-accent-strong);
   font-size: var(--pt-font-size-sm);
   font-weight: 500;
+}
+
+/* A star just earned leads the result, in the colour of the stars. What the
+   run won is drawn in. */
+.pt-goal-earned {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--pt-space-2) var(--pt-space-6);
+  margin-bottom: var(--pt-space-3);
+  padding: var(--pt-space-3) var(--pt-space-4);
+  border: 1px solid color-mix(in srgb, var(--pt-record) 35%, transparent);
+  border-radius: var(--pt-radius-md);
+  background: var(--pt-record-bg);
+}
+.pt-goal-earned__item { display: flex; align-items: center; gap: var(--pt-space-3); margin: 0; }
+.pt-goal-earned .pt-goal__stars { flex: none; font-size: var(--pt-font-size-3xl); }
+.pt-goal-earned .is-won { display: inline-block; animation: pt-star-won 500ms cubic-bezier(0.2, 1.6, 0.4, 1) 150ms backwards; }
+@keyframes pt-star-won {
+  from { opacity: 0; transform: scale(0.2) rotate(-40deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pt-goal-earned .is-won { animation: none; }
 }
 
 .pt-fingering-display {

@@ -112,26 +112,44 @@ describe('goalLines', () => {
 // Most recent first, as getAllPlaythroughs hands them over.
 describe('goalNews', () => {
   it('announces the stars the run earned', () => {
-    const runs = [run('2026-10-02T18:00:00Z', 21), run('2026-10-02T12:00:00Z', 60)]
-    expect(goalNews(runs, PRELUDE)).toBe('⭐ Accuracy ★★☆')
+    const runs = [run('2026-10-02T18:00:00Z', 21), run('2026-10-02T12:00:00Z', 54)]
+    expect(goalNews(runs, PRELUDE)).toEqual({
+      earned: [{ key: 'accuracy', title: 'New star: Accuracy', had: '★', won: '★', left: '☆' }],
+      next: '',
+    })
+  })
+
+  it('counts the stars a run won at once, on each goal', () => {
+    const runs = [run('2026-10-02T18:00:00Z', 0, { holes: 12 }), run('2026-10-02T12:00:00Z', 60, { holes: 20 })]
+    expect(goalNews(runs, PRELUDE).earned).toEqual([
+      { key: 'accuracy', title: '3 new stars: Accuracy', had: '', won: '★★★', left: '' },
+      { key: 'steadiness', title: 'New star: Steadiness', had: '★', won: '★', left: '☆' },
+    ])
   })
 
   it("announces the day's first run when it holds up", () => {
     const runs = [run('2026-10-03T12:00:00Z', 50), run('2026-10-02T12:00:00Z', 40)]
-    expect(goalNews(runs, PRELUDE)).toBe('⭐ First go achieved')
+    expect(goalNews(runs, PRELUDE)).toEqual({
+      earned: [{ key: 'firstGo', title: 'First go achieved', had: '', won: '★', left: '' }],
+      next: '',
+    })
   })
 
   it('otherwise names the star closest to hand', () => {
     const runs = [run('2026-10-02T18:00:00Z', 108, { holes: 40 }), run('2026-10-02T12:00:00Z', 29, { holes: 31 })]
     // One hole past its star, where the notes are eight wrong past theirs.
-    expect(goalNews(runs, PRELUDE)).toBe('Next star: Steadiness ★☆☆, 30 holes at most. Best run: 31 holes.')
+    expect(goalNews(runs, PRELUDE)).toEqual({
+      earned: [],
+      next: 'Next star: Steadiness ★☆☆, 30 holes at most. Best run: 31 holes.',
+    })
   })
 
   it('says nothing of a run no goal reads, or once every star is in', () => {
-    expect(goalNews([run('2026-10-02T12:00:00Z', 0, { hands: 'left' })], PRELUDE)).toBe('')
-    expect(goalNews([], PRELUDE)).toBe('')
+    const nothing = { earned: [], next: '' }
+    expect(goalNews([run('2026-10-02T12:00:00Z', 0, { hands: 'left' })], PRELUDE)).toEqual(nothing)
+    expect(goalNews([], PRELUDE)).toEqual(nothing)
     const perfect = [run('2026-10-02T18:00:00Z', 5, { holes: 0 }), run('2026-10-02T12:00:00Z', 0, { holes: 0 })]
-    expect(goalNews(perfect, PRELUDE)).toBe('')
+    expect(goalNews(perfect, PRELUDE)).toEqual(nothing)
   })
 })
 

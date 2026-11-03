@@ -166,21 +166,17 @@ export const goalsHint = () => {
 // How far a goal's record is from its next star, as a share of its chances.
 const gap = ({ best, limit, total }) => (best - limit) / total
 
-// What the run just played did for the goals, for the end of it: the stars it
-// earned, or else the star closest to hand. Nothing for a run no goal reads.
-// `playthroughs` comes most recent first (getAllPlaythroughs).
-export function goalNews(playthroughs, size) {
-  const [latest, ...earlier] = playthroughs
-  if (!counts(latest)) return ''
+// A goal's stars after the run: those it already had, those the run won, which
+// the end of the run draws in, and those still to win.
+function earnedLine(key, starsBefore, stars) {
+  const [had] = starParts(starsBefore)
+  const [all, left] = starParts(stars)
+  const won = all.slice(had.length)
+  return { key, title: tn('goals.newStar', won.length, { goal: t(`goals.${key}`) }), had, won, left }
+}
 
-  const goals = pieceGoals(playthroughs, size)
-  const before = pieceGoals(earlier, size)
-  const earned = TIERED
-    .filter((key) => goals[key].stars > before[key].stars)
-    .map((key) => `⭐ ${t(`goals.${key}`)} ${starsText(goals[key].stars)}`)
-  if (goals.firstGo.done > before.firstGo.done) earned.push(t('goals.firstGoDone'))
-  if (earned.length > 0) return earned.join(' · ')
-
+// The star closest to hand, in words, while one is left to win.
+function nextStarText(goals) {
   const [key] = TIERED
     .filter((candidate) => goals[candidate].best != null && goals[candidate].limit != null)
     .sort((a, b) => gap(goals[a]) - gap(goals[b]))
@@ -192,4 +188,22 @@ export function goalNews(playthroughs, size) {
     target: targetText(key, limit),
     record: FAULTS_TEXT[key](best),
   })
+}
+
+// What the run just played did for the goals, for the end of it: the stars it
+// earned, or else the star closest to hand. Nothing for a run no goal reads.
+// `playthroughs` comes most recent first (getAllPlaythroughs).
+export function goalNews(playthroughs, size) {
+  const [latest, ...earlier] = playthroughs
+  if (!counts(latest)) return { earned: [], next: '' }
+
+  const goals = pieceGoals(playthroughs, size)
+  const before = pieceGoals(earlier, size)
+  const earned = TIERED
+    .filter((key) => goals[key].stars > before[key].stars)
+    .map((key) => earnedLine(key, before[key].stars, goals[key].stars))
+  if (goals.firstGo.done > before.firstGo.done) {
+    earned.push({ key: 'firstGo', title: t('goals.firstGoDone'), had: '', won: starParts(1)[0], left: '' })
+  }
+  return { earned, next: earned.length > 0 ? '' : nextStarText(goals) }
 }

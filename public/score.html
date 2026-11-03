@@ -344,8 +344,16 @@
           <!-- Free: where the run went wrong, its ranking + evolution charts -->
           <template x-if="resultMode === 'free'">
             <div>
+              <div x-show="resultGoalNews.earned.length > 0" class="pt-goal-earned" data-testid="result-goal-earned">
+                <template x-for="goal in resultGoalNews.earned" :key="goal.key">
+                  <p class="pt-goal-earned__item">
+                    <span class="pt-goal__stars"><span class="is-earned" x-text="goal.had"></span><span class="is-earned is-won" x-text="goal.won"></span><span x-text="goal.left"></span></span>
+                    <strong x-text="goal.title"></strong>
+                  </p>
+                </template>
+              </div>
               <p x-show="resultWrongMeasures" class="pt-modal-note pt-modal-note--lead" x-text="resultWrongMeasures"></p>
-              <p x-show="resultGoalNews" class="pt-goal-news" data-testid="result-goal-news" x-text="resultGoalNews"></p>
+              <p x-show="resultGoalNews.next" class="pt-goal-news" data-testid="result-goal-news" x-text="resultGoalNews.next"></p>
               <div class="pt-result-cols">
                 <div class="pt-playthrough-scroll" x-show="previousPlaythroughs.length > 0">
                   <table class="pt-playthrough-table">

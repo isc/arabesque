@@ -31,7 +31,7 @@ export function resultModal({ onOpen }) {
     resultCharts: [],
     resultWrongMeasures: '',
     // What the run did for the piece's goals (goalNews in pieceGoals.js).
-    resultGoalNews: '',
+    resultGoalNews: null,
     resultHands: TWO_HANDS,
     // A strict run's verdict, a tempo trainer's summary, a training passage's
     // line, a reinforcement's first tries (musicxml.js).
