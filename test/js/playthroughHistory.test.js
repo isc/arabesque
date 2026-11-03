@@ -2,8 +2,8 @@ import { describe, it, expect } from 'vitest'
 import {
   rankingOf,
   wrongMeasuresText,
-  playthroughChartSvg,
   playthroughCharts,
+  resultCharts,
   withRunLines,
   hotMeasures,
   strictAccuracy,
@@ -41,9 +41,10 @@ describe('wrongMeasuresText', () => {
 
 describe('the evolution charts', () => {
   it('plots one point a run, and nothing below two runs', () => {
-    expect(playthroughChartSvg([run(1, 60_000)])).toBe('')
-    const svg = playthroughChartSvg([run(3, 50_000), run(1, 60_000), run(2, 55_000)])
-    expect(svg.match(/<circle/g)).toHaveLength(3)
+    expect(resultCharts([run(1, 60_000)])).toEqual([])
+    const charts = resultCharts([run(3, 50_000), run(1, 60_000), run(2, 55_000)])
+    expect(charts.map((c) => c.title)).toEqual(['Play-time trend', 'Wrong-note trend'])
+    charts.forEach((c) => expect(c.svg.match(/<circle/g)).toHaveLength(3))
   })
 
   it('makes one chart per kind of run and hands, leaving out a group too short to plot', () => {
@@ -53,6 +54,31 @@ describe('the evolution charts', () => {
     expect(charts).toHaveLength(2)
     expect(charts[0].title).not.toBe(charts[1].title)
     expect(charts.every((c) => c.svg.startsWith('<svg'))).toBe(true)
+  })
+
+  describe('of the wrong notes', () => {
+    const wrongNotesChart = (runs) => resultCharts(runs)[1].svg
+    const yAxis = (svg) => [...svg.matchAll(/class="chart-label">([^<]*)</g)].slice(0, 2).map((m) => m[1])
+    const pointsAcross = (svg) => [...svg.matchAll(/<circle cx="([^"]*)"/g)].map((m) => m[1])
+
+    it('counts in whole notes from zero, however clean the cleanest run', () => {
+      const svg = wrongNotesChart([run(3, 50_000, { wrongNotes: 2 }), run(2, 55_000, { wrongNotes: 7 }), run(1, 60_000, { wrongNotes: 3 })])
+      expect(yAxis(svg)).toEqual(['7', '0'])
+    })
+
+    it('keeps an axis for runs that were all clean', () => {
+      expect(yAxis(wrongNotesChart([run(2, 50_000), run(1, 60_000)]))).toEqual(['1', '0'])
+    })
+
+    it('marks the most recent of the runs tied for best', () => {
+      const points = wrongNotesChart([run(3, 50_000, { wrongNotes: 2 }), run(2, 55_000), run(1, 60_000)]).match(/<circle [^>]*>/g)
+      expect(points.map((p) => p.includes('is-best'))).toEqual([false, true, false])
+    })
+
+    it('puts each run right under itself on the chart of its time', () => {
+      const [time, wrongNotes] = resultCharts([run(3, 50_000, { wrongNotes: 1 }), run(2, 55_000), run(1, 60_000, { wrongNotes: 4 })])
+      expect(pointsAcross(wrongNotes.svg)).toEqual(pointsAcross(time.svg))
+    })
   })
 })
 

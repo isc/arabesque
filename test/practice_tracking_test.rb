@@ -39,6 +39,23 @@ class PracticeTrackingTest < CapybaraTestBase
     assert_text 'Fausses notes à la mesure 2.'
   end
 
+  # Under the time each run took, how clean it was.
+  def test_score_complete_modal_charts_the_wrong_notes
+    open_two_measures
+    seed_store('sessions', completed_playthroughs)
+
+    # E4 is wrong in measure 2, which owes a D4.
+    play_notes(%w[C4 E4 D4])
+
+    assert_text 'Évolution du temps de jeu'
+    assert_text 'Évolution des fausses notes'
+    within('.playthrough-chart[aria-label*="fausses notes"]') do
+      assert_selector 'circle.chart-point', count: 4
+      assert_selector 'text.chart-label', exact_text: '1'
+      assert_selector 'text.chart-label', exact_text: '0'
+    end
+  end
+
   # A run starts with its first right note: keys tried before it — the first
   # note looked for, or played on while the last run's results are up — are
   # no part of it, in wrong notes as in time.

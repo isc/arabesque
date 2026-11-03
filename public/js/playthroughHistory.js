@@ -27,6 +27,13 @@ export function wrongNotesText(n) {
   return n ? tn('score.wrongNotes', n) : t('score.noWrongNote')
 }
 
+// The stretch of a chart's vertical axis: a tenth of the spread of headroom
+// either side, stopping at `ceiling`.
+const paddedRange = (ceiling) => (low, high) => {
+  const headroom = (high - low) * 0.1
+  return [Math.max(0, low - headroom), Math.min(ceiling, high + headroom)]
+}
+
 // What a run is measured by, per kind of run (see hands' playthroughGroups):
 // a free run by the time it took, a strict run by its hit rate — which means
 // nothing without the tempo, so its label carries it. Read wherever runs are
@@ -41,7 +48,7 @@ const RUN_KINDS = {
     best: Math.min,
     format: formatDuration,
     label: (pt) => `${formatDuration(pt.durationMs)} (${wrongNotesText(pt.wrongNotes)})`,
-    ceiling: Infinity,
+    range: paddedRange(Infinity),
   },
   strict: {
     title: 'score.accuracyEvolution',
@@ -50,8 +57,20 @@ const RUN_KINDS = {
     best: Math.max,
     format: (pct) => t('score.percent', { pct: Math.round(pct) }),
     label: (pt) => t('score.strictRunSummary', { pct: strictAccuracy(pt.strict), bpm: pt.strict.bpm }),
-    ceiling: 100,
+    range: paddedRange(100),
   },
+}
+
+// Runs by their wrong notes. A count is drawn from zero, the mark aimed at, in
+// whole notes — and runs without a single one still have an axis to lie on.
+const WRONG_NOTES = {
+  title: 'score.wrongNotesEvolution',
+  aria: 'score.wrongNotesChartAria',
+  value: (pt) => pt.wrongNotes,
+  best: Math.min,
+  format: String,
+  label: RUN_KINDS.free.label,
+  range: (_low, high) => [0, Math.max(high, 1)],
 }
 
 function runKind(strict) {
@@ -132,29 +151,32 @@ export function playthroughCharts(playthroughs) {
       return {
         key: group.key,
         title: chartTitle(group),
-        svg: playthroughChartSvg(group.playthroughs),
+        svg: chartSvg(group.playthroughs, metric),
         best: t('score.chartBest', { value: metric.format(best) }),
       }
     })
     .filter((chart) => chart.svg)
 }
 
+// The charts at the end of a piece, of the runs it ranks: what they are
+// measured by and, under it, their wrong notes. Every chart is the same size
+// with the same spacing, so a run sits right under itself.
+export function resultCharts(runs) {
+  return [runKind(runs[0]?.strict), WRONG_NOTES]
+    .map((metric) => ({ key: metric.title, title: t(metric.title), svg: chartSvg(runs, metric) }))
+    .filter((chart) => chart.svg)
+}
+
 // Built as a string (not <template x-for>) because Alpine's templates
 // render in HTML namespace and won't show up inside <svg>. Returns ''
-// when fewer than 2 points — the calling x-if then skips the section.
-// Plots what the runs are measured by — they are all of one kind, the
-// way playthroughGroups hands them over.
-export function playthroughChartSvg(playthroughs) {
+// when fewer than 2 points, which callers drop. The runs are all of one
+// kind, the way playthroughGroups hands them over.
+function chartSvg(playthroughs, metric) {
   if (playthroughs.length < 2) return ''
-  const metric = runKind(playthroughs[0].strict)
 
   const sorted = [...playthroughs].sort(byStartedAt)
   const values = sorted.map(metric.value)
-  const dMin = Math.min(...values)
-  const dMax = Math.max(...values)
-  // A tenth of the spread of headroom either side; a hit rate stops at 100.
-  const yMin = Math.max(0, dMin - (dMax - dMin) * 0.1)
-  const yMax = Math.min(metric.ceiling, (dMax + (dMax - dMin) * 0.1) || dMax * 1.1)
+  const [yMin, yMax] = metric.range(Math.min(...values), Math.max(...values))
 
   const W = 600
   const H = 170
@@ -187,9 +209,9 @@ export function playthroughChartSvg(playthroughs) {
     `<text x="${xMin}" y="${H - 8}" text-anchor="start" class="chart-label">${fmtAxis(sorted[0].startedAt)}</text>`,
     `<text x="${xMax}" y="${H - 8}" text-anchor="end" class="chart-label">${fmtAxis(sorted[n - 1].startedAt)}</text>`,
   ].join('')
-  // The best run and the latest stand out from the others, which thin out as
-  // they crowd the line.
-  const bestIndex = values.indexOf(metric.best(...values))
+  // The best run, the most recent when several tie as clean runs do, and the
+  // latest stand out from the others, which thin out as they crowd the line.
+  const bestIndex = values.lastIndexOf(metric.best(...values))
   const radius = n > 24 ? 2.5 : 3.5
   const circles = points
     .map((p, i) => {
