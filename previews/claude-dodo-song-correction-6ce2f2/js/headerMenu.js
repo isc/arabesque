@@ -15,14 +15,14 @@
 // Page-specific seam (kept out of here): feedbackContext() — extra,
 // non-identifying context merged into a report (practice stats on the library,
 // current score on the score page).
-import { CHANGELOG } from './changelog.js'
-import { startOfLocalDay } from './days.js'
-import { feedbackEnabled, buildBaseContext, submitFeedback, defaultFeedbackEmail } from './feedback.js'
-import { getLang, locale } from './i18n.js'
-import { INSTALL_AVAILABLE_EVENT, installAvailable, promptInstall } from './installPrompt.js'
-import { nativePairingAvailable, openNativePairing } from './midi.js'
-import { keyHintAllowed, storeKeyHintAllowed } from './keyHintSetting.js'
-import { recordError } from './errorLog.js'
+import { CHANGELOG } from './changelog.js?v=ce4999e7eee2'
+import { startOfLocalDay } from './days.js?v=ce4999e7eee2'
+import { feedbackEnabled, buildBaseContext, submitFeedback, defaultFeedbackEmail } from './feedback.js?v=ce4999e7eee2'
+import { getLang, locale } from './i18n.js?v=ce4999e7eee2'
+import { INSTALL_AVAILABLE_EVENT, installAvailable, promptInstall } from './installPrompt.js?v=ce4999e7eee2'
+import { nativePairingAvailable, openNativePairing } from './midi.js?v=ce4999e7eee2'
+import { keyHintAllowed, storeKeyHintAllowed } from './keyHintSetting.js?v=ce4999e7eee2'
+import { recordError } from './errorLog.js?v=ce4999e7eee2'
 
 const CHANGELOG_SEEN_KEY = 'arabesque:changelog-seen'
 const CHANGELOG_DATE_FORMATTER = new Intl.DateTimeFormat(locale(), {
@@ -143,7 +143,7 @@ export function headerMenu() {
       // visit ever opens the form. Nothing waits on the result — null,
       // from a capture that failed or a browser that could not make one, simply
       // means the form offers no picture and the report goes as words alone.
-      const { captureViewport } = await import('./screenshot.js')
+      const { captureViewport } = await import('./screenshot.js?v=ce4999e7eee2')
       this.feedbackShot = await captureViewport()
     },
 

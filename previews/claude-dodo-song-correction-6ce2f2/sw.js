@@ -55,7 +55,7 @@
 // VERSION and SHELL are rewritten at deploy time by scripts/stamp-version.mjs;
 // a checkout keeps 'dev' and an empty list, and swRegister.js declines to
 // register at 'dev'.
-const VERSION = '0424cb418d0a'
+const VERSION = 'ce4999e7eee2'
 const SHELL = ["./","data.html","data/fingerprints.json","data/scores.json","favicon.svg","index.html","js/account.js","js/aggregates.js","js/alpineBoot.js","js/app.js","js/appStore.js","js/autoSync.js","js/bpmField.js","js/bpmStepper.js","js/catalog.js","js/changelog.js","js/data.js","js/dayRollover.js","js/days.js","js/errorLog.js","js/feedback.js","js/fingeringEditor.js","js/fingeringInjector.js","js/fingeringKeys.js","js/fingeringPad.js","js/fingerprints.js","js/fragmentSuggestions.js","js/fragments.js","js/hands.js","js/headerMenu.js","js/i18n.js","js/installPrompt.js","js/journalEntries.js","js/keyHintSetting.js","js/keyboardHint.js","js/legacyKeys.js","js/library.js","js/locales/en.js","js/locales/fr.js","js/metronomeClick.js","js/midi.js","js/midi_mock.js","js/musicalPeriods.js","js/musicxml.js","js/mxlLoader.js","js/noteCircles.js","js/noteExtraction.js","js/noteLog.js","js/noteLogAnalysis.js","js/pieceGoals.js","js/playback.js","js/playbackTiming.js","js/playthroughHistory.js","js/practice.js","js/practiceJournal.js","js/practiceTime.js","js/practiceTracker.js","js/profiles.js","js/reinforcement.js","js/resultModal.js","js/screenshot.js","js/statusCriteria.js","js/steadiness.js","js/storage.js","js/strictMatching.js","js/strictPlaythrough.js","js/supabaseClient.js","js/supabaseConfig.js","js/swRegister.js","js/sync.js","js/tempoMarks.js","js/tempoTrainer.js","js/utils.js","js/version.js","library.html","manifest.webmanifest","practice.html","privacy.html","score.html","styles.css","support.html","vendor/alpinejs.3.14.9.min.js","vendor/jszip.3.10.1.min.js","vendor/node-async-hooks.min.js","vendor/node-events.min.js","vendor/opensheetmusicdisplay.2.2.1.min.js","vendor/tone.14.8.49.min.js","vendor/tonejs-piano.0.2.1.min.js","vendor/webmidi.2.5.3.min.js"]
 
 const SHELL_CACHE = `arabesque-shell-${VERSION}`
@@ -144,22 +144,28 @@ function onFetch(event) {
     event.respondWith(staleWhileRevalidate(request, cacheFor(url.pathname), (work) => event.waitUntil(work)))
     return
   }
-  // score.html?url=… is the same document whichever score it is about, so a
-  // navigation ignores the query.
-  event.respondWith(cacheFirst(request, cacheFor(url.pathname), request.mode === 'navigate'))
+  event.respondWith(cacheFirst(request, cacheFor(url.pathname)))
 }
 
+// A file is kept and looked up under its bare URL: score.html?url=… is the same
+// document whichever score it is about, and a module's ?v= only names its deploy
+// for the browser's memory cache (scripts/stamp-version.mjs), where this cache
+// holds one deploy. An exact lookup rather than ignoreSearch, which has Chromium
+// walk the whole cache for each request: some 20ms of the score page's load.
+//
 // ignoreVary as well: Pages answers with Vary headers that a navigation request
 // does not reproduce, and a cached entry that cannot be matched is a cache miss
 // with extra steps.
-async function cacheFirst(request, cacheName, ignoreSearch = false) {
+async function cacheFirst(request, cacheName) {
   const cache = await caches.open(cacheName)
-  const cached = await cache.match(request, { ignoreSearch, ignoreVary: true })
+  const { origin, pathname } = new URL(request.url)
+  const bare = origin + pathname
+  const cached = await cache.match(bare, { ignoreVary: true })
   if (cached) return cached
 
   const response = await fetch(request)
   // A 404 or a 5xx is not worth keeping; both are passed through and retried.
-  if (response.ok) cache.put(request, response.clone())
+  if (response.ok) cache.put(bare, response.clone())
   return response
 }
 

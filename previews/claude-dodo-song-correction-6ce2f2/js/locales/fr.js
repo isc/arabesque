@@ -100,7 +100,7 @@ export default {
     firstGoCountOne: '{n} jour sur {days}',
     firstGoRule: 'Le premier jeu complet du jour, avec {percent} % de notes justes',
     firstGoDone: '⭐ Premier jet réussi',
-    nextStar: 'Prochaine étoile : {goal} {stars}, {target} (record : {record}).',
+    nextStar: 'Prochaine étoile : {goal} {stars}, {target}. Meilleur jeu : {record}.',
   },
   period: {
     baroque: 'Baroque',

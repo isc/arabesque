@@ -30,7 +30,7 @@ const COMPOSER_PERIODS = {
   'Traditionnel':       'traditionnel',
 }
 
-import { t } from './i18n.js'
+import { t } from './i18n.js?v=ce4999e7eee2'
 
 // Stable period values (used as filter keys / in the URL). Labels are resolved
 // per-language via periodLabel() so they never get hard-coded to one locale.
