@@ -10,14 +10,14 @@ import {
   isOrnamentOrGrace,
   isStruck,
   handOfNote,
-} from './noteExtraction.js?v=5825d9c7aa9d'
-import { scrollSystemIntoView, isUnderStickyBars } from './utils.js?v=5825d9c7aa9d'
-import { arrayBufferToXml, isMusicXml } from './mxlLoader.js?v=5825d9c7aa9d'
-import { stripPlaybackTempoMarks } from './tempoMarks.js?v=5825d9c7aa9d'
-import { recordError } from './errorLog.js?v=5825d9c7aa9d'
-import { REINFORCEMENT_CLEAN_PASSES } from './reinforcement.js?v=5825d9c7aa9d'
-import { POSITION_EPSILON, beatStartOf } from './noteLogAnalysis.js?v=5825d9c7aa9d'
-import { createSteadiness } from './steadiness.js?v=5825d9c7aa9d'
+} from './noteExtraction.js?v=cd29ab14215c'
+import { scrollSystemIntoView, isUnderStickyBars } from './utils.js?v=cd29ab14215c'
+import { arrayBufferToXml, isMusicXml } from './mxlLoader.js?v=cd29ab14215c'
+import { stripPlaybackTempoMarks } from './tempoMarks.js?v=cd29ab14215c'
+import { recordError } from './errorLog.js?v=cd29ab14215c'
+import { REINFORCEMENT_CLEAN_PASSES } from './reinforcement.js?v=cd29ab14215c'
+import { POSITION_EPSILON, beatStartOf } from './noteLogAnalysis.js?v=cd29ab14215c'
+import { createSteadiness } from './steadiness.js?v=cd29ab14215c'
 
 // The score on the stand: the sheet OSMD holds, and the note model built from
 // it. Replaced as a sheet comes in (renderMusicXML) and as it is drawn

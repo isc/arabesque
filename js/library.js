@@ -1,20 +1,20 @@
-import { initMidi } from './midi.js?v=5825d9c7aa9d'
-import { initPracticeTracker } from './practiceTracker.js?v=5825d9c7aa9d'
-import { STATUS_THRESHOLDS, cleanMeasureRatio, hasMinimumPractice, nextStatus, MIN_PRACTICE_MS_FOR_STATUS } from './aggregates.js?v=5825d9c7aa9d'
-import { statusCriteria } from './statusCriteria.js?v=5825d9c7aa9d'
-import { initStorage } from './storage.js?v=5825d9c7aa9d'
-import { formatDate, formatRelativeDate, statusLabel, scorePageUrl, searchWords, matchesSearch } from './utils.js?v=5825d9c7aa9d'
-import { journalEntryHelpers } from './journalEntries.js?v=5825d9c7aa9d'
-import { PERIODS, periodLabel, getPeriodForComposer } from './musicalPeriods.js?v=5825d9c7aa9d'
-import { headerMenu } from './headerMenu.js?v=5825d9c7aa9d'
-import { listProfiles, currentProfile, profileName, switchProfile } from './profiles.js?v=5825d9c7aa9d'
-import { initAutoSync } from './autoSync.js?v=5825d9c7aa9d'
-import { onDayChange } from './dayRollover.js?v=5825d9c7aa9d'
-import { daysBetween } from './days.js?v=5825d9c7aa9d'
-import { t, locale } from './i18n.js?v=5825d9c7aa9d'
-import { recordError } from './errorLog.js?v=5825d9c7aa9d'
-import { MIN_MATCH } from './fingerprints.js?v=5825d9c7aa9d'
-import { loadCatalog, partsOf, fileUrl, isCollection } from './catalog.js?v=5825d9c7aa9d'
+import { initMidi } from './midi.js?v=cd29ab14215c'
+import { initPracticeTracker } from './practiceTracker.js?v=cd29ab14215c'
+import { STATUS_THRESHOLDS, cleanMeasureRatio, hasMinimumPractice, nextStatus, MIN_PRACTICE_MS_FOR_STATUS } from './aggregates.js?v=cd29ab14215c'
+import { statusCriteria } from './statusCriteria.js?v=cd29ab14215c'
+import { initStorage } from './storage.js?v=cd29ab14215c'
+import { formatDate, formatRelativeDate, statusLabel, scorePageUrl, searchWords, partsAnswering } from './utils.js?v=cd29ab14215c'
+import { journalEntryHelpers } from './journalEntries.js?v=cd29ab14215c'
+import { PERIODS, periodLabel, getPeriodForComposer } from './musicalPeriods.js?v=cd29ab14215c'
+import { headerMenu } from './headerMenu.js?v=cd29ab14215c'
+import { listProfiles, currentProfile, profileName, switchProfile } from './profiles.js?v=cd29ab14215c'
+import { initAutoSync } from './autoSync.js?v=cd29ab14215c'
+import { onDayChange } from './dayRollover.js?v=cd29ab14215c'
+import { daysBetween } from './days.js?v=cd29ab14215c'
+import { t, locale } from './i18n.js?v=cd29ab14215c'
+import { recordError } from './errorLog.js?v=cd29ab14215c'
+import { MIN_MATCH } from './fingerprints.js?v=cd29ab14215c'
+import { loadCatalog, partsOf, fileUrl, isCollection } from './catalog.js?v=cd29ab14215c'
 
 const STATUS_ORDER = ['dechiffrage', 'perfectionnement', 'repertoire']
 const STATUS_RANK = Object.fromEntries(STATUS_ORDER.map((s, i) => [s, i]))
@@ -50,20 +50,6 @@ const FILTER_KEYS = Object.keys(FILTER_MATCHERS)
 // whenever the practice data behind them is reloaded — see refreshPracticeData.
 const collectionAggregates = new Map()
 
-// A score's searchable words, folded once. searchResults is read many times
-// per render — every facet option asks it for a count — and a catalog entry's
-// title and composer never change, so the folding is cached under the very
-// text it folds: no key to keep in step, and Alpine's proxies (a different
-// object each time it wraps one) can't miss it.
-const scoreSearchWords = new Map()
-
-function scoreWords(score) {
-  const text = `${score.title} ${score.composer}`
-  let words = scoreSearchWords.get(text)
-  if (!words) scoreSearchWords.set(text, (words = searchWords(text)))
-  return words
-}
-
 // The ways to release some of `keys`, fewest first — [a], [b], [a, b] — so a
 // pick gives up as little as it can. At most three filters are ever in play
 // besides the one being picked, so this is at most seven combinations.
@@ -86,6 +72,7 @@ export function libraryApp() {
   let fingerprints = []
   let matchPointers = {}
   let searchResetTimer = null
+  let lastSearch = null
   let sessionCountByScore = {}
 
   return {
@@ -344,10 +331,16 @@ export function libraryApp() {
       clearTimeout(searchResetTimer)
     },
 
+    // Read some sixty times per keystroke, every facet option asking it for a
+    // count, so a search only walks the catalog once.
     get searchResults() {
-      if (!this.searchQuery) return this.scores
-      const query = searchWords(this.searchQuery)
-      return this.scores.filter((score) => matchesSearch(scoreWords(score), query))
+      const { searchQuery, scores } = this
+      if (!searchQuery) return scores
+      if (lastSearch?.searchQuery !== searchQuery || lastSearch.scores !== scores) {
+        const query = searchWords(searchQuery)
+        lastSearch = { searchQuery, scores, results: scores.filter((score) => partsAnswering(score, query).length > 0) }
+      }
+      return lastSearch.results
     },
 
     // Does this score answer every filter the selection sets?
@@ -626,6 +619,21 @@ export function libraryApp() {
 
     getScoreUrl(score) {
       return fileUrl(catalog, (this.lastPlayedPartOf(score) ?? partsOf(score)[0]).file)
+    },
+
+    // The part of a collection the search box is after, which its row names
+    // and opens: the first of several, in the order they are listed. A search
+    // every part answers ("Hanon") is after the collection itself, and the row
+    // stays as it was.
+    searchedPart(score) {
+      if (!isCollection(score) || !this.searchQuery) return null
+      const parts = partsAnswering(score, searchWords(this.searchQuery))
+      return parts.length < score.parts.length ? parts[0] : null
+    },
+
+    rowUrl(score) {
+      const part = this.searchedPart(score)
+      return part ? fileUrl(catalog, part.file) : this.getScoreUrl(score)
     },
 
     aggregateFor(score) {
