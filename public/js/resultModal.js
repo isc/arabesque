@@ -14,7 +14,7 @@ import {
   strictRunLabel,
   rankingOf,
   wrongMeasuresText,
-  playthroughChartSvg,
+  resultCharts,
 } from './playthroughHistory.js'
 
 // `onOpen` runs as the modal opens.
@@ -22,13 +22,13 @@ export function resultModal({ onOpen }) {
   return {
     showResultModal: false,
     resultMode: null,
-    // A piece played through: the ranking of its comparable runs, its chart
+    // A piece played through: the ranking of its comparable runs, its charts
     // and where the run went wrong, made once as the modal opens — the chart
     // used to be generated twice per render, once to ask whether there was
     // one — and the hands they were all played with, named in the title when
     // they aren't both.
     previousPlaythroughs: [],
-    resultChart: '',
+    resultCharts: [],
     resultWrongMeasures: '',
     // What the run did for the piece's goals (goalNews in pieceGoals.js).
     resultGoalNews: '',
@@ -43,7 +43,7 @@ export function resultModal({ onOpen }) {
     // `allPlaythroughs` comes most recent first (getAllPlaythroughs).
     showScoreComplete(allPlaythroughs, goalNews) {
       this.previousPlaythroughs = rankingOf(allPlaythroughs)
-      this.resultChart = playthroughChartSvg(this.previousPlaythroughs)
+      this.resultCharts = resultCharts(this.previousPlaythroughs)
       this.resultWrongMeasures = wrongMeasuresText(allPlaythroughs[0]?.wrongMeasures ?? [])
       this.resultGoalNews = goalNews
       this.resultHands = this.previousPlaythroughs[0]?.hands ?? TWO_HANDS
