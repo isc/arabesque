@@ -1,6 +1,7 @@
 import { t, tn, locale } from './i18n.js'
 import { startOfLocalDay, daysBetween } from './days.js'
 import { TWO_HANDS } from './hands.js'
+import { partsOf } from './catalog.js'
 
 // Built once: the active locale is fixed for the page lifetime (switching
 // language reloads), so the verbose-date formatter needn't rebuild per call.
@@ -231,4 +232,16 @@ export function searchWords(text) {
 // to weigh against one query, and folding is the expensive half.
 export function matchesSearch(words, query) {
   return query.every((q) => words.some((w) => w.startsWith(q)))
+}
+
+// What a search finds of a catalog entry, as partsOf has it. A part goes by its
+// entry's name and its own title, so a search for the entry finds them all,
+// "chansons dodo" the one lullaby, and "dodo maman", two songs, nothing. Parts
+// whose own title says it all come alone: "exercice 1" is after those, not
+// every exercise of a "1re partie".
+export function partsAnswering(score, query) {
+  const parts = partsOf(score)
+  const answering = (name) => (part) => matchesSearch(searchWords(`${name} ${part.title}`), query)
+  const byOwnTitle = parts.filter(answering(''))
+  return byOwnTitle.length > 0 ? byOwnTitle : parts.filter(answering(`${score.title} ${score.composer}`))
 }

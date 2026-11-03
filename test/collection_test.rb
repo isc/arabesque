@@ -82,6 +82,26 @@ class CollectionTest < CapybaraTestBase
     assert_selector '#noMidiModal[open]', text: 'Web MIDI non supporté'
   end
 
+  def test_search_finds_a_collection_by_the_title_of_a_part_and_opens_it
+    fill_in 'Rechercher une partition', with: 'fais dodo'
+
+    assert_selector 'tbody tr', count: 1
+    assert_selector 'td small', text: 'Fais dodo'
+    click_link 'Chansons'
+
+    assert_current_path %r{/score\.html\?url=.*Chansons_05}
+    wait_for_score_render
+    assert_select 'Choisir un exercice', selected: 'Fais dodo'
+  end
+
+  def test_search_for_a_collection_itself_names_no_part
+    fill_in 'Rechercher une partition', with: 'chansons'
+
+    assert_selector 'tbody tr', count: 1
+    assert_selector 'td small', text: '18 exercices'
+    assert_match(/Chansons_01/, find('td a', text: 'Chansons')[:href])
+  end
+
   def test_open_exercise_by_playing_its_beginning
     # Hanon exercise 1, right hand: C3 E3 F3 G3 A3
     play_notes(%w[C3 E3 F3 G3 A3])
