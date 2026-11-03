@@ -4,10 +4,10 @@
 // component spreads (app.js), as it does headerMenu(). It reads nothing of the
 // component's: each end hands over what the modal reports, through the show…
 // method made for it.
-import { t } from './i18n.js?v=f0a5738b9a79'
-import { TWO_HANDS } from './hands.js?v=f0a5738b9a79'
-import { withHands, passageText } from './utils.js?v=f0a5738b9a79'
-import { CLEAN_RATE } from './tempoTrainer.js?v=f0a5738b9a79'
+import { t } from './i18n.js?v=5825d9c7aa9d'
+import { TWO_HANDS } from './hands.js?v=5825d9c7aa9d'
+import { withHands, passageText } from './utils.js?v=5825d9c7aa9d'
+import { CLEAN_RATE } from './tempoTrainer.js?v=5825d9c7aa9d'
 import {
   strictAccuracy,
   wrongNotesText,
@@ -15,7 +15,7 @@ import {
   rankingOf,
   wrongMeasuresText,
   resultCharts,
-} from './playthroughHistory.js?v=f0a5738b9a79'
+} from './playthroughHistory.js?v=5825d9c7aa9d'
 
 // `onOpen` runs as the modal opens.
 export function resultModal({ onOpen }) {
@@ -31,7 +31,7 @@ export function resultModal({ onOpen }) {
     resultCharts: [],
     resultWrongMeasures: '',
     // What the run did for the piece's goals (goalNews in pieceGoals.js).
-    resultGoalNews: '',
+    resultGoalNews: null,
     resultHands: TWO_HANDS,
     // A strict run's verdict, a tempo trainer's summary, a training passage's
     // line, a reinforcement's first tries (musicxml.js).
