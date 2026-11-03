@@ -6,8 +6,8 @@
 // spreads, as headerMenu.js does for the menu. The component provides the
 // tempi the fields move (strictBpm, playbackBpm), isStrictPlaying, and
 // commitBpm(field), which keeps a tempo once a press is over (app.js).
-import { stepBpm, holdToRepeat, BPM_MIN, BPM_MAX } from './bpmStepper.js'
-import { BPM_STEP } from './tempoTrainer.js'
+import { stepBpm, holdToRepeat, BPM_MIN, BPM_MAX } from './bpmStepper.js?v=6baa5f1860ad'
+import { BPM_STEP } from './tempoTrainer.js?v=6baa5f1860ad'
 
 export function bpmField() {
   return {

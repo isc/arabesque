@@ -6,15 +6,15 @@
 // menu, and signing in by email (see supabaseClient.js). Signing in is what
 // turns cloud sync on; this page is where that becomes true for the device,
 // every profile on it included.
-import { initStorage } from './storage.js'
-import { initPracticeTracker } from './practiceTracker.js'
-import { localDayKey } from './days.js'
-import { lastSyncAt, importBackup as importBackupFile } from './sync.js'
-import { initAutoSync, requestSync } from './autoSync.js'
-import { deleteCurrentUser } from './account.js'
-import { t, locale } from './i18n.js'
-import { recordError } from './errorLog.js'
-import { headerMenu } from './headerMenu.js'
+import { initStorage } from './storage.js?v=6baa5f1860ad'
+import { initPracticeTracker } from './practiceTracker.js?v=6baa5f1860ad'
+import { localDayKey } from './days.js?v=6baa5f1860ad'
+import { lastSyncAt, importBackup as importBackupFile } from './sync.js?v=6baa5f1860ad'
+import { initAutoSync, requestSync } from './autoSync.js?v=6baa5f1860ad'
+import { deleteCurrentUser } from './account.js?v=6baa5f1860ad'
+import { t, locale } from './i18n.js?v=6baa5f1860ad'
+import { recordError } from './errorLog.js?v=6baa5f1860ad'
+import { headerMenu } from './headerMenu.js?v=6baa5f1860ad'
 import {
   AVATARS,
   MAIN_PROFILE_ID,
@@ -26,7 +26,7 @@ import {
   updateProfile,
   removeProfile,
   switchProfile,
-} from './profiles.js'
+} from './profiles.js?v=6baa5f1860ad'
 
 // The file name of a backup carries the profile it came from — except the
 // main profile's, which keeps the name it always had.
@@ -136,7 +136,7 @@ export function dataApp() {
     async init() {
       // Fetched from its CDN while the practice data opens, which it does not
       // need. Caught at once, or a failure would also be logged as unhandled.
-      const client = import('./supabaseClient.js').catch((err) => {
+      const client = import('./supabaseClient.js?v=6baa5f1860ad').catch((err) => {
         recordError(err, 'Supabase client could not be loaded')
         return null
       })

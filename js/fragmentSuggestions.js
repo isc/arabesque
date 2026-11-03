@@ -10,11 +10,11 @@
 // A past session is read and judged once per note model, and kept: only the
 // session under way changes from one bar to the next, and it is read from the
 // page's own log (noteLog.liveSegments), not from storage.
-import { analysisModel } from './noteExtraction.js'
-import { eventsOf, traversals } from './noteLogAnalysis.js'
-import { fragmentsToReinforce } from './fragments.js'
-import { measuresToReinforce } from './reinforcement.js'
-import { noteLogWindow } from './noteLog.js'
+import { analysisModel } from './noteExtraction.js?v=6baa5f1860ad'
+import { eventsOf, traversals } from './noteLogAnalysis.js?v=6baa5f1860ad'
+import { fragmentsToReinforce } from './fragments.js?v=6baa5f1860ad'
+import { measuresToReinforce } from './reinforcement.js?v=6baa5f1860ad'
+import { noteLogWindow } from './noteLog.js?v=6baa5f1860ad'
 
 export function initFragmentSuggestions({ storage, practiceTracker, noteLog, getAllNotes }) {
   let model = { of: null, value: null }
