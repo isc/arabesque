@@ -98,8 +98,8 @@ class CapybaraTestBase < Minitest::Test
   # The block is per browser page, not per browser: a window opened later
   # (visit_with_real_clock) has a CDP session of its own and starts unblocked,
   # so it has to ask for the block again.
-  def self.block_cdn(session)
-    session.driver.browser.page.command('Network.setBlockedURLs', urls: ['https://esm.sh/*'])
+  def self.block_cdn(session, *also)
+    session.driver.browser.page.command('Network.setBlockedURLs', urls: ['https://esm.sh/*', *also])
   end
 
   # What every page a test opens needs: that block, and the test-env cookie,

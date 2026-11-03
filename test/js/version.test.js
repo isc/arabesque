@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { installSessionStorage } from './support/browserGlobals.js'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { APP_VERSION, checkAppVersion } from '../../public/js/version.js'
+import { APP_VERSION, checkAppVersion, checkBoot } from '../../public/js/version.js'
 import { recentErrors } from '../../public/js/errorLog.js'
 import { htmlPages, VERSION_SCRIPT } from '../../scripts/stamp-version.mjs'
 
@@ -15,16 +15,16 @@ const stampedPage = (content) => ({
   querySelector: () => (content === null ? null : { getAttribute: () => content }),
 })
 
+let reload
+
+beforeEach(() => {
+  reload = vi.fn()
+  vi.stubGlobal('location', { reload, pathname: '/library.html' })
+  installSessionStorage()
+  vi.spyOn(console, 'error').mockImplementation(() => {})
+})
+
 describe('checkAppVersion', () => {
-  let reload
-
-  beforeEach(() => {
-    reload = vi.fn()
-    vi.stubGlobal('location', { reload, pathname: '/library.html' })
-    installSessionStorage()
-    vi.spyOn(console, 'error').mockImplementation(() => {})
-  })
-
   const check = (pageVersion) => {
     vi.stubGlobal('document', stampedPage(pageVersion))
     return checkAppVersion()
@@ -65,6 +65,17 @@ describe('checkAppVersion', () => {
     expect(reload).toHaveBeenCalledOnce()
   })
 
+  it('waits for `load`, since a reload sent before it did not get past memory', async () => {
+    const window = new EventTarget()
+    vi.stubGlobal('window', window)
+    vi.stubGlobal('document', stampedPage('older-deploy'))
+    vi.resetModules()
+    await import('../../public/js/version.js')
+    expect(reload).not.toHaveBeenCalled()
+    window.dispatchEvent(new Event('load'))
+    await vi.waitFor(() => expect(reload).toHaveBeenCalledOnce())
+  })
+
   // WebKit's memory cache pairs them behind a worker too (feedback 13c5d005).
   it('reloads a page a service worker serves as well', async () => {
     vi.stubGlobal('navigator', { serviceWorker: { controller: {} } })
@@ -79,8 +90,35 @@ describe('checkAppVersion', () => {
 
   it('stays quiet, rather than looping, when Web Storage is unavailable', async () => {
     vi.stubGlobal('sessionStorage', undefined)
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
     await check('older-deploy')
     expect(reload).not.toHaveBeenCalled()
+  })
+})
+
+describe('checkBoot', () => {
+  const bootFailures = () => recentErrors().filter((error) => error.where === 'Boot failure')
+
+  const check = ({ bindings, alpine }) => {
+    vi.stubGlobal('window', { Alpine: alpine })
+    vi.stubGlobal('document', { querySelector: (selector) => (selector === '[x-data]' && bindings) || null })
+    return checkBoot()
+  }
+
+  it('leaves alone a page that got as far as Alpine, and one with no bindings to run', async () => {
+    const before = bootFailures().length
+    await check({ bindings: true, alpine: {} })
+    await check({ bindings: false })
+    expect(reload).not.toHaveBeenCalled()
+    expect(bootFailures().length).toBe(before)
+  })
+
+  it('reloads a page that never started, and says so in the error log first', async () => {
+    reload.mockImplementation(() =>
+      expect(bootFailures().at(-1)).toMatchObject({ message: 'Error: /library.html did not start' }),
+    )
+    await check({ bindings: true })
+    expect(reload).toHaveBeenCalledOnce()
   })
 })
 

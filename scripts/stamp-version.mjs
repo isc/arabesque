@@ -10,13 +10,16 @@
 //     see the note in public/js/version.js.
 //   - VERSION and SHELL in public/sw.js: the cache name to keep, and what to
 //     precache so the app opens with no network — see public/sw.js.
+//   - ?v=<version> on the URL of the app's own modules and stylesheet, wherever
+//     a page or a module names them, so a page gets its own deploy's — see
+//     withVersionedUrls below.
 //
 // Run by the Pages deploy on the checked-out copy, never committed back:
 //   node scripts/stamp-version.mjs <version>
 //
 // 'dev' puts a checkout back the way it was. Fails loudly when a file is
 // missing its marker, so a new page cannot ship unstamped and silently opt out.
-import { readFileSync, readdirSync } from 'node:fs'
+import { readFileSync, readdirSync, writeFileSync } from 'node:fs'
 import { join, sep } from 'node:path'
 import { replaceOnce } from './replace-once.mjs'
 
@@ -78,6 +81,36 @@ export const shellLine = (shell) => `const SHELL = ${JSON.stringify(shell)}`
 export const VERSION_STAMP = /^export const APP_VERSION = '[^']*'$/m
 export const versionLine = (version) => `export const APP_VERSION = '${version}'`
 
+// Each deploy's scripts under URLs of their own. WebKit's memory cache answers
+// a URL it still holds without asking the worker or the network, so a page of
+// the new deploy could link against modules of the one before: those the last
+// page used came from memory, the others from the worker. Once the two disagree
+// about an export, the whole graph refuses to link and the page stays blank —
+// an iPad's library, on every visit, reload included (feedback 88e8152f, replayed
+// in WebKit: it stayed blank on five runs out of six). A URL no cache has seen
+// cannot be answered with an older deploy's copy. Neither Pages nor the worker
+// reads the query, so an old document can still get today's: see version.js.
+//
+// A page and the modules it imports have to spell a URL alike, or the module
+// runs twice under two names: test/js/stampVersion.test.js holds every reference
+// to it. version.js alone keeps its bare name, being how a stale document finds
+// out: under the document's own stamp, it would agree with it for as long as the
+// memory cache held them both (see version.js).
+const MODULE_REF = /(\b(?:from|import)\s*\(?\s*['"]\.{1,2}\/[^'"?]+\.js)(?:\?v=[^'"]*)?(?=['"])/g
+const TAG_REF = /((?:src|href)="(?:js\/[^"?]+\.js|styles\.css))(?:\?v=[^"]*)?(?=")/g
+
+export function withVersionedUrls(text, version) {
+  const query = version === 'dev' ? '' : `?v=${version}`
+  const versioned = (_, url) => (url.endsWith('/version.js') ? url : url + query)
+  return text.replace(MODULE_REF, versioned).replace(TAG_REF, versioned)
+}
+
+// Every module the app ships, relative to public/ like htmlPages().
+export const moduleFiles = () =>
+  readdirSync(join(PUBLIC_DIR, 'js'), { recursive: true })
+    .filter((path) => path.endsWith('.js'))
+    .map((path) => `js/${path.split(sep).join('/')}`)
+
 function stamp(version) {
   replaceOnce(join(PUBLIC_DIR, 'js', 'version.js'), VERSION_STAMP, versionLine(version))
 
@@ -93,6 +126,10 @@ function stamp(version) {
       console.error(`${path}: missing ${VERSION_SCRIPT}`)
       process.exit(1)
     }
+  }
+  for (const file of [...pages, ...moduleFiles()]) {
+    const path = join(PUBLIC_DIR, file)
+    writeFileSync(path, withVersionedUrls(readFileSync(path, 'utf8'), version))
   }
 
   // Left empty in the repo: a snapshot of public/ committed into sw.js would

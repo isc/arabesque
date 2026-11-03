@@ -61,6 +61,20 @@ describe('the service worker', () => {
     expect(network).not.toHaveBeenCalled()
   })
 
+  it('answers a script asking for its deploy, from the bare name it was precached under', async () => {
+    await seed('arabesque-shell-dev', `${ORIGIN}/js/library.js`, 'the library module')
+    const response = await respond(request('/js/library.js?v=abc'))
+    expect(response.body).toBe('the library module')
+    expect(network).not.toHaveBeenCalled()
+  })
+
+  it('keeps a script it missed at install under its bare name, whichever deploy asks', async () => {
+    await respond(request('/js/library.js?v=abc'))
+    await respond(request('/js/library.js?v=def'))
+    expect(network).toHaveBeenCalledOnce()
+    expect([...caches.stores.get('arabesque-shell-dev').keys()]).toEqual([`${ORIGIN}/js/library.js`])
+  })
+
   it('answers the bare origin, which is the URL the iOS wrapper opens', async () => {
     await seed('arabesque-shell-dev', `${ORIGIN}/`, 'the landing page')
     const response = await respond(request('/', { mode: 'navigate' }))
