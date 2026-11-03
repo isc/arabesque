@@ -612,6 +612,14 @@ class CapybaraTestBase < Minitest::Test
     end
   end
 
+  # The beat after a score's last note, which takes the cursor back to the top.
+  # A note played inside it lands on the run just over and is lost, so another
+  # run waits for it. So does parking the clock: parked ahead of it, a 20 s
+  # advance was seen not to reach the wait the keyboard counts from there.
+  def assert_back_at_the_top
+    assert_no_selector 'svg g.vf-notehead.played-note'
+  end
+
   # Attacks played one after the other on a driven clock (with_clock_control):
   # the first `first_after` ms on, each next one `gap` ms after it. An attack is
   # a note, or the notes of a chord, struck together.

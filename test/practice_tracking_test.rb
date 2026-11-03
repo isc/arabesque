@@ -16,6 +16,7 @@ class PracticeTrackingTest < CapybaraTestBase
     # The playthrough is written asynchronously; the second one must not start
     # before the first is on record, or the ranking table has nothing to rank.
     wait_for_records('sessions', where: 'record.completedAt')
+    assert_back_at_the_top
 
     # Second playthrough
     play_notes(%w[C4 D4])
@@ -71,8 +72,7 @@ class PracticeTrackingTest < CapybaraTestBase
       && record.measures.every((m) => m.attempts.every((a) => a.wrongNotes === 0))
     JS
 
-    # The sheet back at the top, the results still up.
-    assert_no_selector 'svg g.vf-notehead.played-note'
+    assert_back_at_the_top
     play_notes(%w[F4 A4])
     click_on 'Close'
     play_notes(%w[C4 D4])
@@ -212,9 +212,13 @@ class PracticeTrackingTest < CapybaraTestBase
     assert_selector news, text: 'Prochaine étoile : Justesse ★☆☆, sans faute. Meilleur jeu : 1 fausse note.'
     find('button[aria-label="Close"]').click
     wait_for_records('sessions', where: 'record.completedAt')
+    assert_back_at_the_top
 
     play_notes(%w[C4 D4])
-    assert_selector news, text: '⭐ Justesse ★★★'
+    earned = '[data-testid="result-goal-earned"]'
+    assert_selector earned, text: '3 nouvelles étoiles : Justesse'
+    assert_selector "#{earned} .is-won", exact_text: '★★★'
+    assert_no_selector news
   end
 
   # A demo played on someone's profile would stand as their best time for good.
