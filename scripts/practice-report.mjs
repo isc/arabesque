@@ -14,6 +14,9 @@
 //     node scripts/practice-report.mjs trend --score <text> [--runs <n>]
 //     node scripts/practice-report.mjs losses --score <text> [--runs <n>] [--top <n>]
 //     node scripts/practice-report.mjs repeats --score <text> [--min <n>]
+//     node scripts/practice-report.mjs pace --score <text> [--runs <n>]
+//     node scripts/practice-report.mjs halves --score <text> [--runs <n>]
+//     node scripts/practice-report.mjs progress --score <text> [--runs <n>] [--before <n>]
 //
 // `sessions` lists the player's sessions, oldest first, with their ids.
 // `session` takes one apart: every bar of a run, every repetition of a drill,
@@ -24,7 +27,16 @@
 // reinforcement ranks what it offers, and ends on what it would offer now.
 // `repeats` finds the wrong notes made the same way session after session —
 // the same note owed, the same wrong key — which are learnt rather than slips,
-// and which repetition does not cure.
+// and which repetition does not cure — and when each was last made, which tells
+// the ones cured from the ones still there.
+//
+// `pace` sets the last runs side by side by the pace they held and what their
+// faults cost them, all weighed at the pace of the slowest, then the faster
+// half against the slower. `halves` compares what the same notes cost the first
+// time a bar plays them and the second, in the bars that play them twice.
+// `progress` sets each bar in the last runs against the runs before them, beside
+// how much it was drilled since, which shows the bars that stayed where they
+// were.
 //
 // Every command reads the player `--player <email>` (default: git's
 // user.email) and their profile `--profile` (default `main`), with the token
@@ -53,7 +65,21 @@ import {
   playthroughOf,
   sessionAttempts,
 } from '../public/js/practiceTime.js'
-import { attackNumber, eventsOf, excess, roundPosition, traversals } from '../public/js/noteLogAnalysis.js'
+import {
+  atPace,
+  attackNumber,
+  barsAcross,
+  barsPlayed,
+  barsRepeatingTheirHalf,
+  eventsOf,
+  excess,
+  figuresOf,
+  halvesOf,
+  paceOf,
+  roundPosition,
+  splitByPace,
+  traversals,
+} from '../public/js/noteLogAnalysis.js'
 import { beatLength, handOfNote, positionsOf } from '../public/js/noteExtraction.js'
 import { faultsOf } from '../public/js/fragments.js'
 import { judged, reinforcementOffer } from '../public/js/fragmentSuggestions.js'
@@ -233,6 +259,10 @@ const minutes = (ms) => {
   const total = Math.round(ms / 1000)
   return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`
 }
+const columns = (cells) => cells.map((cell) => String(cell).padStart(7)).join('')
+// Rows of numbers added up, field by field.
+const sumFields = (rows) =>
+  Object.fromEntries(Object.keys(rows[0]).map((field) => [field, rows.reduce((total, row) => total + row[field], 0)]))
 
 // A session, with the practice time the journal credits it.
 const sessionHeading = (session) =>
@@ -260,15 +290,10 @@ const holeLabel = (attack, model) =>
 // One line per bar a traversal went through: how long it took — from its
 // downbeat to the next bar's — its holes, and its wrong notes.
 function barLines(run, model, prefix = '') {
-  const byBar = Map.groupBy(run.attacks, (a) => a.bar)
-  const bars = [...byBar.keys()]
-  return bars.map((bar, i) => {
-    const attacks = byBar.get(bar)
-    const next = byBar.get(bars[i + 1])
-    const end = next && bars[i + 1] === bar + 1 ? next[0].at : attacks.at(-1).at
+  return barsPlayed(run).map(({ bar, sourceBar, attacks, ms }) => {
     const holes = attacks.filter((a) => a.hole)
     const wrong = wrongLabels(run, bar, attacks, model)
-    const label = `${prefix}bar ${String(attacks[0].sourceBar + 1).padStart(3)} ${seconds(end - attacks[0].at).padStart(6)}`
+    const label = `${prefix}bar ${String(sourceBar + 1).padStart(3)} ${seconds(ms).padStart(6)}`
     return (
       label +
       (holes.length ? `  holes: ${holes.map((a) => holeLabel(a, model)).join(', ')}` : '') +
@@ -403,25 +428,32 @@ function fragmentLabel({ from, until }, { bars }) {
   return `${spotLabel({ bar: from.bar, beat: beats(from) })} – ${spotLabel({ bar: until.bar, beat: beats(until) - 1 })}`
 }
 
-// The score's last `count` runs played in full that have a note log, by the
-// time each spot lost them (faultsOf, fragments.js — what reinforcement ranks
-// the spots it offers by): the time each run lost in all, then the `top`
-// spots that lost the most over them, run by run, which shows whether a spot
-// drilled came down in the runs after, or the whole run with it. Then what
-// reinforcement would offer now (reinforcementOffer, fragmentSuggestions.js).
-function showLosses(rows, segments, count, top) {
+// The score's last `count` runs played in full that have a note log, as
+// { session, run }: a run played in full is its session's longest traversal.
+// With them, the model they are read by, and the traversals of any session.
+function loggedRuns(rows, segments, count) {
   const sessions = rows.map((r) => r.data)
   const bySession = Map.groupBy(segments, (s) => s.sessionId)
-  const runs = lastFullRuns(sessions.filter((s) => bySession.has(s.id)), count)
-  if (runs.length === 0) die('no run played in full has a note log')
-  const model = modelOf(runs[0].scoreId)
+  const logged = lastFullRuns(sessions.filter((s) => bySession.has(s.id)), count)
+  if (logged.length === 0) die('no run played in full has a note log')
+  const model = modelOf(logged[0].scoreId)
   const traversalsOf = (session) => judged(bySession.get(session.id) ?? [], session, model)
+  const runs = logged.map((session) => ({
+    session,
+    run: traversalsOf(session).reduce((a, b) => (b.attacks.length > a.attacks.length ? b : a)),
+  }))
+  return { sessions, runs, model, traversalsOf }
+}
 
-  // A run played in full is its session's longest traversal.
-  const losses = runs.map((session) => {
-    const run = traversalsOf(session).reduce((a, b) => (b.attacks.length > a.attacks.length ? b : a))
+// Logged runs (loggedRuns) by the time each spot lost them (faultsOf,
+// fragments.js — what reinforcement ranks the spots it offers by): the time
+// each run lost in all, then the `top` spots that lost the most over them, run
+// by run and each at its own pace (`progress` weighs bars at one). Then what
+// reinforcement would offer now (reinforcementOffer, fragmentSuggestions.js).
+function showLosses({ sessions, runs, model, traversalsOf }, top) {
+  const losses = runs.map(({ run }) => {
     const bySpot = new Map([...faultsOf(run, model).values()].map(({ spot, lost }) => [spotLabel(spot), lost]))
-    return { session, bySpot, lost: [...bySpot.values()].reduce((total, ms) => total + ms, 0) }
+    return { bySpot, lost: [...bySpot.values()].reduce((total, ms) => total + ms, 0) }
   })
 
   const totals = new Map()
@@ -429,8 +461,8 @@ function showLosses(rows, segments, count, top) {
   const ranked = [...totals].sort((a, b) => b[1] - a[1]).slice(0, top)
   const width = 13
   const cell = (ms) => (ms ? seconds(ms) : '-').padStart(width)
-  console.log(`${runs[0].scoreTitle}: time lost in the last ${runs.length} runs played in full, by beat`)
-  console.log(`spot    ${runs.map((s) => runDate(s).padStart(width)).join('')}`)
+  console.log(`${runs[0].session.scoreTitle}: time lost in the last ${runs.length} runs played in full, by beat`)
+  console.log(`spot    ${runs.map(({ session }) => runDate(session).padStart(width)).join('')}`)
   console.log(`all     ${losses.map((r) => cell(r.lost)).join('')}`)
   for (const [id, total] of ranked) {
     console.log(`${id.padEnd(8)}${losses.map((r) => cell(r.bySpot.get(id))).join('')}   ${seconds(total)} in all`)
@@ -444,7 +476,7 @@ function showLosses(rows, segments, count, top) {
 }
 
 // The wrong notes made the same way in at least `min` sessions: the owed note,
-// the key played instead, in how many sessions and how many times.
+// the key played instead, in how many sessions, how many times and when last.
 function showRepeats(segments, min) {
   const seen = new Map()
   for (const segment of segments) {
@@ -455,6 +487,7 @@ function showRepeats(segments, min) {
       const entry = seen.get(id) ?? { event, model, sessions: new Set(), times: 0 }
       entry.sessions.add(segment.sessionId)
       entry.times++
+      entry.last = event.at
       seen.set(id, entry)
     }
   }
@@ -463,14 +496,136 @@ function showRepeats(segments, min) {
   const repeated = [...seen.values()]
     .filter((e) => e.sessions.size >= min)
     .sort((a, b) => b.sessions.size - a.sessions.size || b.times - a.times)
-  for (const { event, model, sessions, times } of repeated) {
+  for (const { event, model, sessions, times, last } of repeated) {
     const owed = model.notes.get(event.key)
     const label = `${hand(owed.staff)}#${attackNumber(model, owed.bar, owed.position)} ${noteName(owed.midi)}→${noteName(event.pitch)}`
     console.log(
-      `  bar ${String(owed.bar + 1).padStart(3)} ${label.padEnd(18)} ${sessions.size} sessions, ${times} times`,
+      `  bar ${String(owed.bar + 1).padStart(3)} ${label.padEnd(18)} ${sessions.size} sessions, ${times} times, last ${when(last).slice(5, 10)}`,
     )
   }
   if (repeated.length === 0) console.log('  none')
+}
+
+// A pace in ms per whole note, as crotchets per minute.
+const crotchets = (pace) => Math.round(240000 / pace)
+
+// The pace of the slowest of some logged runs, which they are all weighed at.
+const slowestPace = (runs) => Math.max(...runs.map(({ run }) => paceOf(run)))
+
+// Logged runs by the pace they held: how long each took, at what crotchet, the
+// holes the app judged at that pace, then what its faults cost with every run
+// weighed at the pace of the slowest (atPace, noteLogAnalysis.js), and last the
+// faster half against the slower (splitByPace).
+function showPace({ runs }) {
+  const slowest = slowestPace(runs)
+  const figures = runs.map(({ session, run }) => ({
+    time: playthroughOf(session).durationMs,
+    pace: paceOf(run),
+    ownHoles: figuresOf(run).holes,
+    ...figuresOf(atPace(run, slowest)),
+  }))
+  const line = (label, { time, pace, ownHoles, holes, lost, cleanBars, wrongAttacks, wrongKeys }) =>
+    label.padEnd(13) + columns([minutes(time), crotchets(pace), ownHoles, holes, seconds(lost), cleanBars, wrongAttacks, wrongKeys])
+  console.log(`${runs[0].session.scoreTitle}: the last ${runs.length} runs played in full, by the pace they held`)
+  console.log(
+    `own: holes at the run's own pace, as the app judged them. holes, lost, clean: as if every run had held the ` +
+      `slowest crotchet here, ${crotchets(slowest)}. wrong: attacks a wrong key fell on. keys: those keys. ` +
+      'clean: bars with neither a hole nor a wrong key.',
+  )
+  console.log(''.padEnd(13) + columns(['time', 'crotch', 'own', 'holes', 'lost', 'clean', 'wrong', 'keys']))
+  runs.forEach(({ session }, i) => console.log(line(runDate(session), figures[i])))
+  const split = splitByPace(figures)
+  if (split) {
+    console.log(line('faster half', split.faster))
+    console.log(line('slower half', split.slower))
+  }
+}
+
+// Consecutive bars as a range, by the number the score shows: 1–24, 26.
+function barRanges(bars) {
+  const ranges = []
+  for (const bar of bars) {
+    const last = ranges.at(-1)
+    if (last && last[1] === bar - 1) last[1] = bar
+    else ranges.push([bar, bar])
+  }
+  return ranges.map(([from, to]) => (from === to ? `${from + 1}` : `${from + 1}–${to + 1}`)).join(', ')
+}
+
+// What the same notes cost logged runs the first time a bar plays them and the
+// second (halvesOf, noteLogAnalysis.js).
+function showHalves({ runs, model }) {
+  const repeating = [...barsRepeatingTheirHalf(model)].sort((a, b) => a - b)
+  console.log(`${runs[0].session.scoreTitle}: the same notes the first time and the second, in the last ${runs.length} runs played in full`)
+  if (repeating.length === 0) {
+    console.log('no bar of this score plays its first half twice')
+    return
+  }
+  console.log(
+    `bars that play them twice: ${barRanges(repeating)}. #n counts from the start of each half; ` +
+      '#1 the first time is the join. wrong: attacks a wrong key fell on.',
+  )
+  const counts = ({ holes, lost, wrongAttacks }) => columns([holes, seconds(lost), wrongAttacks])
+  const heading = columns(['holes', 'lost', 'wrong'])
+  console.log(`${''.padEnd(6)}${'first time'.padEnd(23)}  second time`)
+  console.log(`${''.padEnd(6)}${heading}  ${heading}`)
+  const halves = halvesOf(runs.map(({ run }) => run), model)
+  for (const { number, first, second } of halves) {
+    console.log(`${`#${number}`.padEnd(6)}${counts(first)}  ${counts(second)}`)
+  }
+  const all = (side) => sumFields(halves.map((row) => row[side]))
+  console.log(`${'all'.padEnd(6)}${counts(all('first'))}  ${counts(all('second'))}`)
+}
+
+// Each bar in the last `count` of some logged runs against the runs before
+// them (barsAcross, noteLogAnalysis.js): its median time, how that changed, by
+// itself and against the whole run, then what its faults cost per run, weighed
+// at the pace of the slowest run so that going faster does not read as
+// stumbling more (atPace), and last the attempts at it in the drills between
+// the two (sessionAttempts, which a drill with no note log has too).
+function showProgress({ sessions, runs: all }, count) {
+  const before = all.slice(0, -count)
+  const last = all.slice(-count)
+  if (before.length === 0) die(`no run played in full before the last ${count}`)
+  const slowest = slowestPace(all)
+  const across = (group) => barsAcross(group.map(({ run }) => atPace(run, slowest)))
+  const [was, is] = [across(before), across(last)]
+  const [since, until] = [before.at(-1), last.at(-1)].map(({ session }) => Date.parse(session.startedAt))
+  const drills = Map.groupBy(
+    sessions.filter((s) => s.mode === 'training').flatMap((s) => sessionAttempts(s, since, until)),
+    (attempt) => attempt.sourceMeasureIndex,
+  )
+  const bars = [...is.keys()].filter((bar) => was.has(bar)).sort((a, b) => a - b)
+  const whole = (byBar) => sumFields(bars.map((bar) => byBar.get(bar)))
+  const change = (then, now) => Math.round((100 * (now.ms - then.ms)) / then.ms)
+  const percent = (points) => `${points > 0 ? '+' : ''}${points}%`
+  const line = (label, then, now, attempts) =>
+    label.padEnd(5) +
+    columns([
+      seconds(then.ms),
+      seconds(now.ms),
+      percent(change(then, now)),
+      percent(change(then, now) - change(whole(was), whole(is))),
+      then.holes.toFixed(1),
+      now.holes.toFixed(1),
+      seconds(then.lost),
+      seconds(now.lost),
+      then.wrongAttacks.toFixed(1),
+      now.wrongAttacks.toFixed(1),
+      attempts,
+    ])
+  console.log(
+    `${last[0].session.scoreTitle}: each bar in the last ${last.length} runs played in full, from ${runDate(last[0].session)}, ` +
+      `against the ${before.length} before them, from ${runDate(before[0].session)}`,
+  )
+  console.log(
+    `Each pair is those runs, then the last ones. vs all: the change against the whole run's. holes, lost and wrong ` +
+      `(attacks a wrong key fell on) are per run, as if every run had held crotchet ${crotchets(slowest)}. ` +
+      'drills: attempts at the bar in the drills between the two.',
+  )
+  console.log(''.padEnd(5) + columns(['time', 'now', 'change', 'vs all', 'holes', 'now', 'lost', 'now', 'wrong', 'now', 'drills']))
+  for (const bar of bars) console.log(line(String(bar + 1), was.get(bar), is.get(bar), drills.get(bar)?.length ?? 0))
+  console.log(line('all', whole(was), whole(is), ''))
 }
 
 // --- Command line -----------------------------------------------------------
@@ -480,7 +635,10 @@ const USAGE = `usage: node scripts/practice-report.mjs <command> [--player <emai
   session <session id>
   trend --score <text> [--runs <n>]
   losses --score <text> [--runs <n>] [--top <n>, default 15]
-  repeats --score <text> [--min <n>] [--days <n>]`
+  repeats --score <text> [--min <n>] [--days <n>]
+  pace --score <text> [--runs <n>]
+  halves --score <text> [--runs <n>]
+  progress --score <text> [--runs <n>] [--before <n>, default as many]`
 
 async function main(argv) {
   const { values, positionals } = parseArgs({
@@ -492,6 +650,7 @@ async function main(argv) {
       score: { type: 'string' },
       days: { type: 'string' },
       runs: { type: 'string', default: '8' },
+      before: { type: 'string' },
       min: { type: 'string', default: '3' },
       top: { type: 'string', default: '15' },
       help: { type: 'boolean' },
@@ -505,14 +664,20 @@ async function main(argv) {
   const email = values.player ?? execFileSync('git', ['config', 'user.email'], { encoding: 'utf8' }).trim()
   const player = { email, profile: values.profile }
   const score = () => values.score ?? die(`${command} needs --score\n${USAGE}`)
+  const runs = Number(values.runs)
+  const logged = async (count = runs) => {
+    const [rows, segments] = await Promise.all([sessionsOf(player, { score: score() }), segmentsOf(player, { score: score() })])
+    return loggedRuns(rows, segments, count)
+  }
 
   if (command === 'sessions') listSessions(await sessionsOf(player, { score: values.score, days: values.days ?? '30' }))
   else if (command === 'session') await showSession(player, id ?? die(USAGE))
-  else if (command === 'trend') showTrend(await sessionsOf(player, { score: score() }), Number(values.runs))
-  else if (command === 'losses') {
-    const [rows, segments] = await Promise.all([sessionsOf(player, { score: score() }), segmentsOf(player, { score: score() })])
-    showLosses(rows, segments, Number(values.runs), Number(values.top))
-  } else if (command === 'repeats')
+  else if (command === 'trend') showTrend(await sessionsOf(player, { score: score() }), runs)
+  else if (command === 'losses') showLosses(await logged(), Number(values.top))
+  else if (command === 'pace') showPace(await logged())
+  else if (command === 'halves') showHalves(await logged())
+  else if (command === 'progress') showProgress(await logged(runs + Number(values.before ?? runs)), runs)
+  else if (command === 'repeats')
     showRepeats(await segmentsOf(player, { score: score(), days: values.days }), Number(values.min))
   else die(USAGE)
 }

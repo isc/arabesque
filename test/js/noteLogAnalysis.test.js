@@ -1,5 +1,17 @@
 import { describe, it, expect } from 'vitest'
-import { eventsOf, traversals, attackNumber } from '../../public/js/noteLogAnalysis.js'
+import {
+  atPace,
+  attackNumber,
+  barsAcross,
+  barsPlayed,
+  barsRepeatingTheirHalf,
+  eventsOf,
+  figuresOf,
+  halvesOf,
+  paceOf,
+  splitByPace,
+  traversals,
+} from '../../public/js/noteLogAnalysis.js'
 
 // Two bars of four crotchets over two minims, both hands: the model a score
 // provider hands over (noteLogAnalysis.js).
@@ -47,12 +59,13 @@ function log(events) {
 }
 
 // The two bars played at one attack every `pace` ms, `late` ms more before the
-// attacks listed in `delays` ("bar:attack", 0-based).
-function played(pace, delays = {}) {
+// attacks listed in `delays` ("bar:attack", 0-based). `keysOf` gives a bar's
+// attacks in another model.
+function played(pace, delays = {}, keysOf = attackKeys) {
   const events = []
   let at = 0
   for (const b of [0, 1]) {
-    attackKeys(b).forEach((keys, i) => {
+    keysOf(b).forEach((keys, i) => {
       at += pace + (delays[`${b}:${i}`] ?? 0)
       for (const key of keys) events.push([at, 'd', key, b])
     })
@@ -149,5 +162,152 @@ describe('traversals', () => {
     const again = once.filter(([, , , b]) => b === 1).map(([at, ...rest]) => [at + 5000, ...rest])
     const runs = traversals(log([...once, ...again]), model)
     expect(runs.map((r) => new Set(r.attacks.map((a) => a.bar)).size)).toEqual([2, 1])
+  })
+})
+
+describe('figuresOf', () => {
+  it('states the time lost, the holes and the bars with no fault', () => {
+    const [run] = traversals(log(played(500, { '1:1': 1500 })), model)
+    expect(paceOf(run)).toBe(2000)
+    expect(figuresOf(run)).toEqual({ holes: 1, lost: 1500, wrongAttacks: 0, wrongKeys: 0, cleanBars: 1 })
+  })
+
+  // A key pressed too lightly, and the figure played on until it comes round.
+  it('counts a figure played on through a missed key as one attack and many keys', () => {
+    const events = played(500)
+    const owed = 'm1:0:0:1'
+    const [at, , , bar] = events.find(([, , key]) => key === owed)
+    const replayed = [...Array(12).keys()].map((i) => [at - 400 + i * 20, 'w', owed, bar])
+    const [run] = traversals(log([...events, ...replayed]), model)
+    expect(figuresOf(run)).toMatchObject({ wrongAttacks: 1, wrongKeys: 12, cleanBars: 1 })
+  })
+})
+
+describe('atPace', () => {
+  const crotchetOf = (ms) => ms / 0.25
+
+  it('forgives at a slower pace a stall that was only a hole at its own', () => {
+    const [run] = traversals(log(played(300, { '1:1': 350 })), model)
+    expect(figuresOf(run)).toMatchObject({ holes: 1, cleanBars: 1 })
+    expect(figuresOf(atPace(run, crotchetOf(500)))).toMatchObject({ holes: 0, lost: 0, cleanBars: 2 })
+  })
+
+  it('weighs what a real stop lost against the slower pace', () => {
+    const [run] = traversals(log(played(300, { '1:1': 1500 })), model)
+    expect(figuresOf(atPace(run, crotchetOf(500)))).toMatchObject({ holes: 1, lost: 1300 })
+  })
+
+  it('weighs an interval a wrong key fell in against it too', () => {
+    const [run] = traversals(log(withWrongKeyBefore(played(300, { '1:1': 700 }), 'm1:0:0:1')), model)
+    expect(figuresOf(run).lost).toBe(700)
+    expect(figuresOf(atPace(run, crotchetOf(500))).lost).toBe(500)
+  })
+
+  it('changes nothing at the pace the traversal held, and leaves it as it was', () => {
+    const [run] = traversals(log(played(300, { '1:1': 1500 })), model)
+    const figures = figuresOf(run)
+    expect(figuresOf(atPace(run, paceOf(run)))).toEqual(figures)
+    atPace(run, crotchetOf(500))
+    expect(figuresOf(run)).toEqual(figures)
+  })
+})
+
+describe('barsPlayed', () => {
+  it('times a bar up to the next downbeat, the last one up to its own last attack', () => {
+    const [run] = traversals(log(played(500)), model)
+    expect(barsPlayed(run)).toMatchObject([
+      { bar: 0, sourceBar: 0, ms: 2000 },
+      { bar: 1, sourceBar: 1, ms: 1500 },
+    ])
+  })
+})
+
+describe('barsAcross', () => {
+  it('gives each bar its median time, and its faults per traversal', () => {
+    const runs = [played(500), played(500), withWrongKeyBefore(played(500, { '1:1': 1500 }), 'm1:0:0:2')].flatMap((events) =>
+      traversals(log(events), model),
+    )
+    const bars = barsAcross(runs)
+    expect(bars.get(0)).toEqual({ ms: 2000, holes: 0, lost: 0, wrongAttacks: 0 })
+    expect(bars.get(1).ms).toBe(1500)
+    expect(bars.get(1).holes).toBeCloseTo(1 / 3)
+    expect(bars.get(1).lost).toBeCloseTo(500)
+    expect(bars.get(1).wrongAttacks).toBeCloseTo(1 / 3)
+  })
+})
+
+describe('splitByPace', () => {
+  it('gives the medians of the faster half and the slower, leaving the middle run out', () => {
+    const figures = [7000, 1000, 5000, 3000, 2000, 6000, 4000].map((pace) => ({ pace, holes: pace / 1000 }))
+    expect(splitByPace(figures)).toEqual({
+      faster: { pace: 2000, holes: 2 },
+      slower: { pace: 6000, holes: 6 },
+    })
+  })
+
+  it('has nothing to compare in one run', () => {
+    expect(splitByPace([{ pace: 1000 }])).toBeNull()
+  })
+})
+
+describe('barsRepeatingTheirHalf', () => {
+  // One bar of right-hand and left-hand pitches, each in equal notes.
+  const barOf = (right, left) => {
+    const staffNotes = (staff, pitches) =>
+      pitches.map((midi, i) => [`m0:${staff}:${staff * 4}:${i}`, { bar: 0, staff, position: i / pitches.length, midi, grace: false }])
+    return { notes: new Map([...staffNotes(0, right), ...staffNotes(1, left)]), bars: [{ duration: 1 }] }
+  }
+
+  it('finds a bar whose second half plays its first again', () => {
+    expect(barsRepeatingTheirHalf(barOf([72, 65, 72, 65], [48, 48]))).toEqual(new Set([0]))
+  })
+
+  it('tells one note changed, in either hand', () => {
+    expect(barsRepeatingTheirHalf(barOf([72, 65, 72, 66], [48, 48]))).toEqual(new Set())
+    expect(barsRepeatingTheirHalf(barOf([72, 65, 72, 65], [48, 50]))).toEqual(new Set())
+  })
+
+  it('leaves out a bar that has nothing in its second half', () => {
+    expect(barsRepeatingTheirHalf(barOf([72], []))).toEqual(new Set())
+  })
+})
+
+describe('halvesOf', () => {
+  // Two bars of a figure of four notes played twice over, one hand.
+  const positions = [0, 0.125, 0.25, 0.375, 0.5, 0.625, 0.75, 0.875]
+  const twice = {
+    notes: new Map(
+      [0, 1].flatMap((bar) =>
+        positions.map((position, i) => [
+          `m${bar}:0:0:${i}`,
+          { bar, staff: 0, position, midi: 60 + (i % 4) + bar, grace: false, fermata: false },
+        ]),
+      ),
+    ),
+    bars: [0, 1].map(() => ({ duration: 1, tempo: null, positions, beat: 0.25 })),
+  }
+  const playedTwice = (delays) => played(300, delays, (b) => positions.map((_, i) => [`m${b}:0:0:${i}`]))
+
+  it('sets each attack of the first half against the same one in the second', () => {
+    const [run] = traversals(log(playedTwice({ '1:1': 1000 })), twice)
+    const rows = halvesOf([run], twice)
+    expect(rows.map((r) => r.number)).toEqual([1, 2, 3, 4])
+    expect(rows[1].first).toMatchObject({ holes: 1, wrongAttacks: 0 })
+    expect(rows[1].first.lost).toBeGreaterThan(900)
+    expect(rows[1].second).toEqual({ holes: 0, lost: 0, wrongAttacks: 0 })
+  })
+
+  it('counts the second half apart, and a wrong key on the attack it fell on', () => {
+    const [run] = traversals(log(withWrongKeyBefore(playedTwice({ '1:5': 1000 }), 'm1:0:0:2')), twice)
+    const rows = halvesOf([run], twice)
+    expect(rows[1].second.holes).toBe(1)
+    expect(rows[1].first.holes).toBe(0)
+    expect(rows[2].first.wrongAttacks).toBe(1)
+  })
+
+  it('adds up several runs, and reads nothing of a bar that plays no half twice', () => {
+    const runs = traversals(log(playedTwice({ '1:1': 1000 })), twice)
+    expect(halvesOf([...runs, ...runs], twice)[1].first.holes).toBe(2)
+    expect(halvesOf(traversals(log(played(500)), model), model)).toEqual([])
   })
 })

@@ -31,8 +31,9 @@
 //
 // Positions are compared exactly: whoever builds the model rounds them with
 // roundPosition, so that both hands on a beat share one.
-import { createSteadiness, outOfPace, writtenBetween } from './steadiness.js'
+import { createSteadiness, isHole, outOfPace, writtenBetween } from './steadiness.js'
 import { TWO_HANDS, handsKey } from './hands.js'
+import { median } from './practiceTime.js'
 
 // How finely positions are told apart, in whole notes: far below any note,
 // far above the error of summing durations.
@@ -189,3 +190,125 @@ export const attackNumber = (model, bar, position) => model.bars[bar].positions.
 // lasted at the reference the verdict weighed it against, subtracted. Nothing
 // for an interval never judged.
 export const excess = ({ ms, ratio }) => (ratio > 1 ? ms - ms / ratio : 0)
+
+// The pace a judged traversal held, in ms per whole note: the median of what
+// its intervals were weighed against.
+export const paceOf = ({ attacks }) => median(attacks.filter((a) => a.pace).map((a) => a.pace))
+
+// A judged traversal judged again as if it had held `pace`, every interval's
+// reference scaled alike, which keeps the changes of tempo and the drift inside
+// it. A hole is weighed against the player's own pace, so the slower a run the
+// longer a stall has to be to count as one: runs at different paces compare
+// once they are weighed at one.
+export function atPace(traversal, pace) {
+  const scale = pace / paceOf(traversal)
+  const attacks = traversal.attacks.map((a) =>
+    a.pace
+      ? { ...a, pace: a.pace * scale, ratio: a.ratio / scale, hole: isHole(a.ms, (a.ms / a.ratio) * scale) }
+      : { ...a },
+  )
+  weighLosses(attacks)
+  return { ...traversal, attacks }
+}
+
+// What attacks cost: their holes, the time their faults held the traversal up,
+// and those a wrong key fell on.
+const costOf = (attacks) => ({
+  holes: attacks.filter((a) => a.hole).length,
+  lost: attacks.reduce((total, a) => total + a.lost, 0),
+  wrongAttacks: attacks.filter((a) => a.faulted).length,
+})
+
+// A judged traversal in figures, to set runs side by side: what its attacks
+// cost, the wrong keys themselves — a key pressed too lightly with the figure
+// played on through is one attack and a dozen keys — and the bars it went
+// through with neither a hole nor a wrong key.
+export function figuresOf({ attacks, wrong }) {
+  const spoilt = new Set([...attacks.filter((a) => a.hole), ...wrong].map((x) => x.bar))
+  return {
+    ...costOf(attacks),
+    wrongKeys: wrong.length,
+    cleanBars: new Set(attacks.map((a) => a.bar).filter((bar) => !spoilt.has(bar))).size,
+  }
+}
+
+// The medians of the faster half of some runs' figures and of the slower, each
+// holding its `pace`, which say what going faster bought and what it cost. An
+// odd run out in the middle counts for neither; null short of two runs.
+export function splitByPace(figures) {
+  const half = Math.floor(figures.length / 2)
+  if (half === 0) return null
+  const byPace = figures.toSorted((a, b) => a.pace - b.pace)
+  const medians = (group) =>
+    Object.fromEntries(Object.keys(group[0]).map((field) => [field, median(group.map((f) => f[field]))]))
+  return { faster: medians(byPace.slice(0, half)), slower: medians(byPace.slice(-half)) }
+}
+
+// The bars a judged traversal went through, as played: { bar, sourceBar,
+// attacks, ms }, `ms` from its downbeat to the next bar's, or to its own last
+// attack where no next bar follows on.
+export function barsPlayed({ attacks }) {
+  const byBar = [...Map.groupBy(attacks, (a) => a.bar)]
+  return byBar.map(([bar, ofBar], i) => {
+    const [nextBar, next] = byBar[i + 1] ?? []
+    const end = nextBar === bar + 1 ? next[0].at : ofBar.at(-1).at
+    return { bar, sourceBar: ofBar[0].sourceBar, attacks: ofBar, ms: end - ofBar[0].at }
+  })
+}
+
+// Judged traversals bar by bar, a Map by source bar of { ms, holes, lost,
+// wrongAttacks }: the median time a bar took them, then what it cost them per
+// traversal (costOf).
+export function barsAcross(runs) {
+  const visits = Map.groupBy(runs.flatMap(barsPlayed), (b) => b.sourceBar)
+  return new Map(
+    [...visits].map(([sourceBar, ofBar]) => {
+      const { holes, lost, wrongAttacks } = costOf(ofBar.flatMap((b) => b.attacks))
+      const perRun = (count) => count / runs.length
+      return [
+        sourceBar,
+        { ms: median(ofBar.map((b) => b.ms)), holes: perRun(holes), lost: perRun(lost), wrongAttacks: perRun(wrongAttacks) },
+      ]
+    }),
+  )
+}
+
+const inSecondHalf = (position, duration) => position >= duration / 2 - POSITION_EPSILON
+
+// The source bars whose second half plays their first again, note for note, as
+// a prelude in figures does bar after bar.
+export function barsRepeatingTheirHalf({ notes, bars }) {
+  const shape = (list, from) =>
+    list.map((n) => `${n.staff}:${n.midi}:${n.grace}:${roundPosition(n.position - from)}`).sort().join()
+  const repeating = new Set()
+  for (const [bar, ofBar] of Map.groupBy(notes.values(), (n) => n.bar)) {
+    const { duration } = bars[bar]
+    const first = ofBar.filter((n) => !inSecondHalf(n.position, duration))
+    const second = ofBar.filter((n) => inSecondHalf(n.position, duration))
+    if (shape(first, 0) === shape(second, duration / 2)) repeating.add(bar)
+  }
+  return repeating
+}
+
+// What the same notes cost traversals the first time a bar plays them and the
+// second, in the bars that play them twice (barsRepeatingTheirHalf): per attack
+// of the half, numbered from its start, { number, first, second }, each what
+// they cost (costOf). The fingers are the same both times, so what the first
+// time costs on top is the hand finding where to go, not the figure. Only #1
+// differs in what it asks: the first time it is the join, reached over the bar
+// line.
+export function halvesOf(runs, model) {
+  const repeating = barsRepeatingTheirHalf(model)
+  const byNumber = new Map()
+  for (const a of runs.flatMap((run) => run.attacks)) {
+    if (a.grace || !repeating.has(a.sourceBar)) continue
+    const { duration } = model.bars[a.sourceBar]
+    const second = inSecondHalf(a.position, duration)
+    const number = attackNumber(model, a.sourceBar, second ? roundPosition(a.position - duration / 2) : a.position)
+    if (!byNumber.has(number)) byNumber.set(number, [[], []])
+    byNumber.get(number)[second ? 1 : 0].push(a)
+  }
+  return [...byNumber]
+    .sort(([a], [b]) => a - b)
+    .map(([number, [first, second]]) => ({ number, first: costOf(first), second: costOf(second) }))
+}
