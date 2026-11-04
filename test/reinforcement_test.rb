@@ -17,6 +17,8 @@ class ReinforcementTest < CapybaraTestBase
     click_on 'Renforcer 1 passage'
     assert_text 'Mode Entraînement Actif'
     assert_selector 'svg rect.fragment-range', count: 2
+    # No 🔁 in a drill, and no 🎹 on a line: no sliver of an empty cluster.
+    assert_no_selector '.pt-context--training .pt-band-controls'
 
     # The free session interrupted mid-piece is closed rather than stranded
     # with a null endedAt.
