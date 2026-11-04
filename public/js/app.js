@@ -5,7 +5,7 @@ import { fingeringPad } from './fingeringPad.js'
 import { initNoteCircles } from './noteCircles.js'
 import { initPracticeTracker } from './practiceTracker.js'
 import { TWO_HANDS, handsKey } from './hands.js'
-import { formatDuration, formatDate, statusLabel, applyStickyOffset, scorePageUrl, onForeground, onBackground, onIdle, withHands, passage, pickPassageMeasure, passageText } from './utils.js'
+import { formatDuration, formatDate, statusLabel, applyStickyOffset, scorePageUrl, onForeground, onBackground, onIdle, nextPaint, withHands, passage, pickPassageMeasure, passageText } from './utils.js'
 import { initStorage } from './storage.js'
 import { initNoteLog, keepScoreNoteLogs } from './noteLog.js'
 import { initFragmentSuggestions } from './fragmentSuggestions.js'
@@ -40,11 +40,6 @@ function armedRangeText(from, clickIsTheBands) {
 // Redrawing a full score costs ~200ms, and dragging a window edge fires resize
 // continuously — wait for the drag to settle before paying for it once.
 const RESIZE_RELAYOUT_DEBOUNCE_MS = 250
-
-// Resolves once the browser has had a frame to itself. Two rAFs, not one: the
-// first only gets us into the frame that is already being prepared, so work
-// resumed there still lands before that frame is painted.
-const nextPaint = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))
 
 // What the failure card says, per kind of failure.
 const SCORE_LOAD_ERRORS = {
@@ -1294,12 +1289,14 @@ export function midiApp() {
 
     // A bar short of the next status, from the history: drilled on its own, in
     // training, where a clean pass of it counts. Out of a reinforcement too,
-    // which keeps the training tab pressed for setMode.
+    // which keeps the training tab pressed for setMode. Unlike a bar clicked on
+    // the score, it can be anywhere in the piece, so the page goes there.
     async workOnBar(bar) {
       this.showHistoryModal = false
       if (this.mode !== 'training') await this.enterMode('training')
       const index = firstPassIndexOf(musicxml.getAllNotes(), bar)
       this.setTrainingRange(index, index)
+      musicxml.scrollToMeasure(this.trainingPassage.start)
     },
 
     async deleteRun(sessionId) {

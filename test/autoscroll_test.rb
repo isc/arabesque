@@ -144,7 +144,38 @@ class AutoscrollTest < CapybaraTestBase
     assert final_scroll > initial_scroll, "Scroll should work when starting from non-first measure (initial: #{initial_scroll}, final: #{final_scroll})"
   end
 
+  # A bar picked from the history's worst measures can be anywhere in the piece,
+  # and nothing on screen says where: the page has to go there. Down it from free
+  # mode, the training band still to come up; back up it from training.
+  def test_a_bar_picked_from_the_history_is_brought_into_view
+    page.current_window.resize_to(500, 500)
+    fumbled = { totalAttempts: 3, errorRate: 0.5 }
+    seed_aggregates([{ scoreId: '/test-fixtures/high-note-measure.xml', measures: { '2' => fumbled, '20' => fumbled } }])
+    visit '/score.html?url=/test-fixtures/high-note-measure.xml'
+    wait_for_score_render(24)
+
+    work_on_bar_from_history(21)
+    work_on_bar_from_history(3)
+  end
+
   private
+
+  def work_on_bar_from_history(bar)
+    before = settled_scroll
+    click_on 'Historique'
+    find('.pt-hot-measure', text: "Mesure #{bar}").click
+    wait_for_training_cursor(bar)
+    settled_scroll(from: before)
+
+    bar_top, bar_bottom, bars_bottom, viewport = page.evaluate_script(<<~JS)
+      (() => {
+        const bar = document.querySelector('svg rect.measure-click-area.selected').getBoundingClientRect()
+        return [bar.top, bar.bottom, document.querySelector('.pt-stickybars').getBoundingClientRect().bottom, innerHeight]
+      })()
+    JS
+    assert_operator bar_top, :>=, bars_bottom, "Bar #{bar} should sit below the sticky bars"
+    assert_operator bar_bottom, :<=, viewport, "Bar #{bar} should end inside the window"
+  end
 
   # Where the page has come to rest: the same scroll position 150ms apart,
   # which a smooth scroll in flight (utils.js) never holds for that long. With
