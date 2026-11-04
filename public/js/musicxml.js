@@ -150,8 +150,10 @@ const steadiness = createSteadiness()
 // repetition starts over included — what went wrong is what the player looks
 // at before going again — and goes, all of it, with the first note of the
 // next traversal: left up through it, the last repetition's marks ahead of
-// the player read as faults of the one under way. Strict mode, whose own
-// verdict has the same colours, puts it away (clearVerdictMarks).
+// the player read as faults of the one under way. A repeat is the same thing
+// inside a traversal: the bars it plays again lose theirs with the played
+// marks. Strict mode, whose own verdict has the same colours, puts it away
+// (clearVerdictMarks).
 const LATE = 'late-note'
 const FUMBLED = 'fumbled-note'
 const VERDICT_MARKS = [LATE, FUMBLED]
@@ -820,6 +822,9 @@ function resetMeasureProgress({ keepRepeats = false, keepRepetition = false, not
   if (cursor.measureIndex >= score.allNotes.length) return
 
   if (!notesCleared) resetNotesFromIndex(cursor.measureIndex, cursor.measureIndex)
+  // A traversal running on into a bar finds a verdict there only if it has been
+  // through it already, on the way round a repeat.
+  if (keepRepetition) clearVerdictMarks(score.allNotes[cursor.measureIndex].notes)
 
   if (!keepRepeats) training.banked = 0
   if (!keepRepetition) startRepetition()
@@ -843,6 +848,7 @@ function resetSourceMeasureVisualState(sourceMeasureIndex) {
   for (const measureData of score.allNotes) {
     if (measureData.sourceMeasureIndex !== sourceMeasureIndex) continue
     for (const noteData of measureData.notes) clearMarks(noteData)
+    clearVerdictMarks(measureData.notes)
   }
 }
 
@@ -1685,7 +1691,7 @@ function registerAttack(measureData, group) {
     tempo: first.note?.SourceMeasure?.TempoInBPM,
     decorative: group.some(isOrnamentOrGrace),
     fermata: group.some((n) => n.fermata),
-    ref: { notes: group, sourceMeasureIndex: measureData.sourceMeasureIndex },
+    ref: { notes: group, cursorAt: cursor.measureIndex, sourceMeasureIndex: measureData.sourceMeasureIndex },
   })
   applySteadiness(verdicts)
 }
@@ -1696,11 +1702,25 @@ function registerAttack(measureData, group) {
 function applySteadiness(verdicts) {
   for (const { ref, ratio, hole, entry, joined } of verdicts) {
     if (hole) {
-      for (const noteData of ref.notes) if (!noteData.isTieContinuation) setMark(noteData, LATE, true)
+      if (!repeatedSince(ref)) {
+        for (const noteData of ref.notes) if (!noteData.isTieContinuation) setMark(noteData, LATE, true)
+      }
       spoilRepetition()
     }
     if (hole || entry) callbacks.onIntervalJudged?.({ sourceMeasureIndex: ref.sourceMeasureIndex, ratio, hole, entry, joined })
   }
+}
+
+// Whether a repeat has cleared the bar of `ref` since it was played, by the rule
+// that clears the sheet. The first intervals of a pace are judged together
+// (steadiness.js), so a hole can be told after that: marked then, on the head
+// the next pass shares, it would speak of a pass the player has left.
+function repeatedSince({ cursorAt, sourceMeasureIndex }) {
+  const played = new Set([sourceMeasureIndex])
+  for (let i = cursorAt; i < cursor.measureIndex; i++) {
+    if (sourceMeasuresToResetOnEntry(score.allNotes, i, i + 1, played).size > 0) return true
+  }
+  return false
 }
 
 function svgNote(note) {
@@ -1732,11 +1752,12 @@ function clearMarks(noteData) {
   for (const cls of TRAVERSAL_MARKS) setMark(noteData, cls, false, notehead)
 }
 
-function clearVerdictMarks() {
-  for (const [key, marks] of noteMarks) {
-    const noteData = score.noteDataByKey.get(key)
-    if (!noteData) continue
-    for (const cls of VERDICT_MARKS) if (marks.has(cls)) setMark(noteData, cls, false)
+// Off the whole score unless given the notes. Only a note that carries a mark
+// costs a look at the sheet: a step into a bar passes here, mid-phrase.
+function clearVerdictMarks(notes = score.noteDataByKey.values()) {
+  for (const noteData of notes) {
+    const marks = noteMarks.get(noteData.fingeringKey)
+    for (const cls of VERDICT_MARKS) if (marks?.has(cls)) setMark(noteData, cls, false)
   }
 }
 
