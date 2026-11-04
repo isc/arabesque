@@ -984,9 +984,16 @@ a:hover { text-decoration: underline; }
   font-weight: 600;
   white-space: nowrap;
 }
-.pt-band-button:hover { background: color-mix(in srgb, var(--pt-band-bg) 70%, var(--pt-band) 12%); }
-.pt-band-button.is-playing { background: var(--pt-band); color: var(--pt-text-inverse); }
-.pt-band-button[aria-pressed="true"] { background: color-mix(in srgb, var(--pt-band) 18%, transparent); }
+/* The hover tint is for a real pointer only: a tap leaves :hover on the button
+   until something else is touched. */
+@media (hover: hover) {
+  .pt-band-button:hover { background-color: color-mix(in srgb, var(--pt-band-bg) 70%, var(--pt-band) 12%); }
+}
+/* A toggle that is on is filled: as a tint it came out the colour of the hover
+   above, to within two units, so under the pointer or a finger on and off looked
+   the same and a click that turned one off seemed to do nothing. */
+.pt-band-button.is-playing,
+.pt-band-button[aria-pressed="true"] { background: var(--pt-band); color: var(--pt-text-inverse); }
 /* What the band advises doing on the passage under way (🎹 on a stall at the
    bar line): ringed, until it is pressed. */
 .pt-band-button.is-advised { box-shadow: inset 0 0 0 2px var(--pt-band); }

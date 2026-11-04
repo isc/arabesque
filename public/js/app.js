@@ -1085,12 +1085,13 @@ export function midiApp() {
       // listening takes it over (see barClickOwner).
       const clickIsTraining = this.barClickOwner === 'training'
       if (this.trainingPassage.armed) return armedRangeText(from, clickIsTraining)
+      // Ahead of block chords: with them on, pressing 🔁 would show nothing.
+      if (this.trainingPassage.loop && this.trainingPassage.end == null && clickIsTraining) return t('score.loopHint')
       if (this.blockChords) return t('score.blockChordsHint')
       if (this.blockChordsAdvised) return t('score.blockChordsAdvice')
       if (this.mode === 'reinforcement') return t('score.reinforcementHint', { times })
       // A passage of one bar is allowed, and "bars 5 to 5" is not a sentence.
       if (this.trainingPassage.end != null) return passageText('score.trainingPassage', this.trainingPassage, { times })
-      if (this.trainingPassage.loop && clickIsTraining) return t('score.loopHint')
       return t('score.trainingHint', { times })
     },
 

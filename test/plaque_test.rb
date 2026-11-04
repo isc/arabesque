@@ -55,6 +55,40 @@ class PlaqueTest < CapybaraTestBase
     assert_no_button '🎹 Plaqué'
   end
 
+  # Under the pointer, where a finger leaves a button too, on and off have to
+  # differ: off, the hover tint; on, the band's colour filling the button. Both
+  # were one tint, so a click that turned it off seemed to do nothing.
+  def test_a_toggle_under_the_pointer_shows_whether_it_is_on
+    open_score('broken-chords', 32)
+    enter_training_mode
+
+    toggle = find_button('🎹 Plaqué')
+    toggle.hover
+    toggle.click
+    assert_selector 'button[aria-pressed="true"]', text: '🎹 Plaqué'
+    wait_until('the button to fill') { filled_with_the_band_colour?(toggle) }
+
+    toggle.click
+    assert_selector 'button[aria-pressed="false"]', text: '🎹 Plaqué'
+    wait_until('the button to empty') { !filled_with_the_band_colour?(toggle) }
+  end
+
+  # 🔁 says which bars to click with block chords on, as it does with them off,
+  # or pressing it shows nothing. Once the passage is picked the band goes back
+  # to the chords, and to the passage once they are off.
+  def test_the_loop_asks_for_its_bars_while_block_chords_are_on
+    open_score('broken-chords', 32)
+    enter_training_mode
+    click_on '🎹 Plaqué'
+    assert_text 'Plaqué : chaque temps se joue en un accord'
+
+    pick_passage(1, 2)
+    assert_text 'Plaqué : chaque temps se joue en un accord'
+
+    click_on '🎹 Plaqué'
+    assert_text 'Mesures 1 à 2 : le passage entier doit être joué'
+  end
+
   # The runs stalled at the join into bar 2, the hand looking for the next
   # chord once the downbeat was down: the drill advises block chords there.
   # They keep the turn on the passage however cleanly they go; its dots are
@@ -93,6 +127,10 @@ class PlaqueTest < CapybaraTestBase
   end
 
   private
+
+  def filled_with_the_band_colour?(button)
+    button.evaluate_script("getComputedStyle(this).backgroundColor === getComputedStyle(this.closest('.pt-context')).color")
+  end
 
   def open_score(name, notes)
     visit "/score.html?url=/test-fixtures/#{name}.xml"

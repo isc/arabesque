@@ -258,7 +258,8 @@
          what the mode has to say — so 🔁 picks a passage in both the same way. -->
     <div class="pt-context pt-context--training" x-show="currentMode === 'training' && !!osmdInstance" x-cloak>
       <strong x-text="$t('score.trainingBand')">🎯 Entraînement</strong>
-      <div class="pt-band-controls">
+      <!-- Empty, the cluster would still draw its border: a sliver in the band. -->
+      <div class="pt-band-controls" x-show="mode === 'training' || blockChordsFit">
         <!-- A reinforcement brings its own passages. -->
         <button
           class="pt-band-button"
