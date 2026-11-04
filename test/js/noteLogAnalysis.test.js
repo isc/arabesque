@@ -2,6 +2,8 @@ import { describe, it, expect } from 'vitest'
 import {
   atPace,
   attackNumber,
+  barsAcross,
+  barsPlayed,
   barsRepeatingTheirHalf,
   eventsOf,
   figuresOf,
@@ -207,6 +209,30 @@ describe('atPace', () => {
     expect(figuresOf(atPace(run, paceOf(run)))).toEqual(figures)
     atPace(run, crotchetOf(500))
     expect(figuresOf(run)).toEqual(figures)
+  })
+})
+
+describe('barsPlayed', () => {
+  it('times a bar up to the next downbeat, the last one up to its own last attack', () => {
+    const [run] = traversals(log(played(500)), model)
+    expect(barsPlayed(run)).toMatchObject([
+      { bar: 0, sourceBar: 0, ms: 2000 },
+      { bar: 1, sourceBar: 1, ms: 1500 },
+    ])
+  })
+})
+
+describe('barsAcross', () => {
+  it('gives each bar its median time, and its faults per traversal', () => {
+    const runs = [played(500), played(500), withWrongKeyBefore(played(500, { '1:1': 1500 }), 'm1:0:0:2')].flatMap((events) =>
+      traversals(log(events), model),
+    )
+    const bars = barsAcross(runs)
+    expect(bars.get(0)).toEqual({ ms: 2000, holes: 0, lost: 0, wrongAttacks: 0 })
+    expect(bars.get(1).ms).toBe(1500)
+    expect(bars.get(1).holes).toBeCloseTo(1 / 3)
+    expect(bars.get(1).lost).toBeCloseTo(500)
+    expect(bars.get(1).wrongAttacks).toBeCloseTo(1 / 3)
   })
 })
 

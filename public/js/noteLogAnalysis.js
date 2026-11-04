@@ -244,6 +244,35 @@ export function splitByPace(figures) {
   return { faster: medians(byPace.slice(0, half)), slower: medians(byPace.slice(-half)) }
 }
 
+// The bars a judged traversal went through, as played: { bar, sourceBar,
+// attacks, ms }, `ms` from its downbeat to the next bar's, or to its own last
+// attack where no next bar follows on.
+export function barsPlayed({ attacks }) {
+  const byBar = [...Map.groupBy(attacks, (a) => a.bar)]
+  return byBar.map(([bar, ofBar], i) => {
+    const [nextBar, next] = byBar[i + 1] ?? []
+    const end = nextBar === bar + 1 ? next[0].at : ofBar.at(-1).at
+    return { bar, sourceBar: ofBar[0].sourceBar, attacks: ofBar, ms: end - ofBar[0].at }
+  })
+}
+
+// Judged traversals bar by bar, a Map by source bar of { ms, holes, lost,
+// wrongAttacks }: the median time a bar took them, then what it cost them per
+// traversal (costOf).
+export function barsAcross(runs) {
+  const visits = Map.groupBy(runs.flatMap(barsPlayed), (b) => b.sourceBar)
+  return new Map(
+    [...visits].map(([sourceBar, ofBar]) => {
+      const { holes, lost, wrongAttacks } = costOf(ofBar.flatMap((b) => b.attacks))
+      const perRun = (count) => count / runs.length
+      return [
+        sourceBar,
+        { ms: median(ofBar.map((b) => b.ms)), holes: perRun(holes), lost: perRun(lost), wrongAttacks: perRun(wrongAttacks) },
+      ]
+    }),
+  )
+}
+
 const inSecondHalf = (position, duration) => position >= duration / 2 - POSITION_EPSILON
 
 // The source bars whose second half plays their first again, note for note, as
