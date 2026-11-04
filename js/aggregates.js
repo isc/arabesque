@@ -2,9 +2,9 @@
 // time, practice days, runs played in full, each bar's clean passes — and the
 // status the library shows for it. Pure: a row and a session in, the row out;
 // the tracker reads and writes the rows (practiceTracker.js).
-import { TWO_HANDS, attemptHands } from './hands.js?v=0a529ed200d9'
-import { sessionDay } from './days.js?v=0a529ed200d9'
-import { computeSessionDuration, getLastMeasureEndTime, playedInFull } from './practiceTime.js?v=0a529ed200d9'
+import { TWO_HANDS, attemptHands } from './hands.js?v=4b2fa7c9af2f'
+import { sessionDay } from './days.js?v=4b2fa7c9af2f'
+import { computeSessionDuration, getLastMeasureEndTime, playedInFull } from './practiceTime.js?v=4b2fa7c9af2f'
 
 // The rules an aggregate row was counted by, stamped on the row. An aggregate
 // is derived once, when a session ends, and then kept — so changing what it
