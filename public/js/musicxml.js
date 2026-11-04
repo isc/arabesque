@@ -11,7 +11,7 @@ import {
   isStruck,
   handOfNote,
 } from './noteExtraction.js'
-import { scrollSystemIntoView, isUnderStickyBars } from './utils.js'
+import { scrollSystemIntoView, isUnderStickyBars, nextPaint } from './utils.js'
 import { arrayBufferToXml, isMusicXml } from './mxlLoader.js'
 import { stripPlaybackTempoMarks } from './tempoMarks.js'
 import { recordError } from './errorLog.js'
@@ -313,6 +313,7 @@ export function initMusicXML() {
       repeatCount: training.banked,
       targetRepeatCount,
     }),
+    scrollToMeasure,
     // The training cursor and repeat dots live in the SVG, so a redraw takes
     // them with it. No-op outside training mode.
     updateMeasureCursor,
@@ -1225,7 +1226,12 @@ function jumpToMeasure(measureIndex, clearTo) {
   }
 }
 
-function scrollToMeasure(measureIndex) {
+// Past the band a mode switch has just asked for, which x-show reveals on the
+// next frame: the height it adds to the sticky bars makes the browser correct
+// the scroll position (scroll anchoring), and in WebKit that stops a smooth
+// scroll under way, well short of the measure.
+async function scrollToMeasure(measureIndex) {
+  await nextPaint()
   const [rect] = measureRects(measureIndex)
   if (!rect) return
 

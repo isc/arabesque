@@ -57,6 +57,11 @@ export function onBackground(fn) {
   })
 }
 
+// Resolves once the browser has had a frame to itself. Two rAFs, not one: the
+// first only gets us into the frame that is already being prepared, so work
+// resumed there still lands before that frame is painted.
+export const nextPaint = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))
+
 // Pixel offset for the sticky block (topbar, modebar and whichever band is up),
 // used both by scrollToMeasure() and by the CSS scroll-margin-top via the
 // --pt-sticky-offset variable.
