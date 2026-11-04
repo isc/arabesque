@@ -1,7 +1,7 @@
-import { t, tn, locale } from './i18n.js?v=cf50b8419699'
-import { startOfLocalDay, daysBetween } from './days.js?v=cf50b8419699'
-import { TWO_HANDS } from './hands.js?v=cf50b8419699'
-import { partsOf } from './catalog.js?v=cf50b8419699'
+import { t, tn, locale } from './i18n.js?v=d7f8ca69fcdc'
+import { startOfLocalDay, daysBetween } from './days.js?v=d7f8ca69fcdc'
+import { TWO_HANDS } from './hands.js?v=d7f8ca69fcdc'
+import { partsOf } from './catalog.js?v=d7f8ca69fcdc'
 
 // Built once: the active locale is fixed for the page lifetime (switching
 // language reloads), so the verbose-date formatter needn't rebuild per call.
@@ -56,6 +56,11 @@ export function onBackground(fn) {
     if (document.visibilityState === 'hidden') fn()
   })
 }
+
+// Resolves once the browser has had a frame to itself. Two rAFs, not one: the
+// first only gets us into the frame that is already being prepared, so work
+// resumed there still lands before that frame is painted.
+export const nextPaint = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))
 
 // Pixel offset for the sticky block (topbar, modebar and whichever band is up),
 // used both by scrollToMeasure() and by the CSS scroll-margin-top via the

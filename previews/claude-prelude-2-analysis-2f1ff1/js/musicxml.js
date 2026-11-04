@@ -10,14 +10,14 @@ import {
   isOrnamentOrGrace,
   isStruck,
   handOfNote,
-} from './noteExtraction.js?v=cf50b8419699'
-import { scrollSystemIntoView, isUnderStickyBars } from './utils.js?v=cf50b8419699'
-import { arrayBufferToXml, isMusicXml } from './mxlLoader.js?v=cf50b8419699'
-import { stripPlaybackTempoMarks } from './tempoMarks.js?v=cf50b8419699'
-import { recordError } from './errorLog.js?v=cf50b8419699'
-import { REINFORCEMENT_CLEAN_PASSES } from './reinforcement.js?v=cf50b8419699'
-import { POSITION_EPSILON, beatStartOf } from './noteLogAnalysis.js?v=cf50b8419699'
-import { createSteadiness } from './steadiness.js?v=cf50b8419699'
+} from './noteExtraction.js?v=d7f8ca69fcdc'
+import { scrollSystemIntoView, isUnderStickyBars, nextPaint } from './utils.js?v=d7f8ca69fcdc'
+import { arrayBufferToXml, isMusicXml } from './mxlLoader.js?v=d7f8ca69fcdc'
+import { stripPlaybackTempoMarks } from './tempoMarks.js?v=d7f8ca69fcdc'
+import { recordError } from './errorLog.js?v=d7f8ca69fcdc'
+import { REINFORCEMENT_CLEAN_PASSES } from './reinforcement.js?v=d7f8ca69fcdc'
+import { POSITION_EPSILON, beatStartOf } from './noteLogAnalysis.js?v=d7f8ca69fcdc'
+import { createSteadiness } from './steadiness.js?v=d7f8ca69fcdc'
 
 // The score on the stand: the sheet OSMD holds, and the note model built from
 // it. Replaced as a sheet comes in (renderMusicXML) and as it is drawn
@@ -313,6 +313,7 @@ export function initMusicXML() {
       repeatCount: training.banked,
       targetRepeatCount,
     }),
+    scrollToMeasure,
     // The training cursor and repeat dots live in the SVG, so a redraw takes
     // them with it. No-op outside training mode.
     updateMeasureCursor,
@@ -1225,7 +1226,12 @@ function jumpToMeasure(measureIndex, clearTo) {
   }
 }
 
-function scrollToMeasure(measureIndex) {
+// Past the band a mode switch has just asked for, which x-show reveals on the
+// next frame: the height it adds to the sticky bars makes the browser correct
+// the scroll position (scroll anchoring), and in WebKit that stops a smooth
+// scroll under way, well short of the measure.
+async function scrollToMeasure(measureIndex) {
+  await nextPaint()
   const [rect] = measureRects(measureIndex)
   if (!rect) return
 

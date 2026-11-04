@@ -31,9 +31,9 @@
 //
 // Positions are compared exactly: whoever builds the model rounds them with
 // roundPosition, so that both hands on a beat share one.
-import { createSteadiness, isHole, outOfPace, writtenBetween } from './steadiness.js?v=cf50b8419699'
-import { TWO_HANDS, handsKey } from './hands.js?v=cf50b8419699'
-import { median } from './practiceTime.js?v=cf50b8419699'
+import { createSteadiness, isHole, outOfPace, writtenBetween } from './steadiness.js?v=d7f8ca69fcdc'
+import { TWO_HANDS, handsKey } from './hands.js?v=d7f8ca69fcdc'
+import { median } from './practiceTime.js?v=d7f8ca69fcdc'
 
 // How finely positions are told apart, in whole notes: far below any note,
 // far above the error of summing durations.
@@ -242,6 +242,35 @@ export function splitByPace(figures) {
   const medians = (group) =>
     Object.fromEntries(Object.keys(group[0]).map((field) => [field, median(group.map((f) => f[field]))]))
   return { faster: medians(byPace.slice(0, half)), slower: medians(byPace.slice(-half)) }
+}
+
+// The bars a judged traversal went through, as played: { bar, sourceBar,
+// attacks, ms }, `ms` from its downbeat to the next bar's, or to its own last
+// attack where no next bar follows on.
+export function barsPlayed({ attacks }) {
+  const byBar = [...Map.groupBy(attacks, (a) => a.bar)]
+  return byBar.map(([bar, ofBar], i) => {
+    const [nextBar, next] = byBar[i + 1] ?? []
+    const end = nextBar === bar + 1 ? next[0].at : ofBar.at(-1).at
+    return { bar, sourceBar: ofBar[0].sourceBar, attacks: ofBar, ms: end - ofBar[0].at }
+  })
+}
+
+// Judged traversals bar by bar, a Map by source bar of { ms, holes, lost,
+// wrongAttacks }: the median time a bar took them, then what it cost them per
+// traversal (costOf).
+export function barsAcross(runs) {
+  const visits = Map.groupBy(runs.flatMap(barsPlayed), (b) => b.sourceBar)
+  return new Map(
+    [...visits].map(([sourceBar, ofBar]) => {
+      const { holes, lost, wrongAttacks } = costOf(ofBar.flatMap((b) => b.attacks))
+      const perRun = (count) => count / runs.length
+      return [
+        sourceBar,
+        { ms: median(ofBar.map((b) => b.ms)), holes: perRun(holes), lost: perRun(lost), wrongAttacks: perRun(wrongAttacks) },
+      ]
+    }),
+  )
 }
 
 const inSecondHalf = (position, duration) => position >= duration / 2 - POSITION_EPSILON

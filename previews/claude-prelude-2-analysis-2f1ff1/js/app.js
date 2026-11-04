@@ -1,33 +1,33 @@
-import { initMidi, nativePairingAvailable, openNativePairing } from './midi.js?v=cf50b8419699'
-import { initMusicXML } from './musicxml.js?v=cf50b8419699'
-import { initFingeringEditor } from './fingeringEditor.js?v=cf50b8419699'
-import { fingeringPad } from './fingeringPad.js?v=cf50b8419699'
-import { initNoteCircles } from './noteCircles.js?v=cf50b8419699'
-import { initPracticeTracker } from './practiceTracker.js?v=cf50b8419699'
-import { TWO_HANDS, handsKey } from './hands.js?v=cf50b8419699'
-import { formatDuration, formatDate, statusLabel, applyStickyOffset, scorePageUrl, onForeground, onBackground, onIdle, withHands, passage, pickPassageMeasure, passageText } from './utils.js?v=cf50b8419699'
-import { initStorage } from './storage.js?v=cf50b8419699'
-import { initNoteLog, keepScoreNoteLogs } from './noteLog.js?v=cf50b8419699'
-import { initFragmentSuggestions } from './fragmentSuggestions.js?v=cf50b8419699'
-import { loadMxlAsXml } from './mxlLoader.js?v=cf50b8419699'
-import { injectFingerings } from './fingeringInjector.js?v=cf50b8419699'
-import { migrateFingeringRecord } from './fingeringKeys.js?v=cf50b8419699'
-import { initPlayback, getBPM } from './playback.js?v=cf50b8419699'
-import { initStrictPlaythrough } from './strictPlaythrough.js?v=cf50b8419699'
-import { initKeyboardHint, C8 } from './keyboardHint.js?v=cf50b8419699'
-import { createTempoPlan, createTempoTrainer, GRADUATED, BPM_STEP, STREAK } from './tempoTrainer.js?v=cf50b8419699'
-import { BPM_DEFAULT } from './bpmStepper.js?v=cf50b8419699'
-import { bpmField } from './bpmField.js?v=cf50b8419699'
-import { resultModal } from './resultModal.js?v=cf50b8419699'
-import { headerMenu } from './headerMenu.js?v=cf50b8419699'
-import { fetchNoteLogs, initAutoSync, triggerSync } from './autoSync.js?v=cf50b8419699'
-import { scopedKey } from './profiles.js?v=cf50b8419699'
-import { t, tn } from './i18n.js?v=cf50b8419699'
-import { recordError } from './errorLog.js?v=cf50b8419699'
-import { loadCatalog, fileUrl, isCollection } from './catalog.js?v=cf50b8419699'
-import { playthroughCharts, withRunLines, hotMeasures } from './playthroughHistory.js?v=cf50b8419699'
-import { goalLines, goalNews, goalsHint, pieceFigures, pieceGoals, statusProgress } from './pieceGoals.js?v=cf50b8419699'
-import { firstPassIndexOf, runSize } from './noteExtraction.js?v=cf50b8419699'
+import { initMidi, nativePairingAvailable, openNativePairing } from './midi.js?v=d7f8ca69fcdc'
+import { initMusicXML } from './musicxml.js?v=d7f8ca69fcdc'
+import { initFingeringEditor } from './fingeringEditor.js?v=d7f8ca69fcdc'
+import { fingeringPad } from './fingeringPad.js?v=d7f8ca69fcdc'
+import { initNoteCircles } from './noteCircles.js?v=d7f8ca69fcdc'
+import { initPracticeTracker } from './practiceTracker.js?v=d7f8ca69fcdc'
+import { TWO_HANDS, handsKey } from './hands.js?v=d7f8ca69fcdc'
+import { formatDuration, formatDate, statusLabel, applyStickyOffset, scorePageUrl, onForeground, onBackground, onIdle, nextPaint, withHands, passage, pickPassageMeasure, passageText } from './utils.js?v=d7f8ca69fcdc'
+import { initStorage } from './storage.js?v=d7f8ca69fcdc'
+import { initNoteLog, keepScoreNoteLogs } from './noteLog.js?v=d7f8ca69fcdc'
+import { initFragmentSuggestions } from './fragmentSuggestions.js?v=d7f8ca69fcdc'
+import { loadMxlAsXml } from './mxlLoader.js?v=d7f8ca69fcdc'
+import { injectFingerings } from './fingeringInjector.js?v=d7f8ca69fcdc'
+import { migrateFingeringRecord } from './fingeringKeys.js?v=d7f8ca69fcdc'
+import { initPlayback, getBPM } from './playback.js?v=d7f8ca69fcdc'
+import { initStrictPlaythrough } from './strictPlaythrough.js?v=d7f8ca69fcdc'
+import { initKeyboardHint, C8 } from './keyboardHint.js?v=d7f8ca69fcdc'
+import { createTempoPlan, createTempoTrainer, GRADUATED, BPM_STEP, STREAK } from './tempoTrainer.js?v=d7f8ca69fcdc'
+import { BPM_DEFAULT } from './bpmStepper.js?v=d7f8ca69fcdc'
+import { bpmField } from './bpmField.js?v=d7f8ca69fcdc'
+import { resultModal } from './resultModal.js?v=d7f8ca69fcdc'
+import { headerMenu } from './headerMenu.js?v=d7f8ca69fcdc'
+import { fetchNoteLogs, initAutoSync, triggerSync } from './autoSync.js?v=d7f8ca69fcdc'
+import { scopedKey } from './profiles.js?v=d7f8ca69fcdc'
+import { t, tn } from './i18n.js?v=d7f8ca69fcdc'
+import { recordError } from './errorLog.js?v=d7f8ca69fcdc'
+import { loadCatalog, fileUrl, isCollection } from './catalog.js?v=d7f8ca69fcdc'
+import { playthroughCharts, withRunLines, hotMeasures } from './playthroughHistory.js?v=d7f8ca69fcdc'
+import { goalLines, goalNews, goalsHint, pieceFigures, pieceGoals, statusProgress } from './pieceGoals.js?v=d7f8ca69fcdc'
+import { firstPassIndexOf, runSize } from './noteExtraction.js?v=d7f8ca69fcdc'
 
 // What the strict and training bands say once a passage's first bar is picked
 // and its last is awaited: to click that bar, while a click would reach the
@@ -40,11 +40,6 @@ function armedRangeText(from, clickIsTheBands) {
 // Redrawing a full score costs ~200ms, and dragging a window edge fires resize
 // continuously — wait for the drag to settle before paying for it once.
 const RESIZE_RELAYOUT_DEBOUNCE_MS = 250
-
-// Resolves once the browser has had a frame to itself. Two rAFs, not one: the
-// first only gets us into the frame that is already being prepared, so work
-// resumed there still lands before that frame is painted.
-const nextPaint = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))
 
 // What the failure card says, per kind of failure.
 const SCORE_LOAD_ERRORS = {
@@ -1085,12 +1080,13 @@ export function midiApp() {
       // listening takes it over (see barClickOwner).
       const clickIsTraining = this.barClickOwner === 'training'
       if (this.trainingPassage.armed) return armedRangeText(from, clickIsTraining)
+      // Ahead of block chords: with them on, pressing 🔁 would show nothing.
+      if (this.trainingPassage.loop && this.trainingPassage.end == null && clickIsTraining) return t('score.loopHint')
       if (this.blockChords) return t('score.blockChordsHint')
       if (this.blockChordsAdvised) return t('score.blockChordsAdvice')
       if (this.mode === 'reinforcement') return t('score.reinforcementHint', { times })
       // A passage of one bar is allowed, and "bars 5 to 5" is not a sentence.
       if (this.trainingPassage.end != null) return passageText('score.trainingPassage', this.trainingPassage, { times })
-      if (this.trainingPassage.loop && clickIsTraining) return t('score.loopHint')
       return t('score.trainingHint', { times })
     },
 
@@ -1293,12 +1289,14 @@ export function midiApp() {
 
     // A bar short of the next status, from the history: drilled on its own, in
     // training, where a clean pass of it counts. Out of a reinforcement too,
-    // which keeps the training tab pressed for setMode.
+    // which keeps the training tab pressed for setMode. Unlike a bar clicked on
+    // the score, it can be anywhere in the piece, so the page goes there.
     async workOnBar(bar) {
       this.showHistoryModal = false
       if (this.mode !== 'training') await this.enterMode('training')
       const index = firstPassIndexOf(musicxml.getAllNotes(), bar)
       this.setTrainingRange(index, index)
+      musicxml.scrollToMeasure(this.trainingPassage.start)
     },
 
     async deleteRun(sessionId) {

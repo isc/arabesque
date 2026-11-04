@@ -12,9 +12,9 @@
 // hintStep is the whole of that decision, kept pure so it can be tested
 // without a clock or a page; initKeyboardHint wires it to a timer, the engine
 // and the DOM.
-import { noteName, spelledNote, handOfNote, cLabel } from './noteExtraction.js?v=cf50b8419699'
-import { t } from './i18n.js?v=cf50b8419699'
-import { keyHintPutAway, putKeyHintAwayForToday, KEY_HINT_SETTING_EVENT } from './keyHintSetting.js?v=cf50b8419699'
+import { noteName, spelledNote, handOfNote, cLabel } from './noteExtraction.js?v=d7f8ca69fcdc'
+import { t } from './i18n.js?v=d7f8ca69fcdc'
+import { keyHintPutAway, putKeyHintAwayForToday, KEY_HINT_SETTING_EVENT } from './keyHintSetting.js?v=d7f8ca69fcdc'
 
 // Wrong keys tried for the same note before it is shown.
 export const HINT_WRONG_NOTES = 3
