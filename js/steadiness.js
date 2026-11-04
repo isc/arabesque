@@ -27,7 +27,7 @@
 // with the tempo of another one.
 //
 // Pure: attacks in, verdicts out, so the rule can be tested without a score.
-import { median } from './practiceTime.js?v=6b74da23fcd0'
+import { median } from './practiceTime.js?v=30281db77d3e'
 
 export const HOLE_FACTOR = 1.8
 export const HOLE_MIN_EXCESS_MS = 250
@@ -36,6 +36,9 @@ export const VERDICT_MIN = 3
 // The intervals the median is taken over, the last ones of the traversal: a
 // run through a whole piece slows and speeds up on its way.
 export const WINDOW = 32
+// Whether an interval that lasted `ms` where the pace expected `expected` is a
+// hole.
+export const isHole = (ms, expected) => ms > HOLE_FACTOR * expected && ms - expected > HOLE_MIN_EXCESS_MS
 // Closer than this in the score, in whole notes, two attacks are one gesture:
 // a grace note and its main note, the notes an ornament is spelled out into.
 const MIN_WRITTEN = 1 / 128
@@ -82,7 +85,7 @@ export function createSteadiness() {
     verdicts.push({
       ref: interval.ref,
       ratio: reference > 0 ? interval.value / reference : null,
-      hole: interval.ms > HOLE_FACTOR * expected && interval.ms - expected > HOLE_MIN_EXCESS_MS,
+      hole: isHole(interval.ms, expected),
       entry: interval.entry,
       pace: reference,
     })
