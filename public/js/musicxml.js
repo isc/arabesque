@@ -1691,7 +1691,7 @@ function registerAttack(measureData, group) {
     tempo: first.note?.SourceMeasure?.TempoInBPM,
     decorative: group.some(isOrnamentOrGrace),
     fermata: group.some((n) => n.fermata),
-    ref: { notes: group, sourceMeasureIndex: measureData.sourceMeasureIndex },
+    ref: { notes: group, cursorAt: cursor.measureIndex, sourceMeasureIndex: measureData.sourceMeasureIndex },
   })
   applySteadiness(verdicts)
 }
@@ -1702,11 +1702,25 @@ function registerAttack(measureData, group) {
 function applySteadiness(verdicts) {
   for (const { ref, ratio, hole, entry, joined } of verdicts) {
     if (hole) {
-      for (const noteData of ref.notes) if (!noteData.isTieContinuation) setMark(noteData, LATE, true)
+      if (!repeatedSince(ref)) {
+        for (const noteData of ref.notes) if (!noteData.isTieContinuation) setMark(noteData, LATE, true)
+      }
       spoilRepetition()
     }
     if (hole || entry) callbacks.onIntervalJudged?.({ sourceMeasureIndex: ref.sourceMeasureIndex, ratio, hole, entry, joined })
   }
+}
+
+// Whether a repeat has cleared the bar of `ref` since it was played, by the rule
+// that clears the sheet. The first intervals of a pace are judged together
+// (steadiness.js), so a hole can be told after that: marked then, on the head
+// the next pass shares, it would speak of a pass the player has left.
+function repeatedSince({ cursorAt, sourceMeasureIndex }) {
+  const played = new Set([sourceMeasureIndex])
+  for (let i = cursorAt; i < cursor.measureIndex; i++) {
+    if (sourceMeasuresToResetOnEntry(score.allNotes, i, i + 1, played).size > 0) return true
+  }
+  return false
 }
 
 function svgNote(note) {

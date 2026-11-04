@@ -252,6 +252,38 @@ class SteadinessTest < CapybaraTestBase
     end
   end
 
+  # A run started inside the section goes back to a bar it never played, and is
+  # entering a repeat all the same. Short of eight intervals when it does, its
+  # hole is only judged in the second pass, and stays off the bar it has left.
+  def test_a_repeat_clears_a_run_started_inside_the_section
+    open_repeated_quavers
+    click_measure(2)
+
+    with_clock_control do
+      play_evenly(BAR_2.take(4))
+      play_evenly(BAR_2.drop(4).take(1), first_after: HESITATION)
+      play_evenly(BAR_2.drop(5))
+      assert_no_selector 'svg g.vf-notehead.played-note'
+
+      play_evenly(BAR_1)
+      assert_selector 'svg g.vf-notehead.played-note', count: 8
+      assert_no_selector 'svg g.vf-notehead.late-note'
+    end
+  end
+
+  # repeat-endings.xml is too short for its pace to be judged before the run's
+  # end, long after the first pass. A bar played again takes no mark from that...
+  def test_a_hole_judged_after_the_repeat_spares_a_bar_played_again
+    play_repeat_endings_late_on('D4')
+    assert_no_selector 'svg g.vf-notehead.late-note'
+  end
+
+  # ...and a first ending, never played again, keeps its own, as it keeps its green.
+  def test_a_hole_judged_after_the_repeat_marks_a_first_ending
+    play_repeat_endings_late_on('E4')
+    assert_selector 'svg g.vf-notehead.late-note', count: 1
+  end
+
   # A passage through a repeat clears a bar as the cursor lands on it again.
   def test_a_passage_through_a_repeat_takes_the_late_notes_off_a_bar_played_again
     open_repeated_quavers
@@ -269,6 +301,22 @@ class SteadinessTest < CapybaraTestBase
   end
 
   private
+
+  # The whole run, slow on the first pass's `note`, and back at the top.
+  def play_repeat_endings_late_on(note)
+    visit '/score.html?url=/test-fixtures/repeat-endings.xml'
+    wait_for_score_render(4)
+    attacks = %w[C4 D4 E4 C4 D4 F4]
+
+    with_clock_control do
+      attacks.each_with_index do |attack, i|
+        advance_clock(i == attacks.index(note) ? 2_000 : 500)
+        play_note(attack)
+      end
+      advance_clock(300)
+      assert_no_selector 'svg g.vf-notehead.played-note'
+    end
+  end
 
   def open_repeated_quavers
     visit '/score.html?url=/test-fixtures/repeated-quavers.xml'

@@ -806,18 +806,19 @@ export function svgNoteheadFor(osmdInstance, noteData) {
 // Returns the set of source measures whose visual state should be reset when
 // the cursor moves from `allNotes[fromIdx]` to `allNotes[toIdx]`.
 //
-// A reset is needed when the next measure's source has already been played
-// (i.e., we're entering a repeat). The section to clear is every previously
-// played source whose index is >= the repeat target AND that lies before the
-// current measure — plus the current measure itself when it will be replayed
-// later in the playback sequence (simple repeat, not a volta-1 ending).
+// A reset is needed when the cursor goes back (i.e., we're entering a repeat),
+// whether or not the bar it goes back to was played: a run started inside the
+// section has not. The section to clear is every previously played source whose
+// index is >= the repeat target AND that lies before the current measure — plus
+// the current measure itself when it will be replayed later in the playback
+// sequence (simple repeat, not a volta-1 ending).
 export function sourceMeasuresToResetOnEntry(allNotes, fromIdx, toIdx, playedSources) {
   if (toIdx >= allNotes.length) return new Set()
 
   const nextSource = allNotes[toIdx].sourceMeasureIndex
-  if (!playedSources.has(nextSource)) return new Set()
-
   const currentSource = allNotes[fromIdx].sourceMeasureIndex
+  if (nextSource > currentSource) return new Set()
+
   const currentWillReplay = allNotes
     .slice(toIdx)
     .some((m) => m.sourceMeasureIndex === currentSource)
