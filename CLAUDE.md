@@ -303,6 +303,8 @@ node scripts/practice-report.mjs session <id>        # every bar or repetition: 
 node scripts/practice-report.mjs trend --score BWV_847               # last full runs, bar by bar
 node scripts/practice-report.mjs losses --score BWV_847              # time each beat lost those runs, and what reinforcement offers now
 node scripts/practice-report.mjs repeats --score BWV_847             # wrong notes made the same way again and again
+node scripts/practice-report.mjs pace --score BWV_847 --runs 14      # each run's pace and what it cost, faster half against slower
+node scripts/practice-report.mjs halves --score BWV_847              # the same notes the first time a bar plays them and the second
 ```
 
 The player defaults to git's `user.email` (`--player`, `--profile` otherwise).
