@@ -11,13 +11,13 @@
 //
 // Pure — an aggregate and runs in, words out; the page holds what is on screen
 // (app.js, resultModal.js).
-import { nextStatus, statusRules } from './aggregates.js?v=cd29ab14215c'
-import { byStartedAt, sessionDay } from './days.js?v=cd29ab14215c'
-import { TWO_HANDS } from './hands.js?v=cd29ab14215c'
-import { t, tn } from './i18n.js?v=cd29ab14215c'
-import { wrongNotesText } from './playthroughHistory.js?v=cd29ab14215c'
-import { statusCriteria } from './statusCriteria.js?v=cd29ab14215c'
-import { formatDuration } from './utils.js?v=cd29ab14215c'
+import { nextStatus, statusRules } from './aggregates.js?v=c58a8d218b07'
+import { byStartedAt, sessionDay } from './days.js?v=c58a8d218b07'
+import { TWO_HANDS } from './hands.js?v=c58a8d218b07'
+import { t, tn } from './i18n.js?v=c58a8d218b07'
+import { wrongNotesText } from './playthroughHistory.js?v=c58a8d218b07'
+import { statusCriteria } from './statusCriteria.js?v=c58a8d218b07'
+import { formatDuration } from './utils.js?v=c58a8d218b07'
 
 // How much of a run may go wrong for each star of a goal: its share of the
 // notes for accuracy, of the attacks for steadiness. Set against the runs played
