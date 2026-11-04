@@ -11,8 +11,8 @@
 //   Alpine evaluates `x-data`, however slow the page's import graph is to
 //   resolve. Otherwise Alpine can win the race and every expression throws
 //   "<name> is not defined".
-import { initI18n, t, tn } from './i18n.js?v=c58a8d218b07'
-import { mountHeaderMenu } from './headerMenu.js?v=c58a8d218b07'
+import { initI18n, t, tn } from './i18n.js?v=0a529ed200d9'
+import { mountHeaderMenu } from './headerMenu.js?v=0a529ed200d9'
 
 const ALPINE = 'vendor/alpinejs.3.14.9.min.js'
 
