@@ -223,9 +223,8 @@ export const SONGS = [
     time: '6/8',
     showTime: true,
     rh: 'C4e-1 D4e E4e D4e-1 E4e F4e | E4e-1 F4e G4e Sq. | R | R | A4e-3 G4e F4e A4e-3 G4e F4e | G4e-3 F4e E4e Sq. | R | R | R | R | C5e-3 B4e A4e C5e-3 B4e A4e | B4e-3 A4e G4e Sq. | R | R | F4e-3 E4e D4e F4e-3 E4e D4e | E4e-3 E4e-3 D4e-2 C4q.-1',
-    lh: 'R | R | C4e B3e A3e C4e B3e A3e | B3e A3e G3e Sq. | R | R | F3e E3e D3e F3e E3e D3e | E3e D3e C3e Sq. | C3e-3 D3e E3e D3e-3 E3e F3e | E3e-3 F3e G3e Sq. | R | R | A3e-1 G3e F3e A3e-1 G3e F3e | G3e-1 F3e E3e Sq. | R | R',
+    lh: 'R | R | C4e-1 B3e-2 A3e-3 C4e-1 B3e-2 A3e-3 | B3e-1 A3e-2 G3e-3 Sq. | R | R | F3e-1 E3e-2 D3e-3 F3e-1 E3e-2 D3e-3 | E3e-1 D3e-2 C3e-3 Sq. | C3e-3 D3e E3e D3e-3 E3e F3e | E3e-3 F3e G3e Sq. | R | R | A3e-1 G3e F3e A3e-1 G3e F3e | G3e-1 F3e E3e Sq. | R | R',
     rhWords: "En- traî- ne- toi et compt' | jus- qu'à 3 (1_2_3) | | | la pro- chain' fois tu n'ou- | blie- ras pas | | | | | on con- ti- nue mais tout | à l'en- vers | | | c'est la main droite qui fi- | nit la der- nière",
-    lhWords: '| | 1 2 3 1 2 3 | 1 2 3 | | | 1 2 3 1 2 3 | 1 2 3',
   },
   {
     slug: 'do-re-mi-la-perdrix',
