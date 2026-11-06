@@ -1459,8 +1459,10 @@ function spoilRepetition() {
   updateRepeatIndicators()
 }
 
-// The notes a key answers light up as held: pressed, but not played until the
-// rest of their chord is down.
+// The notes a key answers are held: pressed, but not played until the rest of
+// their chord is down. They light up as held only once they have waited a
+// moment (styles.css), or the hands landing a few milliseconds apart would
+// flash one at every beat they share.
 function holdDown(notes) {
   for (const noteData of notes) {
     // Drop any flash still running: the note the player owed has just arrived,
