@@ -142,24 +142,27 @@ const attempt = {
 const steadiness = createSteadiness()
 
 // The verdict a traversal leaves on the sheet: LATE on a note that came after
-// a hole, as it comes, and FUMBLED, once the traversal is over, on each note a
-// wrong key was played for. Not as the wrong key comes: the note then turns
-// green when the right key is played, which is how the player knows it was
-// taken (the flash says the mistake at the time). Unlike the played marks the
-// verdict outlives the traversal, the run's end and the beat before a
-// repetition starts over included — what went wrong is what the player looks
-// at before going again — and goes, all of it, with the first note of the
-// next traversal: left up through it, the last repetition's marks ahead of
-// the player read as faults of the one under way. A repeat is the same thing
-// inside a traversal: the bars it plays again lose theirs with the played
-// marks. Strict mode, whose own verdict has the same colours, puts it away
-// (clearVerdictMarks).
+// a hole, as it comes, and FUMBLED, once its bar is over, on each note a wrong
+// key was played for. Not as the wrong key comes: the note then turns green
+// when the right key is played, which is how the player knows it was taken
+// (the flash says the mistake at the time). Nor only once the traversal is
+// over: a run is the whole score, and one broken off at bar 6 to go again —
+// what a lesson does with a passage — showed none of its wrong notes, nor the
+// hesitations that went with them, which steadiness.js leaves to the wrong
+// note. Unlike the played marks the verdict outlives the traversal, the run's
+// end and the beat before a repetition starts over included — what went wrong
+// is what the player looks at before going again — and goes, all of it, with
+// the first note of the next traversal: left up through it, the last
+// repetition's marks ahead of the player read as faults of the one under way.
+// A repeat is the same thing inside a traversal: the bars it plays again lose
+// theirs with the played marks. Strict mode, whose own verdict has the same
+// colours, puts it away (clearVerdictMarks).
 const LATE = 'late-note'
 const FUMBLED = 'fumbled-note'
 const VERDICT_MARKS = [LATE, FUMBLED]
 
-// The notes a wrong key was played for in the traversal under way, for
-// FUMBLED once it is over.
+// The notes a wrong key was played for in the bar under way, for FUMBLED once
+// it is over.
 const fumbled = new Set()
 
 // Padding around measure notes for clickable area
@@ -1660,15 +1663,13 @@ function handleNoteValidated(measureData, group, { struck = true } = {}) {
 
   if (!measureData.notes.filter(isNoteOwed).every((n) => n.played)) return
 
+  for (const noteData of fumbled) setMark(noteData, FUMBLED, true)
+  fumbled.clear()
   const next = nextPlayable(cursor.measureIndex + 1)
   const goesOn = runsOn(next)
   // What a finished traversal left pending is judged before the journal files
   // the measure and the mode reads the verdict to bank its dot.
-  if (!goesOn) {
-    applySteadiness(steadiness.close())
-    for (const noteData of fumbled) setMark(noteData, FUMBLED, true)
-    fumbled.clear()
-  }
+  if (!goesOn) applySteadiness(steadiness.close())
   callbacks.onMeasureCompleted?.()
 
   if (!training.on) advanceFreePlay(measureData, next, goesOn)
