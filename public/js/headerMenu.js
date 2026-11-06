@@ -122,7 +122,7 @@ export function headerMenu() {
     // --- Feedback ---
     feedbackEnabled,
     showFeedbackModal: false,
-    feedback: { message: '', email: '', category: '' },
+    feedback: { message: '', email: '' },
     feedbackStatus: 'idle', // 'idle' | 'sending' | 'sent' | 'error'
     feedbackError: '',
     // A picture of the screen the modal is covering, or null when the capture
@@ -132,7 +132,7 @@ export function headerMenu() {
     feedbackShotWanted: true,
 
     async openFeedback() {
-      this.feedback = { message: '', email: defaultFeedbackEmail(), category: '' }
+      this.feedback = { message: '', email: defaultFeedbackEmail() }
       this.feedbackStatus = 'idle'
       this.feedbackError = ''
       this.feedbackShot = null
@@ -163,7 +163,6 @@ export function headerMenu() {
         await submitFeedback({
           message,
           email: this.feedback.email,
-          category: this.feedback.category,
           screenshot: this.feedbackShotWanted ? this.feedbackShot : null,
           context: { ...(await buildBaseContext()), ...(this.feedbackContext?.() ?? {}) },
         })
@@ -262,16 +261,6 @@ const MODALS_HTML = `
     <template x-if="feedbackStatus !== 'sent'">
       <form @submit.prevent="sendFeedback()">
         <p class="pt-feedback-intro" x-text="$t('feedback.intro')"></p>
-        <label>
-          <span x-text="$t('feedback.categoryLabel')">Type</span>
-          <select x-model="feedback.category" :disabled="feedbackStatus === 'sending'">
-            <option value="" x-text="$t('feedback.categoryNone')">—</option>
-            <option value="bug" x-text="$t('feedback.categoryBug')">🐞 Bug</option>
-            <option value="idea" x-text="$t('feedback.categoryIdea')">💡 Idée</option>
-            <option value="score" x-text="$t('feedback.categoryScore')">🎼 Partition souhaitée</option>
-            <option value="other" x-text="$t('feedback.categoryOther')">Autre</option>
-          </select>
-        </label>
         <label>
           <span x-text="$t('feedback.messageLabel')">Message</span>
           <textarea x-model="feedback.message" rows="6" maxlength="5000" required :disabled="feedbackStatus === 'sending'" :placeholder="$t('feedback.messagePlaceholder')"></textarea>

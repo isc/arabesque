@@ -40,7 +40,8 @@ create table if not exists public.feedback (
   created_at timestamptz not null default now(),
   message    text not null,
   email      text,
-  category   text,          -- 'bug' | 'idea' | 'score' | 'other' (free text; UI-constrained)
+  category   text,          -- 'bug' on an automatic boot-failure report, else null; the form
+                            -- stopped asking in 2026-11 ('idea' | 'score' | 'other' before)
   context    jsonb,         -- app_version, locale, user_agent, viewport, anonymized stats,
                             -- recent JS errors (public/js/errorLog.js bounds their size),
                             -- native_app from the iOS app (version, build, system)
