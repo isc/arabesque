@@ -77,7 +77,7 @@
 
   /* Note coloring (used inside <svg>) */
   --pt-note-played: #22c55e;
-  --pt-note-active: #f59e0b;
+  --pt-note-active: #90e2ae; /* --pt-note-played, half white */
   --pt-note-expected: #3b82f6;
   --pt-note-offtempo: #eab308;
   --pt-note-missed: #ef4444;
@@ -2029,7 +2029,16 @@ svg g.vf-notehead.late-note path { fill: var(--pt-note-offtempo); }
 /* A note a wrong key was played for, once its bar is over (musicxml.js): the
    colour of strict mode's missed notes. Over a late one. */
 svg g.vf-notehead.fumbled-note path { fill: var(--pt-note-missed); }
-svg g.vf-notehead.active-note path { fill: var(--pt-note-active); }
+/* A key down that waits for the rest of its beat, the other hand or the rest
+   of a chord (holdDown in musicxml.js): the green it is on its way to, paler.
+   It was amber, and read as the yellow of a hole. And only once it has
+   waited: hands that come down together still land some milliseconds apart,
+   30 or more at a quarter of the beats of a run of the C minor prelude, and
+   the first one down flashed at every such beat. */
+@keyframes pt-held-note {
+  from, to { fill: var(--pt-note-active); }
+}
+svg g.vf-notehead.active-note path { animation: pt-held-note 0s 80ms forwards; }
 svg g.vf-notehead.expected-note path { fill: var(--pt-note-expected); }
 svg g.vf-notehead.offtempo-note path { fill: var(--pt-note-offtempo); }
 svg g.vf-notehead.missed-note path { fill: var(--pt-note-missed); }

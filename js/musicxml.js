@@ -10,14 +10,14 @@ import {
   isOrnamentOrGrace,
   isStruck,
   handOfNote,
-} from './noteExtraction.js?v=23caa8f69f44'
-import { scrollSystemIntoView, isUnderStickyBars, nextPaint } from './utils.js?v=23caa8f69f44'
-import { arrayBufferToXml, isMusicXml } from './mxlLoader.js?v=23caa8f69f44'
-import { stripPlaybackTempoMarks } from './tempoMarks.js?v=23caa8f69f44'
-import { recordError } from './errorLog.js?v=23caa8f69f44'
-import { REINFORCEMENT_CLEAN_PASSES } from './reinforcement.js?v=23caa8f69f44'
-import { POSITION_EPSILON, beatStartOf } from './noteLogAnalysis.js?v=23caa8f69f44'
-import { createSteadiness } from './steadiness.js?v=23caa8f69f44'
+} from './noteExtraction.js?v=7d94671c4856'
+import { scrollSystemIntoView, isUnderStickyBars, nextPaint } from './utils.js?v=7d94671c4856'
+import { arrayBufferToXml, isMusicXml } from './mxlLoader.js?v=7d94671c4856'
+import { stripPlaybackTempoMarks } from './tempoMarks.js?v=7d94671c4856'
+import { recordError } from './errorLog.js?v=7d94671c4856'
+import { REINFORCEMENT_CLEAN_PASSES } from './reinforcement.js?v=7d94671c4856'
+import { POSITION_EPSILON, beatStartOf } from './noteLogAnalysis.js?v=7d94671c4856'
+import { createSteadiness } from './steadiness.js?v=7d94671c4856'
 
 // The score on the stand: the sheet OSMD holds, and the note model built from
 // it. Replaced as a sheet comes in (renderMusicXML) and as it is drawn
@@ -1459,8 +1459,10 @@ function spoilRepetition() {
   updateRepeatIndicators()
 }
 
-// The notes a key answers light up as held: pressed, but not played until the
-// rest of their chord is down.
+// The notes a key answers are held: pressed, but not played until the rest of
+// their chord is down. They light up as held only once they have waited a
+// moment (styles.css), or the hands landing a few milliseconds apart would
+// flash one at every beat they share.
 function holdDown(notes) {
   for (const noteData of notes) {
     // Drop any flash still running: the note the player owed has just arrived,
