@@ -177,12 +177,6 @@ export default {
   feedback: {
     title: '💬 Your feedback',
     intro: 'Found a bug, have an idea, or want a score added? Tell me — it all helps.',
-    categoryLabel: 'Type',
-    categoryNone: '—',
-    categoryBug: '🐞 Bug',
-    categoryIdea: '💡 Idea',
-    categoryScore: '🎼 Score request',
-    categoryOther: 'Other',
     messageLabel: 'Message',
     messagePlaceholder: 'What’s on your mind?',
     emailLabel: 'Email (optional)',
@@ -496,7 +490,7 @@ export default {
       'You can delete your account from the Data page. The account and everything synced under it are erased from the servers there and then, without having to ask anyone.',
     feedbackTitle: 'The feedback you send',
     feedbackBody:
-      'The feedback form sends your message, the category you picked, and technical context meant to reproduce problems: app version, browser and system, screen size, language, any technical errors the app ran into in the past hour, and — depending on the page — the title of the open score or your practice totals. It also attaches a picture of the screen as you saw it, minus the feedback window: it is shown in the form before you send it, and a checkbox takes it back off. The email address is optional and is only used to reply. Feedback is never tied to an account.',
+      'The feedback form sends your message and technical context meant to reproduce problems: app version, browser and system, screen size, language, any technical errors the app ran into in the past hour, and — depending on the page — the title of the open score or your practice totals. It also attaches a picture of the screen as you saw it, minus the feedback window: it is shown in the form before you send it, and a checkbox takes it back off. The email address is optional and is only used to reply. Feedback is never tied to an account.',
     neverTitle: 'What Arabesque does not do',
     neverBody:
       'No advertising, no analytics, no third-party trackers, no advertising cookies, no profiling. Your data is not sold, rented or shared for commercial purposes. The microphone and camera are never used; the MIDI keyboard only tells the app which notes you play, and that stream never leaves your device.',
@@ -536,6 +530,6 @@ export default {
       'It all happens on the Data page: export your history to a file, import it on another device, sign in to let syncing take care of it, and delete your account. What the app keeps and what it sends is set out in the privacy policy.',
     scoresTitle: 'The scores',
     scoresBody:
-      'The library holds public-domain works only. You can also open your own MusicXML files (.xml, .mxl) by dropping them on the score page — they stay on your device. Something wrong in a score, or a work missing? The feedback form, category "Score request".',
+      'The library holds public-domain works only. You can also open your own MusicXML files (.xml, .mxl) by dropping them on the score page — they stay on your device. Something wrong in a score, or a work missing? Say so in the feedback form.',
   },
 }

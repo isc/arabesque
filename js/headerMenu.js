@@ -15,14 +15,14 @@
 // Page-specific seam (kept out of here): feedbackContext() — extra,
 // non-identifying context merged into a report (practice stats on the library,
 // current score on the score page).
-import { CHANGELOG } from './changelog.js?v=7d94671c4856'
-import { startOfLocalDay } from './days.js?v=7d94671c4856'
-import { feedbackEnabled, buildBaseContext, submitFeedback, defaultFeedbackEmail } from './feedback.js?v=7d94671c4856'
-import { getLang, locale } from './i18n.js?v=7d94671c4856'
-import { INSTALL_AVAILABLE_EVENT, installAvailable, promptInstall } from './installPrompt.js?v=7d94671c4856'
-import { nativePairingAvailable, openNativePairing } from './midi.js?v=7d94671c4856'
-import { keyHintAllowed, storeKeyHintAllowed } from './keyHintSetting.js?v=7d94671c4856'
-import { recordError } from './errorLog.js?v=7d94671c4856'
+import { CHANGELOG } from './changelog.js?v=cbc78ec23a83'
+import { startOfLocalDay } from './days.js?v=cbc78ec23a83'
+import { feedbackEnabled, buildBaseContext, submitFeedback, defaultFeedbackEmail } from './feedback.js?v=cbc78ec23a83'
+import { getLang, locale } from './i18n.js?v=cbc78ec23a83'
+import { INSTALL_AVAILABLE_EVENT, installAvailable, promptInstall } from './installPrompt.js?v=cbc78ec23a83'
+import { nativePairingAvailable, openNativePairing } from './midi.js?v=cbc78ec23a83'
+import { keyHintAllowed, storeKeyHintAllowed } from './keyHintSetting.js?v=cbc78ec23a83'
+import { recordError } from './errorLog.js?v=cbc78ec23a83'
 
 const CHANGELOG_SEEN_KEY = 'arabesque:changelog-seen'
 const CHANGELOG_DATE_FORMATTER = new Intl.DateTimeFormat(locale(), {
@@ -122,7 +122,7 @@ export function headerMenu() {
     // --- Feedback ---
     feedbackEnabled,
     showFeedbackModal: false,
-    feedback: { message: '', email: '', category: '' },
+    feedback: { message: '', email: '' },
     feedbackStatus: 'idle', // 'idle' | 'sending' | 'sent' | 'error'
     feedbackError: '',
     // A picture of the screen the modal is covering, or null when the capture
@@ -132,7 +132,7 @@ export function headerMenu() {
     feedbackShotWanted: true,
 
     async openFeedback() {
-      this.feedback = { message: '', email: defaultFeedbackEmail(), category: '' }
+      this.feedback = { message: '', email: defaultFeedbackEmail() }
       this.feedbackStatus = 'idle'
       this.feedbackError = ''
       this.feedbackShot = null
@@ -143,7 +143,7 @@ export function headerMenu() {
       // visit ever opens the form. Nothing waits on the result — null,
       // from a capture that failed or a browser that could not make one, simply
       // means the form offers no picture and the report goes as words alone.
-      const { captureViewport } = await import('./screenshot.js?v=7d94671c4856')
+      const { captureViewport } = await import('./screenshot.js?v=cbc78ec23a83')
       this.feedbackShot = await captureViewport()
     },
 
@@ -163,7 +163,6 @@ export function headerMenu() {
         await submitFeedback({
           message,
           email: this.feedback.email,
-          category: this.feedback.category,
           screenshot: this.feedbackShotWanted ? this.feedbackShot : null,
           context: { ...(await buildBaseContext()), ...(this.feedbackContext?.() ?? {}) },
         })
@@ -262,16 +261,6 @@ const MODALS_HTML = `
     <template x-if="feedbackStatus !== 'sent'">
       <form @submit.prevent="sendFeedback()">
         <p class="pt-feedback-intro" x-text="$t('feedback.intro')"></p>
-        <label>
-          <span x-text="$t('feedback.categoryLabel')">Type</span>
-          <select x-model="feedback.category" :disabled="feedbackStatus === 'sending'">
-            <option value="" x-text="$t('feedback.categoryNone')">—</option>
-            <option value="bug" x-text="$t('feedback.categoryBug')">🐞 Bug</option>
-            <option value="idea" x-text="$t('feedback.categoryIdea')">💡 Idée</option>
-            <option value="score" x-text="$t('feedback.categoryScore')">🎼 Partition souhaitée</option>
-            <option value="other" x-text="$t('feedback.categoryOther')">Autre</option>
-          </select>
-        </label>
         <label>
           <span x-text="$t('feedback.messageLabel')">Message</span>
           <textarea x-model="feedback.message" rows="6" maxlength="5000" required :disabled="feedbackStatus === 'sending'" :placeholder="$t('feedback.messagePlaceholder')"></textarea>

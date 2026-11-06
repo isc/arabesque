@@ -6,7 +6,7 @@
 //
 // Pure: the arithmetic and the repeat timer, nothing about the DOM. app.js
 // wires them to both fields (the strict tempo and the playback one).
-import { BPM_STEP } from './tempoTrainer.js?v=7d94671c4856'
+import { BPM_STEP } from './tempoTrainer.js?v=cbc78ec23a83'
 
 // What the fields accept. app.js exposes them to the markup, which binds them
 // as the inputs' min/max, so a typed tempo and a pressed one have one range.

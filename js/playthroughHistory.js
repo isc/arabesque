@@ -1,10 +1,10 @@
 // How the score page tells a piece's runs through: the ranking at the end of a
 // piece, and the history modal's charts, day lines and troubled bars. Pure —
 // runs in, words and SVG out; the page holds what is on screen (app.js).
-import { formatDuration, withRunKind } from './utils.js?v=7d94671c4856'
-import { playthroughGroups } from './hands.js?v=7d94671c4856'
-import { byStartedAt } from './days.js?v=7d94671c4856'
-import { t, tn, locale } from './i18n.js?v=7d94671c4856'
+import { formatDuration, withRunKind } from './utils.js?v=cbc78ec23a83'
+import { playthroughGroups } from './hands.js?v=cbc78ec23a83'
+import { byStartedAt } from './days.js?v=cbc78ec23a83'
+import { t, tn, locale } from './i18n.js?v=cbc78ec23a83'
 
 // Built once: the active locale is fixed for the page lifetime (switching
 // language reloads), so these don't need rebuilding per call/point.
