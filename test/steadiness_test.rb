@@ -73,10 +73,10 @@ class SteadinessTest < CapybaraTestBase
     assert_no_selector 'svg g.vf-notehead.late-note'
   end
 
-  # Where a wrong key was played shows red once the repetition is over, beside
-  # where it came late — and not before: until then, the right key turning the
-  # note green is how the player knows it was taken.
-  def test_a_note_fumbled_turns_red_once_the_repetition_is_over
+  # Where a wrong key was played shows red once its bar is over, beside where
+  # it came late — and not before: until then, the right key turning the note
+  # green is how the player knows it was taken.
+  def test_a_note_fumbled_turns_red_once_its_bar_is_over
     open_steady_quavers
     enter_training_mode
     pick_passage(1, 2)
@@ -89,7 +89,9 @@ class SteadinessTest < CapybaraTestBase
       assert_selector 'svg g.vf-notehead.played-note', count: 3
       assert_no_selector 'svg g.vf-notehead.fumbled-note'
 
-      play_evenly(BAR_1.drop(3) + BAR_2)
+      play_evenly(BAR_1.drop(3))
+      assert_selector 'svg g.vf-notehead.fumbled-note', count: 1
+      play_evenly(BAR_2)
       assert_selector 'svg g.vf-notehead.fumbled-note', count: 1
       # The time the mistake took is its own, no hesitation.
       assert_no_selector 'svg g.vf-notehead.late-note'
@@ -98,6 +100,34 @@ class SteadinessTest < CapybaraTestBase
       # repetition's first note.
       advance_clock(300)
       assert_selector 'svg g.vf-notehead.fumbled-note', count: 1
+      play_evenly(BAR_1.take(1), first_after: 10)
+      assert_no_selector 'svg g.vf-notehead.fumbled-note'
+    end
+  end
+
+  # A run lasts to the end of the score, which a lesson seldom reaches: it
+  # stops a few bars in and goes again. A stall with a wrong key in it is left
+  # to the wrong note, so the red is all it shows, and it has to be up by then.
+  def test_a_run_broken_off_shows_the_wrong_notes_of_the_bars_it_left
+    open_steady_quavers
+
+    with_clock_control do
+      play_evenly(%w[C4 D4])
+      advance_clock(HESITATION)
+      play_note('G4') # E4 is owed
+      play_evenly(%w[E4])
+      assert_no_selector 'svg g.vf-notehead.fumbled-note'
+
+      play_evenly(BAR_1.drop(3) + BAR_2.take(2))
+      assert_selector 'svg g.vf-notehead.fumbled-note', count: 1
+      assert_no_selector 'svg g.vf-notehead.late-note'
+    end
+
+    # Back to the top to go again: the red stays, until the next run's first note.
+    click_measure(1)
+    assert_no_selector 'svg g.vf-notehead.played-note'
+    assert_selector 'svg g.vf-notehead.fumbled-note', count: 1
+    with_clock_control do
       play_evenly(BAR_1.take(1), first_after: 10)
       assert_no_selector 'svg g.vf-notehead.fumbled-note'
     end
