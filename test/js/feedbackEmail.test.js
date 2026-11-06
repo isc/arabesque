@@ -19,7 +19,7 @@ const signIn = (email) =>
 // only needs an answer), so the POST is answered here.
 const send = (email, { ok = true } = {}) => {
   vi.stubGlobal('fetch', async () => ({ ok, status: ok ? 201 : 500, text: async () => 'nope' }))
-  return submitFeedback({ message: 'Bonjour', email, category: '', context: {} })
+  return submitFeedback({ message: 'Bonjour', email, context: {} })
 }
 
 describe('feedback e-mail default', () => {
