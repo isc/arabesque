@@ -100,11 +100,26 @@ class NoteValidationTest < CapybaraTestBase
     # A chord is a single vf-stavenote element with multiple noteheads
     load_score('chord.xml', 1)
 
-    # Play only C4 - only C4's notehead should be orange, not E4 and G4
+    # Play only C4 - only C4's notehead should be held, not E4 and G4
     simulate_midi_input("ON C4")
 
     assert_selector 'svg g.vf-notehead.active-note', count: 1
     assert_no_selector 'svg g.vf-notehead.played-note'
+  end
+
+  # Hands that come down together still land a few milliseconds apart: the key
+  # first down is held at once, but lit as held only once it has waited.
+  def test_a_key_waiting_for_its_chord_lights_only_once_it_has_waited
+    load_score('chord.xml', 1)
+
+    with_clock_control do
+      simulate_midi_input('ON C4')
+      assert_selector 'svg g.vf-notehead.active-note', count: 1
+      refute held_note_lit?, 'lit as held straight away'
+    end
+    # Not after an advance_clock: the colour an animation gives is only worked
+    # out at the next frame, which a parked clock does not always draw.
+    wait_until('the held note to light', timeout: 5) { held_note_lit? }
   end
 
   def test_rests_with_display_position_are_not_treated_as_notes
@@ -118,5 +133,18 @@ class NoteValidationTest < CapybaraTestBase
     replay_cassette('bug-des-pays-lointains')
 
     assert_selector 'svg g.vf-notehead.played-note', count: 5
+  end
+
+  private
+
+  # Whether the held note shows another colour than the notes of its chord no
+  # key has answered.
+  def held_note_lit?
+    page.evaluate_script(<<~JS)
+      (() => {
+        const fill = (selector) => getComputedStyle(document.querySelector(`svg g.vf-notehead${selector} path`)).fill
+        return fill('.active-note') !== fill(':not(.active-note)')
+      })()
+    JS
   end
 end
