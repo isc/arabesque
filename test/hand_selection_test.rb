@@ -23,7 +23,7 @@ class HandSelectionTest < CapybaraTestBase
     play_note('E5')
 
     # The note should be validated (green) because left hand is disabled
-    assert_selector 'svg g.vf-notehead.played-note', count: 1
+    assert_selector 'svg .vf-notehead.played-note', count: 1
   end
 
   def test_hand_selection_left_hand_only
@@ -36,7 +36,7 @@ class HandSelectionTest < CapybaraTestBase
     play_note('C4')
 
     # The note should be validated because right hand is disabled
-    assert_selector 'svg g.vf-notehead.played-note', count: 1
+    assert_selector 'svg .vf-notehead.played-note', count: 1
   end
 
   def test_changing_hands_starts_the_measure_under_way_over
@@ -45,18 +45,18 @@ class HandSelectionTest < CapybaraTestBase
     # Measure 1's first two right-hand notes, the left hand unticked.
     uncheck 'Main gauche'
     play_notes(%w[E5 D5])
-    assert_selector 'svg g.vf-notehead.played-note', count: 2
+    assert_selector 'svg .vf-notehead.played-note', count: 2
 
     # Ticked back, the left hand's notes from the start of the bar are owed
     # again; the half-bar played without them would leave the right hand ahead
     # and the measure asking for notes the player has left behind.
     check 'Main gauche'
-    assert_no_selector 'svg g.vf-notehead.played-note'
+    assert_no_selector 'svg .vf-notehead.played-note'
 
     simulate_midi_input('ON E5')
     simulate_midi_input('ON C4')
-    assert_selector 'svg g.vf-notehead.played-note', count: 2
-    assert_no_selector 'svg g.vf-notehead.wrong-note'
+    assert_selector 'svg .vf-notehead.played-note', count: 2
+    assert_no_selector 'svg .vf-notehead.wrong-note'
   end
 
   def test_hand_selection_crosses_a_measure_the_other_hand_holds_alone
@@ -70,7 +70,7 @@ class HandSelectionTest < CapybaraTestBase
     # crossed on its own for the last note to be the one that validates.
     on_the_last_note do
       play_notes(%w[E5 G5])
-      assert_selector 'svg g.vf-notehead.played-note', count: 2
+      assert_selector 'svg .vf-notehead.played-note', count: 2
     end
   end
 
@@ -86,7 +86,7 @@ class HandSelectionTest < CapybaraTestBase
     assert_checked_field 'Main gauche'
     assert_unchecked_field 'Main droite'
     play_note('C3')
-    assert_selector 'svg g.vf-notehead.played-note', count: 1
+    assert_selector 'svg .vf-notehead.played-note', count: 1
   end
 
   # A single staff is all right hand: the left hand alone has nothing to play,
@@ -98,6 +98,6 @@ class HandSelectionTest < CapybaraTestBase
     check 'Main droite'
     play_note('C4')
 
-    assert_selector 'svg g.vf-notehead.played-note', count: 1
+    assert_selector 'svg .vf-notehead.played-note', count: 1
   end
 end

@@ -15,7 +15,7 @@
 //
 // The decisive part is that the clone is real DOM under a real <style>: the
 // page's own stylesheet is inlined whole, so every rule applies as it does on
-// screen. `g.vf-notehead.played-note path` colours the played noteheads here
+// screen. `.vf-notehead.played-note` colours the played noteheads here
 // exactly as it colours them on the page — no list of properties to copy by
 // hand, and nothing to forget the day a rule is added. That is what settled the
 // dependency question: html2canvas is ~200 kB to precache and paints inline SVG

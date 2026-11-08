@@ -127,7 +127,7 @@ class NoteCircleTest < CapybaraTestBase
   end
 
   def notehead_box(index)
-    boxes('svg g.vf-notehead')[index]
+    boxes('svg .vf-notehead')[index]
   end
 
   # The boxes the page draws `selector` in, in viewport pixels.

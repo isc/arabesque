@@ -27,21 +27,21 @@ class SteadinessTest < CapybaraTestBase
       # Both bars clean, and the repetition still spoiled: the first note of
       # bar 2 is the one that came late.
       assert_selector 'svg circle.repeat-indicator.spoiled', count: 1
-      assert_selector 'svg g.vf-notehead.late-note', count: 1
+      assert_selector 'svg .vf-notehead.late-note', count: 1
       assert_no_selector 'svg circle.repeat-indicator.filled'
 
       # Past the beat the passage starts over, and the note stays marked...
       advance_clock(300)
-      assert_selector 'svg g.vf-notehead.late-note', count: 1
-      assert_no_selector 'svg g.vf-notehead.played-note'
+      assert_selector 'svg .vf-notehead.late-note', count: 1
+      assert_no_selector 'svg .vf-notehead.played-note'
 
       # ...until the next repetition's first note: left up, it would read as
       # a fault of the repetition under way, in a bar not yet reached.
       play_evenly(BAR_1.take(1), first_after: 10)
-      assert_no_selector 'svg g.vf-notehead.late-note'
+      assert_no_selector 'svg .vf-notehead.late-note'
 
       play_evenly(BAR_1.drop(1) + BAR_2)
-      assert_no_selector 'svg g.vf-notehead.late-note'
+      assert_no_selector 'svg .vf-notehead.late-note'
       assert_selector 'svg circle.repeat-indicator.filled', count: 1
     end
   end
@@ -57,8 +57,8 @@ class SteadinessTest < CapybaraTestBase
       advance_clock(300)
     end
     assert_selector 'dialog[open]'
-    assert_selector 'svg g.vf-notehead.late-note', count: 1
-    assert_no_selector 'svg g.vf-notehead.played-note'
+    assert_selector 'svg .vf-notehead.late-note', count: 1
+    assert_no_selector 'svg .vf-notehead.played-note'
 
     # The join into bar 2 took nearly twelve quavers' time: filed on the
     # bar's attempt as its join's, the bar itself clean and steady.
@@ -70,7 +70,7 @@ class SteadinessTest < CapybaraTestBase
     # Strict mode marks its off-tempo notes in the same colour: the mark goes.
     find('dialog[open] button[aria-label="Close"]').click
     click_on '⏱ Mode strict'
-    assert_no_selector 'svg g.vf-notehead.late-note'
+    assert_no_selector 'svg .vf-notehead.late-note'
   end
 
   # Where a wrong key was played shows red once its bar is over, beside where
@@ -86,22 +86,22 @@ class SteadinessTest < CapybaraTestBase
       advance_clock(GAP)
       play_note('G4') # E4 is owed
       play_evenly(%w[E4], first_after: HESITATION)
-      assert_selector 'svg g.vf-notehead.played-note', count: 3
-      assert_no_selector 'svg g.vf-notehead.fumbled-note'
+      assert_selector 'svg .vf-notehead.played-note', count: 3
+      assert_no_selector 'svg .vf-notehead.fumbled-note'
 
       play_evenly(BAR_1.drop(3))
-      assert_selector 'svg g.vf-notehead.fumbled-note', count: 1
+      assert_selector 'svg .vf-notehead.fumbled-note', count: 1
       play_evenly(BAR_2)
-      assert_selector 'svg g.vf-notehead.fumbled-note', count: 1
+      assert_selector 'svg .vf-notehead.fumbled-note', count: 1
       # The time the mistake took is its own, no hesitation.
-      assert_no_selector 'svg g.vf-notehead.late-note'
+      assert_no_selector 'svg .vf-notehead.late-note'
 
       # Up through the beat the passage starts over after, gone with the next
       # repetition's first note.
       advance_clock(300)
-      assert_selector 'svg g.vf-notehead.fumbled-note', count: 1
+      assert_selector 'svg .vf-notehead.fumbled-note', count: 1
       play_evenly(BAR_1.take(1), first_after: 10)
-      assert_no_selector 'svg g.vf-notehead.fumbled-note'
+      assert_no_selector 'svg .vf-notehead.fumbled-note'
     end
   end
 
@@ -116,20 +116,20 @@ class SteadinessTest < CapybaraTestBase
       advance_clock(HESITATION)
       play_note('G4') # E4 is owed
       play_evenly(%w[E4])
-      assert_no_selector 'svg g.vf-notehead.fumbled-note'
+      assert_no_selector 'svg .vf-notehead.fumbled-note'
 
       play_evenly(BAR_1.drop(3) + BAR_2.take(2))
-      assert_selector 'svg g.vf-notehead.fumbled-note', count: 1
-      assert_no_selector 'svg g.vf-notehead.late-note'
+      assert_selector 'svg .vf-notehead.fumbled-note', count: 1
+      assert_no_selector 'svg .vf-notehead.late-note'
     end
 
     # Back to the top to go again: the red stays, until the next run's first note.
     click_measure(1)
-    assert_no_selector 'svg g.vf-notehead.played-note'
-    assert_selector 'svg g.vf-notehead.fumbled-note', count: 1
+    assert_no_selector 'svg .vf-notehead.played-note'
+    assert_selector 'svg .vf-notehead.fumbled-note', count: 1
     with_clock_control do
       play_evenly(BAR_1.take(1), first_after: 10)
-      assert_no_selector 'svg g.vf-notehead.fumbled-note'
+      assert_no_selector 'svg .vf-notehead.fumbled-note'
     end
   end
 
@@ -258,7 +258,7 @@ class SteadinessTest < CapybaraTestBase
       simulate_midi_input('OFF C4')
     end
     # G5 came late; the C4 held under it did not.
-    assert_selector 'svg g.vf-notehead.late-note', count: 1
+    assert_selector 'svg .vf-notehead.late-note', count: 1
   end
 
   # A repeat plays its bars again (repeated-quavers.xml: bars 1 and 2 twice, then
@@ -270,15 +270,15 @@ class SteadinessTest < CapybaraTestBase
     with_clock_control do
       play_evenly(BAR_1)
       play_evenly(BAR_2.take(1), first_after: HESITATION)
-      assert_selector 'svg g.vf-notehead.late-note', count: 1
+      assert_selector 'svg .vf-notehead.late-note', count: 1
 
       play_evenly(BAR_2.drop(1))
-      assert_no_selector 'svg g.vf-notehead.played-note'
-      assert_no_selector 'svg g.vf-notehead.late-note'
+      assert_no_selector 'svg .vf-notehead.played-note'
+      assert_no_selector 'svg .vf-notehead.late-note'
 
       play_evenly(BAR_1)
       play_evenly(BAR_2.take(1), first_after: HESITATION)
-      assert_selector 'svg g.vf-notehead.late-note', count: 1
+      assert_selector 'svg .vf-notehead.late-note', count: 1
     end
   end
 
@@ -293,11 +293,11 @@ class SteadinessTest < CapybaraTestBase
       play_evenly(BAR_2.take(4))
       play_evenly(BAR_2.drop(4).take(1), first_after: HESITATION)
       play_evenly(BAR_2.drop(5))
-      assert_no_selector 'svg g.vf-notehead.played-note'
+      assert_no_selector 'svg .vf-notehead.played-note'
 
       play_evenly(BAR_1)
-      assert_selector 'svg g.vf-notehead.played-note', count: 8
-      assert_no_selector 'svg g.vf-notehead.late-note'
+      assert_selector 'svg .vf-notehead.played-note', count: 8
+      assert_no_selector 'svg .vf-notehead.late-note'
     end
   end
 
@@ -305,13 +305,13 @@ class SteadinessTest < CapybaraTestBase
   # end, long after the first pass. A bar played again takes no mark from that...
   def test_a_hole_judged_after_the_repeat_spares_a_bar_played_again
     play_repeat_endings_late_on('D4')
-    assert_no_selector 'svg g.vf-notehead.late-note'
+    assert_no_selector 'svg .vf-notehead.late-note'
   end
 
   # ...and a first ending, never played again, keeps its own, as it keeps its green.
   def test_a_hole_judged_after_the_repeat_marks_a_first_ending
     play_repeat_endings_late_on('E4')
-    assert_selector 'svg g.vf-notehead.late-note', count: 1
+    assert_selector 'svg .vf-notehead.late-note', count: 1
   end
 
   # A passage through a repeat clears a bar as the cursor lands on it again.
@@ -323,10 +323,10 @@ class SteadinessTest < CapybaraTestBase
     with_clock_control do
       play_evenly(BAR_1)
       play_evenly(BAR_2, first_after: HESITATION)
-      assert_selector 'svg g.vf-notehead.late-note', count: 1
+      assert_selector 'svg .vf-notehead.late-note', count: 1
 
       play_evenly(BAR_1)
-      assert_no_selector 'svg g.vf-notehead.late-note'
+      assert_no_selector 'svg .vf-notehead.late-note'
     end
   end
 
@@ -344,7 +344,7 @@ class SteadinessTest < CapybaraTestBase
         play_note(attack)
       end
       advance_clock(300)
-      assert_no_selector 'svg g.vf-notehead.played-note'
+      assert_no_selector 'svg .vf-notehead.played-note'
     end
   end
 

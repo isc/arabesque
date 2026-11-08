@@ -2021,14 +2021,14 @@ dialog > article > footer {
 }
 
 /* SVG note coloring */
-svg g.vf-notehead.played-note path { fill: var(--pt-note-played); }
+svg .vf-notehead.played-note { fill: var(--pt-note-played); }
 /* A note that came after a hole in free play or training (steadiness.js): the
    colour of strict mode's off-tempo notes, which say the same thing. Over the
    played colour, under a key held down now. */
-svg g.vf-notehead.late-note path { fill: var(--pt-note-offtempo); }
+svg .vf-notehead.late-note { fill: var(--pt-note-offtempo); }
 /* A note a wrong key was played for, once its bar is over (musicxml.js): the
    colour of strict mode's missed notes. Over a late one. */
-svg g.vf-notehead.fumbled-note path { fill: var(--pt-note-missed); }
+svg .vf-notehead.fumbled-note { fill: var(--pt-note-missed); }
 /* A key down that waits for the rest of its beat, the other hand or the rest
    of a chord (holdDown in musicxml.js): the green it is on its way to, paler.
    It was amber, and read as the yellow of a hole. And only once it has
@@ -2038,10 +2038,10 @@ svg g.vf-notehead.fumbled-note path { fill: var(--pt-note-missed); }
 @keyframes pt-held-note {
   from, to { fill: var(--pt-note-active); }
 }
-svg g.vf-notehead.active-note path { animation: pt-held-note 0s 80ms forwards; }
-svg g.vf-notehead.expected-note path { fill: var(--pt-note-expected); }
-svg g.vf-notehead.offtempo-note path { fill: var(--pt-note-offtempo); }
-svg g.vf-notehead.missed-note path { fill: var(--pt-note-missed); }
+svg .vf-notehead.active-note { animation: pt-held-note 0s 80ms forwards; }
+svg .vf-notehead.expected-note { fill: var(--pt-note-expected); }
+svg .vf-notehead.offtempo-note { fill: var(--pt-note-offtempo); }
+svg .vf-notehead.missed-note { fill: var(--pt-note-missed); }
 
 /* A wrong note outside strict mode: the notehead the player owed lights up for
    a moment, so the mistake that spoils a repetition is visible when it happens.
@@ -2050,7 +2050,7 @@ svg g.vf-notehead.missed-note path { fill: var(--pt-note-missed); }
 @keyframes pt-wrong-note-flash {
   from, to { fill: var(--pt-note-missed); }
 }
-svg g.vf-notehead.wrong-note path { animation: pt-wrong-note-flash 700ms; }
+svg .vf-notehead.wrong-note { animation: pt-wrong-note-flash 700ms; }
 
 /* =============================================================================
    On-screen keyboard (keyboardHint.js)
@@ -2264,11 +2264,11 @@ svg g.vf-notehead.wrong-note path { animation: pt-wrong-note-flash 700ms; }
    would otherwise leave the note faded until something else is touched. */
 #score svg .vf-notehead { cursor: pointer; }
 @media (hover: hover) {
-  #score svg .vf-notehead:hover path { fill-opacity: 0.7; }
+  #score svg .vf-notehead:hover { fill-opacity: 0.7; }
 }
 
 /* Measure numbers — lighter to distinguish from fingerings */
-#score svg g.measure-number text { fill: #999999; }
+#score svg .osmd-measure-number text { fill: #999999; }
 
 /* Cursor scroll-margin: kept in sync with the JS scroll offset via the
    --pt-sticky-offset CSS variable, which utils.js applyStickyOffset()

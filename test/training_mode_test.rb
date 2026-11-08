@@ -63,13 +63,13 @@ class TrainingModeTest < CapybaraTestBase
     # mistake had happened: the dots simply stopped filling.
     play_note('D4') # the measure opens on C4
 
-    assert_selector 'svg g.vf-notehead.wrong-note', count: 1
+    assert_selector 'svg .vf-notehead.wrong-note', count: 1
     assert_selector 'svg circle.repeat-indicator.spoiled', count: 1
 
     # Playing the note that was owed clears the flash rather than leaving it
     # red over the played colour until the animation ends.
     play_note('C4')
-    assert_no_selector 'svg g.vf-notehead.wrong-note'
+    assert_no_selector 'svg .vf-notehead.wrong-note'
   end
 
   def test_training_mode_allows_jumping_to_specific_measure
@@ -85,6 +85,6 @@ class TrainingModeTest < CapybaraTestBase
     replay_cassette('melodie-measure-2-first-note')
 
     # Verify that both polyphonic notes were validated together
-    assert_selector 'svg g.vf-notehead.played-note', count: 2
+    assert_selector 'svg .vf-notehead.played-note', count: 2
   end
 end

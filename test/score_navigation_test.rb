@@ -39,29 +39,29 @@ class ScoreNavigationTest < CapybaraTestBase
 
     # First pass: C4 (measure 1)
     play_note('C4')
-    assert_selector 'svg g.vf-notehead.played-note', count: 1
+    assert_selector 'svg .vf-notehead.played-note', count: 1
 
     # First pass: D4 (measure 2)
     play_note('D4')
-    assert_selector 'svg g.vf-notehead.played-note', count: 2
+    assert_selector 'svg .vf-notehead.played-note', count: 2
 
     # First pass: E4 (measure 3, volta 1) - triggers repeat
     # After E4, only C4 and D4 are reset (will be replayed), E4 stays green
     play_note('E4')
-    assert_selector 'svg g.vf-notehead.played-note', count: 1  # Only E4 remains
+    assert_selector 'svg .vf-notehead.played-note', count: 1  # Only E4 remains
 
     # Second pass: C4 again (measure 1, repeated)
     play_note('C4')
-    assert_selector 'svg g.vf-notehead.played-note', count: 2  # E4 + C4
+    assert_selector 'svg .vf-notehead.played-note', count: 2  # E4 + C4
 
     # Second pass: D4 again (measure 2, repeated)
     play_note('D4')
-    assert_selector 'svg g.vf-notehead.played-note', count: 3  # E4 + C4 + D4
+    assert_selector 'svg .vf-notehead.played-note', count: 3  # E4 + C4 + D4
 
     # Second pass: F4 (measure 4, volta 2) - skips volta 1
     on_the_last_note do
       play_note('F4')
-      assert_selector 'svg g.vf-notehead.played-note', count: 4  # All notes green
+      assert_selector 'svg .vf-notehead.played-note', count: 4  # All notes green
     end
 
     # Score should be completed after playing the correct sequence
@@ -74,12 +74,12 @@ class ScoreNavigationTest < CapybaraTestBase
   def test_a_redraw_keeps_the_bars_the_repeat_cleared
     load_score('repeat-endings.xml', 4)
     play_notes(%w[C4 D4 E4])
-    assert_selector 'svg g.vf-notehead.played-note', count: 1
+    assert_selector 'svg .vf-notehead.played-note', count: 1
 
     relayout_score
 
-    assert_selector 'svg g.vf-notehead.played-note', count: 1
-    assert_selector 'svg g.vf-measure[id="3"] g.vf-notehead.played-note'
+    assert_selector 'svg .vf-notehead.played-note', count: 1
+    assert_selector 'svg [id^="osmd-m2-"] .vf-notehead.played-note'
   end
 
   def test_free_play_allows_clicking_measure_to_reposition
@@ -93,24 +93,24 @@ class ScoreNavigationTest < CapybaraTestBase
 
     # Play first two measures: C4 (measure 1) and D4 (measure 2)
     play_note("C4")
-    assert_selector 'svg g.vf-notehead.played-note', count: 1
+    assert_selector 'svg .vf-notehead.played-note', count: 1
 
     play_note("D4")
-    assert_selector 'svg g.vf-notehead.played-note', count: 2
+    assert_selector 'svg .vf-notehead.played-note', count: 2
 
     # Click on measure 1 to reposition - should reset measure 1 and all following
     click_measure(1)
-    assert_no_selector 'svg g.vf-notehead.played-note'
+    assert_no_selector 'svg .vf-notehead.played-note'
 
     # Back on the first pass, so the whole sequence is owed again. Measure 3 is
     # volta 1 (E4), which the second pass never plays: it stays green while the
     # repeat resets measures 1 and 2.
     play_note("C4")
-    assert_selector 'svg g.vf-notehead.played-note', count: 1
+    assert_selector 'svg .vf-notehead.played-note', count: 1
 
     play_note("D4")
     play_note("E4")
-    assert_selector 'svg g.vf-notehead.played-note', count: 1
+    assert_selector 'svg .vf-notehead.played-note', count: 1
     assert_no_text 'Partition terminée'
 
     # Second pass, ending on volta 2 (F4) - only now is the score finished
@@ -141,7 +141,7 @@ class ScoreNavigationTest < CapybaraTestBase
     click_measure(4)
     on_the_last_note do
       play_note("F4")
-      assert_selector 'svg g.vf-notehead.played-note', count: 1
+      assert_selector 'svg .vf-notehead.played-note', count: 1
     end
     assert_no_text 'Partition terminée'
   end
@@ -157,7 +157,7 @@ class ScoreNavigationTest < CapybaraTestBase
     x, y = page.evaluate_script(<<~JS)
       (() => {
         const rect = document.querySelector('rect.measure-click-area[data-measure-index="1"]').getBoundingClientRect()
-        const lines = [...document.querySelectorAll('g.vf-measure[id="2"] > path')]
+        const lines = [...document.querySelectorAll('[id^="osmd-m1-"] .vf-stave path')]
           .map((p) => p.getBoundingClientRect())
           .filter((r) => r.height < 1 && r.width > 0)
         return [rect.left + rect.width / 2, Math.min(...lines.map((r) => r.top)) + 2]
@@ -167,7 +167,7 @@ class ScoreNavigationTest < CapybaraTestBase
 
     # Measure 2's left-hand D3 is only the next note if the click landed there.
     play_note('D3')
-    assert_selector 'svg g.vf-notehead.played-note', count: 1
-    assert_no_selector 'svg g.vf-notehead.wrong-note'
+    assert_selector 'svg .vf-notehead.played-note', count: 1
+    assert_no_selector 'svg .vf-notehead.wrong-note'
   end
 end

@@ -113,12 +113,12 @@ class TrainingPassageTest < CapybaraTestBase
     play_note('D4')
     wait_for_training_cursor(3)
     play_note('E4')
-    assert_selector 'svg g.vf-notehead.played-note', count: 2
+    assert_selector 'svg .vf-notehead.played-note', count: 2
 
     relayout_score
 
-    assert_selector 'svg g.vf-notehead.played-note', count: 2
-    assert_no_selector 'svg g.vf-measure[id="1"] g.vf-notehead.played-note'
+    assert_selector 'svg .vf-notehead.played-note', count: 2
+    assert_no_selector 'svg [id^="osmd-m0-"] .vf-notehead.played-note'
   end
 
   def test_turning_the_passage_off_puts_the_work_back_on_one_measure

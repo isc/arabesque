@@ -617,7 +617,7 @@ class CapybaraTestBase < Minitest::Test
   # run waits for it. So does parking the clock: parked ahead of it, a 20 s
   # advance was seen not to reach the wait the keyboard counts from there.
   def assert_back_at_the_top
-    assert_no_selector 'svg g.vf-notehead.played-note'
+    assert_no_selector 'svg .vf-notehead.played-note'
   end
 
   # Attacks played one after the other on a driven clock (with_clock_control):
@@ -678,7 +678,7 @@ class CapybaraTestBase < Minitest::Test
     page.execute_script(<<~JS)
       window.__playedNotes = [];
       const sample = () => {
-        const lit = document.querySelectorAll('svg g.vf-notehead.played-note').length;
+        const lit = document.querySelectorAll('svg .vf-notehead.played-note').length;
         const log = window.__playedNotes;
         if (log[log.length - 1] !== lit) log.push(lit);
       };
@@ -751,7 +751,7 @@ class CapybaraTestBase < Minitest::Test
   # The fingering pad, open on `notehead`: an element, or its place among the
   # score's noteheads.
   def open_fingering_pad(notehead)
-    notehead = all('svg g.vf-notehead')[notehead] if notehead.is_a?(Integer)
+    notehead = all('svg .vf-notehead')[notehead] if notehead.is_a?(Integer)
     notehead.click
     assert_selector 'dialog#fingeringModal[open]'
   end
@@ -851,9 +851,9 @@ class CapybaraTestBase < Minitest::Test
   # stamp and all. Our own resize handler drives it, 250ms after the last event.
   def relayout_score
     [[500, 900], page.current_window.size].each do |size|
-      page.execute_script("document.querySelectorAll('svg g.vf-notehead').forEach((n) => (n.dataset.beforeRelayout = '1'))")
+      page.execute_script("document.querySelectorAll('svg .vf-notehead').forEach((n) => (n.dataset.beforeRelayout = '1'))")
       page.current_window.resize_to(*size)
-      assert_no_selector 'svg g.vf-notehead[data-before-relayout]', wait: 5
+      assert_no_selector 'svg .vf-notehead[data-before-relayout]', wait: 5
     end
   end
 

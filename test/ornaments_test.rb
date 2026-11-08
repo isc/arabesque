@@ -13,16 +13,16 @@ class OrnamentsTest < CapybaraTestBase
 
     # Play grace note E4 first
     play_note('E4')
-    assert_selector 'svg g.vf-notehead.played-note', count: 1
+    assert_selector 'svg .vf-notehead.played-note', count: 1
 
     # Play grace note F4 second
     play_note('F4')
-    assert_selector 'svg g.vf-notehead.played-note', count: 2
+    assert_selector 'svg .vf-notehead.played-note', count: 2
 
     # Play main note G4 last
     on_the_last_note do
       play_note('G4')
-      assert_selector 'svg g.vf-notehead.played-note', count: 3
+      assert_selector 'svg .vf-notehead.played-note', count: 3
     end
 
     # Score should be completed
@@ -163,7 +163,7 @@ class OrnamentsTest < CapybaraTestBase
     assert_no_selector 'svg circle.repeat-indicator.filled'
 
     # Wait for measure reset (played-note classes removed for next repetition)
-    assert_no_selector 'svg g.vf-notehead.played-note'
+    assert_no_selector 'svg .vf-notehead.played-note'
 
     # Second repetition: clean trill
     play_note("Ab4")
@@ -202,11 +202,11 @@ class OrnamentsTest < CapybaraTestBase
   def test_a_played_trill_stays_lit_through_a_redraw
     load_score('trill-ornament.xml', 2)
     play_notes(%w[Ab4 Bb4 Ab4])
-    assert_selector 'svg g.vf-notehead.played-note', count: 1
+    assert_selector 'svg .vf-notehead.played-note', count: 1
 
     relayout_score
 
-    assert_selector 'svg g.vf-notehead.played-note', count: 1
+    assert_selector 'svg .vf-notehead.played-note', count: 1
   end
 
   # A trill note struck between two notes of the other hand is still the
