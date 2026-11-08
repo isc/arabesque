@@ -100,4 +100,29 @@ class HandSelectionTest < CapybaraTestBase
 
     assert_selector 'svg .vf-notehead.played-note', count: 1
   end
+
+  # A hand left out fades its staff in every system, and keeps it faded
+  # through a redraw, which draws the staves afresh.
+  def test_a_hand_left_out_fades_its_staff
+    load_score('schumann-melodie.xml', 256)
+    assert_no_selector 'svg .pt-hand-left-out'
+
+    uncheck 'Main gauche'
+    assert_left_hand_faded
+
+    relayout_score
+    assert_left_hand_faded
+
+    check 'Main gauche'
+    assert_no_selector 'svg .pt-hand-left-out'
+  end
+
+  private
+
+  # The bass staff of every system, and nothing else.
+  def assert_left_hand_faded
+    assert_selector 'svg g.osmd-staffline[id$="-1"].pt-hand-left-out', minimum: 2
+    assert_no_selector 'svg g.osmd-staffline[id$="-1"]:not(.pt-hand-left-out)'
+    assert_no_selector 'svg g.osmd-staffline[id$="-0"].pt-hand-left-out'
+  end
 end

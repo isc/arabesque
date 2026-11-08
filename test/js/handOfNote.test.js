@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { handOfNote } from '../../public/js/noteExtraction.js'
+import { handOfNote, handOfStaff } from '../../public/js/noteExtraction.js'
 
 // innerStaff: the note's staff is neither the top nor the bottom one of its
 // part. stemUp: its <stem> points up.
@@ -19,5 +19,15 @@ describe('handOfNote', () => {
   it('lets the stem say the hand on a middle staff', () => {
     expect(handOfNote({ staffIndex: 1, innerStaff: true, stemUp: true })).toBe('right')
     expect(handOfNote({ staffIndex: 1, innerStaff: true, stemUp: false })).toBe('left')
+  })
+})
+
+// What a staff fades with: the hand of every note on it, or none for a middle
+// staff, which holds both.
+describe('handOfStaff', () => {
+  it('gives the outer staves a hand each and a middle staff none', () => {
+    expect(handOfStaff(0, false)).toBe('right')
+    expect(handOfStaff(1, false)).toBe('left')
+    expect(handOfStaff(1, true)).toBe(null)
   })
 })
