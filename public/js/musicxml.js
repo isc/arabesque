@@ -10,6 +10,8 @@ import {
   isOrnamentOrGrace,
   isStruck,
   handOfNote,
+  handOfStaff,
+  isInnerStaff,
 } from './noteExtraction.js'
 import { scrollSystemIntoView, isUnderStickyBars, nextPaint } from './utils.js'
 import { arrayBufferToXml, isMusicXml } from './mxlLoader.js'
@@ -253,6 +255,7 @@ export function initMusicXML() {
     clearVerdictMarks,
     setActiveHands: (hands) => {
       activeHands = { ...activeHands, ...hands }
+      fadeHandsLeftOut()
       steadiness.discard()
       // The measure under way starts over with the new hands: a hand ticked
       // back would otherwise owe every note it missed since the downbeat, the
@@ -725,10 +728,28 @@ async function renderScore({ reextract = true, rebuild = false, afterDraw = null
   scaleTitleBlock()
   score.osmdInstance.render()
   fixUpInvisibleNotes()
+  fadeHandsLeftOut()
   if (afterDraw) await afterDraw()
   // Must precede setupMeasureClickHandlers, which reads score.allNotes.
   if (reextract) extractNotesFromScore()
   setupMeasureClickHandlers()
+}
+
+// The staves of a hand left out, faded: the hand being worked stands out, and
+// the other stays there to be read. A staff is faded whole -- its notes,
+// fingerings, slurs, pedals -- since OSMD draws all of it into the staff's
+// group, and that group is reached through a measure on it. A middle staff
+// holds both hands (handOfStaff) and stays as it is.
+function fadeHandsLeftOut() {
+  const { Sheet, graphic } = score.osmdInstance ?? {}
+  if (!graphic) return
+  for (const system of graphic.musicPages.flatMap((page) => page.MusicSystems)) {
+    for (const line of system.StaffLines) {
+      const hand = handOfStaff(Sheet.Staves.indexOf(line.ParentStaff), isInnerStaff(line.ParentStaff))
+      const leftOut = hand !== null && !activeHands[hand]
+      line.Measures[0]?.getSVGGElement()?.closest('.osmd-staffline')?.classList.toggle('pt-hand-left-out', leftOut)
+    }
+  }
 }
 
 // An invisible notehead still captures clicks. OSMD renders a note the score hides with

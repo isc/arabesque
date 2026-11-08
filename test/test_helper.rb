@@ -849,11 +849,14 @@ class CapybaraTestBase < Minitest::Test
   # back. Stamped before each, so a check that follows cannot be satisfied by a
   # drawing that was already up — a relayout engraves every notehead afresh,
   # stamp and all. Our own resize handler drives it, 250ms after the last event.
+  # Waited on with visible: :all: checking each head's visibility is a browser
+  # round trip per head, and on a score of a few hundred heads one pass of the
+  # check outlasted the wait while the redraw detached them under it.
   def relayout_score
     [[500, 900], page.current_window.size].each do |size|
       page.execute_script("document.querySelectorAll('svg .vf-notehead').forEach((n) => (n.dataset.beforeRelayout = '1'))")
       page.current_window.resize_to(*size)
-      assert_no_selector 'svg .vf-notehead[data-before-relayout]', wait: 5
+      assert_no_selector 'svg .vf-notehead[data-before-relayout]', visible: :all, wait: 5
     end
   end
 

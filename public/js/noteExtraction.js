@@ -514,12 +514,7 @@ function extractNotesFromBars(bars) {
       for (const container of measure.verticalSourceStaffEntryContainers) {
         for (const [staffIndex, staffEntry] of (container.staffEntries ?? []).entries()) {
           if (!staffEntry?.voiceEntries) continue
-          // Counted within the note's own part: a second piano part (Chopin's
-          // first Ballade carries one) must not make the first one's bass staff
-          // a middle staff.
-          const partStaves = staffEntry.ParentStaff?.ParentInstrument?.Staves ?? []
-          const staffInPart = partStaves.indexOf(staffEntry.ParentStaff)
-          const innerStaff = staffInPart > 0 && staffInPart < partStaves.length - 1
+          const innerStaff = isInnerStaff(staffEntry.ParentStaff)
           for (const voiceEntry of staffEntry.voiceEntries) {
             if (!voiceEntry.notes) continue
             // Get voice ID from OSMD (1-based in MusicXML), convert to 0-indexed
@@ -678,17 +673,31 @@ export function requiredSequence(noteData) {
 }
 
 // The top staff is the right hand's, every staff below it the left's -- except
-// a staff in the middle of its part, where the stem decides: stem up, right
-// hand. The one place that rule is written: what a hand selection plays reads
-// it, and so does what names a note.
+// a staff in the middle of its part, which holds both, and where the stem
+// decides: stem up, right hand. The one place that rule is written: what a
+// hand selection plays reads it, what names a note, and what fades the staves
+// of a hand left out (musicxml.js).
 //
 // The middle staff is Liszt's: his song transcriptions put the melody on a
 // third staff between the other two, shared by both thumbs, and the footnote
 // to his Ave Maria spells out that stems up are the right hand's, stems down
 // the left's. A stemless note there stays with the left hand, as it would
 // anywhere below the top staff.
+export function handOfStaff(staffIndex, innerStaff) {
+  if (staffIndex === 0) return 'right'
+  return innerStaff ? null : 'left'
+}
+
 export function handOfNote({ staffIndex, innerStaff, stemUp }) {
-  return staffIndex === 0 || (innerStaff && stemUp) ? 'right' : 'left'
+  return handOfStaff(staffIndex, innerStaff) ?? (stemUp ? 'right' : 'left')
+}
+
+// Counted within the staff's own part: a second piano part (Chopin's first
+// Ballade carries one) must not make the first one's bass staff a middle staff.
+export function isInnerStaff(staff) {
+  const partStaves = staff?.ParentInstrument?.Staves ?? []
+  const staffInPart = partStaves.indexOf(staff)
+  return staffInPart > 0 && staffInPart < partStaves.length - 1
 }
 
 export function isNoteActiveForHands(noteData, activeHands) {
