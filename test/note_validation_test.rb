@@ -10,21 +10,21 @@ class NoteValidationTest < CapybaraTestBase
 
   def test_note_highlighting_when_playing_complex_score
     load_score('schumann-melodie.xml', 256)
-    assert_no_selector 'svg g.vf-notehead.played-note'
+    assert_no_selector 'svg .vf-notehead.played-note'
 
     replay_cassette('melodie-2-bars', wait_for_end: false)
 
-    assert_selector 'svg g.vf-notehead.played-note', minimum: 5
-    assert first('svg g.vf-notehead')[:class].include?('played-note')
+    assert_selector 'svg .vf-notehead.played-note', minimum: 5
+    assert first('svg .vf-notehead')[:class].include?('played-note')
   end
 
   def test_notes_must_be_played_in_correct_order
     load_score('simple-score.xml', 4)
-    assert_no_selector 'svg g.vf-notehead.played-note'
+    assert_no_selector 'svg .vf-notehead.played-note'
 
     replay_cassette('simple-score-wrong-order')
 
-    assert_selector 'svg g.vf-notehead.played-note', count: 3
+    assert_selector 'svg .vf-notehead.played-note', count: 3
     assert_no_text 'Partition terminée'
   end
 
@@ -40,20 +40,20 @@ class NoteValidationTest < CapybaraTestBase
     simulate_midi_input("ON C4")
 
     # The note should be highlighted while held
-    assert_selector 'svg g.vf-notehead.active-note', count: 1
+    assert_selector 'svg .vf-notehead.active-note', count: 1
 
     # Release C4 without having played E5 (Note OFF)
     simulate_midi_input("OFF C4")
 
     # The note should no longer be highlighted (not validated)
-    assert_no_selector 'svg g.vf-notehead.active-note'
-    assert_no_selector 'svg g.vf-notehead.played-note'
+    assert_no_selector 'svg .vf-notehead.active-note'
+    assert_no_selector 'svg .vf-notehead.played-note'
 
     # Now play E5 alone (Note ON then OFF)
     play_note("E5")
 
     # Still no notes should be validated because they weren't held together
-    assert_no_selector 'svg g.vf-notehead.played-note'
+    assert_no_selector 'svg .vf-notehead.played-note'
   end
 
   def test_polyphonic_duplicate_notes_validation
@@ -80,12 +80,12 @@ class NoteValidationTest < CapybaraTestBase
 
     # Play G4 and HOLD it (don't release yet)
     simulate_midi_input("ON G4")
-    assert_selector 'svg g.vf-notehead.played-note', count: 1
+    assert_selector 'svg .vf-notehead.played-note', count: 1
 
     # While holding G4, play F4 - both G4 tie-continuation and F4 should validate together
     on_the_last_note do
       simulate_midi_input("ON F4")
-      assert_selector 'svg g.vf-notehead.played-note', count: 3
+      assert_selector 'svg .vf-notehead.played-note', count: 3
     end
 
     # Now release both notes
@@ -103,8 +103,8 @@ class NoteValidationTest < CapybaraTestBase
     # Play only C4 - only C4's notehead should be held, not E4 and G4
     simulate_midi_input("ON C4")
 
-    assert_selector 'svg g.vf-notehead.active-note', count: 1
-    assert_no_selector 'svg g.vf-notehead.played-note'
+    assert_selector 'svg .vf-notehead.active-note', count: 1
+    assert_no_selector 'svg .vf-notehead.played-note'
   end
 
   # Hands that come down together still land a few milliseconds apart: the key
@@ -114,7 +114,7 @@ class NoteValidationTest < CapybaraTestBase
 
     with_clock_control do
       simulate_midi_input('ON C4')
-      assert_selector 'svg g.vf-notehead.active-note', count: 1
+      assert_selector 'svg .vf-notehead.active-note', count: 1
       refute held_note_lit?, 'lit as held straight away'
     end
     # Not after an advance_clock: the colour an animation gives is only worked
@@ -132,7 +132,7 @@ class NoteValidationTest < CapybaraTestBase
 
     replay_cassette('bug-des-pays-lointains')
 
-    assert_selector 'svg g.vf-notehead.played-note', count: 5
+    assert_selector 'svg .vf-notehead.played-note', count: 5
   end
 
   private
@@ -142,7 +142,7 @@ class NoteValidationTest < CapybaraTestBase
   def held_note_lit?
     page.evaluate_script(<<~JS)
       (() => {
-        const fill = (selector) => getComputedStyle(document.querySelector(`svg g.vf-notehead${selector} path`)).fill
+        const fill = (selector) => getComputedStyle(document.querySelector(`svg .vf-notehead${selector}`)).fill
         return fill('.active-note') !== fill(':not(.active-note)')
       })()
     JS

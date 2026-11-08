@@ -27,11 +27,11 @@ class PlaqueTest < CapybaraTestBase
       play_note('C4')
       play_note('E4')
       play_note('G4')
-      assert_no_selector 'svg g.vf-notehead.played-note'
+      assert_no_selector 'svg .vf-notehead.played-note'
 
       # The bar played, and no dot for it.
       play_evenly(BAR_1_BEATS.map(&:uniq))
-      assert_selector 'svg g.vf-notehead.played-note', count: 16
+      assert_selector 'svg .vf-notehead.played-note', count: 16
       assert_no_selector 'svg circle.repeat-indicator.filled'
       advance_clock(300)
 

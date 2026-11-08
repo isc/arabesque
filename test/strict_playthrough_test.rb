@@ -14,7 +14,7 @@ class StrictPlaythroughTest < CapybaraTestBase
 
     play_notes(%w[C4 D4])
 
-    assert_no_selector 'svg g.vf-notehead.played-note'
+    assert_no_selector 'svg .vf-notehead.played-note'
     assert_no_text 'Partition terminée'
   end
 
@@ -61,11 +61,11 @@ class StrictPlaythroughTest < CapybaraTestBase
     # Three 4/4 bars at 120 BPM.
     play_silent_run(6000)
     within('dialog.pt-result-dialog') { click_on 'Fermer' }
-    assert_selector 'svg g.vf-notehead.missed-note', count: 5
+    assert_selector 'svg .vf-notehead.missed-note', count: 5
 
     uncheck 'Main gauche'
 
-    assert_no_selector 'svg g.vf-notehead.missed-note'
+    assert_no_selector 'svg .vf-notehead.missed-note'
   end
 
   def test_no_input_marks_all_notes_missed
@@ -79,9 +79,9 @@ class StrictPlaythroughTest < CapybaraTestBase
 
     # The verdict stays on the score to be read, but leaves with the mode.
     within('dialog.pt-result-dialog') { click_on 'Fermer' }
-    assert_selector 'svg g.vf-notehead.missed-note', count: 3
+    assert_selector 'svg .vf-notehead.missed-note', count: 3
     click_on 'Libre'
-    assert_no_selector 'svg g.vf-notehead.missed-note'
+    assert_no_selector 'svg .vf-notehead.missed-note'
   end
 
   # The verdict is a verdict on the passage that was selected: picking another
@@ -94,11 +94,11 @@ class StrictPlaythroughTest < CapybaraTestBase
     # Both bars at 120 BPM.
     play_silent_run(4000)
     within('dialog.pt-result-dialog') { click_on 'Fermer' }
-    assert_selector 'svg g.vf-notehead.missed-note', minimum: 1
+    assert_selector 'svg .vf-notehead.missed-note', minimum: 1
 
     click_measure(1)
 
-    assert_no_selector 'svg g.vf-notehead.missed-note'
+    assert_no_selector 'svg .vf-notehead.missed-note'
   end
 
   # A relayout rebuilds the SVG, and the verdict used to live only as classes on
@@ -113,14 +113,14 @@ class StrictPlaythroughTest < CapybaraTestBase
     # Both bars at 120 BPM.
     play_silent_run(4000)
     within('dialog.pt-result-dialog') { click_on 'Fermer' }
-    assert_selector 'svg g.vf-notehead.missed-note', count: 2
+    assert_selector 'svg .vf-notehead.missed-note', count: 2
 
     relayout_score
 
-    assert_selector 'svg g.vf-notehead.missed-note', count: 2
+    assert_selector 'svg .vf-notehead.missed-note', count: 2
     # And reachable, rather than stranded on the nodes the redraw took away.
     click_measure(1)
-    assert_no_selector 'svg g.vf-notehead.missed-note'
+    assert_no_selector 'svg .vf-notehead.missed-note'
   end
 
   # Regression: a strict run used to leave no trace at all — its notes go to the
@@ -199,7 +199,7 @@ class StrictPlaythroughTest < CapybaraTestBase
       # After E4, the cursor jumps back to m1 at T=8s and the boundary reset
       # fires. Only E4 (volta-1, never replayed) should still show played-note.
       advance_clock(2000)
-      assert_selector 'svg g.vf-notehead.played-note', count: 1, wait: 4
+      assert_selector 'svg .vf-notehead.played-note', count: 1, wait: 4
 
       # Second pass replays m1 and m2 then takes volta 2 (F4) at T=12s; the run
       # ends after that event, and strict_run lets it finish.
@@ -214,10 +214,10 @@ class StrictPlaythroughTest < CapybaraTestBase
     load_score('two-measures.xml', 2)
 
     play_note('C4')
-    assert_selector 'svg g.vf-notehead.played-note', count: 1
+    assert_selector 'svg .vf-notehead.played-note', count: 1
 
     click_on '⏱ Mode strict'
-    assert_no_selector 'svg g.vf-notehead.played-note'
+    assert_no_selector 'svg .vf-notehead.played-note'
   end
 
   # The cluster clips what overflows it, so an item naming its own height in
@@ -275,7 +275,7 @@ class StrictPlaythroughTest < CapybaraTestBase
 
       # The count-in, then the whole-note C4 of bar 1 — the only note expected.
       advance_clock(COUNT_IN_MS)
-      assert_selector 'svg g.vf-notehead.expected-note', count: 1, wait: 4
+      assert_selector 'svg .vf-notehead.expected-note', count: 1, wait: 4
       play_chord(%w[C4])
 
       # The passage stops at bar 1: past its end the run is judged and the
@@ -283,7 +283,7 @@ class StrictPlaythroughTest < CapybaraTestBase
       # would still be waiting for bar 2.
       advance_clock(END_OF_RUN_MS)
       assert_text '120 BPM · passage 1 · 1 sur 3 propres', wait: 2
-      assert_no_selector 'svg g.vf-notehead.missed-note'
+      assert_no_selector 'svg .vf-notehead.missed-note'
 
       # A second's pause, then the next run counts in.
       advance_clock(1000)
@@ -345,7 +345,7 @@ class StrictPlaythroughTest < CapybaraTestBase
       top_before = score_top
       advance_clock(1450)
       assert_no_selector '.pt-countin__beat'
-      assert_selector 'svg g.vf-notehead.expected-note', wait: 4
+      assert_selector 'svg .vf-notehead.expected-note', wait: 4
       assert_equal top_before, score_top
     end
   end
@@ -368,7 +368,7 @@ class StrictPlaythroughTest < CapybaraTestBase
 
     # One notehead per written note, the ornaments lit on their principal.
     within('dialog.pt-result-dialog') { click_on 'Fermer' }
-    assert_selector 'svg g.vf-notehead.played-note', count: 3
+    assert_selector 'svg .vf-notehead.played-note', count: 3
   end
 
   # An ornament is not decoration the player may drop: its notes are written,
@@ -501,7 +501,7 @@ class StrictPlaythroughTest < CapybaraTestBase
     with_clock_control do
       trigger_click_on('▶ Démarrer')
       advance_clock(COUNT_IN_MS)
-      assert_selector 'svg g.vf-notehead.expected-note', wait: 4, **expected
+      assert_selector 'svg .vf-notehead.expected-note', wait: 4, **expected
       yield
       advance_clock(END_OF_RUN_MS)
       assert_text 'Playthrough strict terminé', wait: 4

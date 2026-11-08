@@ -49,7 +49,7 @@ class ContinuationMeasureTest < CapybaraTestBase
     assert_selector 'svg rect.measure-click-area.selected', count: 2
 
     play_notes(BAR_2_FIRST_HALF)
-    assert_selector 'svg g.vf-notehead.played-note', count: BAR_2_FIRST_HALF.length
+    assert_selector 'svg .vf-notehead.played-note', count: BAR_2_FIRST_HALF.length
     assert_no_selector 'svg circle.repeat-indicator.filled'
 
     play_notes(BAR_2_SECOND_HALF)

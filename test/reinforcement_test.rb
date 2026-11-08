@@ -161,7 +161,7 @@ class ReinforcementTest < CapybaraTestBase
     play_note('E4')
     assert_selector 'svg circle.repeat-indicator.spoiled', count: 1
     play_note('C4')
-    assert_no_selector 'svg g.vf-notehead.played-note'
+    assert_no_selector 'svg .vf-notehead.played-note'
     assert_drilling 1, dots: 1
     play_note('C4')
     assert_drilling 2, dots: 1
@@ -222,7 +222,7 @@ class ReinforcementTest < CapybaraTestBase
 
     click_on 'Renforcer 1 passage'
     play_chord(%w[G4 C3])
-    assert_selector 'svg g.vf-notehead.played-note', count: 2
+    assert_selector 'svg .vf-notehead.played-note', count: 2
     assert_no_selector 'svg circle.repeat-indicator.spoiled'
   end
 
@@ -250,9 +250,9 @@ class ReinforcementTest < CapybaraTestBase
 
     assert_selector 'svg rect.fragment-range', count: 3
     play_note('C4')
-    assert_selector 'svg g.vf-notehead.played-note', count: 1
+    assert_selector 'svg .vf-notehead.played-note', count: 1
     play_note('D4')
-    assert_selector 'svg g.vf-notehead.played-note', count: 2
+    assert_selector 'svg .vf-notehead.played-note', count: 2
     play_note('E4')
     assert_selector 'svg circle.repeat-indicator.filled', count: 1
   end
@@ -296,9 +296,9 @@ class ReinforcementTest < CapybaraTestBase
   def drill_the_join
     3.times do
       play_note('C4')
-      assert_selector 'svg g.vf-notehead.played-note', count: 1
+      assert_selector 'svg .vf-notehead.played-note', count: 1
       play_note('D4')
-      assert_no_selector 'svg g.vf-notehead.played-note'
+      assert_no_selector 'svg .vf-notehead.played-note'
     end
   end
 end

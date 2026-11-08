@@ -40,12 +40,12 @@ class AutoscrollTest < CapybaraTestBase
 
     # Play first repetition
     play_note('C4')
-    assert_no_selector 'svg g.vf-notehead.played-note'  # Wait for measure reset
+    assert_no_selector 'svg .vf-notehead.played-note'  # Wait for measure reset
     initial_scroll = settled_scroll
 
     # Play second repetition - scroll should not change
     play_note('C4')
-    assert_no_selector 'svg g.vf-notehead.played-note'  # Wait for measure reset
+    assert_no_selector 'svg .vf-notehead.played-note'  # Wait for measure reset
     assert_equal initial_scroll, settled_scroll, 'Scroll should not change after second repetition'
 
     # Play third repetition - this triggers advancement
@@ -76,13 +76,13 @@ class AutoscrollTest < CapybaraTestBase
     click_measure(4)
     3.times do
       play_note('F4')
-      assert_no_selector 'svg g.vf-notehead.played-note'
+      assert_no_selector 'svg .vf-notehead.played-note'
     end
     settled_scroll
 
     3.times do
       play_note('G4')
-      assert_no_selector 'svg g.vf-notehead.played-note'
+      assert_no_selector 'svg .vf-notehead.played-note'
     end
 
     # Waits for the cursor to land rather than sampling where it is: the
@@ -133,7 +133,7 @@ class AutoscrollTest < CapybaraTestBase
     # Play the note 3 times
     3.times do
       play_note('D4')
-      assert_no_selector 'svg g.vf-notehead.played-note'  # Wait for measure reset
+      assert_no_selector 'svg .vf-notehead.played-note'  # Wait for measure reset
     end
 
     # Wait for advancement by checking repeat indicators reset to 0 filled

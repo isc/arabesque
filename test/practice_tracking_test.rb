@@ -90,7 +90,7 @@ class PracticeTrackingTest < CapybaraTestBase
     enter_training_mode
     play_note('C4')
     assert_selector 'svg circle.repeat-indicator.filled', count: 1
-    assert_no_selector 'svg g.vf-notehead.played-note'
+    assert_no_selector 'svg .vf-notehead.played-note'
 
     looked_until = page.evaluate_script('Date.now()')
     play_note('C4')

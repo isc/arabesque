@@ -162,7 +162,7 @@ class FingeringAnnotationTest < CapybaraTestBase
     assert_fingering '2'
 
     # Verify fingering is positioned near the pickup measure (first notehead)
-    first_note_x, = find('svg g.vf-notehead', match: :first).native.node.find_position
+    first_note_x, = find('svg .vf-notehead', match: :first).native.node.find_position
     fingering_x, = find('svg g.vf-text', text: '2').native.node.find_position
 
     # Fingering should be within 50px of the first note (not shifted to next measure)
@@ -303,7 +303,7 @@ class FingeringAnnotationTest < CapybaraTestBase
 
   # What the pad names each notehead of the score, one click at a time.
   def pad_note_names(minimum:)
-    all('svg g.vf-notehead', minimum: minimum).map do |notehead|
+    all('svg .vf-notehead', minimum: minimum).map do |notehead|
       open_fingering_pad(notehead)
       name = find('[data-testid="fingering-note"]').text
       click_on 'Close'

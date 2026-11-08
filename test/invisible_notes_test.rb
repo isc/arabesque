@@ -12,12 +12,12 @@ class InvisibleNotesTest < CapybaraTestBase
 
     # Four notes, three heads with ink: the hidden quaver's head sits on the minim's,
     # transparent, and the triplet's beam starts from the minim's head.
-    assert_selector 'svg g.vf-notehead path:not([fill="#00000000"])', count: 3
-    assert_selector 'svg g.vf-notehead path[fill="#00000000"]', count: 1
+    assert_selector 'svg .vf-notehead:not([fill="#00000000"])', count: 3
+    assert_selector 'svg .vf-notehead[fill="#00000000"]', count: 1
 
     # The single keypress that validates the pitch colours the head both voices share.
     play_note('F#3')
-    assert_selector 'svg g.vf-notehead.played-note path:not([fill="#00000000"])', count: 1
+    assert_selector 'svg .vf-notehead.played-note:not([fill="#00000000"])', count: 1
   end
 
   def test_a_hidden_note_whose_head_is_merged_with_its_unison_stays_invisible
@@ -25,8 +25,8 @@ class InvisibleNotesTest < CapybaraTestBase
 
     # Eight notes, seven heads with ink: VexFlow put the hidden quaver's head right on the
     # dotted minim's, and inking it would fill the minim's open head.
-    assert_selector 'svg g.vf-notehead path:not([fill="#00000000"])', count: 7
-    assert_selector 'svg g.vf-notehead path[fill="#00000000"]', count: 1
+    assert_selector 'svg .vf-notehead:not([fill="#00000000"])', count: 7
+    assert_selector 'svg .vf-notehead[fill="#00000000"]', count: 1
   end
 
   def test_a_hidden_note_with_no_unison_to_stand_in_for_it_stays_invisible
@@ -35,6 +35,6 @@ class InvisibleNotesTest < CapybaraTestBase
     # the app expands the turn symbol itself, so drawing them would double the ornament.
     load_score('turn-with-hidden-realization.xml', 7)
 
-    assert_selector 'svg g.vf-notehead path[fill="#00000000"]', count: 5
+    assert_selector 'svg .vf-notehead[fill="#00000000"]', count: 5
   end
 end

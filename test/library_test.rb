@@ -58,7 +58,7 @@ class LibraryTest < CapybaraTestBase
 
     # Play the first measure (C B C A) to create a session
     play_notes(%w[C5 B4 C5 A4])
-    assert_selector 'svg g.vf-notehead.played-note', minimum: 4
+    assert_selector 'svg .vf-notehead.played-note', minimum: 4
 
     # Go back to library and verify the score is now first (most recently played)
     click_on 'Bibliothèque'
