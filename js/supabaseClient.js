@@ -8,7 +8,7 @@
 // that sees the player's IP address. The client persists the session in
 // localStorage and auto-refreshes the token.
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4'
-import { SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, AUTH_STORAGE_KEY, supabaseConfigured } from './supabaseConfig.js?v=40edd18a1e3f'
+import { SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, AUTH_STORAGE_KEY, supabaseConfigured } from './supabaseConfig.js?v=31049bd522e1'
 
 export const supabase = supabaseConfigured
   ? createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {

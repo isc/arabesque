@@ -2020,6 +2020,10 @@ dialog > article > footer {
   background: var(--pt-bg-elevated);
 }
 
+/* The staves of a hand left out (fadeHandsLeftOut in musicxml.js): there to be
+   read, not played. */
+#score svg g.pt-hand-left-out { opacity: 0.35; }
+
 /* SVG note coloring */
 svg .vf-notehead.played-note { fill: var(--pt-note-played); }
 /* A note that came after a hole in free play or training (steadiness.js): the

@@ -10,14 +10,16 @@ import {
   isOrnamentOrGrace,
   isStruck,
   handOfNote,
-} from './noteExtraction.js?v=40edd18a1e3f'
-import { scrollSystemIntoView, isUnderStickyBars, nextPaint } from './utils.js?v=40edd18a1e3f'
-import { arrayBufferToXml, isMusicXml } from './mxlLoader.js?v=40edd18a1e3f'
-import { stripPlaybackTempoMarks } from './tempoMarks.js?v=40edd18a1e3f'
-import { recordError } from './errorLog.js?v=40edd18a1e3f'
-import { REINFORCEMENT_CLEAN_PASSES } from './reinforcement.js?v=40edd18a1e3f'
-import { POSITION_EPSILON, beatStartOf } from './noteLogAnalysis.js?v=40edd18a1e3f'
-import { createSteadiness } from './steadiness.js?v=40edd18a1e3f'
+  handOfStaff,
+  isInnerStaff,
+} from './noteExtraction.js?v=31049bd522e1'
+import { scrollSystemIntoView, isUnderStickyBars, nextPaint } from './utils.js?v=31049bd522e1'
+import { arrayBufferToXml, isMusicXml } from './mxlLoader.js?v=31049bd522e1'
+import { stripPlaybackTempoMarks } from './tempoMarks.js?v=31049bd522e1'
+import { recordError } from './errorLog.js?v=31049bd522e1'
+import { REINFORCEMENT_CLEAN_PASSES } from './reinforcement.js?v=31049bd522e1'
+import { POSITION_EPSILON, beatStartOf } from './noteLogAnalysis.js?v=31049bd522e1'
+import { createSteadiness } from './steadiness.js?v=31049bd522e1'
 
 // The score on the stand: the sheet OSMD holds, and the note model built from
 // it. Replaced as a sheet comes in (renderMusicXML) and as it is drawn
@@ -253,6 +255,7 @@ export function initMusicXML() {
     clearVerdictMarks,
     setActiveHands: (hands) => {
       activeHands = { ...activeHands, ...hands }
+      fadeHandsLeftOut()
       steadiness.discard()
       // The measure under way starts over with the new hands: a hand ticked
       // back would otherwise owe every note it missed since the downbeat, the
@@ -725,10 +728,28 @@ async function renderScore({ reextract = true, rebuild = false, afterDraw = null
   scaleTitleBlock()
   score.osmdInstance.render()
   fixUpInvisibleNotes()
+  fadeHandsLeftOut()
   if (afterDraw) await afterDraw()
   // Must precede setupMeasureClickHandlers, which reads score.allNotes.
   if (reextract) extractNotesFromScore()
   setupMeasureClickHandlers()
+}
+
+// The staves of a hand left out, faded: the hand being worked stands out, and
+// the other stays there to be read. A staff is faded whole -- its notes,
+// fingerings, slurs, pedals -- since OSMD draws all of it into the staff's
+// group, and that group is reached through a measure on it. A middle staff
+// holds both hands (handOfStaff) and stays as it is.
+function fadeHandsLeftOut() {
+  const { Sheet, graphic } = score.osmdInstance ?? {}
+  if (!graphic) return
+  for (const system of graphic.musicPages.flatMap((page) => page.MusicSystems)) {
+    for (const line of system.StaffLines) {
+      const hand = handOfStaff(Sheet.Staves.indexOf(line.ParentStaff), isInnerStaff(line.ParentStaff))
+      const leftOut = hand !== null && !activeHands[hand]
+      line.Measures[0]?.getSVGGElement()?.closest('.osmd-staffline')?.classList.toggle('pt-hand-left-out', leftOut)
+    }
+  }
 }
 
 // An invisible notehead still captures clicks. OSMD renders a note the score hides with
