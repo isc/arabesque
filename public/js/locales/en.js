@@ -303,6 +303,38 @@ export default {
     trainingBand: '🎯 Training',
     trainingHint: 'Each bar must be played {times}× without a mistake or a hesitation.',
     reinforcementHint: 'Each passage must be played {times}× without a mistake or a hesitation; a dot earned moves on to the next.',
+    // The ladder a reinforcement takes a passage up (ladder.js): the name of
+    // each step in the band's row and what it asks for, by the step's kind,
+    // then what the last repetitions call for — faster, steadier, or a step
+    // down, to one hand or to the passage with nothing asked of its pace.
+    ladderAria: 'Steps of the passage',
+    ladderPassage: 'Passage {n} of {of}',
+    ladderName: {
+      right: 'Right hand',
+      left: 'Left hand',
+      together: 'Both hands',
+      whole: 'Any tempo',
+      tempo: 'In tempo',
+      again: 'Again',
+      confirm: 'Cold',
+    },
+    ladderAsk: {
+      right: 'Right hand alone: once without a mistake or a hesitation.',
+      left: 'Left hand alone: once without a mistake or a hesitation.',
+      together: 'Both hands, at your own pace: once without a mistake or a hesitation.',
+      whole: 'At your own pace: once without a mistake or a hesitation.',
+      tempo: 'At the tempo of your full runs (♩ = {tempo}): once without a mistake or a hesitation.',
+      again: 'Once more, without a mistake or a hesitation.',
+      confirm: 'One last time, cold, without a mistake or a hesitation.',
+      confirmTempo: 'One last time, cold, in tempo (♩ = {tempo}).',
+    },
+    ladderSlow: 'Clean, but at ♩ = {played}: aim for ♩ = {tempo}.',
+    ladderSteady: 'It keeps catching: slow down, steadiness first.',
+    ladderDown: {
+      right: 'The right hand keeps catching: play it alone once, then both hands again.',
+      left: 'The left hand keeps catching: play it alone once, then both hands again.',
+      pace: 'Too fast for now: once at your own pace, then in tempo again.',
+    },
     blockChordsBtn: '🎹 Block chords',
     blockChordsTitle: 'Play each beat as one chord',
     blockChordsAdvice: 'This passage stalls just after the bar line: play it in block chords first (🎹), then as written.',

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { fragmentOf, fragmentsToReinforce } from '../../public/js/fragments.js'
+import { PACE_EASE, PACE_RUNS, fragmentOf, fragmentsToReinforce, paceToHold } from '../../public/js/fragments.js'
 
 // Three bars of quavers for the right hand, a crotchet beat: two attacks a
 // beat, eight a bar.
@@ -158,5 +158,36 @@ describe('fragmentsToReinforce', () => {
   it('keeps to the best `limit` spots', () => {
     const traversals = [traversal({ holes: ['0:3', '2:5'] }), traversal({ holes: ['2:5'] })]
     expect(offered(traversals, { limit: 1 })).toEqual([[{ bar: 2, position: 0.25 }, { bar: 2, position: 0.75 }]])
+  })
+})
+
+describe('paceToHold', () => {
+  // A run that held `pace` — or, bar by bar, those listed — every interval of
+  // its three bars judged.
+  const run = (pace, options = {}) => {
+    const played = traversal(options)
+    return { ...played, attacks: played.attacks.map((attack) => ({ ...attack, pace: pace[attack.sourceBar] ?? pace })) }
+  }
+  const join = { from: { bar: 0, position: 0.75 }, until: { bar: 1, position: 0.25 } }
+  const last = { from: { bar: 2, position: 0 }, until: { bar: 2, position: 0.5 } }
+
+  it('is the pace the last runs with these hands held, eased a little', () => {
+    expect(paceToHold([run(5000), run(4000), run(4500)], 'right')(join)).toBe(4500 / PACE_EASE)
+    const old = Array(PACE_RUNS).fill(run(9000))
+    expect(paceToHold([...old, ...Array(PACE_RUNS).fill(run(4000))], 'right')(join)).toBe(4000 / PACE_EASE)
+  })
+
+  it('is read in the bars of the passage: a piece changes pace on its way', () => {
+    const slowing = run([4000, 4000, 8000])
+    expect(paceToHold([slowing], 'right')(join)).toBe(4000 / PACE_EASE)
+    expect(paceToHold([slowing], 'right')(last)).toBe(8000 / PACE_EASE)
+  })
+
+  it('reads no pace off a drill, block chords, other hands, a few notes, or a run that stopped short of the passage', () => {
+    const others = [run(4000, { training: true }), run(4000, { blockChords: true }), run(4000, { hands: 'both' })]
+    expect(paceToHold(others, 'right')(join)).toBe(null)
+    const short = run(4000)
+    expect(paceToHold([{ ...short, attacks: short.attacks.slice(0, 12) }], 'right')(join)).toBe(null)
+    expect(paceToHold([run(4000, { to: 1 })], 'right')(last)).toBe(null)
   })
 })

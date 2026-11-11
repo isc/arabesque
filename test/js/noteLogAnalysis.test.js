@@ -5,6 +5,7 @@ import {
   barsAcross,
   barsPlayed,
   barsRepeatingTheirHalf,
+  crotchetsPerMinute,
   eventsOf,
   figuresOf,
   halvesOf,
@@ -162,6 +163,22 @@ describe('traversals', () => {
     const again = once.filter(([, , , b]) => b === 1).map(([at, ...rest]) => [at + 5000, ...rest])
     const runs = traversals(log([...once, ...again]), model)
     expect(runs.map((r) => new Set(r.attacks.map((a) => a.bar)).size)).toEqual([2, 1])
+  })
+})
+
+describe('the pace of a traversal', () => {
+  it('is the one it held over all of it, a stall included, beside the one it was weighed against', () => {
+    const [even] = traversals(log(played(500)), model)
+    expect(even.meanPace).toBe(2000)
+    // Seven crotchets in 5 s.
+    const [stalled] = traversals(log(played(500, { '1:1': 1500 })), model)
+    expect(paceOf(stalled)).toBe(2000)
+    expect(Math.round(stalled.meanPace)).toBe(2857)
+  })
+
+  it('reads as a tempo in crotchets a minute', () => {
+    expect(crotchetsPerMinute(2000)).toBe(120)
+    expect(crotchetsPerMinute(5000)).toBe(48)
   })
 })
 

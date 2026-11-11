@@ -219,6 +219,9 @@ export function midiApp() {
     blockChords: false,
     blockChordsFit: false,
     blockChordsAdvised: false,
+    // Where a reinforcement stands on the ladder of the passage under way
+    // (sayLadder in musicxml.js): null outside one.
+    ladder: null,
 
     // Read off the flag score.html's head script raised during parsing, so
     // Alpine agrees with the CSS about whether a score is on its way. Without
@@ -256,6 +259,11 @@ export function midiApp() {
     leftHandActive: true,
     get activeHands() {
       return { right: this.rightHandActive, left: this.leftHandActive }
+    },
+    // The hands are not the player's to change: frozen by a strict run at its
+    // start, or set step by step by a reinforcement.
+    get handsAreSet() {
+      return this.isStrictPlaying || this.mode === 'reinforcement'
     },
 
     showHistoryModal: false,
@@ -364,6 +372,9 @@ export function midiApp() {
       // The playback band appears and disappears with the listening, and it is
       // as tall as the strict one — so the sticky offset has to follow it too.
       this.$watch('isListening', () => this.$nextTick(applyStickyOffset))
+      // So does the row of steps a reinforcement adds to the training band,
+      // which comes up after the mode has changed.
+      this.$watch('ladderShown', () => this.$nextTick(applyStickyOffset))
     },
 
     // The notes the keyboard sends, to whichever engine the mode gives them.
@@ -432,7 +443,9 @@ export function midiApp() {
         },
         onMeasureCompleted: () => {
           practiceTracker.endMeasureAttempt()
-          this.refreshReinforcementSuggestions()
+          // Not through a drill, which offers nothing while it lasts and says
+          // when it is over (onLadder).
+          if (this.mode !== 'reinforcement') this.refreshReinforcementSuggestions()
         },
         onIntervalJudged: (verdict) => practiceTracker.recordSteadiness(verdict),
         onWrongNote: (midiNote) => {
@@ -457,6 +470,20 @@ export function midiApp() {
         onReinforcementComplete: async (firstTries) => {
           await this.setMode('free')
           this.showReinforcementDone(firstTries)
+        },
+        // Null once the drill is over, finished or left: what is worth
+        // drilling is read again then, for the hands it has given back.
+        onLadder: (ladder) => {
+          this.ladder = ladder
+          if (!ladder) this.refreshReinforcementSuggestions()
+        },
+        // A step of the ladder taken with one hand, or a drill giving back the
+        // hands it was started with: the boxes show them, and everything that
+        // goes by the hands ticked hears of it as it does of a box.
+        onHandsChanged: ({ right, left }) => {
+          this.rightHandActive = right
+          this.leftHandActive = left
+          this.followActiveHands()
         },
         onMeasureClicked: (measureIndex) => {
           // A bar clicked while listening seeks playback there instead of
@@ -1083,11 +1110,49 @@ export function midiApp() {
       // Ahead of block chords: with them on, pressing 🔁 would show nothing.
       if (this.trainingPassage.loop && this.trainingPassage.end == null && clickIsTraining) return t('score.loopHint')
       if (this.blockChords) return t('score.blockChordsHint')
+      // What the last repetitions of a drill call for, ahead of what its
+      // passage does: that is said for as long as it is up.
+      const called = this.ladderCall()
+      if (called) return called
       if (this.blockChordsAdvised) return t('score.blockChordsAdvice')
-      if (this.mode === 'reinforcement') return t('score.reinforcementHint', { times })
+      if (this.mode === 'reinforcement') return this.ladderAsk() ?? t('score.reinforcementHint', { times })
       // A passage of one bar is allowed, and "bars 5 to 5" is not a sentence.
       if (this.trainingPassage.end != null) return passageText('score.trainingPassage', this.trainingPassage, { times })
       return t('score.trainingHint', { times })
+    },
+
+    // What the last repetitions of a drill call for — faster, steadier, a
+    // step down — or null when they call for nothing, and outside a drill.
+    ladderCall() {
+      if (!this.ladder) return null
+      const { down, hint, tempo, played } = this.ladder
+      if (hint === 'slow') return t('score.ladderSlow', { played, tempo })
+      if (hint === 'steady') return t('score.ladderSteady')
+      return down ? t(`score.ladderDown.${down}`) : null
+    },
+
+    // What a drill asks for on the step under way (score.ladderAsk in the
+    // catalogs, by the step's kind), after which passage of how many it is.
+    // The last step is asked with the pace it holds, when it holds one. Null
+    // for a ladder with nothing to say: a clean repetition a turn, which the
+    // band's own line already asks for.
+    ladderAsk() {
+      if (!this.ladderShown) return null
+      const { kind, tempo, passage, passages } = this.ladder
+      const ask = kind === 'confirm' && tempo ? 'confirmTempo' : kind
+      return `${t('score.ladderPassage', { n: passage, of: passages })} · ${t(`score.ladderAsk.${ask}`, { tempo })}`
+    },
+
+    // Whether the band shows the ladder under way: not one with nothing to
+    // show.
+    get ladderShown() {
+      return Boolean(this.ladder?.guided)
+    },
+
+    // Its steps, named (score.ladderName), for the row the band shows of them.
+    get ladderSteps() {
+      if (!this.ladderShown) return []
+      return this.ladder.steps.map((step) => ({ ...step, name: t(`score.ladderName.${step.kind}`) }))
     },
 
     trainerModeLabel(mode) {
@@ -1252,11 +1317,17 @@ export function midiApp() {
         else this.rightHandActive = true
       }
       musicxml.setActiveHands(this.activeHands)
+      this.followActiveHands()
+      this.refreshReinforcementSuggestions()
+    },
+
+    // The hands ticked changed, by a box or by the engine (onHandsChanged):
+    // what else goes by them.
+    followActiveHands() {
       strictPlaythrough.setActiveHands(this.activeHands)
       practiceTracker.setActiveHands(this.activeHands)
       noteLog.hands(this.activeHands)
       playback.setHands(this.activeHands)
-      this.refreshReinforcementSuggestions()
     },
 
     async openScoreHistory() {

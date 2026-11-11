@@ -79,6 +79,9 @@ export function createSteadiness() {
   // The traversal's last WINDOW intervals since its last change of tempo.
   // Short of LIVE_MIN, none of them is judged yet; from there on, all are.
   let intervals = []
+  // Every interval of the traversal that says something of its pace, summed:
+  // the time they took and what the score writes over them.
+  let held = { ms: 0, written: 0 }
 
   function judge(interval, reference, verdicts) {
     const expected = reference * interval.written
@@ -133,6 +136,7 @@ export function createSteadiness() {
 
     const ms = next.at - from.at
     const interval = { ms, written, value: ms / written, ref: next.ref, entry: next.measure !== from.measure }
+    held = { ms: held.ms + ms, written: held.written + written }
     if (intervals.length >= LIVE_MIN) judge(interval, reference(), verdicts)
     intervals.push(interval)
     if (intervals.length > WINDOW) intervals.shift()
@@ -151,6 +155,13 @@ export function createSteadiness() {
     get underway() {
       return previous !== null
     },
+    // The pace the traversal has held so far, in ms per whole note: the mean
+    // over all of it, where a verdict's `pace` is the median it was weighed
+    // against. What a passage asked for at a tempo is weighed by (ladder.js).
+    // Null before its second attack.
+    get meanPace() {
+      return held.written > 0 ? held.ms / held.written : null
+    },
     // The traversal is over: what it left pending is judged, and the next
     // attack starts a new one.
     close() {
@@ -158,6 +169,7 @@ export function createSteadiness() {
       settle(verdicts)
       previous = null
       faulted = false
+      held = { ms: 0, written: 0 }
       return verdicts
     },
     // The traversal was broken off — a bar clicked, a hand toggled, a mode
@@ -166,6 +178,7 @@ export function createSteadiness() {
       previous = null
       faulted = false
       intervals = []
+      held = { ms: 0, written: 0 }
     },
   }
 }
