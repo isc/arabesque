@@ -10,7 +10,7 @@ import { withHands, passageText } from './utils.js'
 import { CLEAN_RATE } from './tempoTrainer.js'
 import {
   strictAccuracy,
-  wrongNotesText,
+  faultsText,
   strictRunLabel,
   rankingOf,
   wrongMeasuresText,
@@ -101,7 +101,7 @@ export function resultModal({ onOpen }) {
     },
 
     // Beside a run's time in the ranking.
-    wrongNotesText,
+    faultsText,
 
     strictAccuracyPercent() {
       return this.strictResult ? strictAccuracy(this.strictResult) : 0

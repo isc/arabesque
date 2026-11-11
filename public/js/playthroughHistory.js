@@ -27,6 +27,18 @@ export function wrongNotesText(n) {
   return n ? tn('score.wrongNotes', n) : t('score.noWrongNote')
 }
 
+// A free run's holes, in and between its bars (steadiness.js).
+export function holesText(n) {
+  return n ? tn('score.holes', n) : t('score.noHole')
+}
+
+// How clean a free run was: its wrong notes, and its holes when it has a
+// count (playthroughHoles in practiceTime.js).
+export function faultsText(pt) {
+  const wrongNotes = wrongNotesText(pt.wrongNotes)
+  return pt.holes == null ? wrongNotes : `${wrongNotes}, ${holesText(pt.holes)}`
+}
+
 // The stretch of a chart's vertical axis: a tenth of the spread of headroom
 // either side, stopping at `ceiling`.
 const paddedRange = (ceiling) => (low, high) => {
@@ -38,8 +50,8 @@ const paddedRange = (ceiling) => (low, high) => {
 // a free run by the time it took, a strict run by its hit rate — which means
 // nothing without the tempo, so its label carries it. Read wherever runs are
 // listed, titled or plotted, so a kind is described in one place. A free run's
-// label says how clean it was as well: a time alone reads the same for a run
-// that stumbled through as for one that didn't.
+// label says how clean and how steady it was as well: a time alone reads the
+// same for a run that stumbled through as for one that didn't.
 const RUN_KINDS = {
   free: {
     title: 'score.playtimeEvolution',
@@ -47,7 +59,7 @@ const RUN_KINDS = {
     value: (pt) => pt.durationMs,
     best: Math.min,
     format: formatDuration,
-    label: (pt) => `${formatDuration(pt.durationMs)} (${wrongNotesText(pt.wrongNotes)})`,
+    label: (pt) => `${formatDuration(pt.durationMs)} (${faultsText(pt)})`,
     range: paddedRange(Infinity),
   },
   strict: {

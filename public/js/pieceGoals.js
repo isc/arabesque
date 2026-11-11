@@ -15,7 +15,7 @@ import { nextStatus, statusRules } from './aggregates.js'
 import { byStartedAt, sessionDay } from './days.js'
 import { TWO_HANDS } from './hands.js'
 import { t, tn } from './i18n.js'
-import { wrongNotesText } from './playthroughHistory.js'
+import { holesText, wrongNotesText } from './playthroughHistory.js'
 import { statusCriteria } from './statusCriteria.js'
 import { formatDuration } from './utils.js'
 
@@ -113,7 +113,7 @@ export function pieceGoals(playthroughs, { notes, attacks }) {
 // The goals counted in stars, and their faults in words.
 const FAULTS_TEXT = {
   accuracy: wrongNotesText,
-  steadiness: (n) => (n ? tn('goals.holes', n) : t('goals.noHole')),
+  steadiness: holesText,
 }
 const TIERED = Object.keys(FAULTS_TEXT)
 

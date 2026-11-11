@@ -28,15 +28,17 @@ class PracticeTrackingTest < CapybaraTestBase
     assert_selector 'tr.is-current', text: 'sans faute'
   end
 
-  # A free run's wrong notes sit beside its time in the ranking, and the
-  # measures they fell in are named above it (feedback a01bf6cb).
+  # A free run's wrong notes and holes sit beside its time in the ranking, and
+  # the measures they fell in are named above it (feedback a01bf6cb, 1e84f2eb).
   def test_score_complete_modal_shows_wrong_notes
     open_two_measures
+    seed_store('sessions', [session_record('judged-run', 'free', noon_two_days_ago, 60_000, holes: 2)])
 
     # E4 is wrong in measure 2, which owes a D4.
     play_notes(%w[C4 E4 D4])
 
     assert_selector 'dialog[open] tr.is-current', text: '1 fausse note'
+    assert_selector 'dialog[open] tr', text: 'sans faute, 2 trous'
     assert_text 'Fausses notes à la mesure 2.'
   end
 
@@ -139,19 +141,21 @@ class PracticeTrackingTest < CapybaraTestBase
     assert_text '2× en entier : 60 % à 100 BPM et 100 % à 120 BPM · mode strict'
   end
 
-  # The day-by-day journal says how clean each free run was, not only how long
-  # it took — the result modal already did, beside the time.
-  def test_history_modal_lists_each_run_with_its_wrong_notes
+  # The day-by-day journal says how clean and how steady each free run was,
+  # not only how long it took (feedback 1e84f2eb). A run from before the pace
+  # was judged has no count of holes, and says nothing of them.
+  def test_history_modal_lists_each_run_with_its_wrong_notes_and_holes
     open_two_measures
 
     noon = noon_two_days_ago
     seed_store('sessions', [
-      session_record('clean-run', 'free', noon, 60_000),
-      session_record('stumbling-run', 'free', noon + 600, 90_000, clean: false, wrong_notes: 4),
+      session_record('old-run', 'free', noon, 60_000),
+      session_record('clean-run', 'free', noon + 600, 50_000, holes: 0),
+      session_record('stumbling-run', 'free', noon + 1200, 90_000, clean: false, wrong_notes: 4, holes: 2),
     ])
 
     click_on 'Historique'
-    assert_text '2× en entier : 1m 0s (sans faute) et 1m 30s (4 fausses notes)'
+    assert_text '3× en entier : 1m 0s (sans faute), 50s (sans faute, sans trou) et 1m 30s (4 fausses notes, 2 trous)'
   end
 
   # The history says where the piece stands against the next status, and a bar
@@ -306,10 +310,13 @@ class PracticeTrackingTest < CapybaraTestBase
   end
 
   # A finished session of the two-measure fixture, played through in one
-  # attempt. `extra` lands on the session record as is.
-  def session_record(id, mode, started_at, duration_ms, clean: true, wrong_notes: 0, **extra)
+  # attempt. `holes` gives that attempt a judged pace, the way the engine
+  # records one; without it the run predates steadiness. `extra` lands on the
+  # session record as is.
+  def session_record(id, mode, started_at, duration_ms, clean: true, wrong_notes: 0, holes: nil, **extra)
     completed_at = started_at + (duration_ms / 1000.0)
     attempt = { startedAt: started_at.iso8601(3), durationMs: duration_ms, wrongNotes: wrong_notes, clean: clean, hands: 'both' }
+    attempt.merge!(entryRatio: 1, hesitations: holes) if holes
     {
       id: id,
       scoreId: '/test-fixtures/two-measures.xml',
