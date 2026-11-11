@@ -111,6 +111,19 @@ describe('a line of the history', () => {
     expect(second).toMatchObject({ sessionId: 'demo', label: '18s (1 wrong note)' })
     expect(second.time).toMatch(/06.37/)
   })
+
+  it('says how steady each run was, when it was judged', () => {
+    const day = withRunLines({
+      date: '2026-09-01',
+      fullPlaythroughs: [run(1, 50_000, { holes: 0 }), run(1, 60_000, { wrongNotes: 2, holes: 3 }), run(1, 70_000, { holes: null })],
+    })
+
+    expect(day.runLines[0].runs.map((r) => r.label)).toEqual([
+      '1m 10s (no wrong note)',
+      '1m 0s (2 wrong notes, 3 holes)',
+      '50s (no wrong note, no holes)',
+    ])
+  })
 })
 
 describe('hotMeasures', () => {
