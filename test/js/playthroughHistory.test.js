@@ -43,8 +43,14 @@ describe('the evolution charts', () => {
   it('plots one point a run, and nothing below two runs', () => {
     expect(resultCharts([run(1, 60_000)])).toEqual([])
     const charts = resultCharts([run(3, 50_000), run(1, 60_000), run(2, 55_000)])
-    expect(charts.map((c) => c.title)).toEqual(['Play-time trend', 'Wrong-note trend'])
-    charts.forEach((c) => expect(c.svg.match(/<circle/g)).toHaveLength(3))
+    expect(charts.map((c) => c.title)).toEqual(['Play-time trend'])
+    charts.forEach((c) => expect(c.draw(600).match(/<circle/g)).toHaveLength(3))
+  })
+
+  it('draws a chart as wide as the place it goes into, and nothing before that place has a width', () => {
+    const [chart] = resultCharts([run(2, 50_000), run(1, 60_000)])
+    expect(chart.draw(0)).toBe('')
+    expect(chart.draw(340)).toContain('viewBox="0 0 340 ')
   })
 
   it('makes one chart per kind of run and hands, leaving out a group too short to plot', () => {
@@ -53,31 +59,41 @@ describe('the evolution charts', () => {
 
     expect(charts).toHaveLength(2)
     expect(charts[0].title).not.toBe(charts[1].title)
-    expect(charts.every((c) => c.svg.startsWith('<svg'))).toBe(true)
+    expect(charts.every((c) => c.draw(600).startsWith('<svg'))).toBe(true)
   })
 
-  describe('of the wrong notes', () => {
-    const wrongNotesChart = (runs) => resultCharts(runs)[1].svg
-    const yAxis = (svg) => [...svg.matchAll(/class="chart-label">([^<]*)</g)].slice(0, 2).map((m) => m[1])
-    const pointsAcross = (svg) => [...svg.matchAll(/<circle cx="([^"]*)"/g)].map((m) => m[1])
+  describe('of free runs, in the history and at the end of a piece', () => {
+    const bars = (svg, key) => [...svg.matchAll(new RegExp(`chart-bar--${key}"[^>]* height="([^"]*)"`, 'g'))].map((m) => Number(m[1]))
 
-    it('counts in whole notes from zero, however clean the cleanest run', () => {
-      const svg = wrongNotesChart([run(3, 50_000, { wrongNotes: 2 }), run(2, 55_000, { wrongNotes: 7 }), run(1, 60_000, { wrongNotes: 3 })])
-      expect(yAxis(svg)).toEqual(['7', '0'])
+    it('draws the wrong notes and the holes of free runs under their times, a bar per run that has some', () => {
+      const svg = playthroughCharts([
+        run(3, 50_000, { wrongNotes: 0, holes: 2 }),
+        run(2, 55_000, { wrongNotes: 3, holes: 4 }),
+        run(1, 60_000, { wrongNotes: 6, holes: 0 }),
+      ])[0].draw(600)
+      expect(svg).toContain('Wrong notes')
+      expect(svg).toContain('Holes')
+      expect(bars(svg, 'wrong-notes')).toEqual([28, 14])
+      expect(bars(svg, 'holes')).toEqual([28, 14])
+      expect(svg).not.toContain('chart-unknown')
     })
 
-    it('keeps an axis for runs that were all clean', () => {
-      expect(yAxis(wrongNotesChart([run(2, 50_000), run(1, 60_000)]))).toEqual(['1', '0'])
+    it('marks the runs from before holes were counted as one stretch, not as clean ones', () => {
+      const svg = playthroughCharts([run(3, 50_000, { holes: 1 }), run(2, 55_000, { holes: null }), run(1, 60_000, { holes: null })])[0].draw(600)
+      expect(svg.match(/class="chart-unknown"/g)).toHaveLength(1)
+      expect(bars(svg, 'holes')).toEqual([28])
     })
 
-    it('marks the most recent of the runs tied for best', () => {
-      const points = wrongNotesChart([run(3, 50_000, { wrongNotes: 2 }), run(2, 55_000), run(1, 60_000)]).match(/<circle [^>]*>/g)
-      expect(points.map((p) => p.includes('is-best'))).toEqual([false, true, false])
+    it('scales each row of bars from zero to its worst run, one at the least, and says so on the left', () => {
+      const scales = (svg) => [...svg.matchAll(/text-anchor="end" class="chart-label">(\d+)</g)].map((m) => m[1])
+      const svg = resultCharts([run(3, 50_000, { wrongNotes: 2, holes: 0 }), run(2, 55_000, { wrongNotes: 7, holes: 0 }), run(1, 60_000, { wrongNotes: 3, holes: 0 })])[0].draw(600)
+      expect(scales(svg)).toEqual(['7', '1'])
+      expect(bars(svg, 'wrong-notes')).toEqual([12, 28, 8])
     })
 
-    it('puts each run right under itself on the chart of its time', () => {
-      const [time, wrongNotes] = resultCharts([run(3, 50_000, { wrongNotes: 1 }), run(2, 55_000), run(1, 60_000, { wrongNotes: 4 })])
-      expect(pointsAcross(wrongNotes.svg)).toEqual(pointsAcross(time.svg))
+    it('leaves strict runs to their hit rate', () => {
+      const strict = (day, hit) => run(day, 60_000, { strict: { hit, total: 10, bpm: 80 } })
+      expect(playthroughCharts([strict(2, 9), strict(1, 7)])[0].draw(600)).not.toContain('chart-bar')
     })
   })
 })

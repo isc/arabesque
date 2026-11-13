@@ -377,7 +377,7 @@
                     <template x-for="chart in resultCharts" :key="chart.key">
                       <div class="pt-modal-section">
                         <h4 x-text="chart.title">Évolution du temps de jeu</h4>
-                        <div x-html="chart.svg"></div>
+                        <div x-data="{ width: 0 }" x-init="new ResizeObserver(([box]) => { width = Math.round(box.contentRect.width) }).observe($el)" x-html="chart.draw(width)"></div>
                       </div>
                     </template>
                   </div>
@@ -567,7 +567,7 @@
                     <h3 x-text="chart.title">Évolution du temps de jeu</h3>
                     <small class="pt-history-chart__best" x-text="chart.best"></small>
                   </div>
-                  <div x-html="chart.svg"></div>
+                  <div x-data="{ width: 0 }" x-init="new ResizeObserver(([box]) => { width = Math.round(box.contentRect.width) }).observe($el)" x-html="chart.draw(width)"></div>
                 </section>
               </template>
             </div>
