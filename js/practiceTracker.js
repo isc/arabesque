@@ -1,10 +1,10 @@
-import { initStorage } from './storage.js?v=b0223c718586'
-import { TWO_HANDS, handsKey } from './hands.js?v=b0223c718586'
-import { scopedKey } from './profiles.js?v=b0223c718586'
-import { localDayKey, shiftDayKey, startOfLocalDay, byStartedAt, sessionDay } from './days.js?v=b0223c718586'
-import { loadCatalog } from './catalog.js?v=b0223c718586'
-import { getFullPlaythroughs, getLastMeasureEndTime, sessionAttempts } from './practiceTime.js?v=b0223c718586'
-import { measuresToReinforce } from './reinforcement.js?v=b0223c718586'
+import { initStorage } from './storage.js?v=9672e71b9830'
+import { TWO_HANDS, handsKey } from './hands.js?v=9672e71b9830'
+import { scopedKey } from './profiles.js?v=9672e71b9830'
+import { localDayKey, shiftDayKey, startOfLocalDay, byStartedAt, sessionDay } from './days.js?v=9672e71b9830'
+import { loadCatalog } from './catalog.js?v=9672e71b9830'
+import { getFullPlaythroughs, getLastMeasureEndTime, sessionAttempts } from './practiceTime.js?v=9672e71b9830'
+import { measuresToReinforce } from './reinforcement.js?v=9672e71b9830'
 import {
   AGGREGATES_VERSION,
   applyName,
@@ -12,8 +12,8 @@ import {
   foldSession,
   knownNames,
   titleOf,
-} from './aggregates.js?v=b0223c718586'
-import { buildDailyLog, buildPracticeCalendar, buildScoreHistory } from './practiceJournal.js?v=b0223c718586'
+} from './aggregates.js?v=9672e71b9830'
+import { buildDailyLog, buildPracticeCalendar, buildScoreHistory } from './practiceJournal.js?v=9672e71b9830'
 
 // Where a session interrupted by a page teardown waits to be closed properly
 // (see stashPendingSession). The profile's own: the snapshot must be replayed

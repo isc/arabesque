@@ -11,10 +11,10 @@
 // Every trigger here is best-effort: silent when nobody is signed in or when
 // the network fails. The data page stays the one place that reports a sync's
 // outcome.
-import { lastSyncAt, pullNoteLogs, runSync } from './sync.js?v=b0223c718586'
-import { signedInOnThisDevice } from './supabaseConfig.js?v=b0223c718586'
-import { onIdle, onForeground } from './utils.js?v=b0223c718586'
-import { recordError } from './errorLog.js?v=b0223c718586'
+import { lastSyncAt, pullNoteLogs, runSync } from './sync.js?v=9672e71b9830'
+import { signedInOnThisDevice } from './supabaseConfig.js?v=9672e71b9830'
+import { onIdle, onForeground } from './utils.js?v=9672e71b9830'
+import { recordError } from './errorLog.js?v=9672e71b9830'
 
 // How long each trigger waits behind the previous sync. A tab coming back or a
 // page opening brings nothing new of our own, so one round-trip a minute is
@@ -52,7 +52,7 @@ export function initAutoSync(
   // Fetching @supabase/supabase-js lazily is what keeps it off pages of signed
   // out users — but paying for the CDN waterfall at the end of a playthrough
   // would put it right on the result screen. Warm it while idle instead.
-  if (signedInOnThisDevice()) onIdle(() => import('./supabaseClient.js?v=b0223c718586').catch(() => {}))
+  if (signedInOnThisDevice()) onIdle(() => import('./supabaseClient.js?v=9672e71b9830').catch(() => {}))
 }
 
 // Time since the last sync: attempted on this page, or completed on a previous
@@ -67,7 +67,7 @@ function msSinceLastSync() {
 // Imported on demand (see initAutoSync). The user id comes from the local
 // session, so runSync doesn't have to ask the server who we are.
 async function signedInClient() {
-  const { supabase } = await import('./supabaseClient.js?v=b0223c718586')
+  const { supabase } = await import('./supabaseClient.js?v=9672e71b9830')
   if (!supabase) return null
   const { data } = await supabase.auth.getSession()
   return data.session ? { supabase, userId: data.session.user.id } : null
