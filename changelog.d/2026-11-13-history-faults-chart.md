@@ -1,9 +1,9 @@
 # fr
-L'historique montre aussi les fausses notes et les trous. Sous la courbe du
-temps de jeu, chaque partie a sa barre de fausses notes et sa barre de trous :
-on voit d'un coup d'œil si aller plus vite a coûté en propreté.
+Un seul graphe pour le temps, les fausses notes et les trous. En fin de partie
+comme dans l'historique, chaque partie a sous la courbe du temps sa barre de
+fausses notes et sa barre de trous : on voit si aller plus vite a coûté.
 
 # en
-The history shows wrong notes and holes too. Under the play-time curve, each
-run has a bar for its wrong notes and one for its holes: one look tells whether
-going faster cost any cleanliness.
+One chart for time, wrong notes and holes. At the end of a piece and in the
+history, each run has under the play-time curve a bar for its wrong notes and
+one for its holes: one look tells whether going faster cost anything.

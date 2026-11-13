@@ -43,7 +43,7 @@ class PracticeTrackingTest < CapybaraTestBase
   end
 
   # Under the time each run took, how clean it was.
-  def test_score_complete_modal_charts_the_wrong_notes
+  def test_score_complete_modal_charts_the_wrong_notes_and_holes
     open_two_measures
     seed_store('sessions', completed_playthroughs)
 
@@ -51,11 +51,12 @@ class PracticeTrackingTest < CapybaraTestBase
     play_notes(%w[C4 E4 D4])
 
     assert_text 'Évolution du temps de jeu'
-    assert_text 'Évolution des fausses notes'
-    within('.playthrough-chart[aria-label*="fausses notes"]') do
+    within('.pt-result-charts .playthrough-chart') do
       assert_selector 'circle.chart-point', count: 4
-      assert_selector 'text.chart-label', exact_text: '1'
-      assert_selector 'text.chart-label', exact_text: '0'
+      assert_text 'Fausses notes'
+      assert_text 'Trous'
+      # The run just played is the only one with a wrong note.
+      assert_selector 'rect.chart-bar--wrong-notes', count: 1
     end
   end
 

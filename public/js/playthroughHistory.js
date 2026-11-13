@@ -73,27 +73,16 @@ const RUN_KINDS = {
   },
 }
 
-// Runs by their wrong notes. A count is drawn from zero, the mark aimed at, in
-// whole notes — and runs without a single one still have an axis to lie on.
-const WRONG_NOTES = {
-  title: 'score.wrongNotesEvolution',
-  aria: 'score.wrongNotesChartAria',
-  value: (pt) => pt.wrongNotes,
-  best: Math.min,
-  format: String,
-  label: RUN_KINDS.free.label,
-  range: (_low, high) => [0, Math.max(high, 1)],
-}
-
 // What a free run's chart draws under its line, one row of bars each on the
 // runs' own columns: the counts a time says nothing of. In the colours the
 // score itself gives a fumbled note and a late one. A run without a count
 // (holes, before the pace was judged) is marked as such rather than left to
-// read as a clean one.
+// read as a clean one. Strict runs have their hit rate, which says it all.
 const FAULT_STRIPS = [
-  { key: 'wrong-notes', name: 'score.chartWrongNotes', value: WRONG_NOTES.value },
+  { key: 'wrong-notes', name: 'score.chartWrongNotes', value: (pt) => pt.wrongNotes },
   { key: 'holes', name: 'score.chartHoles', value: (pt) => pt.holes },
 ]
+const stripsOf = (strict) => (strict ? [] : FAULT_STRIPS)
 
 function runKind(strict) {
   return strict ? RUN_KINDS.strict : RUN_KINDS.free
@@ -173,20 +162,20 @@ export function playthroughCharts(playthroughs) {
       return {
         key: group.key,
         title: chartTitle(group),
-        svg: chartSvg(group.playthroughs, metric, group.strict ? [] : FAULT_STRIPS),
+        svg: chartSvg(group.playthroughs, metric, stripsOf(group.strict)),
         best: t('score.chartBest', { value: metric.format(best) }),
       }
     })
     .filter((chart) => chart.svg)
 }
 
-// The charts at the end of a piece, of the runs it ranks: what they are
-// measured by and, under it, their wrong notes. Every chart is the same size
-// with the same spacing, so a run sits right under itself.
+// The chart at the end of a piece, of the runs it ranks: the same picture as
+// the history's, under the same title. A list, as the history's is: empty
+// below two runs.
 export function resultCharts(runs) {
-  return [runKind(runs[0]?.strict), WRONG_NOTES]
-    .map((metric) => ({ key: metric.title, title: t(metric.title), svg: chartSvg(runs, metric) }))
-    .filter((chart) => chart.svg)
+  const strict = runs[0]?.strict
+  const metric = runKind(strict)
+  return [{ key: metric.title, title: t(metric.title), svg: chartSvg(runs, metric, stripsOf(strict)) }].filter((chart) => chart.svg)
 }
 
 // A row of bars under a chart's line: the gap above it, its name, its bars.
