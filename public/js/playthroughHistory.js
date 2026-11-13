@@ -85,6 +85,16 @@ const WRONG_NOTES = {
   range: (_low, high) => [0, Math.max(high, 1)],
 }
 
+// What a free run's chart draws under its line, one row of bars each on the
+// runs' own columns: the counts a time says nothing of. In the colours the
+// score itself gives a fumbled note and a late one. A run without a count
+// (holes, before the pace was judged) is marked as such rather than left to
+// read as a clean one.
+const FAULT_STRIPS = [
+  { key: 'wrong-notes', name: 'score.chartWrongNotes', value: WRONG_NOTES.value },
+  { key: 'holes', name: 'score.chartHoles', value: (pt) => pt.holes },
+]
+
 function runKind(strict) {
   return strict ? RUN_KINDS.strict : RUN_KINDS.free
 }
@@ -152,9 +162,9 @@ function chartTitle(group) {
 }
 
 // One evolution chart per kind of run and hand selection — play time for free
-// runs, hit rate for strict ones — each with its `title`, its `svg` and its
-// `best` figure, the point it marks. A group with too few runs to plot simply
-// drops out.
+// runs, over their wrong notes and holes, hit rate for strict ones — each with
+// its `title`, its `svg` and its `best` figure, the point it marks. A group
+// with too few runs to plot simply drops out.
 export function playthroughCharts(playthroughs) {
   return playthroughGroups(playthroughs)
     .map((group) => {
@@ -163,7 +173,7 @@ export function playthroughCharts(playthroughs) {
       return {
         key: group.key,
         title: chartTitle(group),
-        svg: chartSvg(group.playthroughs, metric),
+        svg: chartSvg(group.playthroughs, metric, group.strict ? [] : FAULT_STRIPS),
         best: t('score.chartBest', { value: metric.format(best) }),
       }
     })
@@ -179,11 +189,16 @@ export function resultCharts(runs) {
     .filter((chart) => chart.svg)
 }
 
+// A row of bars under a chart's line: the gap above it, its name, its bars.
+const STRIP = { gap: 8, head: 16, bars: 28 }
+
 // Built as a string (not <template x-for>) because Alpine's templates
 // render in HTML namespace and won't show up inside <svg>. Returns ''
 // when fewer than 2 points, which callers drop. The runs are all of one
-// kind, the way playthroughGroups hands them over.
-function chartSvg(playthroughs, metric) {
+// kind, the way playthroughGroups hands them over. `strips` are rows of bars
+// under the line, one bar per run in that run's column, each row on a scale
+// of its own that its left-hand figure gives.
+function chartSvg(playthroughs, metric, strips = []) {
   if (playthroughs.length < 2) return ''
 
   const sorted = [...playthroughs].sort(byStartedAt)
@@ -191,10 +206,12 @@ function chartSvg(playthroughs, metric) {
   const [yMin, yMax] = metric.range(Math.min(...values), Math.max(...values))
 
   const W = 600
-  const H = 170
+  const LINE_H = 170
+  const stripH = STRIP.gap + STRIP.head + STRIP.bars
+  const H = LINE_H + strips.length * stripH
   const PAD = { top: 12, right: 12, bottom: 28, left: 56 }
   const innerW = W - PAD.left - PAD.right
-  const innerH = H - PAD.top - PAD.bottom
+  const innerH = LINE_H - PAD.top - PAD.bottom
   // Evenly spaced by playthrough index: gaps between dates aren't shown.
   const n = sorted.length
   const xScale = (i) => PAD.left + (i / (n - 1)) * innerW
@@ -204,8 +221,7 @@ function chartSvg(playthroughs, metric) {
   const points = sorted.map((p, i) => ({
     x: xScale(i),
     y: yScale(metric.value(p)),
-    label: metric.label(p),
-    date: CHART_DATE_FULL.format(new Date(p.startedAt)),
+    tip: `${CHART_DATE_FULL.format(new Date(p.startedAt))} — ${metric.label(p)}`,
   }))
   const fmtAxis = (iso) => CHART_DATE_AXIS.format(new Date(iso))
 
@@ -229,10 +245,45 @@ function chartSvg(playthroughs, metric) {
     .map((p, i) => {
       const r = i === bestIndex || i === n - 1 ? radius + 2 : radius
       const marks = `${i === n - 1 ? ' is-latest' : ''}${i === bestIndex ? ' is-best' : ''}`
-      return `<circle cx="${p.x}" cy="${p.y}" r="${r}" class="chart-point${marks}"><title>${p.date} — ${p.label}</title></circle>`
+      return `<circle cx="${p.x}" cy="${p.y}" r="${r}" class="chart-point${marks}"><title>${p.tip}</title></circle>`
     })
     .join('')
   const line = points.map((p) => `${p.x},${p.y}`).join(' ')
+
+  const barW = Math.min(8, (innerW / (n - 1)) * 0.6)
+  const stripsSvg = strips
+    .map((strip, s) => {
+      const top = axisY + s * stripH + STRIP.gap
+      const barsTop = top + STRIP.head
+      const base = barsTop + STRIP.bars
+      const barX = (i) => xScale(i) - barW / 2
+      const counts = sorted.map(strip.value)
+      const max = Math.max(1, ...counts)
+      // A stretch of runs without a count is one block, however many they are.
+      const unknown = []
+      counts.forEach((count, i) => {
+        if (count != null) return
+        const last = unknown.at(-1)
+        if (last?.to === i - 1) last.to = i
+        else unknown.push({ from: i, to: i })
+      })
+      const blocks = unknown
+        .map(({ from, to }) => `<rect class="chart-unknown" x="${barX(from)}" y="${barsTop}" width="${xScale(to) - xScale(from) + barW}" height="${STRIP.bars}"><title>${t('score.chartNotMeasured')}</title></rect>`)
+        .join('')
+      const bars = counts
+        .map((count, i) => {
+          if (!count) return ''
+          const h = Math.max(2, (count / max) * STRIP.bars)
+          return `<rect class="chart-bar chart-bar--${strip.key}" x="${barX(i)}" y="${base - h}" width="${barW}" height="${h}" rx="1.5"><title>${points[i].tip}</title></rect>`
+        })
+        .join('')
+      return `<text x="${xMin}" y="${top + 11}" class="chart-label">${t(strip.name)}</text>
+    <text x="${xMin - 8}" y="${barsTop + 8}" text-anchor="end" class="chart-label">${max}</text>
+    ${blocks}
+    ${bars}
+    <line x1="${xMin}" x2="${xMax}" y1="${base}" y2="${base}" class="chart-axis" />`
+    })
+    .join('')
 
   return `<svg viewBox="0 0 ${W} ${H}" class="playthrough-chart" role="img" aria-label="${t(metric.aria)}">
     <line x1="${xMin}" x2="${xMax}" y1="${yScale(yMax)}" y2="${yScale(yMax)}" class="chart-guide" />
@@ -242,6 +293,7 @@ function chartSvg(playthroughs, metric) {
     ${yLabels}
     ${xLabels}
     ${circles}
+    ${stripsSvg}
   </svg>`
 }
 

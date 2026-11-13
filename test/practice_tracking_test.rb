@@ -107,7 +107,8 @@ class PracticeTrackingTest < CapybaraTestBase
     # then open the history modal and verify the chart renders.
     open_two_measures
 
-    seed_store('sessions', completed_playthroughs)
+    # The oldest from before holes were counted, the latest without a wrong note.
+    seed_store('sessions', completed_playthroughs([[2, nil], [1, 3], [0, 1]]))
 
     click_on 'Historique'
     assert_selector 'dialog[open]'
@@ -118,6 +119,12 @@ class PracticeTrackingTest < CapybaraTestBase
       assert_selector 'circle.chart-point', count: 3
       assert_text '8m 0s' # max duration label
       assert_text '6m 0s' # min duration label
+      # Under the times, a bar for each run that has wrong notes or holes,
+      # and the run nobody counted the holes of marked as such.
+      assert_text 'Fausses notes'
+      assert_selector 'rect.chart-bar--wrong-notes', count: 2
+      assert_selector 'rect.chart-bar--holes', count: 2
+      assert_selector 'rect.chart-unknown', count: 1
     end
   end
 
@@ -295,10 +302,12 @@ class PracticeTrackingTest < CapybaraTestBase
 
   # Three finished playthroughs of the two-measure fixture, oldest and longest
   # first, so the chart has a visible downward trend to draw.
-  def completed_playthroughs
+  # `faults` gives each run its wrong notes and its holes, oldest first.
+  def completed_playthroughs(faults = [])
     now = Time.now.utc
     [[7, 8], [4, 7], [1, 6]].each_with_index.map do |(days_ago, duration_min), index|
-      session_record("chart-test-#{index}", 'free', now - (days_ago * 86_400), duration_min * 60_000)
+      wrong_notes, holes = faults[index]
+      session_record("chart-test-#{index}", 'free', now - (days_ago * 86_400), duration_min * 60_000, wrong_notes: wrong_notes || 0, holes: holes)
     end
   end
 

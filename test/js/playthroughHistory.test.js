@@ -56,6 +56,34 @@ describe('the evolution charts', () => {
     expect(charts.every((c) => c.svg.startsWith('<svg'))).toBe(true)
   })
 
+  describe('of a piece\'s history', () => {
+    const bars = (svg, key) => [...svg.matchAll(new RegExp(`chart-bar--${key}"[^>]* height="([^"]*)"`, 'g'))].map((m) => Number(m[1]))
+
+    it('draws the wrong notes and the holes of free runs under their times, a bar per run that has some', () => {
+      const [{ svg }] = playthroughCharts([
+        run(3, 50_000, { wrongNotes: 0, holes: 2 }),
+        run(2, 55_000, { wrongNotes: 3, holes: 4 }),
+        run(1, 60_000, { wrongNotes: 6, holes: 0 }),
+      ])
+      expect(svg).toContain('Wrong notes')
+      expect(svg).toContain('Holes')
+      expect(bars(svg, 'wrong-notes')).toEqual([28, 14])
+      expect(bars(svg, 'holes')).toEqual([28, 14])
+      expect(svg).not.toContain('chart-unknown')
+    })
+
+    it('marks the runs from before holes were counted as one stretch, not as clean ones', () => {
+      const [{ svg }] = playthroughCharts([run(3, 50_000, { holes: 1 }), run(2, 55_000, { holes: null }), run(1, 60_000, { holes: null })])
+      expect(svg.match(/class="chart-unknown"/g)).toHaveLength(1)
+      expect(bars(svg, 'holes')).toEqual([28])
+    })
+
+    it('leaves strict runs to their hit rate', () => {
+      const strict = (day, hit) => run(day, 60_000, { strict: { hit, total: 10, bpm: 80 } })
+      expect(playthroughCharts([strict(2, 9), strict(1, 7)])[0].svg).not.toContain('chart-bar')
+    })
+  })
+
   describe('of the wrong notes', () => {
     const wrongNotesChart = (runs) => resultCharts(runs)[1].svg
     const yAxis = (svg) => [...svg.matchAll(/class="chart-label">([^<]*)</g)].slice(0, 2).map((m) => m[1])
