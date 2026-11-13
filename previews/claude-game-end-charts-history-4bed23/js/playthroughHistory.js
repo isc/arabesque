@@ -1,10 +1,10 @@
 // How the score page tells a piece's runs through: the ranking at the end of a
 // piece, and the history modal's charts, day lines and troubled bars. Pure —
 // runs in, words and SVG out; the page holds what is on screen (app.js).
-import { formatDuration, withRunKind } from './utils.js?v=0cfd91cb0ff2'
-import { playthroughGroups } from './hands.js?v=0cfd91cb0ff2'
-import { byStartedAt } from './days.js?v=0cfd91cb0ff2'
-import { t, tn, locale } from './i18n.js?v=0cfd91cb0ff2'
+import { formatDuration, withRunKind } from './utils.js?v=3ff7ca4e0727'
+import { playthroughGroups } from './hands.js?v=3ff7ca4e0727'
+import { byStartedAt } from './days.js?v=3ff7ca4e0727'
+import { t, tn, locale } from './i18n.js?v=3ff7ca4e0727'
 
 // Built once: the active locale is fixed for the page lifetime (switching
 // language reloads), so these don't need rebuilding per call/point.
@@ -152,50 +152,59 @@ function chartTitle(group) {
 
 // One evolution chart per kind of run and hand selection — play time for free
 // runs, over their wrong notes and holes, hit rate for strict ones — each with
-// its `title`, its `svg` and its `best` figure, the point it marks. A group
-// with too few runs to plot simply drops out.
+// its `title`, its `best` figure, the point it marks, and `draw`, which gives
+// its SVG at the width it is shown at (chartSvg says why). A group with too few
+// runs to plot simply drops out.
 export function playthroughCharts(playthroughs) {
   return playthroughGroups(playthroughs)
+    .filter((group) => group.playthroughs.length >= MIN_PLOTTED)
     .map((group) => {
       const metric = runKind(group.strict)
       const best = metric.best(...group.playthroughs.map(metric.value))
       return {
         key: group.key,
         title: chartTitle(group),
-        svg: chartSvg(group.playthroughs, metric, stripsOf(group.strict)),
+        draw: (width) => chartSvg(group.playthroughs, metric, stripsOf(group.strict), width),
         best: t('score.chartBest', { value: metric.format(best) }),
       }
     })
-    .filter((chart) => chart.svg)
 }
 
 // The chart at the end of a piece, of the runs it ranks: the same picture as
 // the history's, under the same title. A list, as the history's is: empty
 // below two runs.
 export function resultCharts(runs) {
-  const strict = runs[0]?.strict
+  if (runs.length < MIN_PLOTTED) return []
+  const strict = runs[0].strict
   const metric = runKind(strict)
-  return [{ key: metric.title, title: t(metric.title), svg: chartSvg(runs, metric, stripsOf(strict)) }].filter((chart) => chart.svg)
+  return [{ key: metric.title, title: t(metric.title), draw: (width) => chartSvg(runs, metric, stripsOf(strict), width) }]
 }
+
+// A line needs two points.
+const MIN_PLOTTED = 2
 
 // A row of bars under a chart's line: the gap above it, its name, its bars.
 const STRIP = { gap: 8, head: 16, bars: 28 }
 
 // Built as a string (not <template x-for>) because Alpine's templates
-// render in HTML namespace and won't show up inside <svg>. Returns ''
-// when fewer than 2 points, which callers drop. The runs are all of one
-// kind, the way playthroughGroups hands them over. `strips` are rows of bars
+// render in HTML namespace and won't show up inside <svg>. Drawn `width`
+// pixels wide, the width of the element it goes into, so a pixel of the
+// drawing is one of the screen: scaled down whole to a phone's width, as it
+// once was, its labels came out at half their size. Nothing without a width,
+// which is an element not laid out yet. The runs are all of one kind, the way
+// playthroughGroups hands them over. `strips` are rows of bars
 // under the line, one bar per run in that run's column, each row on a scale
 // of its own that its left-hand figure gives.
-function chartSvg(playthroughs, metric, strips = []) {
-  if (playthroughs.length < 2) return ''
+function chartSvg(playthroughs, metric, strips, width) {
+  if (!width) return ''
 
   const sorted = [...playthroughs].sort(byStartedAt)
   const values = sorted.map(metric.value)
   const [yMin, yMax] = metric.range(Math.min(...values), Math.max(...values))
 
-  const W = 600
-  const LINE_H = 170
+  const W = width
+  // Taller as it gets wider, within what stays a readable slope.
+  const LINE_H = Math.round(Math.min(220, Math.max(150, W * 0.28)))
   const stripH = STRIP.gap + STRIP.head + STRIP.bars
   const H = LINE_H + strips.length * stripH
   const PAD = { top: 12, right: 12, bottom: 28, left: 56 }

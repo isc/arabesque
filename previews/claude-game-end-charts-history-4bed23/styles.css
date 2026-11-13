@@ -2283,7 +2283,7 @@ img[id^="cursorImg"] { scroll-margin-top: var(--pt-sticky-offset, 100px); }
 /* Playthrough chart in history modal */
 .playthrough-chart { width: 100%; height: auto; display: block; }
 .playthrough-chart .chart-axis { stroke: var(--pt-border-strong); stroke-width: 1; }
-.playthrough-chart .chart-label { fill: var(--pt-text-muted); font-size: 11px; font-family: var(--pt-font-ui); }
+.playthrough-chart .chart-label { fill: var(--pt-text-muted); font-size: var(--pt-font-size-xs); font-family: var(--pt-font-ui); }
 .playthrough-chart .chart-guide { stroke: var(--pt-border); stroke-width: 1; stroke-dasharray: 3 4; }
 .playthrough-chart .chart-line { fill: none; stroke: var(--pt-accent); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
 .playthrough-chart .chart-area { fill: var(--pt-accent); fill-opacity: 0.07; stroke: none; }
