@@ -527,7 +527,6 @@ function startReinforcementPassage(leaving = null) {
   if (leaving) resetNotesFromIndex(leaving.start, leaving.end)
   reinforcement.firstTry = ladder[banked].length === 1
   startStep()
-  scrollToMeasure(training.start)
 }
 
 // The step of its ladder the drill is on, or null outside one — and for the
@@ -540,7 +539,9 @@ function stepUnderway() {
 
 // The step the passage stands on, set up to be played: its hands, then the
 // passage under them — where it starts depends on which hands play — from its
-// first bar, with the dots of the turns behind it.
+// first bar, with the dots of the turns behind it. The page is brought to that
+// bar: the passage may be anywhere in the score, and the step before, played
+// with other hands, may have ended a system further down.
 function startStep() {
   const { start, end, fragment, banked } = reinforcement.passages[reinforcement.index]
   playWith(stepUnderway().hands)
@@ -552,6 +553,7 @@ function startStep() {
   training.banked = banked
   updateRepeatIndicators()
   sayLadder()
+  scrollToMeasure(training.start)
 }
 
 // A repetition of the drill passage is over: where that leaves it on its
