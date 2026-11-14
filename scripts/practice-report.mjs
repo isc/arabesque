@@ -71,6 +71,7 @@ import {
   barsAcross,
   barsPlayed,
   barsRepeatingTheirHalf,
+  crotchetsPerMinute,
   eventsOf,
   excess,
   figuresOf,
@@ -352,6 +353,8 @@ function summary(runs, model) {
   }
 }
 
+const ONE_HAND = { right: 'right hand  ', left: 'left hand  ' }
+
 async function showSession(player, id) {
   const [[row], segments] = await Promise.all([sessionsOf(player, { id }), segmentsOf(player, { id })])
   if (!row) die(`no session ${id} for ${player.email}`)
@@ -367,14 +370,18 @@ async function showSession(player, id) {
     const start = run.attacks[0].at
     const bars = new Set(run.attacks.map((a) => a.bar)).size
     // Played in block chords, a beat at a time (musicxml.js): its attacks'
-    // `#n` are those of the notes its beats start on.
-    const heading = `${clock(start)}  ${run.blockChords ? 'block chords  ' : ''}`
+    // `#n` are those of the notes its beats start on. With one hand, as a
+    // drill takes a passage on its way up (ladder.js), it says which.
+    const heading = `${clock(start)}  ${ONE_HAND[run.hands] ?? ''}${run.blockChords ? 'block chords  ' : ''}`
+    // The tempo it held from its first attack to its last, which a drill
+    // weighs a repetition by where it asks for one.
+    const tempo = run.meanPace ? `crotchet ${crotchetsPerMinute(run.meanPace)}` : ''
     if (bars === 1) {
-      console.log(barLines(run, model, heading)[0])
+      console.log(`${barLines(run, model, heading)[0]}${tempo && `  ${tempo}`}`)
       continue
     }
     console.log(
-      `\n${heading}${bars} bars in ${minutes(run.attacks.at(-1).at - start)}, ${seconds(totalExcess(run.attacks))} over the pace`,
+      `\n${heading}${bars} bars in ${minutes(run.attacks.at(-1).at - start)}, ${seconds(totalExcess(run.attacks))} over the pace${tempo && `, ${tempo}`}`,
     )
     for (const line of barLines(run, model, '  ')) console.log(line)
   }
@@ -471,7 +478,10 @@ function showLosses({ sessions, runs, model, traversalsOf }, top) {
   const offered = reinforcementOffer(noteLogWindow(sessions).flatMap(traversalsOf), sessions, model, TWO_HANDS)
   // A passage the runs mostly stalled on at the bar line is the one the drill
   // advises block chords on, where they suit it (musicxml.js).
-  const offer = (f) => `${fragmentLabel(f, model)}${f.stalledAtBarLine ? ' (stalls at the bar line)' : ''}`
+  // With the tempo its drill asks it for once built, in crotchets a minute:
+  // the pace the runs held around it (paceToHold in fragments.js).
+  const tempo = (f) => (f.pace ? ` at ${crotchetsPerMinute(f.pace)}` : '')
+  const offer = (f) => `${fragmentLabel(f, model)}${tempo(f)}${f.stalledAtBarLine ? ' (stalls at the bar line)' : ''}`
   console.log(`\nreinforcement offers now, both hands: ${offered.map(offer).join(', ') || 'nothing'}`)
 }
 
@@ -506,8 +516,6 @@ function showRepeats(segments, min) {
   if (repeated.length === 0) console.log('  none')
 }
 
-// A pace in ms per whole note, as crotchets per minute.
-const crotchets = (pace) => Math.round(240000 / pace)
 
 // The pace of the slowest of some logged runs, which they are all weighed at.
 const slowestPace = (runs) => Math.max(...runs.map(({ run }) => paceOf(run)))
@@ -525,11 +533,11 @@ function showPace({ runs }) {
     ...figuresOf(atPace(run, slowest)),
   }))
   const line = (label, { time, pace, ownHoles, holes, lost, cleanBars, wrongAttacks, wrongKeys }) =>
-    label.padEnd(13) + columns([minutes(time), crotchets(pace), ownHoles, holes, seconds(lost), cleanBars, wrongAttacks, wrongKeys])
+    label.padEnd(13) + columns([minutes(time), crotchetsPerMinute(pace), ownHoles, holes, seconds(lost), cleanBars, wrongAttacks, wrongKeys])
   console.log(`${runs[0].session.scoreTitle}: the last ${runs.length} runs played in full, by the pace they held`)
   console.log(
     `own: holes at the run's own pace, as the app judged them. holes, lost, clean: as if every run had held the ` +
-      `slowest crotchet here, ${crotchets(slowest)}. wrong: attacks a wrong key fell on. keys: those keys. ` +
+      `slowest crotchet here, ${crotchetsPerMinute(slowest)}. wrong: attacks a wrong key fell on. keys: those keys. ` +
       'clean: bars with neither a hole nor a wrong key.',
   )
   console.log(''.padEnd(13) + columns(['time', 'crotch', 'own', 'holes', 'lost', 'clean', 'wrong', 'keys']))
@@ -620,7 +628,7 @@ function showProgress({ sessions, runs: all }, count) {
   )
   console.log(
     `Each pair is those runs, then the last ones. vs all: the change against the whole run's. holes, lost and wrong ` +
-      `(attacks a wrong key fell on) are per run, as if every run had held crotchet ${crotchets(slowest)}. ` +
+      `(attacks a wrong key fell on) are per run, as if every run had held crotchet ${crotchetsPerMinute(slowest)}. ` +
       'drills: attempts at the bar in the drills between the two.',
   )
   console.log(''.padEnd(5) + columns(['time', 'now', 'change', 'vs all', 'holes', 'now', 'lost', 'now', 'wrong', 'now', 'drills']))

@@ -172,6 +172,16 @@ describe('createSteadiness', () => {
     expect(holes([...verdicts, ...steadiness.close()])).toEqual([])
   })
 
+  it('says the pace a traversal has held, over all of it, and forgets it with the traversal', () => {
+    const { steadiness } = play(semiquavers(9, { ms: 250, gaps: { 4: 1250 } }))
+    // Eight semiquavers, half a whole note, in 3 s.
+    expect(steadiness.meanPace).toBe(6000)
+    steadiness.close()
+    expect(steadiness.meanPace).toBe(null)
+    steadiness.attack(semiquavers(1)[0])
+    expect(steadiness.meanPace).toBe(null)
+  })
+
   it('does not hold the gap between two traversals against the next', () => {
     const steadiness = createSteadiness()
     play(semiquavers(16), steadiness)

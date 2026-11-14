@@ -804,6 +804,26 @@ class CapybaraTestBase < Minitest::Test
     play_notes(%w[C4 E4 D4])
   end
 
+  # A test fixture on the score page, drawn: with `notes` of them, when given.
+  def open_score(name, notes = nil)
+    visit "/score.html?url=/test-fixtures/#{name}.xml"
+    wait_for_score_render(notes)
+  end
+
+  # A drill of whole bars in 4/4, each passage a bar or a range of them, handed
+  # to the page in that order, as it would offer them: with the `pace` its
+  # runs held, in ms per whole note, when they held one.
+  def reinforce_bars(*passages, pace: nil)
+    reinforce(passages.map do |bars|
+      first, last = Array(bars).values_at(0, -1)
+      { from: { bar: first - 1, position: 0 }, until: { bar: last - 1, position: 1 }, hands: 'both', pace: pace }
+    end)
+  end
+
+  def reinforce(passages)
+    execute_script("Alpine.$data(document.querySelector('[x-data]')).setMode('reinforcement', #{passages.to_json})")
+  end
+
   # Drops a test fixture on the page's file picker, whatever it holds.
   def attach_score(filename)
     attach_file('musicxml-upload', File.expand_path("fixtures/#{filename}", __dir__))

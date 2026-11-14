@@ -131,9 +131,4 @@ class PlaqueTest < CapybaraTestBase
   def filled_with_the_band_colour?(button)
     button.evaluate_script("getComputedStyle(this).backgroundColor === getComputedStyle(this.closest('.pt-context')).color")
   end
-
-  def open_score(name, notes)
-    visit "/score.html?url=/test-fixtures/#{name}.xml"
-    wait_for_score_render(notes)
-  end
 end

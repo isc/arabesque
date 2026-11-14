@@ -18,8 +18,10 @@ import { arrayBufferToXml, isMusicXml } from './mxlLoader.js'
 import { stripPlaybackTempoMarks } from './tempoMarks.js'
 import { recordError } from './errorLog.js'
 import { REINFORCEMENT_CLEAN_PASSES } from './reinforcement.js'
-import { POSITION_EPSILON, beatStartOf } from './noteLogAnalysis.js'
+import { POSITION_EPSILON, beatStartOf, crotchetsPerMinute } from './noteLogAnalysis.js'
 import { createSteadiness } from './steadiness.js'
+import { handsKey, handsOfKey } from './hands.js'
+import { climbOn, isGuided, ladderOf, rungs, startOfTurn, stepOf } from './ladder.js'
 
 // The score on the stand: the sheet OSMD holds, and the note model built from
 // it. Replaced as a sheet comes in (renderMusicXML) and as it is drawn
@@ -115,10 +117,18 @@ const training = {
 // three clean repetitions in a row only ever showed what the hand had just
 // played, and the runs went on stalling where the drill had been clean. Each
 // passage now comes back to it cold, the way a run does.
+//
+// A turn is climbed in steps, the passage's ladder (ladder.js): each hand
+// alone before the two, then at the pace of the runs. Each passage keeps its
+// `ladder`, a turn's steps per dot, and its `climb`, where it stands on the
+// turn under way; the hands a step is played with are the engine's to set
+// (playWith), and `hands` holds those the drill was started with (handsKey),
+// which it gives back as it ends.
 const reinforcement = {
   on: false,
   passages: [],
   index: 0,
+  hands: null,
   // The first repetition of each turn, the one played cold: how many there
   // were and how many came out clean, which the drill reports at its end. A
   // dot earned after three misses says the passage is not there yet.
@@ -142,6 +152,14 @@ const attempt = {
 // It lives and dies with training.clean: what starts a repetition's verdict
 // over starts this over too (startRepetition).
 const steadiness = createSteadiness()
+
+// What a drill's ladder weighs a repetition by, besides training.clean: the
+// pace it held from its first attack to its last, read as it ends, and the
+// wrong notes each hand owed in it.
+const repetition = {
+  pace: null,
+  wrong: { right: 0, left: 0 },
+}
 
 // The verdict a traversal leaves on the sheet: LATE on a note that came after
 // a hole, as it comes, and FUMBLED, once its bar is over, on each note a wrong
@@ -238,9 +256,15 @@ let callbacks = {
   // Return true from this callback to bypass the default jumpToMeasure
   // (strict mode uses it to set its start point instead).
   onMeasureClicked: null,
+  // Where a drill stands on its ladder (sayLadder), or null once it is over.
+  onLadder: null,
+  // The engine changed the hands played, { right, left }: a step of the ladder
+  // taken with one hand, or a drill giving back those it was started with.
+  onHandsChanged: null,
 }
 
-// Hand selection: by default both hands are active
+// The hands played: those ticked, or in a drill those its step asks for
+// (playWith). Both by default.
 let activeHands = { right: true, left: true }
 
 export function initMusicXML() {
@@ -378,10 +402,16 @@ export function initMusicXML() {
     // bars and positions (fragmentSuggestions.js).
     setReinforcementMode: (items) => {
       // In the order of the score, which each round of turns goes down once.
+      // Each with its ladder: both hands are taken apart only where the
+      // passage has notes for both, and the pace is the one the runs held
+      // (`pace`, fragments.js), where they said one.
+      const hands = handsKey(activeHands)
       const passages = (items ?? [])
         .flatMap((item) => {
           const passage = reinforcementPassage(item)
-          return passage ? [{ ...passage, stalledAtBarLine: item.stalledAtBarLine, banked: 0 }] : []
+          if (!passage) return []
+          const ladder = ladderOf({ hands, twoHanded: handsPlaying(passage).size > 1, pace: item.pace, turns: targetRepeatCount })
+          return [{ ...passage, stalledAtBarLine: item.stalledAtBarLine, banked: 0, ladder, climb: startOfTurn() }]
         })
         .sort((a, b) => a.fragment.from - b.fragment.from)
       if (passages.length === 0) return
@@ -391,6 +421,7 @@ export function initMusicXML() {
       // own, one at a time.
       resetProgress()
       reinforcement.on = true
+      reinforcement.hands = hands
       reinforcement.passages = passages
       training.on = true
       startReinforcementPassage()
@@ -398,13 +429,66 @@ export function initMusicXML() {
   }
 }
 
-function resetReinforcementState() {
+// The drill is over, finished or left: nothing of it is kept, and the page
+// hears of it — the hands it was started with are given back (onHandsChanged),
+// and it stands on no ladder (onLadder).
+function endReinforcement() {
+  const { on, hands } = reinforcement
   reinforcement.on = false
   reinforcement.passages = []
   reinforcement.index = 0
+  reinforcement.hands = null
   reinforcement.firstTries = { played: 0, clean: 0 }
   reinforcement.firstTry = false
   training.fragment = null
+  if (!on) return
+  // A drill left on a step for one hand gives the other back.
+  playWith(hands)
+  callbacks.onLadder?.(null)
+}
+
+// The hands a step of the ladder is played with (handsKey) — or those a drill
+// gives back as it ends — put in place of the ones ticked, and the page told
+// so that its boxes, the journal and the note log follow (onHandsChanged).
+function playWith(hands) {
+  if (hands === handsKey(activeHands)) return
+  activeHands = handsOfKey(hands)
+  fadeHandsLeftOut()
+  callbacks.onHandsChanged?.({ ...activeHands })
+}
+
+// The hands with a note in a drill passage.
+function handsPlaying({ start, end, fragment }) {
+  const hands = new Set()
+  for (const { notes } of score.allNotes.slice(start, end + 1)) {
+    for (const noteData of notes) if (isWithin(noteData, fragment)) hands.add(handOfNote(noteData))
+  }
+  return hands
+}
+
+// Tells the page where the drill stands (onLadder): which passage of how many,
+// the steps of its ladder with those behind it and the one under way
+// (rungs), the step being played, and what the last repetitions call for.
+// `down` says the step under way was stepped down from, and to what: one
+// hand, 'right' or 'left', or the passage with nothing asked of its 'pace'.
+// `guided` is false for a ladder with nothing to show: a clean repetition a
+// turn.
+function sayLadder() {
+  const { passages, index, hands } = reinforcement
+  const { ladder, banked, climb } = passages[index]
+  const { kind, pace } = stepUnderway()
+  const down = climb.detour && (climb.detour.hands === hands ? 'pace' : climb.detour.hands)
+  callbacks.onLadder?.({
+    passage: index + 1,
+    passages: passages.length,
+    guided: isGuided(ladder),
+    steps: rungs(ladder, banked, climb),
+    kind,
+    down,
+    tempo: pace && crotchetsPerMinute(pace),
+    hint: climb.hint,
+    played: climb.played && crotchetsPerMinute(climb.played),
+  })
 }
 
 // The bars a fragment is drilled in, and what of them: from the first pass of
@@ -432,19 +516,54 @@ function setPassage(start, end, fragment = null) {
   training.end = end == null ? null : Math.max(training.start, end)
 }
 
-// The passage whose turn it is becomes the training passage, from its first
-// bar, with the dots it banked on its turns before. The one whose turn it
-// takes, `leaving`, goes dark; the bars between, which the drill never lit,
-// are left as they are.
+// The passage whose turn it is comes up, on the first step of that turn
+// (startStep). The one whose turn it takes, `leaving`, goes dark; the bars
+// between, which the drill never lit, are left as they are. A turn of one
+// step is the passage as the drill asks for it, played cold: its first try
+// says whether it is learnt (reinforcement.firstTries), which one that starts
+// with a hand alone does not.
 function startReinforcementPassage(leaving = null) {
-  const { start, end, fragment, banked } = reinforcement.passages[reinforcement.index]
+  const { ladder, banked } = reinforcement.passages[reinforcement.index]
   if (leaving) resetNotesFromIndex(leaving.start, leaving.end)
+  reinforcement.firstTry = ladder[banked].length === 1
+  startStep()
+  scrollToMeasure(training.start)
+}
+
+// The step of its ladder the drill is on, or null outside one — and for the
+// beat a passage with its last dot stays up.
+function stepUnderway() {
+  const passage = reinforcement.passages[reinforcement.index]
+  const steps = passage?.ladder[passage.banked]
+  return steps ? stepOf(steps, passage.climb) : null
+}
+
+// The step the passage stands on, set up to be played: its hands, then the
+// passage under them — where it starts depends on which hands play — from its
+// first bar, with the dots of the turns behind it.
+function startStep() {
+  const { start, end, fragment, banked } = reinforcement.passages[reinforcement.index]
+  playWith(stepUnderway().hands)
   setPassage(start, end, fragment)
+  // Dark from its first bar: the hands of the step before may have come in a
+  // bar earlier than these do, which the jump would leave lit.
+  resetNotesFromIndex(start, training.start - 1)
   jumpToMeasure(training.start, training.end)
   training.banked = banked
-  reinforcement.firstTry = true
   updateRepeatIndicators()
-  scrollToMeasure(training.start)
+  sayLadder()
+}
+
+// A repetition of the drill passage is over: where that leaves it on its
+// ladder (climbOn). Says whether the turn's last step was passed, which is
+// what fills its dot.
+function climbTheLadder() {
+  const passage = reinforcement.passages[reinforcement.index]
+  const { climb, earned } = climbOn(passage.ladder[passage.banked], passage.climb, { clean: training.clean, ...repetition })
+  passage.climb = climb
+  // A dot earned moves the drill on, which says where it stands then.
+  if (!earned) sayLadder()
+  return earned
 }
 
 // Whose turn it is once the passage at `index` has earned a dot, `banked`
@@ -467,10 +586,13 @@ function passTheTurn() {
   const leaving = passages[index]
   leaving.banked = training.banked
   const turn = nextTurn(passages.map((p) => p.banked), index, targetRepeatCount)
-  if (turn === index) return false
+  if (turn === index) {
+    sayLadder()
+    return false
+  }
   if (turn === null) {
     const { firstTries } = reinforcement
-    resetReinforcementState()
+    endReinforcement()
     callbacks.onReinforcementComplete?.(firstTries)
   } else {
     reinforcement.index = turn
@@ -598,13 +720,16 @@ function passageBeats() {
 // passage under way suits them — the 🎹 button is offered on it alone, and
 // they go off on one that does not; `advised`, they are off on a drill
 // passage whose runs stalled at the bar line, where they help the hand find
-// its next position; and whether they are on. Called wherever the passage or
-// the hands may have changed, before the attempt there is opened, so that it
-// is filed as played (startAttempt).
+// its next position — on the steps that play it with the hands those runs
+// did, not on one taken with a hand alone; and whether they are on. Called
+// wherever the passage or the hands may have changed, before the attempt
+// there is opened, so that it is filed as played (startAttempt).
 function sayBlockChords() {
   const fit = training.on && cursor.measureIndex < score.allNotes.length && suitsBlockChords(passageBeats())
   if (!fit) training.blockChords = false
-  const advised = fit && !training.blockChords && !!reinforcement.passages[reinforcement.index]?.stalledAtBarLine
+  const stalled = !!reinforcement.passages[reinforcement.index]?.stalledAtBarLine
+  const asTheRuns = stepUnderway()?.hands === reinforcement.hands
+  const advised = fit && !training.blockChords && stalled && asTheRuns
   callbacks.onBlockChords?.({ fit, advised, on: training.blockChords })
 }
 
@@ -627,11 +752,14 @@ function stampOf(noteData, measure) {
 
 // Only training drills a fragment: free play or strict mode, left to from a
 // drill, owe the whole score again.
-function inFragment({ timestamp }) {
+function inFragment(noteData) {
   const { fragment } = training
-  if (!training.on || !fragment) return true
-  return timestamp >= fragment.from - POSITION_EPSILON && timestamp < fragment.until - POSITION_EPSILON
+  return !training.on || !fragment || isWithin(noteData, fragment)
 }
+
+// Whether a note falls in a fragment, { from, until } as timestamps.
+const isWithin = ({ timestamp }, { from, until }) =>
+  timestamp >= from - POSITION_EPSILON && timestamp < until - POSITION_EPSILON
 
 function nextPlayable(from) {
   return nextPlayableMeasure(score.allNotes, from, activeHands, isNoteOwed)
@@ -658,10 +786,12 @@ function resetPlaybackState() {
   cursor.systemIndex = null
   heldMidiNotes.clear()
   playedSourceMeasures.clear()
+  // Ahead of the cursor, which goes to the first bar the hands play: a drill
+  // gives back the hands it was started with, and its fragment with them.
+  endReinforcement()
+  resetTrainingRange()
   cursor.measureIndex = cursorMeasureFor(0)
   attempt.open = false
-  resetReinforcementState()
-  resetTrainingRange()
 }
 
 // Throws when the file is no score OSMD can read, for the page to say so —
@@ -1388,8 +1518,9 @@ function activateNote(midiNote) {
     // past the trill's end.
     const at = lastValidatedTimestamp(activeNotes, expectedNote.timestamp)
     if (isTrillStillSounding(activeNotes, midiNote, at)) return null
-    handleWrongNote(measureData, expectedNote, midiNote)
-    return { noteData: expectedNote, measureIndex, wrong: true }
+    const missed = nearestTo(chord.filter(awaitsKey), midiNote)
+    handleWrongNote(measureData, missed, midiNote)
+    return { noteData: missed, measureIndex, wrong: true }
   }
 
   holdDown(pressed)
@@ -1405,6 +1536,14 @@ function activateNote(midiNote) {
   }
   return { noteData: pressed[0], measureIndex, wrong: false }
 }
+
+// The note a wrong key was meant for, among those still awaited where it
+// fell: the nearest in pitch. With a note owed by each hand at once — every
+// semiquaver of the C minor prelude — the first of them was the right hand's
+// each time, and a slip of the left was held against the right: on the sheet,
+// in the note log, and in what a drill makes of it (ladder.js).
+const nearestTo = (notes, midiNote) =>
+  notes.reduce((nearest, n) => (Math.abs(n.midiNumber - midiNote) < Math.abs(nearest.midiNumber - midiNote) ? n : nearest))
 
 // A trill owed next — its sentinel, isTrillEnd — takes either of its two
 // pitches, in any order and any number, until the note after it is played.
@@ -1457,6 +1596,7 @@ function handleWrongNote(measureData, expectedNote, midiNote) {
   spoilRepetition()
   steadiness.fault()
   fumbled.add(expectedNote)
+  repetition.wrong[handOfNote(expectedNote)]++
   // A wrong note can be the first thing played in a measure, but not the
   // first of a run: with no attempt open the journal has nothing to count it in.
   if (!attempt.open && runUnderway()) startAttempt(measureData)
@@ -1470,6 +1610,8 @@ function startRepetition() {
   training.clean = true
   steadiness.discard()
   fumbled.clear()
+  repetition.pace = null
+  repetition.wrong = { right: 0, left: 0 }
 }
 
 // In training, the repetition under way can no longer fill its dot. Only the
@@ -1596,15 +1738,20 @@ function moveTrainingCursorTo(to, { keepRepeats = false, clearFrom = null } = {}
 }
 
 // A measure of the passage is over: bank it or move on, per trainingStep.
-function advanceTraining(next) {
+// `goesOn` says the traversal runs on into `next` (runsOn).
+function advanceTraining(next, goesOn) {
   const passage = trainingPassage()
+  // A repetition in block chords fills no dot and climbs nothing
+  // (inBlockChords). A drill's fills one as it passes the last step of the
+  // turn (climbTheLadder), any other as it comes out clean.
+  const asWritten = !inBlockChords()
+  const climbs = reinforcement.on && asWritten && !goesOn
   const { action, to, banked } = trainingStep({
     next,
     ...passage,
     banked: training.banked,
     target: targetRepeatCount,
-    // A repetition in block chords fills no dot (inBlockChords).
-    clean: training.clean && !inBlockChords(),
+    clean: climbs ? climbTheLadder() : training.clean && asWritten,
     measureCount: score.allNotes.length,
   })
   // Set before the pause below, so the dot that has just been earned fills
@@ -1616,7 +1763,7 @@ function advanceTraining(next) {
   // without saying anything of the passage as written.
   if (reinforcement.firstTry && action !== 'step') {
     reinforcement.firstTry = false
-    if (!inBlockChords()) {
+    if (asWritten) {
       reinforcement.firstTries.played++
       if (earned) reinforcement.firstTries.clean++
     }
@@ -1637,7 +1784,10 @@ function advanceTraining(next) {
   // passage played at speed. A finished traversal holds the sheet a beat, so
   // the dot can be seen, then starts the passage over from a dark sheet; only
   // a passage that is done rather than merely spoiled empties the dots.
+  // A drill whose step now under way is played with other hands sets its
+  // passage up again under them.
   if (action === 'step') moveTrainingCursorTo(to, { keepRepeats: true })
+  else if (reinforcement.on && stepUnderway().hands !== handsKey(activeHands)) afterTheBeat(startStep)
   else afterTheBeat(() => moveTrainingCursorTo(to, { keepRepeats: action === 'restart', clearFrom: passage.first }))
 }
 
@@ -1692,11 +1842,14 @@ function handleNoteValidated(measureData, group, { struck = true } = {}) {
   const goesOn = runsOn(next)
   // What a finished traversal left pending is judged before the journal files
   // the measure and the mode reads the verdict to bank its dot.
-  if (!goesOn) applySteadiness(steadiness.close())
+  if (!goesOn) {
+    repetition.pace = steadiness.meanPace
+    applySteadiness(steadiness.close())
+  }
   callbacks.onMeasureCompleted?.()
 
   if (!training.on) advanceFreePlay(measureData, next, goesOn)
-  else advanceTraining(next)
+  else advanceTraining(next, goesOn)
 }
 
 // Whether the traversal under way runs on past the measure just finished,

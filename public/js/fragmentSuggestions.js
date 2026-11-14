@@ -12,7 +12,7 @@
 // page's own log (noteLog.liveSegments), not from storage.
 import { analysisModel } from './noteExtraction.js'
 import { eventsOf, traversals } from './noteLogAnalysis.js'
-import { fragmentsToReinforce } from './fragments.js'
+import { fragmentsToReinforce, paceToHold } from './fragments.js'
 import { measuresToReinforce } from './reinforcement.js'
 import { noteLogWindow } from './noteLog.js'
 
@@ -63,10 +63,14 @@ export const judged = (segments, session, notes) =>
   traversals(eventsOf(segments), notes).map((traversal) => ({ ...traversal, training: session.mode === 'training' }))
 
 // What to offer for `hands`, from the traversals of the window (`all`): their
-// fragments, or the bars and joins of the score's `sessions` when not one of
-// them is a run. Pure, for scripts/practice-report.mjs to say the same.
+// fragments, each with the `pace` its drill asks for (paceToHold), or the bars
+// and joins of the score's `sessions` when not one of them is a run. Pure, for
+// scripts/practice-report.mjs to say the same.
 export function reinforcementOffer(all, sessions, notes, hands) {
-  if (all.some((traversal) => !traversal.training)) return fragmentsToReinforce(all, notes, { hands })
+  if (all.some((traversal) => !traversal.training)) {
+    const paceAround = paceToHold(all, hands)
+    return fragmentsToReinforce(all, notes, { hands }).map((fragment) => ({ ...fragment, pace: paceAround(fragment) }))
+  }
   return measuresToReinforce(sessions, { hands }).map((item) => wholeBars(item, notes))
 }
 

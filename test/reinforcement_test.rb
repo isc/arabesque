@@ -221,8 +221,15 @@ class ReinforcementTest < CapybaraTestBase
     find('dialog[open] button[aria-label="Close"]').click
 
     click_on 'Renforcer 1 passage'
-    play_chord(%w[G4 C3])
-    assert_selector 'svg .vf-notehead.played-note', count: 2
+    # The right hand alone first (ladder.js), from beat 3 as well; then the
+    # left, whose first note is the bass struck there.
+    with_clock_control do
+      play_evenly((bars[0].drop(8) + bars[1].take(4)).map { |attack| Array(attack).first })
+      advance_clock(300)
+    end
+    assert_field 'Main droite', checked: false, disabled: true
+    play_note('C3')
+    assert_selector 'svg .vf-notehead.played-note', count: 1
     assert_no_selector 'svg circle.repeat-indicator.spoiled'
   end
 
@@ -270,19 +277,6 @@ class ReinforcementTest < CapybaraTestBase
   end
 
   private
-
-  # A drill of whole bars of repeat-endings.xml, each passage a bar or a range
-  # of them, handed to the page in that order, as it would offer them.
-  def reinforce_bars(*passages)
-    reinforce(passages.map do |bars|
-      first, last = Array(bars).values_at(0, -1)
-      { from: { bar: first - 1, position: 0 }, until: { bar: last - 1, position: 1 }, hands: 'both' }
-    end)
-  end
-
-  def reinforce(passages)
-    execute_script("Alpine.$data(document.querySelector('[x-data]')).setMode('reinforcement', #{passages.to_json})")
-  end
 
   # The drill is on bar `bar` — its fragment shaded beside the bar's click
   # area — with `dots` of its dots filled.
