@@ -12,16 +12,16 @@ import {
   handOfNote,
   handOfStaff,
   isInnerStaff,
-} from './noteExtraction.js?v=ab9c0613e287'
-import { scrollSystemIntoView, isUnderStickyBars, nextPaint } from './utils.js?v=ab9c0613e287'
-import { arrayBufferToXml, isMusicXml } from './mxlLoader.js?v=ab9c0613e287'
-import { stripPlaybackTempoMarks } from './tempoMarks.js?v=ab9c0613e287'
-import { recordError } from './errorLog.js?v=ab9c0613e287'
-import { REINFORCEMENT_CLEAN_PASSES } from './reinforcement.js?v=ab9c0613e287'
-import { POSITION_EPSILON, beatStartOf, crotchetsPerMinute } from './noteLogAnalysis.js?v=ab9c0613e287'
-import { createSteadiness } from './steadiness.js?v=ab9c0613e287'
-import { handsKey, handsOfKey } from './hands.js?v=ab9c0613e287'
-import { climbOn, isGuided, ladderOf, rungs, startOfTurn, stepOf } from './ladder.js?v=ab9c0613e287'
+} from './noteExtraction.js?v=068542b71800'
+import { scrollSystemIntoView, isUnderStickyBars, nextPaint } from './utils.js?v=068542b71800'
+import { arrayBufferToXml, isMusicXml } from './mxlLoader.js?v=068542b71800'
+import { stripPlaybackTempoMarks } from './tempoMarks.js?v=068542b71800'
+import { recordError } from './errorLog.js?v=068542b71800'
+import { REINFORCEMENT_CLEAN_PASSES } from './reinforcement.js?v=068542b71800'
+import { POSITION_EPSILON, beatStartOf, crotchetsPerMinute } from './noteLogAnalysis.js?v=068542b71800'
+import { createSteadiness } from './steadiness.js?v=068542b71800'
+import { handsKey, handsOfKey } from './hands.js?v=068542b71800'
+import { climbOn, isGuided, ladderOf, rungs, startOfTurn, stepOf } from './ladder.js?v=068542b71800'
 
 // The score on the stand: the sheet OSMD holds, and the note model built from
 // it. Replaced as a sheet comes in (renderMusicXML) and as it is drawn
@@ -527,7 +527,6 @@ function startReinforcementPassage(leaving = null) {
   if (leaving) resetNotesFromIndex(leaving.start, leaving.end)
   reinforcement.firstTry = ladder[banked].length === 1
   startStep()
-  scrollToMeasure(training.start)
 }
 
 // The step of its ladder the drill is on, or null outside one — and for the
@@ -540,7 +539,9 @@ function stepUnderway() {
 
 // The step the passage stands on, set up to be played: its hands, then the
 // passage under them — where it starts depends on which hands play — from its
-// first bar, with the dots of the turns behind it.
+// first bar, with the dots of the turns behind it. The page is brought to that
+// bar: the passage may be anywhere in the score, and the step before, played
+// with other hands, may have ended a system further down.
 function startStep() {
   const { start, end, fragment, banked } = reinforcement.passages[reinforcement.index]
   playWith(stepUnderway().hands)
@@ -552,6 +553,7 @@ function startStep() {
   training.banked = banked
   updateRepeatIndicators()
   sayLadder()
+  scrollToMeasure(training.start)
 }
 
 // A repetition of the drill passage is over: where that leaves it on its
