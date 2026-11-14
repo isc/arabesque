@@ -21,6 +21,11 @@ export function handsKey({ right, left }) {
   return NO_HANDS
 }
 
+// The hands a selection stands for, as the boxes hold them.
+export function handsOfKey(key) {
+  return { right: key === TWO_HANDS || key === 'right', left: key === TWO_HANDS || key === 'left' }
+}
+
 // The hands a measure attempt was played with. One recorded before the app
 // tracked hands carries no value at all, which reads as two hands: that is
 // all a run could have been back then.

@@ -31,9 +31,9 @@
 //
 // Positions are compared exactly: whoever builds the model rounds them with
 // roundPosition, so that both hands on a beat share one.
-import { createSteadiness, isHole, outOfPace, writtenBetween } from './steadiness.js?v=c1cac9d39e86'
-import { TWO_HANDS, handsKey } from './hands.js?v=c1cac9d39e86'
-import { median } from './practiceTime.js?v=c1cac9d39e86'
+import { createSteadiness, isHole, outOfPace, writtenBetween } from './steadiness.js?v=ab9c0613e287'
+import { TWO_HANDS, handsKey } from './hands.js?v=ab9c0613e287'
+import { median } from './practiceTime.js?v=ab9c0613e287'
 
 // How finely positions are told apart, in whole notes: far below any note,
 // far above the error of summing durations.
@@ -72,7 +72,8 @@ export const handsOfBits = (bits) => handsKey({ right: Boolean(bits & 1), left: 
 // score order — { bar (playback), sourceBar, position, at, ms, ratio, pace,
 // hole, entry, joined, faulted, written, lost } — the wrong keys played during
 // it, { at, bar, key, pitch }, `key` the note that was owed, the hands ticked
-// as it began (handsKey), and `blockChords` when it was played in block chords.
+// as it began (handsKey), `blockChords` when it was played in block chords,
+// and `meanPace`, the pace it held over all of it (steadiness.js).
 export function traversals(events, model) {
   const runs = []
   let run = null
@@ -161,9 +162,12 @@ function judge({ attacks, wrong, hands, blockChords }, model) {
     apply(steadiness.attack(point))
     previous = point
   }
+  // What a drill weighed the repetition by where it asked for a tempo
+  // (ladder.js): read before the close, which starts it over.
+  const { meanPace } = steadiness
   apply(steadiness.close())
   weighLosses(ordered)
-  return { attacks: ordered, wrong, hands, blockChords }
+  return { attacks: ordered, wrong, hands, blockChords, meanPace }
 }
 
 // What each fault held the traversal up, in ms, as `lost`: a hole, its excess
@@ -194,6 +198,9 @@ export const excess = ({ ms, ratio }) => (ratio > 1 ? ms - ms / ratio : 0)
 // The pace a judged traversal held, in ms per whole note: the median of what
 // its intervals were weighed against.
 export const paceOf = ({ attacks }) => median(attacks.filter((a) => a.pace).map((a) => a.pace))
+
+// A pace in ms per whole note as the tempo it is, in crotchets a minute.
+export const crotchetsPerMinute = (pace) => Math.round(240_000 / pace)
 
 // A judged traversal judged again as if it had held `pace`, every interval's
 // reference scaled alike, which keeps the changes of tempo and the drift inside
