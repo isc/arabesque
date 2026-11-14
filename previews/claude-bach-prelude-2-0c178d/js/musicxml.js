@@ -12,16 +12,16 @@ import {
   handOfNote,
   handOfStaff,
   isInnerStaff,
-} from './noteExtraction.js?v=63b0933eb369'
-import { scrollSystemIntoView, isUnderStickyBars, nextPaint } from './utils.js?v=63b0933eb369'
-import { arrayBufferToXml, isMusicXml } from './mxlLoader.js?v=63b0933eb369'
-import { stripPlaybackTempoMarks } from './tempoMarks.js?v=63b0933eb369'
-import { recordError } from './errorLog.js?v=63b0933eb369'
-import { REINFORCEMENT_CLEAN_PASSES } from './reinforcement.js?v=63b0933eb369'
-import { POSITION_EPSILON, beatStartOf, crotchetsPerMinute } from './noteLogAnalysis.js?v=63b0933eb369'
-import { createSteadiness } from './steadiness.js?v=63b0933eb369'
-import { handsKey, handsOfKey } from './hands.js?v=63b0933eb369'
-import { climbOn, isGuided, ladderOf, rungs, startOfTurn, stepOf } from './ladder.js?v=63b0933eb369'
+} from './noteExtraction.js?v=96a19048a05d'
+import { scrollSystemIntoView, isUnderStickyBars, nextPaint } from './utils.js?v=96a19048a05d'
+import { arrayBufferToXml, isMusicXml } from './mxlLoader.js?v=96a19048a05d'
+import { stripPlaybackTempoMarks } from './tempoMarks.js?v=96a19048a05d'
+import { recordError } from './errorLog.js?v=96a19048a05d'
+import { REINFORCEMENT_CLEAN_PASSES } from './reinforcement.js?v=96a19048a05d'
+import { POSITION_EPSILON, beatStartOf, crotchetsPerMinute } from './noteLogAnalysis.js?v=96a19048a05d'
+import { createSteadiness } from './steadiness.js?v=96a19048a05d'
+import { handsKey, handsOfKey } from './hands.js?v=96a19048a05d'
+import { climbOn, isGuided, ladderOf, rungs, startOfTurn, stepOf } from './ladder.js?v=96a19048a05d'
 
 // The score on the stand: the sheet OSMD holds, and the note model built from
 // it. Replaced as a sheet comes in (renderMusicXML) and as it is drawn
