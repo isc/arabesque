@@ -158,6 +158,31 @@ class AutoscrollTest < CapybaraTestBase
     work_on_bar_from_history(3)
   end
 
+  # A drill passage over two systems, taken a hand at a time: the right hand
+  # ends on the second, and the left starts back on the first.
+  # one-hand-rest-measure.xml is three bars of whole notes on two staves: E5
+  # over C3, a rest over D3, G5 over E3.
+  def test_a_drill_step_for_other_hands_brings_the_top_of_its_passage_back
+    # Bar 1 on a system of its own
+    page.current_window.resize_to(300, 600)
+    visit '/score.html?url=/test-fixtures/one-hand-rest-measure.xml'
+    wait_for_score_render
+
+    # The drill brings its passage under the bars, a few frames after it
+    # starts: the page has to have left the top before it is read.
+    reinforce_bars(1..3)
+    assert_text 'Main droite seule'
+    at_the_top = settled_scroll(from: 0)
+
+    play_note('E5')
+    further_down = settled_scroll(from: at_the_top)
+    assert_operator further_down, :>, at_the_top, 'The page should follow the right hand down to bar 3'
+
+    play_note('G5')
+    assert_text 'Main gauche seule'
+    assert_equal at_the_top, settled_scroll(from: further_down), 'The page should come back up to bar 1 for the left hand'
+  end
+
   private
 
   def work_on_bar_from_history(bar)
