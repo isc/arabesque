@@ -910,12 +910,13 @@ function fixUpInvisibleNotes() {
   }
 }
 
-// OSMD 2.3.0 leaves a Fine, a D.C. and their kin out of the skyline unless it had
-// to lift them over something, so what it places against the skyline next can
-// land on one: the composer, set just above the first system, wrote
-// "Traditionnel" over the Fine closing the first system of "Sur le pont
-// d'Avignon" at an iPad's width. A stopgap until OSMD does it: every such word
-// reserves the space it is drawn in.
+// OSMD (2.3.1 still) leaves a Fine, a D.C. and their kin out of the skyline
+// unless it had to lift them over something, so what it places against the
+// skyline next can land on one: the composer, set just above the first system,
+// wrote "Traditionnel" over the Fine closing the first system of "Sur le pont
+// d'Avignon" at an iPad's width. A stopgap until a release carries
+// opensheetmusicdisplay/opensheetmusicdisplay#2020: every such word reserves
+// the space it is drawn in.
 function reserveRepetitionWords() {
   const calculator = opensheetmusicdisplay.VexFlowMusicSheetCalculator.prototype
   if (calculator.placeWordRepetitionInSkyline.reservesSpace) return
