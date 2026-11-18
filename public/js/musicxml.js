@@ -14,6 +14,7 @@ import {
   isInnerStaff,
 } from './noteExtraction.js'
 import { scrollSystemIntoView, isUnderStickyBars, nextPaint } from './utils.js'
+import { placeChordFingerings } from './chordFingerings.js'
 import { arrayBufferToXml, isMusicXml } from './mxlLoader.js'
 import { stripPlaybackTempoMarks } from './tempoMarks.js'
 import { recordError } from './errorLog.js'
@@ -857,6 +858,7 @@ function scaleTitleBlock() {
 async function renderScore({ reextract = true, rebuild = false, afterDraw = null } = {}) {
   if (!score.osmdInstance) return
   if (rebuild) score.osmdInstance.updateGraphic()
+  placeChordFingerings(score.osmdInstance.Sheet.SourceMeasures)
   scaleTitleBlock()
   score.osmdInstance.render()
   fixUpInvisibleNotes()

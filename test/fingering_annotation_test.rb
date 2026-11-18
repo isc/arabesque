@@ -186,6 +186,24 @@ class FingeringAnnotationTest < CapybaraTestBase
     assert_equal %w[5 2 1], first_beat_fingerings
   end
 
+  # A fingering on the C of a C-E-G chord in the right hand, alone over the
+  # chord, read as the G's: it goes under the staff, by its note, as long as the
+  # G has none, and into the column over the chord once it has
+  # (chordFingerings.js).
+  def test_a_chord_fingering_goes_under_while_the_top_note_has_none
+    visit "/score.html?url=#{CHORD_SCORE_URL}"
+    wait_for_score_render
+
+    enter_fingering(first_beat_notehead(0, 0), 1)
+    assert_equal({ '1' => 'below' }, first_beat_fingering_sides)
+
+    enter_fingering(first_beat_notehead(0, -1), 5)
+    assert_equal({ '1' => 'above', '5' => 'above' }, first_beat_fingering_sides)
+
+    clear_fingering(first_beat_notehead(0, -1))
+    assert_equal({ '1' => 'below' }, first_beat_fingering_sides)
+  end
+
   # A fingering over a beamed, stem-up note clears the ornament on the same note.
   # OSMD placed it from a first draw that had the ornament under the beam, and
   # the digits landed on the mordent once the stems reached the beam (feedback
@@ -310,6 +328,17 @@ class FingeringAnnotationTest < CapybaraTestBase
       assert_no_selector 'dialog#fingeringModal[open]'
       name
     end
+  end
+
+  # The side of the upper staff each fingering of its first beat is on, by its
+  # digits: 'above' or 'below' its lines.
+  def first_beat_fingering_sides
+    page.evaluate_script(<<~JS)
+      Object.fromEntries(osmdInstance.graphic.MeasureList[0][0].staffEntries[0].FingeringEntries.map((entry) => {
+        const y = entry.PositionAndShape.RelativePosition.y // from the top line, in staff spaces
+        return [entry.Label.text, y < 0 ? 'above' : y > osmdInstance.rules.StaffHeight ? 'below' : 'on']
+      }))
+    JS
   end
 
   # The fingering labels over the first beat of the upper staff, top to bottom
