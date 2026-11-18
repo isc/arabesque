@@ -11,10 +11,10 @@
 // from the log whenever asked, by the rule as it stands, so nothing of it is
 // filed with a session. The bar-and-join suggestions (reinforcement.js) are
 // for sessions with no log.
-import { REINFORCEMENT_CLEAN_PASSES } from './reinforcement.js?v=068542b71800'
-import { POSITION_EPSILON, attackNumber, beatIndex, beatStartOf, paceOf, roundPosition } from './noteLogAnalysis.js?v=068542b71800'
-import { TWO_HANDS } from './hands.js?v=068542b71800'
-import { median } from './practiceTime.js?v=068542b71800'
+import { REINFORCEMENT_CLEAN_PASSES } from './reinforcement.js?v=cf22bc637da2'
+import { POSITION_EPSILON, attackNumber, beatIndex, beatStartOf, paceOf, roundPosition } from './noteLogAnalysis.js?v=cf22bc637da2'
+import { TWO_HANDS } from './hands.js?v=cf22bc637da2'
+import { median } from './practiceTime.js?v=cf22bc637da2'
 
 // Fragments are compared and merged as (bar, position) pairs, source bars
 // and whole notes.
