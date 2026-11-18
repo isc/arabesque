@@ -12,16 +12,16 @@ import {
   handOfNote,
   handOfStaff,
   isInnerStaff,
-} from './noteExtraction.js?v=cf22bc637da2'
-import { scrollSystemIntoView, isUnderStickyBars, nextPaint } from './utils.js?v=cf22bc637da2'
-import { arrayBufferToXml, isMusicXml } from './mxlLoader.js?v=cf22bc637da2'
-import { stripPlaybackTempoMarks } from './tempoMarks.js?v=cf22bc637da2'
-import { recordError } from './errorLog.js?v=cf22bc637da2'
-import { REINFORCEMENT_CLEAN_PASSES } from './reinforcement.js?v=cf22bc637da2'
-import { POSITION_EPSILON, beatStartOf, crotchetsPerMinute } from './noteLogAnalysis.js?v=cf22bc637da2'
-import { createSteadiness } from './steadiness.js?v=cf22bc637da2'
-import { handsKey, handsOfKey } from './hands.js?v=cf22bc637da2'
-import { climbOn, isGuided, ladderOf, rungs, startOfTurn, stepOf } from './ladder.js?v=cf22bc637da2'
+} from './noteExtraction.js?v=9fce34fa0ace'
+import { scrollSystemIntoView, isUnderStickyBars, nextPaint } from './utils.js?v=9fce34fa0ace'
+import { arrayBufferToXml, isMusicXml } from './mxlLoader.js?v=9fce34fa0ace'
+import { stripPlaybackTempoMarks } from './tempoMarks.js?v=9fce34fa0ace'
+import { recordError } from './errorLog.js?v=9fce34fa0ace'
+import { REINFORCEMENT_CLEAN_PASSES } from './reinforcement.js?v=9fce34fa0ace'
+import { POSITION_EPSILON, beatStartOf, crotchetsPerMinute } from './noteLogAnalysis.js?v=9fce34fa0ace'
+import { createSteadiness } from './steadiness.js?v=9fce34fa0ace'
+import { handsKey, handsOfKey } from './hands.js?v=9fce34fa0ace'
+import { climbOn, isGuided, ladderOf, rungs, startOfTurn, stepOf } from './ladder.js?v=9fce34fa0ace'
 
 // The score on the stand: the sheet OSMD holds, and the note model built from
 // it. Replaced as a sheet comes in (renderMusicXML) and as it is drawn
@@ -910,12 +910,13 @@ function fixUpInvisibleNotes() {
   }
 }
 
-// OSMD 2.3.0 leaves a Fine, a D.C. and their kin out of the skyline unless it had
-// to lift them over something, so what it places against the skyline next can
-// land on one: the composer, set just above the first system, wrote
-// "Traditionnel" over the Fine closing the first system of "Sur le pont
-// d'Avignon" at an iPad's width. A stopgap until OSMD does it: every such word
-// reserves the space it is drawn in.
+// OSMD (2.3.1 still) leaves a Fine, a D.C. and their kin out of the skyline
+// unless it had to lift them over something, so what it places against the
+// skyline next can land on one: the composer, set just above the first system,
+// wrote "Traditionnel" over the Fine closing the first system of "Sur le pont
+// d'Avignon" at an iPad's width. A stopgap until a release carries
+// opensheetmusicdisplay/opensheetmusicdisplay#2020: every such word reserves
+// the space it is drawn in.
 function reserveRepetitionWords() {
   const calculator = opensheetmusicdisplay.VexFlowMusicSheetCalculator.prototype
   if (calculator.placeWordRepetitionInSkyline.reservesSpace) return
