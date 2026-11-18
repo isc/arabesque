@@ -13,7 +13,6 @@ class ContinuationMeasureTest < CapybaraTestBase
   SCORE = '/test-fixtures/continuation-measure.xml'.freeze
   PHONE = [360, 740].freeze
   NOCTURNE = 'scores/Chopin_-_Nocturne_Op_9_No_2_E_Flat_Major.mxl'.freeze
-  IPAD = [1024, 748].freeze
   BAR_2_FIRST_HALF = %w[G4 A4 B4 C5 D5 C5 B4 A4].freeze
   BAR_2_SECOND_HALF = %w[G4 E4].freeze
   WHOLE_SCORE = %w[C4 D4 E4 F4] + BAR_2_FIRST_HALF + BAR_2_SECOND_HALF + %w[C4]

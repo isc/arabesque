@@ -17,7 +17,9 @@
 // the same hand position from published scores in F (singing-bell.com,
 // ukulelepotato.com), the low G in the left hand and the rest in the right.
 // "Fais dodo" follows the song as it is sung: "Colas" starts on C, not on D,
-// and "Papa est en bas" climbs E F G like the lines around it.
+// and "Papa est en bas" climbs E F G like the lines around it. "Sur le pont
+// d'Avignon" steps up to D on "comme" in each line of its verse, which the book
+// keeps on C (French Wikipedia's score, Weckerlin's 1870 arrangement).
 //
 // IMPORTANT: the order of this list is the file numbering — song 13 is
 // written to Chansons_13_…, and practice aggregates and fingerings are keyed
@@ -131,7 +133,7 @@ export const SONGS = [
     title: "Sur le pont d'Avignon",
     time: '4/4',
     showTime: true,
-    rh: 'C4q rq C4h | D4q D4q D4h | E4q F4q G4q rq | rq rq D4q rq | C4q rq C4h | D4q D4q D4h | E4q F4q G4q C4q | D4q rq rh | C4q rq C4q rq | C4h C4h | C4q rq C4q rq | C4h C4h',
+    rh: 'C4q rq C4h | D4q D4q D4h | E4q F4q G4q rq | rq rq D4q rq | C4q rq C4h | D4q D4q D4h | E4q F4q G4q C4q | D4q rq rh | C4q rq C4q rq | D4h C4h | C4q rq C4q rq | D4h C4h',
     lh: 'rq C4q rh | R | rq rq rq C4q | B3q C4q rq G3q | rq C4q rh | R | R | rq B3q C4h | rq C4q rq C4q | R | rq C4q rq C4q | R',
     fine: 8,
     repeatStart: 9,

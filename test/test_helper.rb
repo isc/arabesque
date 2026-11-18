@@ -76,6 +76,8 @@ class CapybaraTestBase < Minitest::Test
   include Capybara::DSL
   include Capybara::Minitest::Assertions
 
+  IPAD = [1024, 748].freeze # held sideways
+
   # esm.sh is the one host the app fetches code from at runtime —
   # @supabase/supabase-js (supabaseClient.js) and @tonejs/piano (playback.js).
   # No browser test wants either: what they assert is the app's own behaviour,
