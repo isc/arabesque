@@ -1,3 +1,5 @@
+import { PLACEMENT } from './chordFingerings.js'
+
 // A fingertip is far wider than a notehead: engraved on an iPad a head is about
 // 12 px across, where a comfortable touch target is 44. Aiming one with a mouse
 // is easy, with a finger it is a lottery — and a near miss used to fall through
@@ -223,6 +225,9 @@ export function initFingeringEditor({
       noteData.voiceEntry.TechnicalInstructions.push(ti)
     }
     ti.value = finger.toString()
+    // A side the engraver gave the fingering goes with it, as the injector drops
+    // it at load: the player's is placed like any other (chordFingerings.js).
+    ti.placement = PLACEMENT.NOT_YET_DEFINED
     noteData.note.Fingering = ti
     return true
   }
