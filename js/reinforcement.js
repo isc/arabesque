@@ -11,8 +11,8 @@
 // and the bar an attempt is filed under is the one the join leads into. Pure:
 // sessions in, candidates out; the tracker hands over the score's sessions
 // (practiceTracker.js).
-import { NO_HANDS, attemptHands } from './hands.js?v=9fce34fa0ace'
-import { byStartedAt } from './days.js?v=9fce34fa0ace'
+import { NO_HANDS, attemptHands } from './hands.js?v=b59657ea9099'
+import { byStartedAt } from './days.js?v=b59657ea9099'
 
 // Reinforcement suggestions look at this many of a score's most recent
 // sessions. What was fumbled months ago says nothing about what needs work

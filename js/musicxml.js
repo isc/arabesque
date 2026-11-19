@@ -12,16 +12,17 @@ import {
   handOfNote,
   handOfStaff,
   isInnerStaff,
-} from './noteExtraction.js?v=9fce34fa0ace'
-import { scrollSystemIntoView, isUnderStickyBars, nextPaint } from './utils.js?v=9fce34fa0ace'
-import { arrayBufferToXml, isMusicXml } from './mxlLoader.js?v=9fce34fa0ace'
-import { stripPlaybackTempoMarks } from './tempoMarks.js?v=9fce34fa0ace'
-import { recordError } from './errorLog.js?v=9fce34fa0ace'
-import { REINFORCEMENT_CLEAN_PASSES } from './reinforcement.js?v=9fce34fa0ace'
-import { POSITION_EPSILON, beatStartOf, crotchetsPerMinute } from './noteLogAnalysis.js?v=9fce34fa0ace'
-import { createSteadiness } from './steadiness.js?v=9fce34fa0ace'
-import { handsKey, handsOfKey } from './hands.js?v=9fce34fa0ace'
-import { climbOn, isGuided, ladderOf, rungs, startOfTurn, stepOf } from './ladder.js?v=9fce34fa0ace'
+} from './noteExtraction.js?v=b59657ea9099'
+import { scrollSystemIntoView, isUnderStickyBars, nextPaint } from './utils.js?v=b59657ea9099'
+import { placeChordFingerings } from './chordFingerings.js?v=b59657ea9099'
+import { arrayBufferToXml, isMusicXml } from './mxlLoader.js?v=b59657ea9099'
+import { stripPlaybackTempoMarks } from './tempoMarks.js?v=b59657ea9099'
+import { recordError } from './errorLog.js?v=b59657ea9099'
+import { REINFORCEMENT_CLEAN_PASSES } from './reinforcement.js?v=b59657ea9099'
+import { POSITION_EPSILON, beatStartOf, crotchetsPerMinute } from './noteLogAnalysis.js?v=b59657ea9099'
+import { createSteadiness } from './steadiness.js?v=b59657ea9099'
+import { handsKey, handsOfKey } from './hands.js?v=b59657ea9099'
+import { climbOn, isGuided, ladderOf, rungs, startOfTurn, stepOf } from './ladder.js?v=b59657ea9099'
 
 // The score on the stand: the sheet OSMD holds, and the note model built from
 // it. Replaced as a sheet comes in (renderMusicXML) and as it is drawn
@@ -857,6 +858,7 @@ function scaleTitleBlock() {
 async function renderScore({ reextract = true, rebuild = false, afterDraw = null } = {}) {
   if (!score.osmdInstance) return
   if (rebuild) score.osmdInstance.updateGraphic()
+  placeChordFingerings(score.osmdInstance.Sheet.SourceMeasures)
   scaleTitleBlock()
   score.osmdInstance.render()
   fixUpInvisibleNotes()
