@@ -1,8 +1,8 @@
-import { barCounter, fingeringKey, legacyFingeringKey, nextNoteIndex } from './fingeringKeys.js?v=34dadc68f321'
-import { t } from './i18n.js?v=34dadc68f321'
-import { withHands } from './utils.js?v=34dadc68f321'
-import { GRACE_NOTE_OFFSET_WN } from './playbackTiming.js?v=34dadc68f321'
-import { roundPosition } from './noteLogAnalysis.js?v=34dadc68f321'
+import { barCounter, fingeringKey, legacyFingeringKey, nextNoteIndex } from './fingeringKeys.js?v=c4fac8019b7d'
+import { t } from './i18n.js?v=c4fac8019b7d'
+import { withHands } from './utils.js?v=c4fac8019b7d'
+import { GRACE_NOTE_OFFSET_WN } from './playbackTiming.js?v=c4fac8019b7d'
+import { roundPosition } from './noteLogAnalysis.js?v=c4fac8019b7d'
 
 // Ornament types from OSMD
 const OrnamentEnum = {

@@ -4,8 +4,8 @@
 // journal, the calendar, a score's history and its aggregate row all count by
 // these. Pure: sessions in, times and runs out; the tracker records the
 // sessions (practiceTracker.js).
-import { TWO_HANDS, playthroughHands } from './hands.js?v=34dadc68f321'
-import { byStartedAt } from './days.js?v=34dadc68f321'
+import { TWO_HANDS, playthroughHands } from './hands.js?v=c4fac8019b7d'
+import { byStartedAt } from './days.js?v=c4fac8019b7d'
 
 // Default knobs for interruption removal. A segment is "aberrant" (an
 // interruption) when it exceeds max(floor, factor × median) of its own kind.
