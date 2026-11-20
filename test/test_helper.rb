@@ -735,9 +735,9 @@ class CapybaraTestBase < Minitest::Test
   # The count-in: one 4/4 bar.
   COUNT_IN_MS = 4 * 60_000 / STRICT_BPM
 
-  def start_strict_mode
+  def start_strict_mode(bpm: STRICT_BPM)
     click_on '⏱ Mode strict'
-    fill_in 'Tempo en BPM', with: STRICT_BPM.to_s
+    fill_in 'Tempo en BPM', with: bpm.to_s
   end
 
   # The gesture: 🔁, then the first bar of the passage and its last.
