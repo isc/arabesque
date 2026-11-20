@@ -1,19 +1,19 @@
-import { scheduleCursorAdvances } from './playback.js?v=9b2103e479a8'
+import { scheduleCursorAdvances } from './playback.js?v=1d09ee50bc15'
 import {
   tsToSeconds,
   buildMeasureStartTimes,
   buildCursorTimeline,
   cursorStepsBeforeMeasure,
   measureIndexAt,
-} from './playbackTiming.js?v=9b2103e479a8'
-import { handsKey } from './hands.js?v=9b2103e479a8'
-import { prepareClick, playClick } from './metronomeClick.js?v=9b2103e479a8'
+} from './playbackTiming.js?v=1d09ee50bc15'
+import { handsKey } from './hands.js?v=1d09ee50bc15'
+import { prepareClick, playClick, metronomeTicks } from './metronomeClick.js?v=1d09ee50bc15'
 import {
   requiredSequence,
   isNoteActiveForHands,
   sourceMeasuresToResetOnEntry,
   svgNoteheadFor,
-} from './noteExtraction.js?v=9b2103e479a8'
+} from './noteExtraction.js?v=1d09ee50bc15'
 import {
   findMatchingEvent,
   chargesStrayStrike,
@@ -22,7 +22,7 @@ import {
   isGraceStrike,
   EVENT_STATUS,
   CLASSIFICATION,
-} from './strictMatching.js?v=9b2103e479a8'
+} from './strictMatching.js?v=1d09ee50bc15'
 
 const DEFAULT_TOLERANCE_MS = 150
 // Notes played beyond the strict tolerance but within this wider window are
@@ -255,25 +255,22 @@ function start({
   startedAtPerf = performance.now()
   startedAtWall = Date.now()
 
-  // Each count-in beat is reported as it lands, for a view that shows the count
-  // to a player who cannot hear it. Beat 0 means the count is over.
-  for (let i = 0; i < resolvedCountInBeats; i++) {
-    const t = i * beatMs
+  // The click, from the first beat of the count-in to a beat or two past the
+  // last note, split as the tempo asks (metronomeTicks). Each count-in beat is
+  // also reported as it lands, for a view that shows the count to a player who
+  // cannot hear it. Beat 0 means the count is over.
+  const lastBeat = pendingEvents.length > 0
+    ? resolvedCountInBeats + Math.ceil((pendingEvents.at(-1).timeMs - countInMs) / beatMs) + 1
+    : resolvedCountInBeats - 1
+  for (const { atMs, beat, kind } of metronomeTicks({ beatMs, lastBeat })) {
     timeouts.push(setTimeout(() => {
-      playClick({ accent: i === 0 })
-      onCountInCb?.({ beat: i + 1, beats: resolvedCountInBeats })
-    }, t))
+      playClick(kind)
+      if (kind !== 'subdivision' && beat < resolvedCountInBeats) {
+        onCountInCb?.({ beat: beat + 1, beats: resolvedCountInBeats })
+      }
+    }, atMs))
   }
   timeouts.push(setTimeout(() => onCountInCb?.({ beat: 0, beats: resolvedCountInBeats }), countInMs))
-
-  if (pendingEvents.length > 0) {
-    const lastTimeMs = pendingEvents[pendingEvents.length - 1].timeMs
-    const beatsDuringMusic = Math.ceil((lastTimeMs - countInMs) / beatMs) + 1
-    for (let i = 0; i <= beatsDuringMusic; i++) {
-      const t = countInMs + i * beatMs
-      timeouts.push(setTimeout(() => playClick(), t))
-    }
-  }
 
   if (osmdInstance.cursor) {
     timeouts.push(...scheduleCursorAdvances(osmdInstance.cursor, cursorTimes, { skipSteps: cursorSkipSteps }))

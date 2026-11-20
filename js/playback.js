@@ -1,4 +1,4 @@
-import { isTestEnv, scrollSystemIntoView } from './utils.js?v=9b2103e479a8'
+import { isTestEnv, scrollSystemIntoView } from './utils.js?v=1d09ee50bc15'
 import {
   tsToSeconds,
   buildMeasureStartTimes,
@@ -6,9 +6,9 @@ import {
   cursorStepsBeforeMeasure,
   measureIndexAt,
   GRACE_NOTE_OFFSET_WN,
-} from './playbackTiming.js?v=9b2103e479a8'
-import { BPM_DEFAULT } from './bpmStepper.js?v=9b2103e479a8'
-import { isNoteActiveForHands } from './noteExtraction.js?v=9b2103e479a8'
+} from './playbackTiming.js?v=1d09ee50bc15'
+import { BPM_DEFAULT } from './bpmStepper.js?v=1d09ee50bc15'
+import { isNoteActiveForHands } from './noteExtraction.js?v=1d09ee50bc15'
 
 // The three states the transport can be in. Paused is not stopped: the piece is
 // still on the stand at the bar it was held at.
