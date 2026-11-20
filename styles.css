@@ -1095,6 +1095,8 @@ a:hover { text-decoration: underline; }
   min-height: var(--pt-space-10);
 }
 .pt-context__row { display: flex; align-items: center; gap: var(--pt-space-3); flex: 1 1 auto; min-width: 0; min-height: var(--pt-bar-control); }
+/* Kept in the band for the room it takes, with nothing to read (score.html). */
+.pt-context__row.is-silent { visibility: hidden; }
 /* Playback is not a mode, so it takes the app's accent rather than a mode colour. */
 .pt-context--training { --pt-band: var(--pt-mode-training); --pt-band-bg: var(--pt-mode-training-bg); }
 .pt-context--strict { --pt-band: var(--pt-mode-strict); --pt-band-bg: var(--pt-mode-strict-bg); }
@@ -2304,12 +2306,6 @@ svg .vf-notehead.wrong-note { animation: pt-wrong-note-flash 700ms; }
 
 /* Measure numbers — lighter to distinguish from fingerings */
 #score svg .osmd-measure-number text { fill: #999999; }
-
-/* Cursor scroll-margin: kept in sync with the JS scroll offset via the
-   --pt-sticky-offset CSS variable, which utils.js applyStickyOffset()
-   recomputes when sticky bars change visibility. The fallback covers the
-   no-script / pre-init case. */
-img[id^="cursorImg"] { scroll-margin-top: var(--pt-sticky-offset, 100px); }
 
 /* Playthrough chart in history modal */
 .playthrough-chart { width: 100%; height: auto; display: block; }

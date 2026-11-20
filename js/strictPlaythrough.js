@@ -1,19 +1,19 @@
-import { scheduleCursorAdvances } from './playback.js?v=b59657ea9099'
+import { scheduleCursorAdvances } from './playback.js?v=9b2103e479a8'
 import {
   tsToSeconds,
   buildMeasureStartTimes,
   buildCursorTimeline,
   cursorStepsBeforeMeasure,
   measureIndexAt,
-} from './playbackTiming.js?v=b59657ea9099'
-import { handsKey } from './hands.js?v=b59657ea9099'
-import { prepareClick, playClick } from './metronomeClick.js?v=b59657ea9099'
+} from './playbackTiming.js?v=9b2103e479a8'
+import { handsKey } from './hands.js?v=9b2103e479a8'
+import { prepareClick, playClick } from './metronomeClick.js?v=9b2103e479a8'
 import {
   requiredSequence,
   isNoteActiveForHands,
   sourceMeasuresToResetOnEntry,
   svgNoteheadFor,
-} from './noteExtraction.js?v=b59657ea9099'
+} from './noteExtraction.js?v=9b2103e479a8'
 import {
   findMatchingEvent,
   chargesStrayStrike,
@@ -22,7 +22,7 @@ import {
   isGraceStrike,
   EVENT_STATUS,
   CLASSIFICATION,
-} from './strictMatching.js?v=b59657ea9099'
+} from './strictMatching.js?v=9b2103e479a8'
 
 const DEFAULT_TOLERANCE_MS = 150
 // Notes played beyond the strict tolerance but within this wider window are
@@ -276,7 +276,7 @@ function start({
   }
 
   if (osmdInstance.cursor) {
-    timeouts.push(...scheduleCursorAdvances(osmdInstance.cursor, cursorTimes, { centerOnCursor: true, skipSteps: cursorSkipSteps }))
+    timeouts.push(...scheduleCursorAdvances(osmdInstance.cursor, cursorTimes, { skipSteps: cursorSkipSteps }))
   }
 
   // Schedule repeat-reset class wipes BEFORE the per-event window-open loop:

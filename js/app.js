@@ -1,33 +1,33 @@
-import { initMidi, nativePairingAvailable, openNativePairing } from './midi.js?v=b59657ea9099'
-import { initMusicXML } from './musicxml.js?v=b59657ea9099'
-import { initFingeringEditor } from './fingeringEditor.js?v=b59657ea9099'
-import { fingeringPad } from './fingeringPad.js?v=b59657ea9099'
-import { initNoteCircles } from './noteCircles.js?v=b59657ea9099'
-import { initPracticeTracker } from './practiceTracker.js?v=b59657ea9099'
-import { TWO_HANDS, handsKey } from './hands.js?v=b59657ea9099'
-import { formatDuration, formatDate, statusLabel, applyStickyOffset, scorePageUrl, onForeground, onBackground, onIdle, nextPaint, withHands, passage, pickPassageMeasure, passageText } from './utils.js?v=b59657ea9099'
-import { initStorage } from './storage.js?v=b59657ea9099'
-import { initNoteLog, keepScoreNoteLogs } from './noteLog.js?v=b59657ea9099'
-import { initFragmentSuggestions } from './fragmentSuggestions.js?v=b59657ea9099'
-import { loadMxlAsXml } from './mxlLoader.js?v=b59657ea9099'
-import { injectFingerings } from './fingeringInjector.js?v=b59657ea9099'
-import { migrateFingeringRecord } from './fingeringKeys.js?v=b59657ea9099'
-import { initPlayback, getBPM } from './playback.js?v=b59657ea9099'
-import { initStrictPlaythrough } from './strictPlaythrough.js?v=b59657ea9099'
-import { initKeyboardHint, C8 } from './keyboardHint.js?v=b59657ea9099'
-import { createTempoPlan, createTempoTrainer, GRADUATED, BPM_STEP, STREAK } from './tempoTrainer.js?v=b59657ea9099'
-import { BPM_DEFAULT } from './bpmStepper.js?v=b59657ea9099'
-import { bpmField } from './bpmField.js?v=b59657ea9099'
-import { resultModal } from './resultModal.js?v=b59657ea9099'
-import { headerMenu } from './headerMenu.js?v=b59657ea9099'
-import { fetchNoteLogs, initAutoSync, triggerSync } from './autoSync.js?v=b59657ea9099'
-import { scopedKey } from './profiles.js?v=b59657ea9099'
-import { t, tn } from './i18n.js?v=b59657ea9099'
-import { recordError } from './errorLog.js?v=b59657ea9099'
-import { loadCatalog, fileUrl, isCollection } from './catalog.js?v=b59657ea9099'
-import { playthroughCharts, withRunLines, hotMeasures } from './playthroughHistory.js?v=b59657ea9099'
-import { goalLines, goalNews, goalsHint, pieceFigures, pieceGoals, statusProgress } from './pieceGoals.js?v=b59657ea9099'
-import { firstPassIndexOf, runSize } from './noteExtraction.js?v=b59657ea9099'
+import { initMidi, nativePairingAvailable, openNativePairing } from './midi.js?v=9b2103e479a8'
+import { initMusicXML } from './musicxml.js?v=9b2103e479a8'
+import { initFingeringEditor } from './fingeringEditor.js?v=9b2103e479a8'
+import { fingeringPad } from './fingeringPad.js?v=9b2103e479a8'
+import { initNoteCircles } from './noteCircles.js?v=9b2103e479a8'
+import { initPracticeTracker } from './practiceTracker.js?v=9b2103e479a8'
+import { TWO_HANDS, handsKey } from './hands.js?v=9b2103e479a8'
+import { formatDuration, formatDate, statusLabel, scorePageUrl, onForeground, onBackground, onIdle, nextPaint, withHands, passage, pickPassageMeasure, passageText } from './utils.js?v=9b2103e479a8'
+import { initStorage } from './storage.js?v=9b2103e479a8'
+import { initNoteLog, keepScoreNoteLogs } from './noteLog.js?v=9b2103e479a8'
+import { initFragmentSuggestions } from './fragmentSuggestions.js?v=9b2103e479a8'
+import { loadMxlAsXml } from './mxlLoader.js?v=9b2103e479a8'
+import { injectFingerings } from './fingeringInjector.js?v=9b2103e479a8'
+import { migrateFingeringRecord } from './fingeringKeys.js?v=9b2103e479a8'
+import { initPlayback, getBPM } from './playback.js?v=9b2103e479a8'
+import { initStrictPlaythrough } from './strictPlaythrough.js?v=9b2103e479a8'
+import { initKeyboardHint, C8 } from './keyboardHint.js?v=9b2103e479a8'
+import { createTempoPlan, createTempoTrainer, GRADUATED, BPM_STEP, STREAK } from './tempoTrainer.js?v=9b2103e479a8'
+import { BPM_DEFAULT } from './bpmStepper.js?v=9b2103e479a8'
+import { bpmField } from './bpmField.js?v=9b2103e479a8'
+import { resultModal } from './resultModal.js?v=9b2103e479a8'
+import { headerMenu } from './headerMenu.js?v=9b2103e479a8'
+import { fetchNoteLogs, initAutoSync, triggerSync } from './autoSync.js?v=9b2103e479a8'
+import { scopedKey } from './profiles.js?v=9b2103e479a8'
+import { t, tn } from './i18n.js?v=9b2103e479a8'
+import { recordError } from './errorLog.js?v=9b2103e479a8'
+import { loadCatalog, fileUrl, isCollection } from './catalog.js?v=9b2103e479a8'
+import { playthroughCharts, withRunLines, hotMeasures } from './playthroughHistory.js?v=9b2103e479a8'
+import { goalLines, goalNews, goalsHint, pieceFigures, pieceGoals, statusProgress } from './pieceGoals.js?v=9b2103e479a8'
+import { firstPassIndexOf, runSize } from './noteExtraction.js?v=9b2103e479a8'
 
 // What the strict and training bands say once a passage's first bar is picked
 // and its last is awaited: to click that bar, while a click would reach the
@@ -311,7 +311,7 @@ export function midiApp() {
       // change rebuilding the schedule, the last note — and the page mirrors it
       // from here, once, rather than from every control that can move it.
       playback.setOnTransportChange(() => this.syncPlaybackState())
-      this.followStickyBars()
+      this.relayoutOnResize()
       keyHint = initKeyboardHint({
         owedGroup: musicxml.getOwedGroup,
         eligible: () => this.keyHintContext && document.visibilityState === 'visible',
@@ -350,31 +350,13 @@ export function midiApp() {
       this.followPageLifecycle()
     },
 
-    // The sticky bars' height feeds both scrollToMeasure (JS) and
-    // scroll-margin-top (CSS, via --pt-sticky-offset), and a narrower window
-    // lays the score out again.
-    followStickyBars() {
-      // Recomputed on resize and when a band toggles visibility.
-      applyStickyOffset()
+    // A narrower window lays the score out again, once it has stopped moving.
+    relayoutOnResize() {
       let relayoutTimer = null
       window.addEventListener('resize', () => {
-        applyStickyOffset()
         clearTimeout(relayoutTimer)
         relayoutTimer = setTimeout(() => this.handleViewportResize(), RESIZE_RELAYOUT_DEBOUNCE_MS)
       })
-      // $nextTick (not queueMicrotask) — Alpine flips x-show display on
-      // the next tick, so we'd otherwise measure 0 for the band that's
-      // about to appear. osmdInstance is updated via afterScoreLoad()
-      // directly because $watch would deep-compare via JSON.stringify and
-      // OSMD has circular references (note ↔ voiceEntry).
-      // Each mode has its own band, or none, above the score.
-      this.$watch('mode', () => this.$nextTick(applyStickyOffset))
-      // The playback band appears and disappears with the listening, and it is
-      // as tall as the strict one — so the sticky offset has to follow it too.
-      this.$watch('isListening', () => this.$nextTick(applyStickyOffset))
-      // So does the row of steps a reinforcement adds to the training band,
-      // which comes up after the mode has changed.
-      this.$watch('ladderShown', () => this.$nextTick(applyStickyOffset))
     },
 
     // The notes the keyboard sends, to whichever engine the mode gives them.
@@ -806,9 +788,6 @@ export function midiApp() {
       const written = Math.round(getBPM(this.osmdInstance))
       this.strictBpm = savedBpm('strictBpm', this.scoreUrl, written)
       this.playbackBpm = savedBpm('playbackBpm', this.scoreUrl, written)
-      // Modebar / context band become visible only after the score loads, so
-      // recompute the sticky offset now (cf. note in init()).
-      applyStickyOffset()
       await this.requestWakeLock()
     },
 

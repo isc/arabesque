@@ -1,4 +1,4 @@
-import { isTestEnv, scrollSystemIntoView } from './utils.js?v=b59657ea9099'
+import { isTestEnv, scrollSystemIntoView } from './utils.js?v=9b2103e479a8'
 import {
   tsToSeconds,
   buildMeasureStartTimes,
@@ -6,9 +6,9 @@ import {
   cursorStepsBeforeMeasure,
   measureIndexAt,
   GRACE_NOTE_OFFSET_WN,
-} from './playbackTiming.js?v=b59657ea9099'
-import { BPM_DEFAULT } from './bpmStepper.js?v=b59657ea9099'
-import { isNoteActiveForHands } from './noteExtraction.js?v=b59657ea9099'
+} from './playbackTiming.js?v=9b2103e479a8'
+import { BPM_DEFAULT } from './bpmStepper.js?v=9b2103e479a8'
+import { isNoteActiveForHands } from './noteExtraction.js?v=9b2103e479a8'
 
 // The three states the transport can be in. Paused is not stopped: the piece is
 // still on the stand at the bar it was held at.
@@ -330,10 +330,8 @@ export function rollOffsetMs({ index, steps, shortestWn }, bpm) {
   return index * Math.min(ARPEGGIO_STEP_MS, room / steps)
 }
 
-// Schedule cursor.next() advances on the given timeline. Returns the timeout
-// IDs so the caller can register them with its own teardown list. The cursor
-// starts visible at the first position; subsequent ticks advance it.
-export function scheduleCursorAdvances(cursor, cursorTimes, { centerOnCursor = false, skipSteps = 0 } = {}) {
+// Puts the cursor on its starting stop, `skipSteps` into the score.
+function placeCursor(cursor, skipSteps) {
   // Hidden for the walk to the starting stop: OSMD's next() lays the cursor out
   // and writes it to the DOM at every step while it is visible, so skipping to
   // bar 131 of a Ballade cost 209ms of that instead of 39ms — and it is paid
@@ -344,28 +342,35 @@ export function scheduleCursorAdvances(cursor, cursorTimes, { centerOnCursor = f
   for (let i = 0; i < skipSteps; i++) cursor.next()
   cursor.show()
   syncCursorStyle(cursor)
-  const scoreSvg = document.querySelector('#score svg')
+}
+
+// Schedule cursor.next() advances on the given timeline, whose first time is
+// that of the stop the cursor starts on. Returns the timeout IDs so the caller
+// can register them with its own teardown list.
+//
+// The page follows the cursor a system at a time (scrollSystemIntoView), and
+// goes to the first one now rather than at that first time: a strict run's is
+// the end of its count-in, and the sheet must not move on the downbeat the
+// player is reading it for.
+export function scheduleCursorAdvances(cursor, cursorTimes, { skipSteps = 0 } = {}) {
+  placeCursor(cursor, skipSteps)
   let lastCursorTop = null
-  return cursorTimes.map((t, i) => setTimeout(() => {
-    if (i > 0) cursor.next()
-    syncCursorStyle(cursor)
+  const followCursor = () => {
     const el = cursor.cursorElement
-    if (!el) return
+    const scoreSvg = document.querySelector('#score svg')
+    if (!el || !scoreSvg) return
     const rect = el.getBoundingClientRect()
-    const top = rect.top + window.scrollY
-    if (lastCursorTop === null || Math.abs(top - lastCursorTop) > 10) {
-      // Free playback anchors the system's visual top (fingerings/slurs above
-      // the staff) below the sticky bars — matching the measure cursor — instead
-      // of scrolling the bare cursor line flush to the top, which clipped the
-      // above-staff markings. Strict mode centres the cursor instead so the
-      // player can read ahead.
-      if (centerOnCursor) {
-        el.scrollIntoView({ behavior: 'smooth', block: 'center' })
-      } else {
-        scrollSystemIntoView(rect.top, scoreSvg)
-      }
-    }
+    // How far down the score, not down the page: a band coming up over the
+    // score moves everything under it, and that is no change of system.
+    const top = rect.top - scoreSvg.getBoundingClientRect().top
+    if (lastCursorTop === null || Math.abs(top - lastCursorTop) > 10) scrollSystemIntoView(rect.top, scoreSvg)
     lastCursorTop = top
+  }
+  followCursor()
+  return cursorTimes.slice(1).map((t) => setTimeout(() => {
+    cursor.next()
+    syncCursorStyle(cursor)
+    followCursor()
   }, t))
 }
 
@@ -487,13 +492,11 @@ function bpmFor(osmdInstance) {
   return playbackBpm ?? getBPM(osmdInstance)
 }
 
-// Puts the cursor on a measure's first stop without scheduling anything —
-// scheduleCursorAdvances with an empty timeline is exactly that.
+// Puts the cursor on a measure's first stop, and leaves the page where the
+// player has it: nothing is being played for it to follow.
 function showCursorAtMeasure(measureIndex) {
   const cursor = activeOsmd?.cursor
-  if (!cursor) return
-  const skipSteps = cursorStepsBeforeMeasure(activeAllNotes, measureIndex)
-  scheduleCursorAdvances(cursor, [], { skipSteps })
+  if (cursor) placeCursor(cursor, cursorStepsBeforeMeasure(activeAllNotes, measureIndex))
 }
 
 function startPlayback(allNotes, osmdInstance, startMeasureIndex = 0) {
