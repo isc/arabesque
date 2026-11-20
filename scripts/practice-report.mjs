@@ -157,7 +157,7 @@ export function scoreModel(xml) {
       } else if (token.startsWith('<divisions')) {
         divisions = parseFloat(DIVISIONS.exec(token)[1])
       } else if (token.startsWith('<time')) {
-        beat = bar.beat = beatLength({ Numerator: Number(BEATS.exec(token)?.[1]), Denominator: Number(BEAT_TYPE.exec(token)?.[1]) })
+        beat = bar.beat = beatLength({ numerator: Number(BEATS.exec(token)?.[1]), denominator: Number(BEAT_TYPE.exec(token)?.[1]) })
       } else if (token.startsWith('<sound')) {
         tempo = parseFloat(TEMPO.exec(token)[1])
         if (!tempoMarked) bar.tempo = tempo
