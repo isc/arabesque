@@ -62,14 +62,14 @@ export function onBackground(fn) {
 // resumed there still lands before that frame is painted.
 export const nextPaint = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))
 
-// Pixel offset for the sticky block (topbar, modebar and whichever band is up),
-// used both by scrollToMeasure() and by the CSS scroll-margin-top via the
-// --pt-sticky-offset variable.
 // Headroom kept above the auto-scrolled measure. Has to cover the fingering
 // numerals that hover above the top staff line (~20px) plus a few pixels
 // breathing — otherwise the modebar clips them right where the eyes look.
 const STICKY_BREATHING_PX = 28
 
+// Pixel offset for the sticky block (topbar, modebar and whichever band is up),
+// measured when it is asked for: a band coming up or a window narrowing changes
+// it, and nothing has to be told.
 function getStickyOffset() {
   return STICKY_BREATHING_PX + document.querySelector('.pt-stickybars').getBoundingClientRect().height
 }
@@ -80,10 +80,6 @@ function getStickyOffset() {
 // rather than recomputing the offset.
 export function isUnderStickyBars(top) {
   return top < getStickyOffset()
-}
-
-export function applyStickyOffset() {
-  document.documentElement.style.setProperty('--pt-sticky-offset', `${getStickyOffset()}px`)
 }
 
 // Vertical band scanned above the reference line to catch fingerings, dynamics
