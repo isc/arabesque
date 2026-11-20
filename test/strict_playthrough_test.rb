@@ -356,14 +356,7 @@ class StrictPlaythroughTest < CapybaraTestBase
   def test_a_slow_tempo_clicks_the_eighths_too
     load_score('chord.xml', 1)
     start_strict_mode(bpm: 40)
-    page.execute_script(<<~JS)
-      window.__clicks = 0
-      const create = BaseAudioContext.prototype.createOscillator
-      BaseAudioContext.prototype.createOscillator = function () {
-        window.__clicks++
-        return create.call(this)
-      }
-    JS
+    record_clicks
 
     with_clock_control do
       trigger_click_on('▶ Démarrer')
@@ -373,7 +366,45 @@ class StrictPlaythroughTest < CapybaraTestBase
       advance_clock(5900)
       assert_selector '.pt-countin__beat', count: 4
       assert_selector '.pt-countin__beat.is-now', text: '4'
-      assert_equal 8, page.evaluate_script('window.__clicks')
+      assert_equal 8, page.evaluate_script('window.__clicks.length')
+    end
+  end
+
+  # The click beats the bar's own beats, counted from its bar lines. Here a 6/8
+  # bar at ♩ = 120, two dotted quarters of 750ms, opening on a one-eighth pickup.
+  # A quarter-note grid run from the pickup used to click eighths 1, 3 and 5,
+  # every one of them an eighth off, after a count-in of three quarters.
+  def test_a_six_eight_pickup_comes_in_between_the_clicks_of_its_bar
+    open_score('six-eight-pickup', 3)
+    start_strict_mode(bpm: 120)
+    record_clicks
+
+    with_clock_control do
+      trigger_click_on('▶ Démarrer')
+
+      # A bar, then the five eighths of the next before the pickup: the band
+      # counts the two beats of each.
+      advance_clock(50)
+      assert_selector '.pt-countin__beat', count: 2
+      assert_selector '.pt-countin__beat.is-now', text: '1'
+      advance_clock(2600)
+      assert_selector '.pt-countin__beat.is-now', text: '2'
+      assert_no_selector 'svg .vf-notehead.expected-note'
+
+      # 2750ms: the pickup, on the sixth eighth.
+      advance_clock(150)
+      assert_no_selector '.pt-countin__beat'
+      assert_selector 'svg .vf-notehead.expected-note', count: 1
+
+      # Past bar 1's second beat, every click so far, by when and how it sounds.
+      advance_clock(1000)
+      clicks = page.evaluate_script(<<~JS)
+        window.__clicks.map(({ at, oscillator }) =>
+          [Math.round((at - window.__clicks[0].at) / 10) * 10, oscillator.frequency.value])
+      JS
+      sounds = { 3200 => :accent, 2400 => :beat }
+      assert_equal [[0, :accent], [750, :beat], [1500, :accent], [2250, :beat], [3000, :accent], [3750, :beat]],
+                   clicks.map { |at, frequency| [at, sounds.fetch(frequency.round)] }
     end
   end
 
@@ -493,6 +524,20 @@ class StrictPlaythroughTest < CapybaraTestBase
   end
 
   private
+
+  # Every click from here on, in `window.__clicks`: when, and the oscillator it
+  # sounds on, whose pitch tells an accent from a beat.
+  def record_clicks
+    page.execute_script(<<~JS)
+      window.__clicks = []
+      const create = BaseAudioContext.prototype.createOscillator
+      BaseAudioContext.prototype.createOscillator = function () {
+        const oscillator = create.call(this)
+        window.__clicks.push({ at: performance.now(), oscillator })
+        return oscillator
+      }
+    JS
+  end
 
   def score_top
     page.evaluate_script("document.querySelector('.pt-score-main').getBoundingClientRect().top")
