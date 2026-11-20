@@ -22,10 +22,10 @@
 //
 // runSync() takes its dependencies (the supabase client, storage,
 // practiceTracker) so it stays page-agnostic.
-import { currentProfileId, listProfiles, mergeProfiles, scopedKey } from './profiles.js?v=1d09ee50bc15'
-import { NOTE_MAPS, neverSynced } from './storage.js?v=1d09ee50bc15'
-import { sessionOfSegment } from './noteLog.js?v=1d09ee50bc15'
-import { knownNames } from './aggregates.js?v=1d09ee50bc15'
+import { currentProfileId, listProfiles, mergeProfiles, scopedKey } from './profiles.js?v=9ba0760d5aa0'
+import { NOTE_MAPS, neverSynced } from './storage.js?v=9ba0760d5aa0'
+import { sessionOfSegment } from './noteLog.js?v=9ba0760d5aa0'
+import { knownNames } from './aggregates.js?v=9ba0760d5aa0'
 
 // Per profile: the throttle in autoSync.js reads it, and a profile just
 // switched to has its own catching up to do.

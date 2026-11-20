@@ -1,8 +1,8 @@
-import { barCounter, fingeringKey, legacyFingeringKey, nextNoteIndex } from './fingeringKeys.js?v=1d09ee50bc15'
-import { t } from './i18n.js?v=1d09ee50bc15'
-import { withHands } from './utils.js?v=1d09ee50bc15'
-import { GRACE_NOTE_OFFSET_WN } from './playbackTiming.js?v=1d09ee50bc15'
-import { roundPosition } from './noteLogAnalysis.js?v=1d09ee50bc15'
+import { barCounter, fingeringKey, legacyFingeringKey, nextNoteIndex } from './fingeringKeys.js?v=9ba0760d5aa0'
+import { t } from './i18n.js?v=9ba0760d5aa0'
+import { withHands } from './utils.js?v=9ba0760d5aa0'
+import { GRACE_NOTE_OFFSET_WN } from './playbackTiming.js?v=9ba0760d5aa0'
+import { POSITION_EPSILON, roundPosition } from './noteLogAnalysis.js?v=9ba0760d5aa0'
 
 // Ornament types from OSMD
 const OrnamentEnum = {
@@ -758,13 +758,40 @@ export const positionsOf = (struck) => [...new Set(struck.map((n) => n.position)
 
 // A beat in whole notes: the time signature's unit, or three of them in a
 // compound metre — a dotted crotchet in 6/8. A crotchet when the bar says
-// nothing.
-export function beatLength(signature) {
-  const numerator = signature?.Numerator
-  const denominator = signature?.Denominator
+// nothing. The strict-mode click counts a few metres otherwise (barPulse in
+// metronomeClick.js).
+export function beatLength(timeSignature) {
+  const { numerator, denominator } = timeSignature ?? {}
   if (!numerator || !denominator) return 1 / 4
   const compound = numerator > 3 && numerator % 3 === 0 && denominator >= 8
   return (compound ? 3 : 1) / denominator
+}
+
+// A full bar of the time signature in whole notes; a whole note when the bar
+// says nothing, as barsOf takes a measure OSMD gives no duration for.
+export function barLength(timeSignature) {
+  const { numerator, denominator } = timeSignature ?? {}
+  return numerator > 0 && denominator > 0 ? numerator / denominator : 1
+}
+
+// Where each bar starts in the bar its time signature counts, in whole notes
+// past the downbeat, given the bars' `duration` and `timeSignature` in score
+// order. Past it for the score's pickup, and for a short bar that completes
+// the short one before it: a bar split around a repeat sign, which barsOf
+// cannot join since each half has a number of its own — the Turkish March
+// has one at each repeat. At the downbeat for any other bar, a section ending
+// on part of a bar included. Read in score order rather than playing order,
+// so a bar starts in the same place whatever is played before it.
+export function barOffsets(bars) {
+  let carried = 0
+  return bars.map(({ duration, timeSignature }, index) => {
+    const full = barLength(timeSignature)
+    let offset = 0
+    if (index === 0 && duration < full - POSITION_EPSILON) offset = full - duration
+    else if (carried + duration <= full + POSITION_EPSILON) offset = carried
+    carried = offset + duration < full - POSITION_EPSILON ? offset + duration : 0
+    return offset
+  })
 }
 
 // The first measure at or after `from` that the active hands actually play,
@@ -855,6 +882,11 @@ export function extractNotesFromScore(osmdInstance) {
 
   const bars = barsOf(osmdInstance.Sheet.SourceMeasures)
   const { notesByMeasure, pedalEventsByMeasure, cursorStopsByMeasure, legacyKeyMap } = extractNotesFromBars(bars)
+  const meters = bars.map(({ duration, measures }) => {
+    const signature = measures[0]?.measure.ActiveTimeSignature
+    return { duration, timeSignature: signature && { numerator: signature.Numerator, denominator: signature.Denominator } }
+  })
+  const offsets = barOffsets(meters)
 
   const allNotes = []
   playbackSequence(osmdInstance, bars).forEach((barIndex, playbackIndex) => {
@@ -896,7 +928,10 @@ export function extractNotesFromScore(osmdInstance) {
       duration: bars[barIndex].duration,
       // How long a beat of it is, in whole notes: what a fragment is cut in
       // (fragments.js) and what plaqué strikes as one chord (musicxml.js).
-      beat: beatLength(bars[barIndex].measures[0]?.measure.ActiveTimeSignature),
+      beat: beatLength(meters[barIndex].timeSignature),
+      // What the strict-mode click counts it in, from where (metronomeClick.js).
+      timeSignature: meters[barIndex].timeSignature,
+      barOffset: offsets[barIndex],
     })
   })
 

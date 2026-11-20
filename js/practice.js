@@ -6,16 +6,16 @@
 // per year in memory: the year arrows then redraw without touching IndexedDB,
 // and the streaks stay honest across a year boundary, which a per-year read
 // could not do.
-import { initStorage } from './storage.js?v=1d09ee50bc15'
-import { initPracticeTracker } from './practiceTracker.js?v=1d09ee50bc15'
-import { LEVELS, levelFor, practiceStreaks, practiceYearStats } from './practiceJournal.js?v=1d09ee50bc15'
-import { localDayKey } from './days.js?v=1d09ee50bc15'
-import { initAutoSync } from './autoSync.js?v=1d09ee50bc15'
-import { onDayChange } from './dayRollover.js?v=1d09ee50bc15'
-import { formatDuration, formatVerboseDate } from './utils.js?v=1d09ee50bc15'
-import { journalEntryHelpers } from './journalEntries.js?v=1d09ee50bc15'
-import { headerMenu } from './headerMenu.js?v=1d09ee50bc15'
-import { t, locale } from './i18n.js?v=1d09ee50bc15'
+import { initStorage } from './storage.js?v=9ba0760d5aa0'
+import { initPracticeTracker } from './practiceTracker.js?v=9ba0760d5aa0'
+import { LEVELS, levelFor, practiceStreaks, practiceYearStats } from './practiceJournal.js?v=9ba0760d5aa0'
+import { localDayKey } from './days.js?v=9ba0760d5aa0'
+import { initAutoSync } from './autoSync.js?v=9ba0760d5aa0'
+import { onDayChange } from './dayRollover.js?v=9ba0760d5aa0'
+import { formatDuration, formatVerboseDate } from './utils.js?v=9ba0760d5aa0'
+import { journalEntryHelpers } from './journalEntries.js?v=9ba0760d5aa0'
+import { headerMenu } from './headerMenu.js?v=9ba0760d5aa0'
+import { t, locale } from './i18n.js?v=9ba0760d5aa0'
 
 const MONTH_FORMATTER = new Intl.DateTimeFormat(locale(), { month: 'short' })
 

@@ -1,19 +1,19 @@
-import { scheduleCursorAdvances } from './playback.js?v=1d09ee50bc15'
+import { scheduleCursorAdvances } from './playback.js?v=9ba0760d5aa0'
 import {
   tsToSeconds,
   buildMeasureStartTimes,
   buildCursorTimeline,
   cursorStepsBeforeMeasure,
   measureIndexAt,
-} from './playbackTiming.js?v=1d09ee50bc15'
-import { handsKey } from './hands.js?v=1d09ee50bc15'
-import { prepareClick, playClick, metronomeTicks } from './metronomeClick.js?v=1d09ee50bc15'
+} from './playbackTiming.js?v=9ba0760d5aa0'
+import { handsKey } from './hands.js?v=9ba0760d5aa0'
+import { prepareClick, playClick, clickTrack } from './metronomeClick.js?v=9ba0760d5aa0'
 import {
   requiredSequence,
   isNoteActiveForHands,
   sourceMeasuresToResetOnEntry,
   svgNoteheadFor,
-} from './noteExtraction.js?v=1d09ee50bc15'
+} from './noteExtraction.js?v=9ba0760d5aa0'
 import {
   findMatchingEvent,
   chargesStrayStrike,
@@ -22,13 +22,12 @@ import {
   isGraceStrike,
   EVENT_STATUS,
   CLASSIFICATION,
-} from './strictMatching.js?v=1d09ee50bc15'
+} from './strictMatching.js?v=9ba0760d5aa0'
 
 const DEFAULT_TOLERANCE_MS = 150
 // Notes played beyond the strict tolerance but within this wider window are
 // counted as "off-tempo" instead of wrong notes.
 const DEFAULT_OFFTEMPO_WINDOW_MS = 450
-const FALLBACK_COUNT_IN_BEATS = 4
 // Buffer past the last miss timeout before finish() fires, so onComplete
 // always sees the final stats rather than a stale snapshot.
 const TAIL_PADDING_MS = 300
@@ -103,21 +102,6 @@ function setActiveHands(hands) {
   activeHands = { ...activeHands, ...hands }
 }
 
-// One full measure of count-in, expressed in quarter-note beats so it lines up
-// with the engine's quarter-note metronome. OSMD's measure Duration.RealValue
-// is a fraction of a whole note, so ×4 converts to quarter notes
-// (4/4 → 4, 3/4 → 3, 6/8 → 3, 2/2 → 4). Pickup measures are skipped so the
-// count-in lasts a full bar, not just the anacrusis.
-function quarterBeatsInFirstMeasure(sourceMeasures) {
-  if (!sourceMeasures?.length) return FALLBACK_COUNT_IN_BEATS
-  const fullBar = sourceMeasures.find((m) => !m.ImplicitMeasure) ?? sourceMeasures[0]
-  const dur = fullBar?.Duration?.RealValue
-  if (!dur) return FALLBACK_COUNT_IN_BEATS
-  // Floor at 1 so a degenerate sub-quarter first measure (e.g. 1/16)
-  // doesn't round to a zero-beat count-in.
-  return Math.max(1, Math.round(dur * 4))
-}
-
 // Returns [{ atMs, sources }] for each repeat-boundary crossing in allNotes,
 // dated off the same measureRuns entries the practice journal is dated from.
 // Caller schedules the actual class-clear timeouts. Ordering matters at the
@@ -161,7 +145,6 @@ function start({
   osmdInstance,
   tolerance = DEFAULT_TOLERANCE_MS,
   offTempoWindow = DEFAULT_OFFTEMPO_WINDOW_MS,
-  countInBeats,
   startMeasureIndex = 0,
   // Inclusive; the run goes to the end of the score by default.
   endMeasureIndex = null,
@@ -194,9 +177,9 @@ function start({
   const cursorSkipSteps = cursorStepsBeforeMeasure(allNotes, startMeasureIndex)
   allNotes = allNotes.slice(startMeasureIndex, lastMeasureIndex + 1)
   const measureStartTimes = buildMeasureStartTimes(allNotes)
-  const beatMs = 60_000 / bpm
-  const resolvedCountInBeats = countInBeats ?? quarterBeatsInFirstMeasure(osmdInstance.Sheet.SourceMeasures)
-  const countInMs = resolvedCountInBeats * beatMs
+  // Counted in on the time signature of the run's first bar, and on into that
+  // bar when it is a pickup (clickTrack).
+  const { countInMs, countInBeats, clicks } = clickTrack(allNotes, bpm)
 
   pendingEvents = []
   graceNotes = []
@@ -255,22 +238,17 @@ function start({
   startedAtPerf = performance.now()
   startedAtWall = Date.now()
 
-  // The click, from the first beat of the count-in to a beat or two past the
-  // last note, split as the tempo asks (metronomeTicks). Each count-in beat is
-  // also reported as it lands, for a view that shows the count to a player who
-  // cannot hear it. Beat 0 means the count is over.
-  const lastBeat = pendingEvents.length > 0
-    ? resolvedCountInBeats + Math.ceil((pendingEvents.at(-1).timeMs - countInMs) / beatMs) + 1
-    : resolvedCountInBeats - 1
-  for (const { atMs, beat, kind } of metronomeTicks({ beatMs, lastBeat })) {
+  // The click, from the first beat of the count-in through the run's last bar,
+  // or until finish() cuts it short. Each count-in beat is also reported as it
+  // lands, for a view that shows the count to a player who cannot hear it. Beat
+  // 0 means the count is over.
+  for (const { atMs, beat, kind, countIn } of clicks) {
     timeouts.push(setTimeout(() => {
       playClick(kind)
-      if (kind !== 'subdivision' && beat < resolvedCountInBeats) {
-        onCountInCb?.({ beat: beat + 1, beats: resolvedCountInBeats })
-      }
+      if (countIn && kind !== 'subdivision') onCountInCb?.({ beat: beat + 1, beats: countInBeats })
     }, atMs))
   }
-  timeouts.push(setTimeout(() => onCountInCb?.({ beat: 0, beats: resolvedCountInBeats }), countInMs))
+  timeouts.push(setTimeout(() => onCountInCb?.({ beat: 0, beats: countInBeats }), countInMs))
 
   if (osmdInstance.cursor) {
     timeouts.push(...scheduleCursorAdvances(osmdInstance.cursor, cursorTimes, { skipSteps: cursorSkipSteps }))
