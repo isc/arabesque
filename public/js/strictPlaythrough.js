@@ -7,7 +7,7 @@ import {
   measureIndexAt,
 } from './playbackTiming.js'
 import { handsKey } from './hands.js'
-import { prepareClick, playClick } from './metronomeClick.js'
+import { prepareClick, playClick, metronomeTicks } from './metronomeClick.js'
 import {
   requiredSequence,
   isNoteActiveForHands,
@@ -255,25 +255,22 @@ function start({
   startedAtPerf = performance.now()
   startedAtWall = Date.now()
 
-  // Each count-in beat is reported as it lands, for a view that shows the count
-  // to a player who cannot hear it. Beat 0 means the count is over.
-  for (let i = 0; i < resolvedCountInBeats; i++) {
-    const t = i * beatMs
+  // The click, from the first beat of the count-in to a beat or two past the
+  // last note, split as the tempo asks (metronomeTicks). Each count-in beat is
+  // also reported as it lands, for a view that shows the count to a player who
+  // cannot hear it. Beat 0 means the count is over.
+  const lastBeat = pendingEvents.length > 0
+    ? resolvedCountInBeats + Math.ceil((pendingEvents.at(-1).timeMs - countInMs) / beatMs) + 1
+    : resolvedCountInBeats - 1
+  for (const { atMs, beat, kind } of metronomeTicks({ beatMs, lastBeat })) {
     timeouts.push(setTimeout(() => {
-      playClick({ accent: i === 0 })
-      onCountInCb?.({ beat: i + 1, beats: resolvedCountInBeats })
-    }, t))
+      playClick(kind)
+      if (kind !== 'subdivision' && beat < resolvedCountInBeats) {
+        onCountInCb?.({ beat: beat + 1, beats: resolvedCountInBeats })
+      }
+    }, atMs))
   }
   timeouts.push(setTimeout(() => onCountInCb?.({ beat: 0, beats: resolvedCountInBeats }), countInMs))
-
-  if (pendingEvents.length > 0) {
-    const lastTimeMs = pendingEvents[pendingEvents.length - 1].timeMs
-    const beatsDuringMusic = Math.ceil((lastTimeMs - countInMs) / beatMs) + 1
-    for (let i = 0; i <= beatsDuringMusic; i++) {
-      const t = countInMs + i * beatMs
-      timeouts.push(setTimeout(() => playClick(), t))
-    }
-  }
 
   if (osmdInstance.cursor) {
     timeouts.push(...scheduleCursorAdvances(osmdInstance.cursor, cursorTimes, { centerOnCursor: true, skipSteps: cursorSkipSteps }))

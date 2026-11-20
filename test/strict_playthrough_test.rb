@@ -350,6 +350,33 @@ class StrictPlaythroughTest < CapybaraTestBase
     end
   end
 
+  # Feedback 0dee8c99: at ♩ = 30 the clicks of the C minor prelude came two
+  # seconds apart, eight sixteenths in each. Below ♩ = 60 the click splits the
+  # beat (metronomeClick.js); the count on screen stays the beats.
+  def test_a_slow_tempo_clicks_the_eighths_too
+    load_score('chord.xml', 1)
+    start_strict_mode(bpm: 40)
+    page.execute_script(<<~JS)
+      window.__clicks = 0
+      const create = BaseAudioContext.prototype.createOscillator
+      BaseAudioContext.prototype.createOscillator = function () {
+        window.__clicks++
+        return create.call(this)
+      }
+    JS
+
+    with_clock_control do
+      trigger_click_on('▶ Démarrer')
+
+      # 4/4 at 40: four beats of 1500ms, a click every 750ms. Stopped short of
+      # the downbeat, whose click is the music's.
+      advance_clock(5900)
+      assert_selector '.pt-countin__beat', count: 4
+      assert_selector '.pt-countin__beat.is-now', text: '4'
+      assert_equal 8, page.evaluate_script('window.__clicks')
+    end
+  end
+
   # Reported as feedback 91bf6839, on the Minuet in G: "en mode strict les
   # ornements ne sont jamais validés". An ornament is expanded into the notes it
   # is realized with, and strict mode expected none of them — so an ornamented
@@ -487,9 +514,9 @@ class StrictPlaythroughTest < CapybaraTestBase
   # and the engine's 300ms tail, with room to spare.
   END_OF_RUN_MS = 1000
 
-  def start_strict_mode
+  def start_strict_mode(bpm: STRICT_BPM)
     click_on '⏱ Mode strict'
-    fill_in 'Tempo en BPM', with: STRICT_BPM.to_s
+    fill_in 'Tempo en BPM', with: bpm.to_s
   end
 
   # One run, from ▶ Démarrer to the result modal, on a clock the test drives.
