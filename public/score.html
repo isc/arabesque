@@ -224,9 +224,13 @@
       </div>
       <!-- The text and the count-in swap in the same slot, at the same
            height, so pressing ▶ does not move the score the player is
-           reading the first measure of. -->
-      <template x-if="!isStrictPlaying || (trainerStatus && countInBeat === 0)">
-        <span class="pt-context__row" x-text="strictBandText()">Cliquez sur une mesure pour démarrer la lecture à partir de ce point.</span>
+           reading the first measure of. One of the two is always there: a
+           single run has nothing to say once it is counted in, and keeps the
+           text out of sight rather than out of the band — on a phone the slot
+           is a line of its own, and dropping it moved the score on the
+           downbeat. -->
+      <template x-if="countInBeat === 0">
+        <span class="pt-context__row" :class="{ 'is-silent': isStrictPlaying && !trainerStatus }" x-text="strictBandText()">Cliquez sur une mesure pour démarrer la lecture à partir de ce point.</span>
       </template>
       <template x-if="countInBeat > 0">
         <span class="pt-context__row pt-countin" aria-hidden="true">

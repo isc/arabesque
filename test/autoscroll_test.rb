@@ -91,17 +91,56 @@ class AutoscrollTest < CapybaraTestBase
     wait_for_training_cursor(6)
     settled_scroll
 
-    # The headroom the page reserves for itself: what the sticky bars cover,
-    # plus the breathing above the staff.
-    offset = page.evaluate_script(
-      "parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--pt-sticky-offset'))"
-    )
     dots_top = page.evaluate_script(
       "document.getElementById('repeat-indicators').getBoundingClientRect().top"
     )
 
-    assert dots_top >= offset - 1,
-           "Repeat dots should sit below the sticky bars (dots: #{dots_top}, reserved: #{offset})"
+    # The headroom the page reserves for itself: what the sticky bars cover,
+    # plus the breathing above the staff.
+    reserved = sticky_bars_bottom + Integer(js_constant('utils.js', 'STICKY_BREATHING_PX'))
+    assert dots_top >= reserved - 1,
+           "Repeat dots should sit below the sticky bars (dots: #{dots_top}, reserved: #{reserved})"
+  end
+
+  # A strict run reads like free play: its system just under the bars, and the
+  # room below it for the next one, to read ahead in. It used to centre the
+  # cursor in the window instead — the system just played on top, the next one
+  # cut off at the bottom of an iPad — and only once the count-in was over, so
+  # the sheet moved on the very downbeat the player was reading it for
+  # (feedbacks b06ddc5e and 8ea0e752).
+  # At this width the band's text has a line of its own, which a single run
+  # used to drop as the count-in ended: the same move, by another road.
+  def test_a_strict_run_brings_its_system_under_the_bars_as_the_count_in_starts
+    page.current_window.resize_to(500, 500)
+    load_score('high-note-measure.xml', 24)
+    start_strict_mode
+
+    # Bar 9 opens the third system; the page is left at the top, away from it.
+    click_measure(9)
+    page.execute_script('window.scrollTo(0, 0)')
+    at_the_top = settled_scroll
+
+    with_clock_control do
+      trigger_click_on('▶ Démarrer')
+      # Past the first click of the count-in, which draws its beats.
+      advance_clock(50)
+      assert_selector '.pt-countin__beat.is-now', text: '1'
+      settled_scroll(from: at_the_top)
+
+      during_the_count_in = [cursor_top, sticky_bars_bottom]
+      # Under the bars, with no more above it than its own markings ask for:
+      # the breathing, and the band scanned for them. Centred, it sat some
+      # 170px down.
+      headroom = %w[STICKY_BREATHING_PX SYSTEM_TOP_LOOKUP_PX].sum { |name| Integer(js_constant('utils.js', name)) }
+      assert_includes 0..headroom, during_the_count_in.reduce(:-).round,
+                      "The run's system should sit just under the sticky bars (cursor, bars: #{during_the_count_in})"
+
+      advance_clock(COUNT_IN_MS)
+      assert_selector 'svg .vf-notehead.expected-note', wait: 4
+      settled_scroll
+      assert_equal during_the_count_in, [cursor_top, sticky_bars_bottom],
+                   'Neither the system nor the bars over it should move as the count-in ends'
+    end
   end
 
   # The training band travels with the sticky bars: a drill scrolls to its
@@ -192,14 +231,23 @@ class AutoscrollTest < CapybaraTestBase
     wait_for_training_cursor(bar)
     settled_scroll(from: before)
 
-    bar_top, bar_bottom, bars_bottom, viewport = page.evaluate_script(<<~JS)
+    bar_top, bar_bottom, viewport = page.evaluate_script(<<~JS)
       (() => {
         const bar = document.querySelector('svg rect.measure-click-area.selected').getBoundingClientRect()
-        return [bar.top, bar.bottom, document.querySelector('.pt-stickybars').getBoundingClientRect().bottom, innerHeight]
+        return [bar.top, bar.bottom, innerHeight]
       })()
     JS
-    assert_operator bar_top, :>=, bars_bottom, "Bar #{bar} should sit below the sticky bars"
+    assert_operator bar_top, :>=, sticky_bars_bottom, "Bar #{bar} should sit below the sticky bars"
     assert_operator bar_bottom, :<=, viewport, "Bar #{bar} should end inside the window"
+  end
+
+  def cursor_top
+    page.evaluate_script(%q{document.querySelector('img[id^="cursorImg"]').getBoundingClientRect().top})
+  end
+
+  # Where the score starts to show: the bottom of what stays stuck above it.
+  def sticky_bars_bottom
+    page.evaluate_script("document.querySelector('.pt-stickybars').getBoundingClientRect().bottom")
   end
 
   # Where the page has come to rest: the same scroll position 150ms apart,
