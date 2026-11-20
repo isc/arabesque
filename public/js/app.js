@@ -5,7 +5,7 @@ import { fingeringPad } from './fingeringPad.js'
 import { initNoteCircles } from './noteCircles.js'
 import { initPracticeTracker } from './practiceTracker.js'
 import { TWO_HANDS, handsKey } from './hands.js'
-import { formatDuration, formatDate, statusLabel, applyStickyOffset, scorePageUrl, onForeground, onBackground, onIdle, nextPaint, withHands, passage, pickPassageMeasure, passageText } from './utils.js'
+import { formatDuration, formatDate, statusLabel, scorePageUrl, onForeground, onBackground, onIdle, nextPaint, withHands, passage, pickPassageMeasure, passageText } from './utils.js'
 import { initStorage } from './storage.js'
 import { initNoteLog, keepScoreNoteLogs } from './noteLog.js'
 import { initFragmentSuggestions } from './fragmentSuggestions.js'
@@ -311,7 +311,7 @@ export function midiApp() {
       // change rebuilding the schedule, the last note — and the page mirrors it
       // from here, once, rather than from every control that can move it.
       playback.setOnTransportChange(() => this.syncPlaybackState())
-      this.followStickyBars()
+      this.relayoutOnResize()
       keyHint = initKeyboardHint({
         owedGroup: musicxml.getOwedGroup,
         eligible: () => this.keyHintContext && document.visibilityState === 'visible',
@@ -350,31 +350,13 @@ export function midiApp() {
       this.followPageLifecycle()
     },
 
-    // The sticky bars' height feeds both scrollToMeasure (JS) and
-    // scroll-margin-top (CSS, via --pt-sticky-offset), and a narrower window
-    // lays the score out again.
-    followStickyBars() {
-      // Recomputed on resize and when a band toggles visibility.
-      applyStickyOffset()
+    // A narrower window lays the score out again, once it has stopped moving.
+    relayoutOnResize() {
       let relayoutTimer = null
       window.addEventListener('resize', () => {
-        applyStickyOffset()
         clearTimeout(relayoutTimer)
         relayoutTimer = setTimeout(() => this.handleViewportResize(), RESIZE_RELAYOUT_DEBOUNCE_MS)
       })
-      // $nextTick (not queueMicrotask) — Alpine flips x-show display on
-      // the next tick, so we'd otherwise measure 0 for the band that's
-      // about to appear. osmdInstance is updated via afterScoreLoad()
-      // directly because $watch would deep-compare via JSON.stringify and
-      // OSMD has circular references (note ↔ voiceEntry).
-      // Each mode has its own band, or none, above the score.
-      this.$watch('mode', () => this.$nextTick(applyStickyOffset))
-      // The playback band appears and disappears with the listening, and it is
-      // as tall as the strict one — so the sticky offset has to follow it too.
-      this.$watch('isListening', () => this.$nextTick(applyStickyOffset))
-      // So does the row of steps a reinforcement adds to the training band,
-      // which comes up after the mode has changed.
-      this.$watch('ladderShown', () => this.$nextTick(applyStickyOffset))
     },
 
     // The notes the keyboard sends, to whichever engine the mode gives them.
@@ -806,9 +788,6 @@ export function midiApp() {
       const written = Math.round(getBPM(this.osmdInstance))
       this.strictBpm = savedBpm('strictBpm', this.scoreUrl, written)
       this.playbackBpm = savedBpm('playbackBpm', this.scoreUrl, written)
-      // Modebar / context band become visible only after the score loads, so
-      // recompute the sticky offset now (cf. note in init()).
-      applyStickyOffset()
       await this.requestWakeLock()
     },
 

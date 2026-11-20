@@ -504,20 +504,9 @@ class StrictPlaythroughTest < CapybaraTestBase
     )
   end
 
-  # 120 BPM → 2s count-in, ±150ms strict window, ±450ms off-tempo. The window
-  # is an absolute constant, so the tempo is what every timing comment in this
-  # file is expressed against.
-  STRICT_BPM = 120
-  # The count-in: one 4/4 bar.
-  COUNT_IN_MS = 4 * 60_000 / STRICT_BPM
   # What a run takes past its last event: the event's off-tempo window (450ms)
   # and the engine's 300ms tail, with room to spare.
   END_OF_RUN_MS = 1000
-
-  def start_strict_mode(bpm: STRICT_BPM)
-    click_on '⏱ Mode strict'
-    fill_in 'Tempo en BPM', with: bpm.to_s
-  end
 
   # One run, from ▶ Démarrer to the result modal, on a clock the test drives.
   # The block is played once the count-in is over and the first note expected

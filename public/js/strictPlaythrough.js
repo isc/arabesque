@@ -273,7 +273,7 @@ function start({
   timeouts.push(setTimeout(() => onCountInCb?.({ beat: 0, beats: resolvedCountInBeats }), countInMs))
 
   if (osmdInstance.cursor) {
-    timeouts.push(...scheduleCursorAdvances(osmdInstance.cursor, cursorTimes, { centerOnCursor: true, skipSteps: cursorSkipSteps }))
+    timeouts.push(...scheduleCursorAdvances(osmdInstance.cursor, cursorTimes, { skipSteps: cursorSkipSteps }))
   }
 
   // Schedule repeat-reset class wipes BEFORE the per-event window-open loop:

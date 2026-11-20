@@ -728,6 +728,18 @@ class CapybaraTestBase < Minitest::Test
     assert_selector 'svg rect.measure-click-area.selected'
   end
 
+  # 120 BPM → 2s count-in, ±150ms strict window, ±450ms off-tempo. The window
+  # is an absolute constant, so the tempo is what every timing comment of a
+  # strict run is expressed against.
+  STRICT_BPM = 120
+  # The count-in: one 4/4 bar.
+  COUNT_IN_MS = 4 * 60_000 / STRICT_BPM
+
+  def start_strict_mode(bpm: STRICT_BPM)
+    click_on '⏱ Mode strict'
+    fill_in 'Tempo en BPM', with: bpm.to_s
+  end
+
   # The gesture: 🔁, then the first bar of the passage and its last.
   def pick_passage(first, last)
     arm_passage(first)
