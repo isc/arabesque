@@ -81,6 +81,13 @@ export function createTempoPlan({ mode, bpm, random = Math.random }) {
     get cleanStreak() {
       return cleanStreak
     },
+    // The step a graduated climb has just earned, before any run is played at
+    // it. A loop stopped there shows only runs at the old tempo, which reads as
+    // a streak that earned nothing (feedback 9337d522). Null in random mode.
+    get earnedBpm() {
+      const last = runs[runs.length - 1]
+      return mode === GRADUATED && last && current > last.bpm ? current : null
+    },
   }
 }
 
@@ -121,7 +128,7 @@ export function createTempoTrainer({ plan, runOnce, onRun, pauseMs = 1000 }) {
       })
       pause = null
     }
-    return summarizeRuns(plan.runs)
+    return { ...summarizeRuns(plan.runs), earnedBpm: plan.earnedBpm }
   }
 
   // Between runs the loop just ends; mid-run the caller also stops the

@@ -196,6 +196,33 @@ describe('practiceTracker', () => {
       expect(entry.fullPlaythroughs[0].strict).toEqual(VERDICT)
     })
 
+    // A loop's run, as the tempo trainer files one: bars 1 and 2 of a longer
+    // score, the second clean or not.
+    function loopRun(secondClean) {
+      const run = strictRun()
+      run.wholeScore = false
+      run.completed = false
+      run.measures[1] = { ...run.measures[1], wrongNotes: secondClean ? 0 : 1, clean: secondClean }
+      return run
+    }
+
+    it('counts the bars of a passage reinforced once played clean three times, in a row or not', async () => {
+      for (const secondClean of [true, false, true]) await playStrict(loopRun(secondClean))
+      let [entry] = await tracker.getDailyLog(new Date())
+      expect(entry.measuresReinforced).toEqual([0])
+
+      await playStrict(loopRun(true))
+      ;[entry] = await tracker.getDailyLog(new Date())
+      expect(entry.measuresReinforced).toEqual([0, 1])
+    })
+
+    it('does not count a run of the whole score as a drill', async () => {
+      for (let i = 0; i < 3; i++) await playStrict({ ...strictRun(), completed: false })
+
+      const [entry] = await tracker.getDailyLog(new Date())
+      expect(entry.measuresReinforced).toEqual([])
+    })
+
     it('does not file a run stopped mid-piece as a playthrough', async () => {
       await playStrict({ ...strictRun(), wholeScore: false, completed: false })
 

@@ -58,6 +58,14 @@ let startedAtWall = 0
 // One entry per measure of the run, in playback order, holding when it played
 // and what went wrong in it (see measureAttempts).
 let measureRuns = []
+// From when on, on the run's clock, a strike nothing takes is no wrong note.
+// The run listens past the passage's last bar line for its last notes'
+// off-tempo windows, and a player going on into the next bar is not playing
+// wrong notes (feedback 9337d522: the downbeat after a loop cost a clean run
+// its ✅). So from a tolerance short of the bar line — a downbeat comes in a
+// little early as often as late — but never within the tolerance of the
+// passage's last note, which a key brushed with it would otherwise get away with.
+let straysFreeFromMs = Infinity
 // Whether the run covers the score from its first measure to its last, kept
 // for the result: teardown() runs before the callback, and only such a run can
 // count as the piece played in full — not one started partway, nor a passage
@@ -226,6 +234,11 @@ function start({
 
   pendingEvents.sort((a, b) => a.timeMs - b.timeMs)
   graceNotes.sort((a, b) => a.timeMs - b.timeMs)
+  const lastRun = measureRuns[measureRuns.length - 1]
+  straysFreeFromMs = Math.max(
+    lastRun.startMs + lastRun.durationMs - tolerance,
+    (pendingEvents[pendingEvents.length - 1]?.timeMs ?? 0) + tolerance,
+  )
   stats = {
     total: pendingEvents.length,
     hit: 0,
@@ -330,7 +343,7 @@ function handleNoteOn(midiNumber) {
   if (!match) {
     // A grace note leaning on the beat: not a hit, not a fault.
     if (isGraceStrike(graceNotes, midiNumber, now, currentOffTempoWindowMs)) return true
-    if (!chargesStrayStrike(pendingEvents, midiNumber, now)) return false
+    if (now >= straysFreeFromMs || !chargesStrayStrike(pendingEvents, midiNumber, now)) return false
     stats.wrongNotes++
     // Charged to the measure being played through. Anything struck during the
     // count-in belongs to no measure and is only counted in the run's stats.

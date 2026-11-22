@@ -175,7 +175,7 @@ class StrictPlaythroughTest < CapybaraTestBase
 
     within('dialog.pt-result-dialog') { click_on 'Historique' }
     within '#scoreHistoryModal' do
-      assert_text '1× en entier : 67 % à 120 BPM · mode strict'
+      assert_text '1× en entier : 67 % à 120 BPM (1 note manquée) · mode strict'
     end
   end
 
@@ -298,6 +298,36 @@ class StrictPlaythroughTest < CapybaraTestBase
     # The run's own line, which the tempo line above would not stand in for.
     assert_selector 'li', text: '✅ 100 % à 120 BPM'
     assert_text 'meilleure série : 1 propres'
+  end
+
+  # A loop stops at its passage's last bar line, and a player who plays on
+  # into the next bar has played no wrong note there — feedback 9337d522, where
+  # the downbeat after the passage cost a run at 100 % its ✅. A wrong note
+  # inside the passage does fail a run at 100 %, which then says why.
+  def test_playing_on_past_the_passage_costs_the_run_nothing
+    load_score('steady-quavers.xml', 16)
+    start_strict_mode
+    pick_passage(1, 1)
+
+    with_clock_control do
+      trigger_click_on('▶ Démarrer')
+      # Bar 1 from the end of the count-in, then the first two quavers of bar 2.
+      play_evenly(BAR_ONE + %w[C5 B4], first_after: COUNT_IN_MS, gap: QUAVER_MS)
+      advance_clock(END_OF_RUN_MS)
+      assert_text '120 BPM · passage 1 · 1 sur 3 propres', wait: 2
+
+      # The run ended 0.75s after bar 1's last quaver, the next one starts a
+      # second later and counts in for two: its first note is due in 2.25s.
+      # A key brushed with its third quaver, in no bar.
+      play_evenly(BAR_ONE.dup.tap { |notes| notes[2] = %w[E4 F#4] }, first_after: 2250, gap: QUAVER_MS)
+      advance_clock(END_OF_RUN_MS)
+      assert_text '120 BPM · passage 2 · 0 sur 3 propres', wait: 2
+
+      trigger_click_on('⏸ Pause')
+    end
+
+    assert_selector 'li', exact_text: '✅ 100 % à 120 BPM'
+    assert_selector 'li', exact_text: '❌ 100 % à 120 BPM (1 fausse note)'
   end
 
   # The square marking where a run starts used to stay on the score for the
@@ -552,6 +582,10 @@ class StrictPlaythroughTest < CapybaraTestBase
   # What a run takes past its last event: the event's off-tempo window (450ms)
   # and the engine's 300ms tail, with room to spare.
   END_OF_RUN_MS = 1000
+
+  # steady-quavers.xml's first bar, quavers from C4 up to C5.
+  BAR_ONE = %w[C4 D4 E4 F4 G4 A4 B4 C5].freeze
+  QUAVER_MS = 60_000 / STRICT_BPM / 2
 
   # One run, from ▶ Démarrer to the result modal, on a clock the test drives.
   # The block is played once the count-in is over and the first note expected

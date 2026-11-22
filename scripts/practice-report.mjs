@@ -20,7 +20,8 @@
 //
 // `sessions` lists the player's sessions, oldest first, with their ids.
 // `session` takes one apart: every bar of a run, every repetition of a drill,
-// with its holes and its wrong notes, then where in the bar the time went.
+// with its holes and its wrong notes, then where in the bar the time went — or
+// for a strict run, its verdict, its bars and the keys struck after them.
 // `trend` sets the score's last runs played in full side by side, bar by bar,
 // from the session records alone. `losses` sets the same runs side by side
 // by the time each beat of the score lost them, read off the note log the way
@@ -60,6 +61,7 @@ import { parseArgs } from 'node:util'
 import { fileNumbering } from '../public/js/fingeringKeys.js'
 import {
   computeSessionDuration,
+  getLastMeasureEndTime,
   median,
   playedInFull,
   playthroughOf,
@@ -86,6 +88,7 @@ import { faultsOf } from '../public/js/fragments.js'
 import { judged, reinforcementOffer } from '../public/js/fragmentSuggestions.js'
 import { noteLogWindow } from '../public/js/noteLog.js'
 import { TWO_HANDS } from '../public/js/hands.js'
+import { strictAccuracy } from '../public/js/playthroughHistory.js'
 import { scoreFile } from './import-fingerings.mjs'
 import { die, query, quote } from './lib/supabase.mjs'
 import { openScore } from './mxl.mjs'
@@ -360,6 +363,7 @@ async function showSession(player, id) {
   if (!row) die(`no session ${id} for ${player.email}`)
   const session = row.data
   console.log(`${session.scoreTitle} — ${sessionHeading(session)}`)
+  if (session.strict) return showStrictRun(session, segments)
   if (segments.length === 0) {
     console.log('no note log for this session (it predates it, or never reached the server)')
     return
@@ -386,6 +390,28 @@ async function showSession(player, id) {
     for (const line of barLines(run, model, '  ')) console.log(line)
   }
   summary(runs, model)
+}
+
+// A strict run, which traversals() finds nothing in: the note log leaves its
+// keys for the strict engine to judge (noteLog.js). So the verdict and each
+// bar's wrong notes, as the session record keeps them, then the keys struck
+// after the last bar filed, with their velocity — the keys a loop charged as
+// wrong notes until feedback 9337d522, when the player went on into the next
+// bar.
+function showStrictRun(session, segments) {
+  const { bpm, hit, total, missed, wrongNotes, offTempoEarly, offTempoLate } = session.strict
+  console.log(
+    `${bpm} BPM  ${strictAccuracy(session.strict)}% in tempo (${hit}/${total})  ` +
+      `${offTempoEarly + offTempoLate} off tempo  ${missed} missed  ${wrongNotes} wrong`,
+  )
+  console.log(sessionAttempts(session).map((a) => `bar ${a.sourceMeasureIndex + 1}: ${a.wrongNotes} wrong`).join('  '))
+  const end = getLastMeasureEndTime(session).getTime()
+  const keys = eventsOf(segments).filter((event) => 'dwx'.includes(event.code))
+  const after = keys.filter((key) => key.at >= end)
+  console.log(
+    `${keys.length} keys` +
+      (after.length ? `, after the last bar: ${after.map((k) => `+${Math.round(k.at - end)}ms ${noteName(k.pitch)} v${k.velocity}`).join(', ')}` : ''),
+  )
 }
 
 // The last `count` of these sessions to hold a run played in full.

@@ -73,6 +73,20 @@ describe('graduated plan', () => {
     expect(p.bpm).toBe(100)
   })
 
+  it('names the step earned until a run is played at it', () => {
+    const p = plan()
+    for (let i = 0; i < STREAK - 1; i++) play(p, CLEAN)
+    expect(p.earnedBpm).toBe(null)
+    play(p, CLEAN)
+    expect(p.earnedBpm).toBe(100 + BPM_STEP)
+    play(p, WRONG)
+    expect(p.earnedBpm).toBe(null)
+    // A step down is not earned.
+    for (let i = 0; i < STREAK - 1; i++) play(p, WRONG)
+    expect(p.bpm).toBe(100)
+    expect(p.earnedBpm).toBe(null)
+  })
+
   it('keeps every run with the tempo it was played at', () => {
     const p = plan()
     for (let i = 0; i < STREAK + 1; i++) play(p, CLEAN)
@@ -154,7 +168,14 @@ describe('the loop', () => {
     // Three clean runs raised the tempo; the aborted fifth run ended the loop.
     expect(played).toEqual([100, 100, 100, 105, 105])
     expect(onRun).toHaveBeenCalledTimes(4)
-    expect(await done).toMatchObject({ count: 4, cleanCount: 4, fromBpm: 100, toBpm: 105, bestStreak: 4 })
+    expect(await done).toMatchObject({ count: 4, cleanCount: 4, fromBpm: 100, toBpm: 105, bestStreak: 4, earnedBpm: null })
+  })
+
+  it('says so when it stops on a step no run was played at', async () => {
+    const { trainer } = trainerWith([CLEAN, CLEAN, CLEAN, { aborted: true }])
+    const done = trainer.start()
+    await vi.advanceTimersByTimeAsync(3000)
+    expect(await done).toMatchObject({ count: 3, toBpm: 100, earnedBpm: 100 + BPM_STEP })
   })
 
   it('ends between runs when stopped during the pause', async () => {
