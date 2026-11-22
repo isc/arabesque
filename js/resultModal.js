@@ -4,10 +4,10 @@
 // component spreads (app.js), as it does headerMenu(). It reads nothing of the
 // component's: each end hands over what the modal reports, through the show…
 // method made for it.
-import { t } from './i18n.js?v=f9ba658cdaef'
-import { TWO_HANDS } from './hands.js?v=f9ba658cdaef'
-import { withHands, passageText } from './utils.js?v=f9ba658cdaef'
-import { CLEAN_RATE } from './tempoTrainer.js?v=f9ba658cdaef'
+import { t } from './i18n.js?v=dc7ec0e73e69'
+import { TWO_HANDS } from './hands.js?v=dc7ec0e73e69'
+import { withHands, passageText } from './utils.js?v=dc7ec0e73e69'
+import { CLEAN_RATE } from './tempoTrainer.js?v=dc7ec0e73e69'
 import {
   strictAccuracy,
   faultsText,
@@ -15,7 +15,7 @@ import {
   rankingOf,
   wrongMeasuresText,
   resultCharts,
-} from './playthroughHistory.js?v=f9ba658cdaef'
+} from './playthroughHistory.js?v=dc7ec0e73e69'
 
 // `onOpen` runs as the modal opens.
 export function resultModal({ onOpen }) {
@@ -124,8 +124,9 @@ export function resultModal({ onOpen }) {
     },
 
     trainerTempoLine() {
-      const { fromBpm, toBpm } = this.trainerSummary
-      return fromBpm === toBpm ? t('score.trainerTempoSame', { from: fromBpm }) : t('score.trainerTempo', { from: fromBpm, to: toBpm })
+      const { fromBpm, toBpm, earnedBpm } = this.trainerSummary
+      const line = fromBpm === toBpm ? t('score.trainerTempoSame', { from: fromBpm }) : t('score.trainerTempo', { from: fromBpm, to: toBpm })
+      return earnedBpm ? `${line} · ${t('score.trainerEarned', { bpm: earnedBpm })}` : line
     },
 
     trainerRunLine(run) {

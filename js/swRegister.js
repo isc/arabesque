@@ -9,8 +9,8 @@
 // imports this module too, for updateReport(): a page that reaches it
 // registers the worker.
 import { APP_VERSION } from './version.js'
-import { onForeground } from './utils.js?v=f9ba658cdaef'
-import { recordError, watchStall } from './errorLog.js?v=f9ba658cdaef'
+import { onForeground } from './utils.js?v=dc7ec0e73e69'
+import { recordError, watchStall } from './errorLog.js?v=dc7ec0e73e69'
 
 // Reloading is how a page leaves the generation it was parsed with, and it is
 // safe only where nothing would be lost. An allow-list rather than a list of

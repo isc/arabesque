@@ -31,9 +31,9 @@
 //
 // Positions are compared exactly: whoever builds the model rounds them with
 // roundPosition, so that both hands on a beat share one.
-import { createSteadiness, isHole, outOfPace, writtenBetween } from './steadiness.js?v=f9ba658cdaef'
-import { TWO_HANDS, handsKey } from './hands.js?v=f9ba658cdaef'
-import { median } from './practiceTime.js?v=f9ba658cdaef'
+import { createSteadiness, isHole, outOfPace, writtenBetween } from './steadiness.js?v=dc7ec0e73e69'
+import { TWO_HANDS, handsKey } from './hands.js?v=dc7ec0e73e69'
+import { median } from './practiceTime.js?v=dc7ec0e73e69'
 
 // How finely positions are told apart, in whole notes: far below any note,
 // far above the error of summing durations.
@@ -47,15 +47,15 @@ export const beatIndex = (position, beat) => Math.floor(position / beat + POSITI
 export const beatStartOf = (position, beat) => roundPosition(beatIndex(position, beat) * beat)
 
 // A session's note log as one list of events in time order: { at (epoch ms),
-// code, pitch, key, bar }, `bar` the playback index — the columns of a segment
+// code, pitch, velocity, key, bar }, `bar` the playback index — the columns of a segment
 // as noteLog.js writes them put back together. `startedAt` is anything Date
 // takes.
 export function eventsOf(segments) {
   const events = []
-  for (const { startedAt, keys, t, e, p, n, b } of segments) {
+  for (const { startedAt, keys, t, e, p, v, n, b } of segments) {
     const origin = new Date(startedAt).getTime()
     for (let i = 0; i < e.length; i++) {
-      events.push({ at: origin + t[i], code: e[i], pitch: p[i], key: n[i] >= 0 ? keys[n[i]] : null, bar: b[i] })
+      events.push({ at: origin + t[i], code: e[i], pitch: p[i], velocity: v?.[i], key: n[i] >= 0 ? keys[n[i]] : null, bar: b[i] })
     }
   }
   return events.sort((a, b) => a.at - b.at)

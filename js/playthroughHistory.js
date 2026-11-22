@@ -1,10 +1,10 @@
 // How the score page tells a piece's runs through: the ranking at the end of a
 // piece, and the history modal's charts, day lines and troubled bars. Pure —
 // runs in, words and SVG out; the page holds what is on screen (app.js).
-import { formatDuration, withRunKind } from './utils.js?v=f9ba658cdaef'
-import { playthroughGroups } from './hands.js?v=f9ba658cdaef'
-import { byStartedAt } from './days.js?v=f9ba658cdaef'
-import { t, tn, locale } from './i18n.js?v=f9ba658cdaef'
+import { formatDuration, withRunKind } from './utils.js?v=dc7ec0e73e69'
+import { playthroughGroups } from './hands.js?v=dc7ec0e73e69'
+import { byStartedAt } from './days.js?v=dc7ec0e73e69'
+import { t, tn, locale } from './i18n.js?v=dc7ec0e73e69'
 
 // Built once: the active locale is fixed for the page lifetime (switching
 // language reloads), so these don't need rebuilding per call/point.
@@ -46,12 +46,21 @@ const paddedRange = (ceiling) => (low, high) => {
   return [Math.max(0, low - headroom), Math.min(ceiling, high + headroom)]
 }
 
+// What a strict run's rate leaves out: its missed notes, and the wrong notes
+// struck on top of the ones it played, which the rate never counts — a run at
+// 100 % can hold some (feedback 9337d522). Empty for a clean run.
+function strictFaultsText({ missed, wrongNotes }) {
+  return [missed && tn('score.missedNotes', missed), wrongNotes && tn('score.wrongNotes', wrongNotes)]
+    .filter(Boolean)
+    .join(', ')
+}
+
 // What a run is measured by, per kind of run (see hands' playthroughGroups):
 // a free run by the time it took, a strict run by its hit rate — which means
 // nothing without the tempo, so its label carries it. Read wherever runs are
-// listed, titled or plotted, so a kind is described in one place. A free run's
-// label says how clean and how steady it was as well: a time alone reads the
-// same for a run that stumbled through as for one that didn't.
+// listed, titled or plotted, so a kind is described in one place. A run's
+// label says how clean it was as well — and a free run's, how steady: a time
+// alone reads the same for a run that stumbled through as for one that didn't.
 const RUN_KINDS = {
   free: {
     title: 'score.playtimeEvolution',
@@ -68,7 +77,11 @@ const RUN_KINDS = {
     value: (pt) => strictAccuracy(pt.strict),
     best: Math.max,
     format: (pct) => t('score.percent', { pct: Math.round(pct) }),
-    label: (pt) => t('score.strictRunSummary', { pct: strictAccuracy(pt.strict), bpm: pt.strict.bpm }),
+    label: (pt) => {
+      const summary = t('score.strictRunSummary', { pct: strictAccuracy(pt.strict), bpm: pt.strict.bpm })
+      const faults = strictFaultsText(pt.strict)
+      return faults ? `${summary} (${faults})` : summary
+    },
     range: paddedRange(100),
   },
 }
