@@ -20,8 +20,8 @@
 // elapsed time to wait for — which a timer armed for midnight would sleep
 // through. One day-key comparison a minute costs nothing next to the handler it
 // guards.
-import { localDayKey } from './days.js?v=54e8439418c1'
-import { onForeground } from './utils.js?v=54e8439418c1'
+import { localDayKey } from './days.js?v=c5ae80a0de99'
+import { onForeground } from './utils.js?v=c5ae80a0de99'
 
 const POLL_MS = 60000
 
