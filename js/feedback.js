@@ -9,13 +9,13 @@
 // The Supabase URL + publishable key live in supabaseConfig.js (safe to expose;
 // RLS guards writes). If they're ever blanked, `feedbackEnabled` is false and
 // the feedback button hides — the rest of the app is unaffected.
-import { SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, signedInEmail } from './supabaseConfig.js?v=3c460ea390a3'
-import { CHANGELOG } from './changelog.js?v=3c460ea390a3'
-import { getLang } from './i18n.js?v=3c460ea390a3'
-import { KEY_PREFIX } from './legacyKeys.js?v=3c460ea390a3'
+import { SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, signedInEmail } from './supabaseConfig.js?v=f9ba658cdaef'
+import { CHANGELOG } from './changelog.js?v=f9ba658cdaef'
+import { getLang } from './i18n.js?v=f9ba658cdaef'
+import { KEY_PREFIX } from './legacyKeys.js?v=f9ba658cdaef'
 import { APP_VERSION as BUILD } from './version.js'
-import { recentErrors } from './errorLog.js?v=3c460ea390a3'
-import { updateReport } from './swRegister.js?v=3c460ea390a3'
+import { recentErrors } from './errorLog.js?v=f9ba658cdaef'
+import { updateReport } from './swRegister.js?v=f9ba658cdaef'
 
 export const feedbackEnabled = Boolean(SUPABASE_URL && SUPABASE_PUBLISHABLE_KEY)
 
