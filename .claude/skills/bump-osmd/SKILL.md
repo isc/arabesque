@@ -13,34 +13,34 @@ Nothing is merged without the maintainer.
 Run everything from the repository root. Work files go under `tmp/` (ignored
 by git).
 
-**Unattended.** When a release appears, charras runs this skill on its own
-clone (home-infra `charras/maj-osmd`), on the branch `bump-osmd-<version>`.
-It has already done steps 1 and 2 and written `tmp/maj-osmd/context.md`
-(versions, every release's notes, the stopgaps and whether the target carries
-their PR). You end with the commit and `tmp/pr-body.md`; it publishes the
-tiles, pushes and opens the pull request.
+**Unattended.** charras runs this skill on its own clone when a release
+appears (home-infra `charras/maj-osmd`), without access to GitHub. When
+`tmp/maj-osmd/context.md` exists, it says what is done already (the branch,
+`npm ci`, the vendoring) and holds what the steps below would read on GitHub:
+the release notes, the stopgap table, the open issues. Use it in their place.
+End with the commit and `tmp/pr-body.md`; maj-osmd publishes the tiles,
+pushes and opens the pull request.
 
 ## 1. The release
 
-- Current version: `ls public/vendor/opensheetmusicdisplay.*.min.js`.
-- Target: the latest release, `gh release view --repo opensheetmusicdisplay/opensheetmusicdisplay`.
-- Read the notes of **every** release after the current one, not only the
-  target's: a breaking change can sit in an intermediate one.
-- Both packages, for their type definitions:
-  `npm pack opensheetmusicdisplay@<version>` in `tmp/osmd/<version>/`, then
-  untar. `package/build/opensheetmusicdisplay.min.js` is the vendored file,
-  `package/build/dist/src/**/*.d.ts` the API.
+Read the notes of **every** release after the shipped one, not only the
+target's: a breaking change can sit in an intermediate one.
+
+```bash
+gh release list --repo opensheetmusicdisplay/opensheetmusicdisplay --limit 10
+gh release view <version> --repo opensheetmusicdisplay/opensheetmusicdisplay
+```
 
 ## 2. Vendor file and references
 
 ```bash
-git mv public/vendor/opensheetmusicdisplay.<old>.min.js public/vendor/opensheetmusicdisplay.<new>.min.js
-cp tmp/osmd/<new>/package/build/opensheetmusicdisplay.min.js public/vendor/opensheetmusicdisplay.<new>.min.js
-git grep -l 'opensheetmusicdisplay\.<old>\.min\.js'   # then replace in each
+git checkout -b bump-osmd-<version with dashes>   # e.g. bump-osmd-3-0-0
+node scripts/vendor-osmd.mjs <version>
 ```
 
-At 3.0.0 the references were `public/score.html`, `test/js/swFetch.test.js`
-and `test/js/swShell.test.js`.
+It unpacks both npm packages under `tmp/osmd/<version>/package` (the bundle
+is `build/opensheetmusicdisplay.min.js`, the API `build/dist/src/**/*.d.ts`),
+swaps the vendored bundle, renames every reference to it and stages it all.
 
 ## 3. Breaking changes, against the app
 
@@ -63,44 +63,43 @@ A breaking change that does reach the app is fixed in the same pull request.
 ## 4. Stopgaps
 
 Every citation of an OSMD pull request outside the vendored bundles is a
-stopgap or a test waiting for upstream:
+stopgap or a test waiting for upstream. `node scripts/osmd-stopgaps.mjs <version>`
+lists them, each with whether the release carries it.
 
-```bash
-grep -rnE 'opensheetmusicdisplay(/pull/|#)[0-9]+' --exclude-dir=vendor --exclude-dir=node_modules public test scripts
-```
-
-For each, is the pull request in the target release (merged, and its merge
-commit in the tag: `git tag --contains <sha>` in an OSMD clone, or the release
-notes)? If so, remove the stopgap, and keep the test that covers the
-behaviour, rewording its comment (at 3.0.0, `reserveRepetitionWords` went and
-`test/engraving_test.rb` stayed). An open isc/arabesque issue tracking it is
-closed by the pull request (`Closes isc/arabesque#N`). Never write a closing
-keyword next to an OSMD reference: "Fixes opensheetmusicdisplay#N" closed the
-upstream PR once.
+For each one the release carries, remove the stopgap, and keep the test that
+covers the behaviour, rewording its comment (at 3.0.0, `reserveRepetitionWords`
+went and `test/engraving_test.rb` stayed). An open isc/arabesque issue
+tracking it is closed by the pull request (`Closes isc/arabesque#N`). Never
+write a closing keyword next to an OSMD reference: "Fixes
+opensheetmusicdisplay#N" closed the upstream PR once.
 
 ## 5. Tests
 
 ```bash
-npx vitest run > tmp/vitest.txt 2>&1; tail -20 tmp/vitest.txt
-scripts/test-in-docker.sh > tmp/test-output.txt 2>&1; tail -40 tmp/test-output.txt
+npx vitest run
+scripts/test-in-docker.sh
 ```
 
 (`bundle exec rake test:parallel` instead of Docker where Ruby and Chrome are
-installed.) A failure is fixed, not reported: the pull request opens green.
+installed.) A failure is fixed, not reported. If it can't be — or step 6 shows
+a regression you can't fix — commit what you have anyway, and start the
+description with a `## Blocked` section: what fails, and what you tried.
+Unattended, that opens the pull request as a draft.
 
 ## 6. The library
 
 ```bash
-node scripts/compare-library.mjs > tmp/compare.txt 2>&1; cat tmp/compare.txt
+node scripts/compare-library.mjs
 ```
 
-It renders all of `public/scores` with `origin/main` and with the working
-tree, and writes `tmp/compare-library/report.md` and, for each score that
-differs, `tiles/<score>.png`: the first differing tile, before on the left.
-Look at every tile (Read shows the image), and sort the differences by cause,
-tying each to a line of the release notes where one fits. A difference no
-release note explains, or one that looks worse, is a finding: say so first
-in the pull request. Page errors only on the working tree are a regression.
+It renders all of `public/scores` with the branch's base and with the working
+tree, and writes `tmp/compare-library/report.md`: which scores differ, and
+for each its tiles, before on the left. Look at every tile (Read shows the
+image), and sort the differences by cause, tying each to a line of the release
+notes where one fits. A difference no release note explains, or one that looks
+worse, is a finding: it goes first in the description. Page errors only on the
+working tree are a regression. To read a score's MusicXML, `unzip -l` lists a
+`.mxl` and `unzip -p <score> <entry>` prints it.
 
 ## 7. Changelog
 
@@ -111,28 +110,27 @@ mieux gravées…".
 
 ## 8. Commit and pull request
 
-Branch `bump-osmd-<version>` (dots become dashes), one commit titled
-`Bump OSMD to <version>`, its body saying what the release changes for the
-app, as #550's does.
+One commit titled `Bump OSMD to <version>` (maj-osmd recognises a bump made by
+hand by this title), its body saying what the release changes for the app, as
+#550's does. Write the message to `tmp/commit-msg.txt` and
+`git commit -F tmp/commit-msg.txt`.
 
-The pull request description, in English, in this order:
+The description, in English, in `tmp/pr-body.md`, in this order:
 
-1. One sentence: the release and whether any breaking change reaches the app.
-2. **Breaking changes**: each, and why it does or doesn't reach the app.
-3. **Stopgaps removed**: each, with the upstream PR and the test that still
+1. `## Blocked`, only when step 5 says so.
+2. One sentence: the release and whether any breaking change reaches the app.
+3. **Breaking changes**: each, and why it does or doesn't reach the app.
+4. **Stopgaps removed**: each, with the upstream PR and the test that still
    covers it. Or none.
-4. **Library check**: `N of M pixel-identical`, then the differences grouped
-   by cause, each group naming its scores and showing one or two tiles as
-   images (`![<score>](tiles/<score>.png)`). Every page error.
-5. **Tests**: vitest and the browser suite, with their counts.
+5. **Library check**: `N of M pixel-identical`, then the differences grouped
+   by cause, each group naming its scores and showing one or two tiles with
+   the image lines `report.md` gives. Every page error.
+6. **Tests**: vitest and the browser suite, with their counts.
 
-Write the description to `tmp/pr-body.md`, then publish the tiles, which
-rewrites those image links, and open the pull request:
+Then, by hand (unattended, maj-osmd does it):
 
 ```bash
-node scripts/publish-tiles.mjs tmp/compare-library/tiles osmd-compare-<version> tmp/pr-body.md
-git push -u origin bump-osmd-<version>
+node scripts/publish-tiles.mjs tmp/compare-library/tiles tmp/pr-body.md
+git push -u origin HEAD
 gh pr create --title "Bump OSMD to <version>" --body-file tmp/pr-body.md
 ```
-
-Unattended, maj-osmd runs these three from your answer.

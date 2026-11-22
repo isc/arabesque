@@ -7,31 +7,31 @@
 // pixels across the whole library, and only a side-by-side shows whether the
 // move is a fix or a regression.
 //
-//   node scripts/compare-library.mjs [--base origin/main] [--out tmp/compare-library]
-//                                    [--width 1280] [--jobs 4]
+//   node scripts/compare-library.mjs [--base <rev>]
 //
-// The base's public/ is taken with `git archive`, so it needs no checkout. Both
-// trees are served by two static servers on 127.0.0.1 (no-store, so nothing
-// one side fetched can answer for the other), and each score goes through
-// score.html in Chromium, through the `playwright` package @playwright/cli
-// brings in. The page waits for #score[data-render-complete], everything but
-// the score is hidden, and #score is screenshotted whole. Rendering is
-// deterministic: on the 3.0.0 bump, 145 of the 181 scores came out
-// byte-identical.
+// The base defaults to where the branch left origin/main (git merge-base), so
+// main's own later changes don't mix in. Its public/ is taken with
+// `git archive`, so it needs no checkout. Both trees are served by two static
+// servers on 127.0.0.1 (no-store, so nothing one side fetched can answer for
+// the other), and each score goes through score.html in Chromium, through the
+// `playwright` package @playwright/cli brings in. The page waits for
+// #score[data-render-complete], everything but the score is hidden, and #score
+// is screenshotted whole. Rendering is deterministic: on the 3.0.0 bump, 145
+// of the 181 scores came out byte-identical. About 1m30 on charras.
 //
-// For a score that differs, the two renders are cut into tiles of --tile
-// pixels from the top, and the first tile pair that differs is kept, side by
-// side in one image (before on the left): that is where to look. Past it,
-// everything below may have shifted, so later tiles say nothing more.
+// For a score that differs, the two renders are cut into tiles from the top,
+// and the tile pairs that differ are kept, side by side in one image (before
+// on the left): that is where to look. When the score's height changed, only
+// the first one: below it everything may have shifted, so later tiles say
+// nothing more, and the report says the rest is unchecked. When it did not,
+// nothing moved vertically, and every differing tile is kept, up to MAX_TILES.
+// On the 3.0.0 bump that is what showed a lost slur in Mariage d'amour, bar
+// 35, under a first tile that already differed at bar 31.
 //
-// Writes, under --out:
-//   report.json   { base, width, scores, identical, changed: [{ file,
-//                   baseHeight, headHeight, tileTop, tile }],
-//                   onlyIn: { base, head }, errors: { base, head } }
-//   report.md     the same, to read
-//   tiles/        <score>.png, the first differing tile, before | after
-// Page errors on the head side that the base does not have are a regression
-// in their own right: the score may not render at all.
+// Writes tmp/compare-library/report.md (each differing score with its image
+// lines, ready for a pull request description) and tiles/<score>-<top>.png.
+// Page errors on the working tree that the base does not have are a
+// regression in their own right: the score may not render at all.
 
 import { execFileSync } from 'node:child_process'
 import { createServer } from 'node:http'
@@ -40,24 +40,24 @@ import { extname, join, normalize, resolve } from 'node:path'
 import { parseArgs } from 'node:util'
 import { chromium } from 'playwright'
 
-const { values: args } = parseArgs({
-  options: {
-    base: { type: 'string', default: 'origin/main' },
-    out: { type: 'string', default: 'tmp/compare-library' },
-    width: { type: 'string', default: '1280' },
-    jobs: { type: 'string', default: '4' },
-    tile: { type: 'string', default: '700' },
-  },
-})
-const width = Number(args.width)
-const tileHeight = Number(args.tile)
-const out = resolve(args.out)
+const OUT = resolve('tmp/compare-library')
+const WIDTH = 1280
+const TILE = 700
+const MAX_TILES = 6
+// Measured on charras (6 P-cores and 4 E-cores): 4 jobs took 115s, 8 took 83s;
+// past that, the browsers contend.
+const JOBS = 8
 const SCORE = /\.(mxl|musicxml|xml)$/
 
-rmSync(out, { recursive: true, force: true })
-mkdirSync(join(out, 'base'), { recursive: true })
-mkdirSync(join(out, 'tiles'))
-execFileSync('sh', ['-c', `git archive "$1" public | tar -x -C "$2"`, 'sh', args.base, join(out, 'base')])
+const git = (...args) => execFileSync('git', args, { encoding: 'utf8' }).trim()
+const { values: args } = parseArgs({ options: { base: { type: 'string' } } })
+const base = args.base || git('merge-base', 'HEAD', 'origin/main')
+const baseLabel = base.length > 12 ? base.slice(0, 8) : base
+
+rmSync(OUT, { recursive: true, force: true })
+mkdirSync(join(OUT, 'base'), { recursive: true })
+mkdirSync(join(OUT, 'tiles'))
+execFileSync('sh', ['-c', `git archive "$1" public | tar -x -C "$2"`, 'sh', base, join(OUT, 'base')])
 
 const TYPES = {
   '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript', '.css': 'text/css',
@@ -72,7 +72,7 @@ function serve(root) {
     if (path.endsWith('/')) path += 'index.html'
     const file = join(root, path)
     try {
-      if (!file.startsWith(root) || !statSync(file).isFile()) throw new Error()
+      if (!statSync(file).isFile()) throw new Error()
       response.writeHead(200, {
         'Content-Type': TYPES[extname(file)] || 'application/octet-stream',
         'Cache-Control': 'no-store',
@@ -85,11 +85,11 @@ function serve(root) {
   return new Promise((done) => server.listen(0, '127.0.0.1', () => done(server)))
 }
 
-const roots = { base: join(out, 'base', 'public'), head: resolve('public') }
+const roots = { base: join(OUT, 'base', 'public'), head: resolve('public') }
 const servers = { base: await serve(roots.base), head: await serve(roots.head) }
-const listScores = (side) => readdirSync(join(roots[side], 'scores')).filter((f) => SCORE.test(f))
-const inBase = new Set(listScores('base'))
-const inHead = new Set(listScores('head'))
+const listScores = (side) => new Set(readdirSync(join(roots[side], 'scores')).filter((f) => SCORE.test(f)))
+const inBase = listScores('base')
+const inHead = listScores('head')
 const files = [...inHead].filter((f) => inBase.has(f)).sort()
 
 const browser = await chromium.launch()
@@ -97,7 +97,7 @@ const errors = { base: {}, head: {} }
 
 // Opens one score on one side, rendered and with everything but #score hidden.
 async function open(side, file) {
-  const context = await browser.newContext({ viewport: { width, height: 900 }, serviceWorkers: 'block' })
+  const context = await browser.newContext({ viewport: { width: WIDTH, height: 900 }, serviceWorkers: 'block' })
   // The one CDN the app reaches at runtime (supabase-js, the sampled piano),
   // blocked as test/test_helper.rb does: neither draws anything on the score.
   await context.route('https://esm.sh/**', (route) => route.abort())
@@ -112,13 +112,11 @@ async function open(side, file) {
       content: 'body * { visibility: hidden !important } #score, #score * { visibility: visible !important }'
         + ' #score img { visibility: hidden !important }',
     })
-    await page.waitForTimeout(150)
     const box = await page.locator('#score').boundingBox()
-    const shot = await page.locator('#score').screenshot()
-    return { context, page, box, shot, pageErrors }
+    return { context, page, box, shot: await page.locator('#score').screenshot() }
   } catch (error) {
     pageErrors.push(`not rendered: ${error.message.split('\n')[0]}`)
-    return { context, pageErrors }
+    return { context }
   } finally {
     if (pageErrors.length) errors[side][file] = pageErrors
   }
@@ -126,99 +124,85 @@ async function open(side, file) {
 
 const tile = (side, top) => side.page.screenshot({
   fullPage: true,
-  clip: { x: side.box.x, y: side.box.y + top, width: side.box.width, height: Math.min(tileHeight, side.box.height - top) },
+  clip: { x: side.box.x, y: side.box.y + top, width: side.box.width, height: Math.min(TILE, side.box.height - top) },
 })
 
 // The two tiles side by side, labelled, drawn by the same browser.
 async function sideBySide(before, after) {
-  const page = await browser.newPage({ viewport: { width: 2 * width + 12, height: 100 } })
+  const page = await browser.newPage({ viewport: { width: 2 * WIDTH + 12, height: 100 } })
   const img = (png, label) => `<figure><figcaption>${label}</figcaption>`
     + `<img src="data:image/png;base64,${png.toString('base64')}"></figure>`
   await page.setContent(`<style>body { margin: 0; display: flex; gap: 12px; background: #888 }
     figure { margin: 0; background: #fff } figcaption { font: bold 20px sans-serif; padding: 6px 10px;
-    background: #eee }</style>${img(before, `before (${args.base})`)}${img(after, 'after (working tree)')}`)
+    background: #eee }</style>${img(before, `before (${baseLabel})`)}${img(after, 'after (working tree)')}`)
   await page.locator('img').evaluateAll((imgs) => Promise.all(imgs.map((i) => i.decode())))
   const png = await page.screenshot({ fullPage: true })
   await page.close()
   return png
 }
 
-const identical = []
+let identical = 0
 const changed = []
 
 async function compare(file) {
-  const base = await open('base', file)
-  const head = await open('head', file)
+  const before = await open('base', file)
+  const after = await open('head', file)
   try {
-    if (!base.shot || !head.shot) return
-    if (base.shot.equals(head.shot)) {
-      identical.push(file)
+    if (!before.shot || !after.shot) return
+    if (before.shot.equals(after.shot)) {
+      identical++
       return
     }
-    const entry = { file, baseHeight: Math.round(base.box.height), headHeight: Math.round(head.box.height) }
-    const bottom = Math.min(base.box.height, head.box.height)
-    for (let top = 0; top < bottom; top += tileHeight) {
-      const [a, b] = await Promise.all([tile(base, top), tile(head, top)])
+    const entry = { file, baseHeight: Math.round(before.box.height), headHeight: Math.round(after.box.height), tiles: [] }
+    const keep = entry.baseHeight === entry.headHeight ? MAX_TILES : 1
+    const bottom = Math.min(before.box.height, after.box.height)
+    for (let top = 0; top < bottom && entry.tiles.length < keep; top += TILE) {
+      const [a, b] = await Promise.all([tile(before, top), tile(after, top)])
       if (a.equals(b)) continue
-      entry.tileTop = top
-      entry.tile = `tiles/${file}.png`
-      writeFileSync(join(out, entry.tile), await sideBySide(a, b))
-      break
+      const image = `tiles/${file}-${top}.png`
+      writeFileSync(join(OUT, image), await sideBySide(a, b))
+      entry.tiles.push({ top, image })
     }
-    // No tile differs: the shorter render matches the top of the longer one,
-    // which only grew (or shrank) at the bottom.
     changed.push(entry)
   } finally {
-    await base.context.close()
-    await head.context.close()
+    await before.context.close()
+    await after.context.close()
   }
 }
 
 let next = 0
-await Promise.all(Array.from({ length: Number(args.jobs) }, async () => {
+await Promise.all(Array.from({ length: JOBS }, async () => {
   while (next < files.length) await compare(files[next++])
 }))
 await browser.close()
 for (const server of Object.values(servers)) server.close()
 
-changed.sort((a, b) => a.file.localeCompare(b.file))
-const onlyIn = {
-  base: [...inBase].filter((f) => !inHead.has(f)).sort(),
-  head: [...inHead].filter((f) => !inBase.has(f)).sort(),
-}
-const report = { base: args.base, width, scores: files.length, identical: identical.sort(), changed, onlyIn, errors }
-writeFileSync(join(out, 'report.json'), `${JSON.stringify(report, null, 2)}\n`)
-
 const newErrors = Object.keys(errors.head).filter((f) => !errors.base[f])
 const lines = [
-  `# Library comparison: ${args.base} → working tree, at ${width}px`,
+  `# Library comparison: ${baseLabel} → working tree, at ${WIDTH}px`,
   '',
-  `${files.length} scores: ${identical.length} identical, ${changed.length} different, `
+  `${files.length} scores: ${identical} identical, ${changed.length} different, `
     + `${newErrors.length} with page errors only on the working tree.`,
   '',
 ]
-if (changed.length) {
-  lines.push('## Different', '')
-  for (const c of changed) {
-    const height = c.headHeight === c.baseHeight ? `${c.baseHeight}px` : `${c.baseHeight} → ${c.headHeight}px`
-    const where = c.tileTop === undefined ? 'only the length differs' : `first difference in the tile at ${c.tileTop}px`
-    lines.push(`- ${c.file}: ${height}, ${where}`)
-  }
-  lines.push('')
+if (changed.length) lines.push('## Different', '')
+for (const c of changed.sort((a, b) => a.file.localeCompare(b.file))) {
+  const resized = c.headHeight !== c.baseHeight
+  let note = resized ? `${c.baseHeight} → ${c.headHeight}px` : `${c.baseHeight}px`
+  if (!c.tiles.length) note += ', only the length differs'
+  else if (resized) note += `, so below ${c.tiles[0].top + TILE}px nothing is checked`
+  lines.push(`### ${c.file}`, '', `${note}.`, '', ...c.tiles.map((t) => `![${c.file}](${t.image})`), '')
 }
-for (const side of ['base', 'head']) {
+for (const [side, label] of [['base', baseLabel], ['head', 'working tree']]) {
   const failing = Object.entries(errors[side])
   if (!failing.length) continue
-  lines.push(`## Page errors, ${side === 'base' ? args.base : 'working tree'}`, '')
-  for (const [file, list] of failing) lines.push(`- ${file}: ${list.join(' · ')}`)
-  lines.push('')
+  lines.push(`## Page errors, ${label}`, '', ...failing.map(([file, list]) => `- ${file}: ${list.join(' · ')}`), '')
 }
-if (onlyIn.base.length || onlyIn.head.length) {
-  lines.push('## Not compared', '')
-  for (const f of onlyIn.base) lines.push(`- ${f}: only in ${args.base}`)
-  for (const f of onlyIn.head) lines.push(`- ${f}: only in the working tree`)
-  lines.push('')
-}
-writeFileSync(join(out, 'report.md'), lines.join('\n'))
+const notCompared = [
+  ...[...inBase].filter((f) => !inHead.has(f)).map((f) => `- ${f}: only in ${baseLabel}`),
+  ...[...inHead].filter((f) => !inBase.has(f)).map((f) => `- ${f}: only in the working tree`),
+]
+if (notCompared.length) lines.push('## Not compared', '', ...notCompared, '')
+writeFileSync(join(OUT, 'report.md'), lines.join('\n'))
 console.log(lines[2])
-console.log(`Report: ${join(out, 'report.md')}`)
+console.log(`Report: ${join(OUT, 'report.md')}`)
