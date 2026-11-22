@@ -25,7 +25,7 @@ if (!dir || !description) {
   console.error('usage: node scripts/publish-tiles.mjs <tiles dir> <description.md>')
   process.exit(2)
 }
-// stderr kept from the terminal: the first publication's fetch fails by design, and the push echoes GitHub's
+// stderr kept off the terminal: the first publication's fetch fails by design, and the push echoes GitHub's
 // "Create a pull request" hint for a branch nobody opens one from.
 const git = (args, input) => execFileSync('git', args, { input, encoding: 'utf8', stdio: 'pipe' }).trim()
 
