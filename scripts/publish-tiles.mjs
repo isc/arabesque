@@ -25,7 +25,9 @@ if (!dir || !description) {
   console.error('usage: node scripts/publish-tiles.mjs <tiles dir> <description.md>')
   process.exit(2)
 }
-const git = (args, input) => execFileSync('git', args, { input, encoding: 'utf8' }).trim()
+// stderr kept from the terminal: the first publication's fetch fails by design, and the push echoes GitHub's
+// "Create a pull request" hint for a branch nobody opens one from.
+const git = (args, input) => execFileSync('git', args, { input, encoding: 'utf8', stdio: 'pipe' }).trim()
 
 const names = readdirSync(dir).filter((name) => name.endsWith('.png')).sort()
 const blobs = git(['hash-object', '-w', '--stdin-paths'], names.map((name) => join(dir, name)).join('\n')).split('\n')
