@@ -22,7 +22,7 @@
 //
 // Pure: a turn's steps, where the passage stands on them and a repetition in;
 // where it stands next out.
-import { TWO_HANDS } from './hands.js?v=c287b5a1b545'
+import { TWO_HANDS } from './hands.js?v=54e8439418c1'
 
 // Repetitions spoiled in a row before a step is stepped down from.
 export const STUCK_AFTER = 3
