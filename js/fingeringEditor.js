@@ -1,4 +1,4 @@
-import { PLACEMENT } from './chordFingerings.js?v=9ba0760d5aa0'
+import { PLACEMENT } from './chordFingerings.js?v=3c460ea390a3'
 
 // A fingertip is far wider than a notehead: engraved on an iPad a head is about
 // 12 px across, where a comfortable touch target is 44. Aiming one with a mouse

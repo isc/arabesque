@@ -12,17 +12,17 @@ import {
   handOfNote,
   handOfStaff,
   isInnerStaff,
-} from './noteExtraction.js?v=9ba0760d5aa0'
-import { scrollSystemIntoView, isUnderStickyBars, nextPaint } from './utils.js?v=9ba0760d5aa0'
-import { placeChordFingerings } from './chordFingerings.js?v=9ba0760d5aa0'
-import { arrayBufferToXml, isMusicXml } from './mxlLoader.js?v=9ba0760d5aa0'
-import { stripPlaybackTempoMarks } from './tempoMarks.js?v=9ba0760d5aa0'
-import { recordError } from './errorLog.js?v=9ba0760d5aa0'
-import { REINFORCEMENT_CLEAN_PASSES } from './reinforcement.js?v=9ba0760d5aa0'
-import { POSITION_EPSILON, beatStartOf, crotchetsPerMinute } from './noteLogAnalysis.js?v=9ba0760d5aa0'
-import { createSteadiness } from './steadiness.js?v=9ba0760d5aa0'
-import { handsKey, handsOfKey } from './hands.js?v=9ba0760d5aa0'
-import { climbOn, isGuided, ladderOf, rungs, startOfTurn, stepOf } from './ladder.js?v=9ba0760d5aa0'
+} from './noteExtraction.js?v=3c460ea390a3'
+import { scrollSystemIntoView, isUnderStickyBars, nextPaint } from './utils.js?v=3c460ea390a3'
+import { placeChordFingerings } from './chordFingerings.js?v=3c460ea390a3'
+import { arrayBufferToXml, isMusicXml } from './mxlLoader.js?v=3c460ea390a3'
+import { stripPlaybackTempoMarks } from './tempoMarks.js?v=3c460ea390a3'
+import { recordError } from './errorLog.js?v=3c460ea390a3'
+import { REINFORCEMENT_CLEAN_PASSES } from './reinforcement.js?v=3c460ea390a3'
+import { POSITION_EPSILON, beatStartOf, crotchetsPerMinute } from './noteLogAnalysis.js?v=3c460ea390a3'
+import { createSteadiness } from './steadiness.js?v=3c460ea390a3'
+import { handsKey, handsOfKey } from './hands.js?v=3c460ea390a3'
+import { climbOn, isGuided, ladderOf, rungs, startOfTurn, stepOf } from './ladder.js?v=3c460ea390a3'
 
 // The score on the stand: the sheet OSMD holds, and the note model built from
 // it. Replaced as a sheet comes in (renderMusicXML) and as it is drawn
@@ -912,32 +912,10 @@ function fixUpInvisibleNotes() {
   }
 }
 
-// OSMD (2.3.1 still) leaves a Fine, a D.C. and their kin out of the skyline
-// unless it had to lift them over something, so what it places against the
-// skyline next can land on one: the composer, set just above the first system,
-// wrote "Traditionnel" over the Fine closing the first system of "Sur le pont
-// d'Avignon" at an iPad's width. A stopgap until a release carries
-// opensheetmusicdisplay/opensheetmusicdisplay#2020: every such word reserves
-// the space it is drawn in.
-function reserveRepetitionWords() {
-  const calculator = opensheetmusicdisplay.VexFlowMusicSheetCalculator.prototype
-  if (calculator.placeWordRepetitionInSkyline.reservesSpace) return
-  const placeWordRepetitionInSkyline = calculator.placeWordRepetitionInSkyline
-  calculator.placeWordRepetitionInSkyline = function (measure, repetition) {
-    const line = measure.ParentStaffLine
-    const placed = this.placedWordRepetitionBoxes.get(line)?.length ?? 0
-    placeWordRepetitionInSkyline.call(this, measure, repetition)
-    const box = line && this.placedWordRepetitionBoxes.get(line)?.[placed]
-    if (box) line.SkyBottomLineCalculator.updateSkyLineInRange(box.startX, box.endX, box.top)
-  }
-  calculator.placeWordRepetitionInSkyline.reservesSpace = true
-}
-
 // A sheet OSMD cannot read throws, for the caller to say so: swallowed here,
 // the page carried on without a score, and only reached its error card
 // through the TypeError that the missing sheet caused further down.
 async function renderMusicXML(xmlContent) {
-  reserveRepetitionWords()
   const scoreContainer = document.getElementById('score')
   const osmd = new opensheetmusicdisplay.OpenSheetMusicDisplay(scoreContainer, {
     drawPartNames: false,
