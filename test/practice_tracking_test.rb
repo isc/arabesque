@@ -146,7 +146,7 @@ class PracticeTrackingTest < CapybaraTestBase
       assert_text '100 %'
       assert_text '56 %'
     end
-    assert_text '2× en entier : 60 % à 100 BPM et 100 % à 120 BPM · mode strict'
+    assert_text '2× en entier : 60 % à 100 BPM (2 notes manquées) et 100 % à 120 BPM · mode strict'
   end
 
   # The day-by-day journal says how clean and how steady each free run was,

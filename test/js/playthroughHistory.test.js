@@ -104,6 +104,15 @@ describe('the words for a run', () => {
     expect(strictRunLabel({ hit: 9, total: 10, bpm: 80 })).toMatch(/90\s*%.*80/)
   })
 
+  // The rate counts the notes played in tempo: wrong notes struck on top of
+  // them leave a run at 100 % that was no clean run (feedback 9337d522).
+  it('names what a strict run got wrong, and nothing for a clean one', () => {
+    const verdict = { hit: 10, total: 10, bpm: 80, missed: 0, wrongNotes: 0 }
+    expect(strictRunLabel(verdict)).not.toContain('(')
+    expect(strictRunLabel({ ...verdict, wrongNotes: 2 })).toMatch(/100\s*%.*80.*\(2 /)
+    expect(strictRunLabel({ ...verdict, hit: 9, missed: 1, wrongNotes: 1 })).toMatch(/\(1 .*, 1 .*\)$/)
+  })
+
   it('puts a line under a day for each kind of run it holds', () => {
     const day = withRunLines({ date: '2026-09-01', fullPlaythroughs: [run(1, 60_000), run(1, 50_000, { hands: 'right' })] })
     expect(day.runLines).toHaveLength(2)

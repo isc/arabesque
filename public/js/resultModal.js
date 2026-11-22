@@ -124,8 +124,9 @@ export function resultModal({ onOpen }) {
     },
 
     trainerTempoLine() {
-      const { fromBpm, toBpm } = this.trainerSummary
-      return fromBpm === toBpm ? t('score.trainerTempoSame', { from: fromBpm }) : t('score.trainerTempo', { from: fromBpm, to: toBpm })
+      const { fromBpm, toBpm, earnedBpm } = this.trainerSummary
+      const line = fromBpm === toBpm ? t('score.trainerTempoSame', { from: fromBpm }) : t('score.trainerTempo', { from: fromBpm, to: toBpm })
+      return earnedBpm ? `${line} · ${t('score.trainerEarned', { bpm: earnedBpm })}` : line
     },
 
     trainerRunLine(run) {

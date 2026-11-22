@@ -5,6 +5,7 @@
 // the sessions and the names of their scores (practiceTracker.js).
 import { localDayKey, shiftDayKey, sessionDay } from './days.js'
 import { computeSessionDuration, getFullPlaythroughs, getLastMeasureEndTime, playedInFull } from './practiceTime.js'
+import { REINFORCEMENT_CLEAN_PASSES } from './reinforcement.js'
 
 // One day of the journal, its scores named by `names` (scoreId →
 // { title, composer }).
@@ -54,6 +55,23 @@ function addSession(entry, session) {
   }
 }
 
+// A strict run of a passage — the tempo trainer's loop, or a run started
+// partway — drills it as much as training does (feedback dc427f20): the bars
+// these sessions' strict drills played clean REINFORCEMENT_CLEAN_PASSES times,
+// in a row or not, as training fills its dots. A run of the whole score is a
+// run, stopped short or not.
+function drilledInStrict(sessions) {
+  const passes = new Map()
+  for (const session of sessions) {
+    if (session.mode !== 'strict' || session.playthroughStartedAt) continue
+    for (const { sourceMeasureIndex, attempts } of session.measures) {
+      const bar = Number(sourceMeasureIndex)
+      passes.set(bar, (passes.get(bar) ?? 0) + attempts.filter((a) => a.clean).length)
+    }
+  }
+  return [...passes].filter(([, n]) => n >= REINFORCEMENT_CLEAN_PASSES).map(([bar]) => bar)
+}
+
 // The tail both groupings share: the sets they filled become sorted arrays,
 // and their sessions become the runs through the whole score they hold.
 // `timesPlayedInFull` counts by playedInFull, as the calendar and the statuses
@@ -66,7 +84,7 @@ function withPlaythroughs({ sessions, ...entry }) {
   return {
     ...entry,
     measuresWorked: Array.from(entry.measuresWorked).sort((a, b) => a - b),
-    measuresReinforced: Array.from(entry.measuresReinforced).sort((a, b) => a - b),
+    measuresReinforced: [...new Set([...entry.measuresReinforced, ...drilledInStrict(sessions)])].sort((a, b) => a - b),
     fullPlaythroughs,
     timesPlayedInFull: sessions.filter(playedInFull).length,
   }
