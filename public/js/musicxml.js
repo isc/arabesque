@@ -912,32 +912,10 @@ function fixUpInvisibleNotes() {
   }
 }
 
-// OSMD (2.3.1 still) leaves a Fine, a D.C. and their kin out of the skyline
-// unless it had to lift them over something, so what it places against the
-// skyline next can land on one: the composer, set just above the first system,
-// wrote "Traditionnel" over the Fine closing the first system of "Sur le pont
-// d'Avignon" at an iPad's width. A stopgap until a release carries
-// opensheetmusicdisplay/opensheetmusicdisplay#2020: every such word reserves
-// the space it is drawn in.
-function reserveRepetitionWords() {
-  const calculator = opensheetmusicdisplay.VexFlowMusicSheetCalculator.prototype
-  if (calculator.placeWordRepetitionInSkyline.reservesSpace) return
-  const placeWordRepetitionInSkyline = calculator.placeWordRepetitionInSkyline
-  calculator.placeWordRepetitionInSkyline = function (measure, repetition) {
-    const line = measure.ParentStaffLine
-    const placed = this.placedWordRepetitionBoxes.get(line)?.length ?? 0
-    placeWordRepetitionInSkyline.call(this, measure, repetition)
-    const box = line && this.placedWordRepetitionBoxes.get(line)?.[placed]
-    if (box) line.SkyBottomLineCalculator.updateSkyLineInRange(box.startX, box.endX, box.top)
-  }
-  calculator.placeWordRepetitionInSkyline.reservesSpace = true
-}
-
 // A sheet OSMD cannot read throws, for the caller to say so: swallowed here,
 // the page carried on without a score, and only reached its error card
 // through the TypeError that the missing sheet caused further down.
 async function renderMusicXML(xmlContent) {
-  reserveRepetitionWords()
   const scoreContainer = document.getElementById('score')
   const osmd = new opensheetmusicdisplay.OpenSheetMusicDisplay(scoreContainer, {
     drawPartNames: false,

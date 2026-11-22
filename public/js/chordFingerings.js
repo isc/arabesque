@@ -10,7 +10,8 @@
 // player entered: a placement the engraver wrote stands. Run before every
 // render, as a fingering entered or cleared changes what its chord needs.
 
-// OSMD's PlacementEnum, which its bundle does not export.
+// OSMD's PlacementEnum, copied rather than read off the bundle (which exports
+// it since 3.0): test/js runs this module without OSMD loaded.
 export const PLACEMENT = { ABOVE: 0, BELOW: 1, NOT_YET_DEFINED: 4 }
 const { ABOVE, BELOW, NOT_YET_DEFINED } = PLACEMENT
 const FINGERING = 0 // TechnicalInstructionType.Fingering
