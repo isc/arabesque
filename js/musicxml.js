@@ -12,17 +12,18 @@ import {
   handOfNote,
   handOfStaff,
   isInnerStaff,
-} from './noteExtraction.js?v=dc7ec0e73e69'
-import { scrollSystemIntoView, isUnderStickyBars, nextPaint } from './utils.js?v=dc7ec0e73e69'
-import { placeChordFingerings } from './chordFingerings.js?v=dc7ec0e73e69'
-import { arrayBufferToXml, isMusicXml } from './mxlLoader.js?v=dc7ec0e73e69'
-import { stripPlaybackTempoMarks } from './tempoMarks.js?v=dc7ec0e73e69'
-import { recordError } from './errorLog.js?v=dc7ec0e73e69'
-import { REINFORCEMENT_CLEAN_PASSES } from './reinforcement.js?v=dc7ec0e73e69'
-import { POSITION_EPSILON, beatStartOf, crotchetsPerMinute } from './noteLogAnalysis.js?v=dc7ec0e73e69'
-import { createSteadiness } from './steadiness.js?v=dc7ec0e73e69'
-import { handsKey, handsOfKey } from './hands.js?v=dc7ec0e73e69'
-import { climbOn, isGuided, ladderOf, rungs, startOfTurn, stepOf } from './ladder.js?v=dc7ec0e73e69'
+  wrongKeyNames,
+} from './noteExtraction.js?v=c43a07152313'
+import { scrollSystemIntoView, isUnderStickyBars, nextPaint } from './utils.js?v=c43a07152313'
+import { placeChordFingerings } from './chordFingerings.js?v=c43a07152313'
+import { arrayBufferToXml, isMusicXml } from './mxlLoader.js?v=c43a07152313'
+import { stripPlaybackTempoMarks } from './tempoMarks.js?v=c43a07152313'
+import { recordError } from './errorLog.js?v=c43a07152313'
+import { REINFORCEMENT_CLEAN_PASSES } from './reinforcement.js?v=c43a07152313'
+import { POSITION_EPSILON, beatIndex, beatStartOf, crotchetsPerMinute, excess } from './noteLogAnalysis.js?v=c43a07152313'
+import { createSteadiness } from './steadiness.js?v=c43a07152313'
+import { handsKey, handsOfKey } from './hands.js?v=c43a07152313'
+import { climbOn, isGuided, ladderOf, rungs, startOfTurn, stepOf } from './ladder.js?v=c43a07152313'
 
 // The score on the stand: the sheet OSMD holds, and the note model built from
 // it. Replaced as a sheet comes in (renderMusicXML) and as it is drawn
@@ -155,11 +156,19 @@ const attempt = {
 const steadiness = createSteadiness()
 
 // What a drill's ladder weighs a repetition by, besides training.clean: the
-// pace it held from its first attack to its last, read as it ends, and the
-// wrong notes each hand owed in it.
+// pace it held from its first attack to its last, read as it ends, and its
+// faults as they came — a wrong key, owed by one hand or the other, or a hole
+// — which the page says too (attemptVerdict.js).
 const repetition = {
   pace: null,
-  wrong: { right: 0, left: 0 },
+  faults: [],
+}
+
+// The wrong notes each hand owed in a repetition, as the ladder weighs them.
+function wrongByHand(faults) {
+  const wrong = { right: 0, left: 0 }
+  for (const { kind, hand } of faults) if (kind === 'wrong') wrong[hand]++
+  return wrong
 }
 
 // The verdict a traversal leaves on the sheet: LATE on a note that came after
@@ -262,6 +271,15 @@ let callbacks = {
   // The engine changed the hands played, { right, left }: a step of the ladder
   // taken with one hand, or a drill giving back those it was started with.
   onHandsChanged: null,
+  // A repetition of the training passage is over: { clean, faults }, what it
+  // came to (attemptVerdict.js). And the first note of the next one, which
+  // puts that verdict behind the player.
+  onAttemptJudged: null,
+  onAttemptStarted: null,
+  // The passage under work and its dots, for the band: { from, to } as bars
+  // (sourceMeasureIndex), { banked, clean, target } as repeatIndicatorClass
+  // reads them. Null outside training.
+  onPassage: null,
 }
 
 // The hands played: those ticked, or in a drill those its step asks for
@@ -562,7 +580,11 @@ function startStep() {
 // what fills its dot.
 function climbTheLadder() {
   const passage = reinforcement.passages[reinforcement.index]
-  const { climb, earned } = climbOn(passage.ladder[passage.banked], passage.climb, { clean: training.clean, ...repetition })
+  const { climb, earned } = climbOn(passage.ladder[passage.banked], passage.climb, {
+    clean: training.clean,
+    pace: repetition.pace,
+    wrong: wrongByHand(repetition.faults),
+  })
   passage.climb = climb
   // A dot earned moves the drill on, which says where it stands then.
   if (!earned) sayLadder()
@@ -1038,6 +1060,7 @@ function updateMeasureCursor() {
 
   const measured = measureNoteBounds(cursor.measureIndex)
   if (measured) createRepeatIndicators(measured)
+  sayPassage()
 }
 
 // The dots are centred over the measure's noteheads, hanging
@@ -1147,6 +1170,21 @@ function updateRepeatIndicators() {
   for (let i = 0; i < indicators.length; i++) {
     indicators[i].className.baseVal = repeatIndicatorClass(i, training.banked, training.clean)
   }
+  sayPassage()
+}
+
+// The passage and its dots as the band shows them too: the score's scroll
+// away with their bar.
+function sayPassage() {
+  if (!training.on) return callbacks.onPassage?.(null)
+  const { first, last } = trainingPassage()
+  callbacks.onPassage?.({
+    from: score.allNotes[first]?.sourceMeasureIndex,
+    to: score.allNotes[last]?.sourceMeasureIndex,
+    banked: training.banked,
+    clean: training.clean,
+    target: targetRepeatCount,
+  })
 }
 
 function getBoundingBoxesForNotes(noteElements) {
@@ -1597,10 +1635,17 @@ function runUnderway() {
 // discover at the bar line that it won't fill. The journal counts it, and the
 // note that was owed flashes.
 function handleWrongNote(measureData, expectedNote, midiNote) {
+  // A repetition can open on a wrong key as well as on a right one.
+  if (!steadiness.underway) callbacks.onAttemptStarted?.()
   spoilRepetition()
   steadiness.fault()
   fumbled.add(expectedNote)
-  repetition.wrong[handOfNote(expectedNote)]++
+  repetition.faults.push({
+    kind: 'wrong',
+    bar: measureData.sourceMeasureIndex,
+    hand: handOfNote(expectedNote),
+    ...wrongKeyNames(expectedNote, midiNote),
+  })
   // A wrong note can be the first thing played in a measure, but not the
   // first of a run: with no attempt open the journal has nothing to count it in.
   if (!attempt.open && runUnderway()) startAttempt(measureData)
@@ -1615,7 +1660,7 @@ function startRepetition() {
   steadiness.discard()
   fumbled.clear()
   repetition.pace = null
-  repetition.wrong = { right: 0, left: 0 }
+  repetition.faults = []
 }
 
 // In training, the repetition under way can no longer fill its dot. Only the
@@ -1744,6 +1789,8 @@ function moveTrainingCursorTo(to, { keepRepeats = false, clearFrom = null } = {}
 // A measure of the passage is over: bank it or move on, per trainingStep.
 // `goesOn` says the traversal runs on into `next` (runsOn).
 function advanceTraining(next, goesOn) {
+  // Said before the ladder hears of it, which may say what it calls for next.
+  if (!goesOn) callbacks.onAttemptJudged?.({ clean: training.clean, faults: repetition.faults })
   const passage = trainingPassage()
   // A repetition in block chords fills no dot and climbs nothing
   // (inBlockChords). A drill's fills one as it passes the last step of the
@@ -1868,17 +1915,27 @@ function runsOn(next) {
 // Hands the attack just completed to the steadiness count, and acts on what
 // that judged.
 function registerAttack(measureData, group) {
-  if (!steadiness.underway) clearVerdictMarks()
+  if (!steadiness.underway) {
+    clearVerdictMarks()
+    callbacks.onAttemptStarted?.()
+  }
   const [first] = group
+  const position = stampOf(first, measureData) - measureData.measureIndex
   const verdicts = steadiness.attack({
     at: performance.now(),
     measure: measureData.measureIndex,
-    position: stampOf(first, measureData) - measureData.measureIndex,
+    position,
     measureDuration: measureData.duration,
     tempo: first.note?.SourceMeasure?.TempoInBPM,
     decorative: group.some(isOrnamentOrGrace),
     fermata: group.some((n) => n.fermata),
-    ref: { notes: group, cursorAt: cursor.measureIndex, sourceMeasureIndex: measureData.sourceMeasureIndex },
+    ref: {
+      notes: group,
+      cursorAt: cursor.measureIndex,
+      sourceMeasureIndex: measureData.sourceMeasureIndex,
+      // The beat the attack falls in, counted from 1 as the player counts it.
+      beat: beatIndex(measureData.barOffset + position, measureData.beat) + 1,
+    },
   })
   applySteadiness(verdicts)
 }
@@ -1887,12 +1944,13 @@ function registerAttack(measureData, group) {
 // through it — and, in training, spoils the repetition the way a wrong note
 // does. Joins and holes go to the journal.
 function applySteadiness(verdicts) {
-  for (const { ref, ratio, hole, entry, joined } of verdicts) {
+  for (const { ref, ratio, hole, entry, joined, ms } of verdicts) {
     if (hole) {
       if (!repeatedSince(ref)) {
         for (const noteData of ref.notes) if (!noteData.isTieContinuation) setMark(noteData, LATE, true)
       }
       spoilRepetition()
+      repetition.faults.push({ kind: 'hole', bar: ref.sourceMeasureIndex, beat: ref.beat, lostMs: excess({ ms, ratio }) })
     }
     if (hole || entry) callbacks.onIntervalJudged?.({ sourceMeasureIndex: ref.sourceMeasureIndex, ratio, hole, entry, joined })
   }

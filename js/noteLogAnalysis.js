@@ -31,9 +31,9 @@
 //
 // Positions are compared exactly: whoever builds the model rounds them with
 // roundPosition, so that both hands on a beat share one.
-import { createSteadiness, isHole, outOfPace, writtenBetween } from './steadiness.js?v=dc7ec0e73e69'
-import { TWO_HANDS, handsKey } from './hands.js?v=dc7ec0e73e69'
-import { median } from './practiceTime.js?v=dc7ec0e73e69'
+import { createSteadiness, isHole, outOfPace, writtenBetween } from './steadiness.js?v=c43a07152313'
+import { TWO_HANDS, handsKey } from './hands.js?v=c43a07152313'
+import { median } from './practiceTime.js?v=c43a07152313'
 
 // How finely positions are told apart, in whole notes: far below any note,
 // far above the error of summing durations.

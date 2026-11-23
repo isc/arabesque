@@ -6,8 +6,8 @@
 // spreads, as headerMenu.js does for the menu. The component provides the
 // tempi the fields move (strictBpm, playbackBpm), isStrictPlaying, and
 // commitBpm(field), which keeps a tempo once a press is over (app.js).
-import { stepBpm, holdToRepeat, BPM_MIN, BPM_MAX } from './bpmStepper.js?v=dc7ec0e73e69'
-import { BPM_STEP } from './tempoTrainer.js?v=dc7ec0e73e69'
+import { stepBpm, holdToRepeat, BPM_MIN, BPM_MAX } from './bpmStepper.js?v=c43a07152313'
+import { BPM_STEP } from './tempoTrainer.js?v=c43a07152313'
 
 export function bpmField() {
   return {
@@ -61,18 +61,19 @@ export function bpmField() {
 
 // What tells the two fields apart: the tempo each moves, its input's id, the
 // words it says (the keys hang from a prefix: …Down, …Up, …Bpm), how its input
-// binds, and what disables it while a run needs the tempo to hold.
+// binds, and when it is shown — strict mode's steps aside while a run plays,
+// which needs the tempo to hold, and leaves the board the line.
 const FIELDS = {
-  strictBpm: { id: 'strict-bpm', words: 'score.tempo', model: 'x-model.number', disabled: 'isStrictPlaying' },
+  strictBpm: { id: 'strict-bpm', words: 'score.tempo', model: 'x-model.number', shown: '!isStrictPlaying' },
   // Debounced: every tempo change reschedules the rest of the piece.
   playbackBpm: { id: 'playback-bpm', words: 'score.playbackTempo', model: 'x-model.number.debounce.400ms' },
 }
 
-function stepButton(field, disabled, direction, words) {
+function stepButton(field, direction, words) {
   return `
   <button
     type="button"
-    class="pt-band-button pt-bpm-field__step"${disabled}
+    class="pt-band-button pt-bpm-field__step"
     :aria-label="$t('${words}')"
     @click="stepBpmField('${field}', ${direction})"
     @pointerdown="startBpmHold('${field}', ${direction})"
@@ -88,8 +89,8 @@ function stepButton(field, disabled, direction, words) {
 function fieldHtml(field) {
   const spec = FIELDS[field]
   if (!spec) throw new Error(`no tempo field named ${field}`)
-  const disabled = spec.disabled ? `\n    :disabled="${spec.disabled}"` : ''
-  return `<div class="pt-bpm-field">${stepButton(field, disabled, -1, `${spec.words}Down`)}
+  const shown = spec.shown ? ` x-show="${spec.shown}"` : ''
+  return `<div class="pt-bpm-field"${shown}>${stepButton(field, -1, `${spec.words}Down`)}
   <label class="pt-sr-only" for="${spec.id}" x-text="$t('${spec.words}Bpm')"></label>
   <input
     id="${spec.id}"
@@ -97,9 +98,9 @@ function fieldHtml(field) {
     min="${BPM_MIN}"
     max="${BPM_MAX}"
     step="${BPM_STEP}"
-    ${spec.model}="${field}"${disabled}
+    ${spec.model}="${field}"
   />
-  <span class="pt-bpm-field__suffix" x-text="$t('score.bpm')">BPM</span>${stepButton(field, disabled, 1, `${spec.words}Up`)}
+  <span class="pt-bpm-field__suffix" x-text="$t('score.bpm')">BPM</span>${stepButton(field, 1, `${spec.words}Up`)}
 </div>`
 }
 

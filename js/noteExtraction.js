@@ -1,8 +1,8 @@
-import { barCounter, fingeringKey, legacyFingeringKey, nextNoteIndex } from './fingeringKeys.js?v=dc7ec0e73e69'
-import { t } from './i18n.js?v=dc7ec0e73e69'
-import { withHands } from './utils.js?v=dc7ec0e73e69'
-import { GRACE_NOTE_OFFSET_WN } from './playbackTiming.js?v=dc7ec0e73e69'
-import { POSITION_EPSILON, roundPosition } from './noteLogAnalysis.js?v=dc7ec0e73e69'
+import { barCounter, fingeringKey, legacyFingeringKey, nextNoteIndex } from './fingeringKeys.js?v=c43a07152313'
+import { t } from './i18n.js?v=c43a07152313'
+import { withHands } from './utils.js?v=c43a07152313'
+import { GRACE_NOTE_OFFSET_WN } from './playbackTiming.js?v=c43a07152313'
+import { POSITION_EPSILON, roundPosition } from './noteLogAnalysis.js?v=c43a07152313'
 
 // Ornament types from OSMD
 const OrnamentEnum = {
@@ -41,6 +41,9 @@ const DIATONIC_NOTES = [0, 2, 4, 5, 7, 9, 11] // C, D, E, F, G, A, B
 function getDiatonicIndex(fundamentalNote) {
   return DIATONIC_NOTES.indexOf(fundamentalNote)
 }
+
+// The seven letters in the player's language, from C: do ré mi…, C D E….
+const noteLetters = () => t('score.noteLetters').split(' ')
 
 // The octave numbering everything the player sees goes by: middle C (MIDI 60)
 // is C4. OSMD's own Pitch.Octave counts three octaves lower, which is why note
@@ -120,7 +123,7 @@ export function noteLabel(noteData) {
 
 // A C key by name, "do4": the landmark the on-screen keyboard labels.
 export function cLabel(midiNumber) {
-  return `${t('score.noteLetters').split(' ')[0]}${octaveOfMidi(midiNumber)}`
+  return `${noteLetters()[0]}${octaveOfMidi(midiNumber)}`
 }
 
 // The same without the hand: "sol♯4".
@@ -133,8 +136,37 @@ export function spelledNote(noteData) {
 // carries, where the key's place already says the octave.
 export function noteName({ note }) {
   const pitch = note?.pitch
-  const letter = t('score.noteLetters').split(' ')[getDiatonicIndex(pitch?.fundamentalNote)]
+  const letter = noteLetters()[getDiatonicIndex(pitch?.fundamentalNote)]
   return letter ? `${letter}${ACCIDENTAL_SIGNS[pitch.accidental] ?? ''}` : ''
+}
+
+// The black keys most often written as flats: mi♭ and si♭, where do♯ and fa♯
+// are the usual sharps. The fifth, sol♯ or la♭, goes the way the note owed is
+// written.
+const BLACK_KEY_FLATS = new Set([3, 10])
+
+// The note owed and the key played for it instead, named so the slip reads as
+// what it was: "la♮" for "la♭", the accidental forgotten, rather than a
+// spelling the staff never uses. A white key goes by its letter — with a ♮
+// where the note owed is that letter altered — and a black key by the letter
+// owed, sharpened or flattened, when it is one, or else by its usual name. An
+// octave apart or more, the letters alone would say nothing, so both carry it.
+export function wrongKeyNames(noteData, midiNumber) {
+  const letters = noteLetters()
+  const index = getDiatonicIndex(noteData.note?.pitch?.fundamentalNote)
+  const pitchClass = ((midiNumber % 12) + 12) % 12
+  const offset = index < 0 ? null : ((pitchClass - DIATONIC_NOTES[index] + 18) % 12) - 6
+  const white = DIATONIC_NOTES.indexOf(pitchClass)
+  const altered = index >= 0 && noteData.midiNumber % 12 !== DIATONIC_NOTES[index]
+  let played
+  if (white >= 0) played = letters[white] + (white === index && altered ? '♮' : '')
+  else if (offset === 1 || offset === -1) played = letters[index] + (offset > 0 ? '♯' : '♭')
+  else {
+    const flat = BLACK_KEY_FLATS.has(pitchClass) || (pitchClass === 8 && noteData.note?.pitch?.accidental === AccidentalEnum.FLAT)
+    played = flat ? `${letters[DIATONIC_NOTES.indexOf(pitchClass + 1)]}♭` : `${letters[DIATONIC_NOTES.indexOf(pitchClass - 1)]}♯`
+  }
+  if (Math.abs(midiNumber - noteData.midiNumber) < 12) return { expected: noteName(noteData), played }
+  return { expected: spelledNote(noteData), played: `${played}${octaveOfMidi(midiNumber)}` }
 }
 
 // Check if an accidental is explicitly specified (not undefined or NONE)
