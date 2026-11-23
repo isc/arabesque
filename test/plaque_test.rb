@@ -20,7 +20,7 @@ class PlaqueTest < CapybaraTestBase
     open_score('broken-chords', 32)
     enter_training_mode
     click_on '🎹 Plaqué'
-    assert_text 'Plaqué : chaque temps se joue en un accord'
+    assert_text 'Plaqué : chaque temps en un accord'
 
     with_clock_control do
       # One note of the beat let go before the others come down is no chord.
@@ -80,10 +80,10 @@ class PlaqueTest < CapybaraTestBase
     open_score('broken-chords', 32)
     enter_training_mode
     click_on '🎹 Plaqué'
-    assert_text 'Plaqué : chaque temps se joue en un accord'
+    assert_text 'Plaqué : chaque temps en un accord'
 
     pick_passage(1, 2)
-    assert_text 'Plaqué : chaque temps se joue en un accord'
+    assert_text 'Plaqué : chaque temps en un accord'
 
     click_on '🎹 Plaqué'
     assert_text 'Mesures 1 à 2 : le passage entier doit être joué'
@@ -103,7 +103,7 @@ class PlaqueTest < CapybaraTestBase
     find('dialog[open] button[aria-label="Close"]').click
 
     click_on 'Renforcer 1 passage'
-    assert_text 'Ce passage cale juste après la barre de mesure'
+    assert_text 'Ce passage cale après la barre de mesure'
     assert_selector 'button.is-advised', text: '🎹 Plaqué'
 
     click_on '🎹 Plaqué'

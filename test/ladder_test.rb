@@ -16,7 +16,8 @@ class LadderTest < CapybaraTestBase
 
     assert_steps 'Main droite', 'Main gauche', 'Deux mains', 'Encore', 'À froid'
     assert_on_step 'Main droite', done: 0
-    assert_text 'Passage 1 sur 1 · Main droite seule'
+    assert_selector '[data-testid=board-passage]', text: /Passage 1 sur 1/i
+    assert_text 'Main droite seule'
     assert_hands right: true, left: false
     assert_selector '.pt-hand-left-out', visible: :all
 
@@ -28,7 +29,7 @@ class LadderTest < CapybaraTestBase
     # Each hand alone fills no dot: the passage as written does.
     play_notes(LEFT)
     assert_on_step 'Deux mains', done: 2
-    assert_text 'Les deux mains, à votre rythme'
+    assert_text 'Deux mains, à votre rythme'
     assert_hands right: true, left: true
     assert_no_selector 'svg circle.repeat-indicator.filled'
 
@@ -69,11 +70,11 @@ class LadderTest < CapybaraTestBase
     end
     assert_text 'La main gauche accroche'
     assert_hands right: false, left: true
-    assert_on_step 'Deux mains', done: 2
+    assert_on_step 'Deux mains', done: 2, playing: 'Main gauche'
 
     play_notes(LEFT)
     assert_hands right: true, left: true
-    assert_text 'Les deux mains, à votre rythme'
+    assert_text 'Deux mains, à votre rythme'
     play_both_hands
     assert_selector 'svg circle.repeat-indicator.filled', count: 1
   end
@@ -86,12 +87,12 @@ class LadderTest < CapybaraTestBase
     open_score('repeat-endings', 4)
     reinforce_bars(1..3, pace: 2_000)
     assert_steps 'Sans tempo', 'Au tempo', 'À froid'
-    assert_text 'Passage 1 sur 1 · À votre rythme'
+    assert_text 'À votre rythme'
 
     with_clock_control do
       play_repetition(gap: 3_000)
       assert_selector 'svg circle.repeat-indicator.filled', count: 1
-      assert_text 'Au tempo de vos jeux complets (♩ = 120)'
+      assert_text 'Au tempo de vos jeux complets : ♩ = 120.'
 
       play_repetition(gap: 3_000)
       assert_text 'Propre, mais à ♩ = 80 : visez ♩ = 120.'
@@ -99,7 +100,7 @@ class LadderTest < CapybaraTestBase
 
       play_repetition(gap: 1_500)
       assert_selector 'svg circle.repeat-indicator.filled', count: 2
-      assert_text 'Une dernière fois, à froid, au tempo (♩ = 120).'
+      assert_text 'Une dernière fois, à froid, à ♩ = 120.'
 
       2.times { play_repetition(gap: 3_000) }
       assert_selector 'svg circle.repeat-indicator.filled', count: 2
@@ -116,7 +117,8 @@ class LadderTest < CapybaraTestBase
     reinforce_bars(1, 3)
 
     [%w[E5 C3], %w[G5 E3]].each_with_index do |(right, left), i|
-      assert_text "Passage #{i + 1} sur 2 · Main droite seule"
+      assert_selector '[data-testid=board-passage]', text: /Passage #{i + 1} sur 2/i
+      assert_text 'Main droite seule'
       assert_hands right: true, left: false
       play_note(right)
       assert_hands right: false, left: true
@@ -126,7 +128,8 @@ class LadderTest < CapybaraTestBase
     end
     ['Encore une fois', 'Une dernière fois'].each do |asked|
       [%w[E5 C3], %w[G5 E3]].each_with_index do |chord, i|
-        assert_text "Passage #{i + 1} sur 2 · #{asked}"
+        assert_selector '[data-testid=board-passage]', text: /Passage #{i + 1} sur 2/i
+        assert_text asked
         play_chord(chord)
       end
     end
@@ -156,17 +159,20 @@ class LadderTest < CapybaraTestBase
     assert_field 'Main gauche', checked: left, disabled: set_by_the_drill
   end
 
-  # The row of steps the band shows. Counted first, which waits for the row to
-  # be up: Alpine fills it at once and reveals it a timer later, and a step
-  # read in between is not yet visible, so the list came back a step short.
+  # The row of steps the band shows, a pip each named by its title. Counted
+  # first, which waits for the row to be up: Alpine fills it at once and
+  # reveals it a timer later, and a step read in between is not yet visible,
+  # so the list came back a step short.
   def assert_steps(*names)
     assert_selector '.pt-ladder__step', count: names.size
-    assert_equal names, all('.pt-ladder__step').map(&:text)
+    assert_equal names, all('.pt-ladder__step').map { |step| step[:title] }
   end
 
-  # The step under way in the row the band shows, `done` of them behind it.
-  def assert_on_step(name, done:)
-    assert_selector '.pt-ladder__step.is-now', text: name, count: 1
+  # The step under way, lit in the row, `done` of them behind it, and what the
+  # board names as being played: the step, or the hand it stepped down to.
+  def assert_on_step(name, done:, playing: name)
+    assert_selector '[data-testid=board-step] .pt-tile__value', exact_text: playing
+    assert_selector ".pt-ladder__step.is-now[title='#{name}']", count: 1
     assert_selector '.pt-ladder__step.is-done', count: done
   end
 

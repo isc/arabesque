@@ -17,21 +17,15 @@ const en = await passageTextIn('en')
 const bars = (from, to) => ({ start: from - 1, end: to - 1 })
 
 describe('passageText', () => {
-  it('names the single bar of a one-bar loop rather than a range', () => {
-    expect(fr('score.loopRange', bars(6, 6))).toBe('Boucle de la mesure 6.')
-    expect(en('score.loopRange', bars(6, 6))).toBe('Looping bar 6.')
+  it('names the single bar of a one-bar passage rather than a range', () => {
+    expect(fr('score.trainingPassage', bars(5, 5), { times: 3 })).toBe('Mesure 5 seule : elle doit être jouée 3× sans erreur ni hésitation.')
+    expect(en('score.trainingPassageDone', bars(5, 5), { times: 3 })).toBe('You played bar 5 3× without a mistake.')
   })
 
   // Two bars is the other side of the boundary, and the one that catches the
   // bar count being off by one: a passage of two would name a single mesure.
   it('gives both ends of a passage of several bars', () => {
-    expect(fr('score.loopRange', bars(6, 7))).toBe('Boucle des mesures 6 à 7.')
-    expect(en('score.loopRange', bars(6, 7))).toBe('Looping bars 6 to 7.')
-  })
-
-  it('says the training lines the same way, with what else they carry', () => {
-    expect(fr('score.trainingPassage', bars(5, 5), { times: 3 })).toBe('Mesure 5 seule : elle doit être jouée 3× sans erreur ni hésitation.')
-    expect(en('score.trainingPassageDone', bars(5, 5), { times: 3 })).toBe('You played bar 5 3× without a mistake.')
-    expect(fr('score.trainingPassageDone', bars(5, 8), { times: 3 })).toBe('Vous avez enchaîné les mesures 5 à 8 3× sans erreur.')
+    expect(fr('score.trainingPassageDone', bars(6, 7), { times: 3 })).toBe('Vous avez enchaîné les mesures 6 à 7 3× sans erreur.')
+    expect(en('score.trainingPassage', bars(6, 7), { times: 3 })).toContain('Bars 6 to 7')
   })
 })

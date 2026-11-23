@@ -268,7 +268,8 @@ class StrictPlaythroughTest < CapybaraTestBase
     load_score('two-measures.xml', 2)
     start_strict_mode
     pick_passage(1, 1)
-    assert_text 'Boucle de la mesure 1.'
+    assert_selector '[data-testid=board-passage]', text: /Boucle\s+1/i
+    assert_text 'Prêt : 3 passages propres d’affilée font monter le tempo de 5 BPM.'
 
     with_clock_control do
       trigger_click_on('▶ Démarrer')
@@ -282,7 +283,7 @@ class StrictPlaythroughTest < CapybaraTestBase
       # band counts it in the streak, while a run to the end of the score
       # would still be waiting for bar 2.
       advance_clock(END_OF_RUN_MS)
-      assert_text '120 BPM · passage 1 · 1 sur 3 propres', wait: 2
+      assert_loop_board run: 1, streak: 1, verdict: 'Propre'
       assert_no_selector 'svg .vf-notehead.missed-note'
 
       # A second's pause, then the next run counts in.
@@ -314,20 +315,53 @@ class StrictPlaythroughTest < CapybaraTestBase
       # Bar 1 from the end of the count-in, then the first two quavers of bar 2.
       play_evenly(BAR_ONE + %w[C5 B4], first_after: COUNT_IN_MS, gap: QUAVER_MS)
       advance_clock(END_OF_RUN_MS)
-      assert_text '120 BPM · passage 1 · 1 sur 3 propres', wait: 2
+      assert_loop_board run: 1, streak: 1, verdict: 'Propre'
 
       # The run ended 0.75s after bar 1's last quaver, the next one starts a
       # second later and counts in for two: its first note is due in 2.25s.
       # A key brushed with its third quaver, in no bar.
       play_evenly(BAR_ONE.dup.tap { |notes| notes[2] = %w[E4 F#4] }, first_after: 2250, gap: QUAVER_MS)
       advance_clock(END_OF_RUN_MS)
-      assert_text '120 BPM · passage 2 · 0 sur 3 propres', wait: 2
+      assert_loop_board run: 2, streak: 0, verdict: '1 fausse note'
 
       trigger_click_on('⏸ Pause')
     end
 
     assert_selector 'li', exact_text: '✅ 100 % à 120 BPM'
     assert_selector 'li', exact_text: '❌ 100 % à 120 BPM (1 fausse note)'
+  end
+
+  # Between two runs of a loop the board says what the last one came to and
+  # where, and keeps saying it through the next count-in — with the notes it
+  # marked on the score, which used to go as the count-in began. Both go as
+  # the music comes back in.
+  def test_the_board_says_what_a_run_came_to_through_the_next_count_in
+    load_score('steady-quavers.xml', 16)
+    start_strict_mode
+    pick_passage(1, 1)
+
+    with_clock_control do
+      trigger_click_on('▶ Démarrer')
+      # Bar 1 with F♯4 for its fourth quaver, F4.
+      play_evenly(BAR_ONE.dup.tap { |notes| notes[3] = 'F#4' }, first_after: COUNT_IN_MS, gap: QUAVER_MS)
+      advance_clock(END_OF_RUN_MS)
+      verdict = find('[data-testid=board-verdict].is-failed', wait: 2)
+      assert_equal '1 fausse note · 1 note manquée', verdict.find('.pt-verdict__headline').text
+      assert_equal 'Mes. 1, main droite : fa♯ au lieu de fa', verdict.find('.pt-verdict__detail').text
+
+      # The pause, then the next run counting in: the verdict and its marks
+      # are still up.
+      advance_clock(1000)
+      assert_selector '.pt-countin__beat.is-now', text: '1', wait: 2
+      assert_selector '[data-testid=board-verdict]:not(.is-stale)'
+      assert_selector 'svg .vf-notehead.missed-note', count: 1
+
+      advance_clock(COUNT_IN_MS)
+      assert_selector '[data-testid=board-verdict].is-stale', wait: 2
+      assert_no_selector 'svg .vf-notehead.missed-note'
+
+      trigger_click_on('⏸ Pause')
+    end
   end
 
   # The square marking where a run starts used to stay on the score for the
@@ -571,6 +605,15 @@ class StrictPlaythroughTest < CapybaraTestBase
 
   def score_top
     page.evaluate_script("document.querySelector('.pt-score-main').getBoundingClientRect().top")
+  end
+
+  # The board after a run of the loop at 120 BPM: which run it was, the
+  # streak's dots, and what the run came to. Labels are drawn in capitals,
+  # which is what visible text reads.
+  def assert_loop_board(run:, streak:, verdict:)
+    assert_selector '[data-testid=board-verdict]', text: verdict, wait: 2
+    assert_selector '[data-testid=board-passage]', text: /Passage #{run} · 120 BPM/i
+    assert_selector '[data-testid=board-goal] .pt-dots__dot.filled', count: streak
   end
 
   def midline_of(selector)

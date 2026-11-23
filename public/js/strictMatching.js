@@ -106,6 +106,19 @@ export function advanceEvent(event, delta, tolerance) {
   return event.classification
 }
 
+// The note a wrong key at `now` was most likely meant for, to name it by:
+// of the events due within the off-tempo window either side, settled or not,
+// the nearest in pitch. Null with none due — a key struck in a rest.
+export function nearestOwedEvent(events, midiNumber, now, offTempoWindow) {
+  let nearest = null
+  for (const event of events) {
+    if (event.timeMs - now > offTempoWindow) break
+    if (now - event.timeMs > offTempoWindow) continue
+    if (!nearest || Math.abs(event.noteData.midiNumber - midiNumber) < Math.abs(nearest.noteData.midiNumber - midiNumber)) nearest = event
+  }
+  return nearest
+}
+
 // The event whose realization `midiNumber` belongs to at `now`, looked up only
 // once a strike has failed to be taken. An ornament is one written note and
 // must cost one fault however many notes it spells out: entered late, a mordent

@@ -7,6 +7,7 @@ import {
   classifyMatch,
   faultAbsorbingEvent,
   chargesStrayStrike,
+  nearestOwedEvent,
 } from '../../public/js/strictMatching.js'
 
 const OFFTEMPO_WINDOW = 450
@@ -354,5 +355,24 @@ describe('what a stray strike is charged to', () => {
     const events = [plain()]
 
     expect(faultAbsorbingEvent(events, 72, 1100)).toBeNull()
+  })
+})
+
+// What a wrong key is named against in the band's verdict (attemptVerdict.js).
+describe('nearestOwedEvent', () => {
+  const owed = (timeMs, midiNumber) => expectedEvent({ timeMs, sequence: [midiNumber], openUntilMs: timeMs + OFFTEMPO_WINDOW, noteData: { midiNumber } })
+
+  it('takes the note nearest in pitch among those due around the key', () => {
+    const events = [owed(1000, 60), owed(1250, 65), owed(1500, 72)]
+    expect(nearestOwedEvent(events, 66, 1300, OFFTEMPO_WINDOW)).toBe(events[1])
+  })
+
+  it('leaves out the notes due outside the window either side', () => {
+    const events = [owed(0, 66), owed(1000, 60), owed(2000, 66)]
+    expect(nearestOwedEvent(events, 66, 1000, OFFTEMPO_WINDOW)).toBe(events[1])
+  })
+
+  it('finds nothing for a key struck in a rest', () => {
+    expect(nearestOwedEvent([owed(0, 60), owed(3000, 60)], 61, 1500, OFFTEMPO_WINDOW)).toBeNull()
   })
 })
