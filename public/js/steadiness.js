@@ -65,9 +65,10 @@ export function writtenBetween(from, to) {
 // the caller's, handed back with the verdict on the interval that ends on it.
 //
 // Every call returns the verdicts it reached, as { ref, ratio, hole, entry,
-// pace }: the interval as a multiple of the reference, whether that is a hole,
-// whether it crosses a bar line — the join into the bar `ref` is in — and the
-// reference itself, in ms per whole note. A bar
+// pace, ms }: the interval as a multiple of the reference, whether that is a
+// hole, whether it crosses a bar line — the join into the bar `ref` is in —
+// the reference itself, in ms per whole note, and how long the interval took
+// (what it cost past the pace is noteLogAnalysis' excess). A bar
 // entered from the one before also says so as it is entered, judged or not:
 // { ref, entry, joined: true, ratio: null } — with a wrong note on the way in,
 // never judged at all.
@@ -91,6 +92,7 @@ export function createSteadiness() {
       hole: isHole(interval.ms, expected),
       entry: interval.entry,
       pace: reference,
+      ms: interval.ms,
     })
   }
 

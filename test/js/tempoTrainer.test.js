@@ -48,6 +48,22 @@ describe('graduated plan', () => {
     expect(p.nextBpm()).toBe(100 + BPM_STEP)
   })
 
+  // What the band says under the run's verdict (app.js): the step the run
+  // took the tempo, up or down, and nothing for a run that moved nothing.
+  it('says how far the last run moved the tempo', () => {
+    const p = plan()
+    play(p, CLEAN)
+    expect(p.moved).toBe(0)
+    play(p, CLEAN)
+    play(p, CLEAN)
+    expect(p.moved).toBe(BPM_STEP)
+    for (let i = 0; i < STREAK; i++) play(p, MISSED)
+    expect(p.moved).toBe(-BPM_STEP)
+    // Never below where it started: nothing more to step down.
+    for (let i = 0; i < STREAK; i++) play(p, MISSED)
+    expect(p.moved).toBe(0)
+  })
+
   it('starts the streak over on a failed run', () => {
     const p = plan()
     play(p, CLEAN)
@@ -107,6 +123,8 @@ describe('random plan', () => {
     }
     expect(drawn).toEqual([70, 85, 70, 85, 70, 85])
     expect(p.bpm).toBe(100)
+    // A run at 70 % moved nothing: the band announces no step.
+    expect(p.moved).toBe(0)
   })
 
   it('covers the whole spread', () => {
@@ -168,6 +186,8 @@ describe('the loop', () => {
     // Three clean runs raised the tempo; the aborted fifth run ended the loop.
     expect(played).toEqual([100, 100, 100, 105, 105])
     expect(onRun).toHaveBeenCalledTimes(4)
+    // Each with the run's result and whether it was clean.
+    expect(onRun).toHaveBeenLastCalledWith({ verdict: { ...CLEAN, bpm: 105 } }, true)
     expect(await done).toMatchObject({ count: 4, cleanCount: 4, fromBpm: 100, toBpm: 105, bestStreak: 4, earnedBpm: null })
   })
 

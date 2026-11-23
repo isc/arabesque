@@ -13,9 +13,12 @@ import {
   isNoteActiveForHands,
   sourceMeasuresToResetOnEntry,
   svgNoteheadFor,
+  handOfNote,
+  wrongKeyNames,
 } from './noteExtraction.js'
 import {
   findMatchingEvent,
+  nearestOwedEvent,
   chargesStrayStrike,
   expectedEvent,
   advanceEvent,
@@ -83,6 +86,17 @@ let currentOffTempoWindowMs = DEFAULT_OFFTEMPO_WINDOW_MS
 // verdict is re-applied by repaintMarks() and taken off by clearMarks(), both
 // of which look the notehead up again.
 let markedNotes = new Map()
+// The run before's verdict, as [noteData, notehead] pairs, while it stays up
+// through this run's count-in: what went wrong is what the player reads before
+// going again, and wiping it as ▶ was pressed — or as a loop started its next
+// run — left a second of red to read it in. It goes a window short of the first
+// beat, the earliest this run's first strike can land; the noteheads are
+// looked up at ▶, so that moment only takes the classes off.
+let fadingMarks = []
+let onAttemptStartedCb = null
+// What went wrong in the run, fault by fault, for the verdict the band says of
+// it (attemptVerdict.js).
+let faults = []
 
 export function initStrictPlaythrough() {
   return {
@@ -159,6 +173,8 @@ function start({
   onComplete,
   onProgress,
   onCountIn,
+  // The music is about to come in: the run before is behind the player.
+  onAttemptStarted,
 }) {
   if (isRunning || !osmdInstance || !allNotes?.length) {
     // Nothing to run: over before it began, and said so the way any aborted
@@ -168,13 +184,17 @@ function start({
   }
 
   prepareClick()
-  // Off with the last run's verdict, against the score it was earned on, before
-  // this run adopts its own.
-  clearMarks()
+  // The last run's verdict stays up, against the score it was earned on, until
+  // this run is about to come in (fadingMarks).
+  wipeFadingMarks()
+  fadingMarks = [...markedNotes.keys()].map((noteData) => [noteData, svgNoteheadFor(activeOsmd, noteData)])
+  markedNotes = new Map()
+  faults = []
   activeOsmd = osmdInstance
   onCompleteCb = onComplete
   onProgressCb = onProgress
   onCountInCb = onCountIn
+  onAttemptStartedCb = onAttemptStarted
   currentToleranceMs = tolerance
   currentOffTempoWindowMs = offTempoWindow
   isRunning = true
@@ -262,6 +282,10 @@ function start({
     }, atMs))
   }
   timeouts.push(setTimeout(() => onCountInCb?.({ beat: 0, beats: countInBeats }), countInMs))
+  timeouts.push(setTimeout(() => {
+    wipeFadingMarks()
+    onAttemptStartedCb?.()
+  }, Math.max(0, countInMs - offTempoWindow)))
 
   if (osmdInstance.cursor) {
     timeouts.push(...scheduleCursorAdvances(osmdInstance.cursor, cursorTimes, { skipSteps: cursorSkipSteps }))
@@ -329,9 +353,15 @@ function unmarkNote(event) {
   markedNotes.delete(event.noteData)
 }
 
+// A fault of the run, at the note `event` asked for.
+function addFault(kind, event, more = {}) {
+  faults.push({ kind, bar: event.sourceMeasureIndex, hand: handOfNote(event.noteData), ...more })
+}
+
 function missEvent(event) {
   event.status = EVENT_STATUS.MISSED
   stats.missed++
+  addFault('missed', event)
   markNote(event, CLS_MISSED)
   onProgressCb?.({ ...stats })
 }
@@ -349,6 +379,11 @@ function handleNoteOn(midiNumber) {
     // count-in belongs to no measure and is only counted in the run's stats.
     const run = runAt(now)
     if (run) run.wrongNotes++
+    // Put against the note it was most likely meant for; with none due, a key
+    // in a rest or the count-in, against its bar if it has one.
+    const owed = nearestOwedEvent(pendingEvents, midiNumber, now, currentOffTempoWindowMs)
+    if (owed) addFault('wrong', owed, wrongKeyNames(owed.noteData, midiNumber))
+    else faults.push({ kind: 'wrong', bar: run?.sourceMeasureIndex ?? null })
     onProgressCb?.({ ...stats })
     return false
   }
@@ -362,8 +397,10 @@ function handleNoteOn(midiNumber) {
     markNote(event, CLS_PLAYED)
   } else {
     // Single offtempo status; early vs late is captured in the stats only.
-    if (classification === CLASSIFICATION.OFFTEMPO_EARLY) stats.offTempoEarly++
+    const early = classification === CLASSIFICATION.OFFTEMPO_EARLY
+    if (early) stats.offTempoEarly++
     else stats.offTempoLate++
+    addFault(early ? 'early' : 'late', event)
     markNote(event, CLS_OFFTEMPO)
   }
   onProgressCb?.({ ...stats })
@@ -416,6 +453,8 @@ function measureAttempts() {
 function teardown() {
   for (const id of timeouts) clearTimeout(id)
   timeouts = []
+  // A run stopped in its count-in: the verdict before it goes with it.
+  wipeFadingMarks()
   if (activeOsmd?.cursor) {
     activeOsmd.cursor.hide()
     activeOsmd.cursor.reset()
@@ -436,11 +475,21 @@ function teardown() {
 // Wipes the last run's marks off the score — what teardown() leaves for the
 // player to read, and what has no business staying once another mode is on.
 function clearMarks() {
+  wipeFadingMarks()
   for (const noteData of markedNotes.keys()) {
     svgNoteheadFor(activeOsmd, noteData)?.classList.remove(...STRICT_CLASSES)
   }
   markedNotes.clear()
   activeOsmd = null
+}
+
+// The run before's verdict off the score — but for a note this run has already
+// given a verdict of its own.
+function wipeFadingMarks() {
+  for (const [noteData, notehead] of fadingMarks) {
+    if (!markedNotes.has(noteData)) notehead?.classList.remove(...STRICT_CLASSES)
+  }
+  fadingMarks = []
 }
 
 // Puts the last run's verdict back on a score that has just been redrawn.
@@ -465,7 +514,7 @@ function finish(aborted) {
   teardown()
   // The verdict — what the run is judged by — travels as one value, so what
   // stores it need not know its fields.
-  onCompleteCb?.({ verdict: { ...finalStats, bpm: runBpm }, aborted, measures, wholeScore, completed })
+  onCompleteCb?.({ verdict: { ...finalStats, bpm: runBpm }, aborted, measures, wholeScore, completed, faults })
 }
 
 function stop() {

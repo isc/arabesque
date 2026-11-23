@@ -993,8 +993,7 @@ a:hover { text-decoration: underline; }
    above, to within two units, so under the pointer or a finger on and off looked
    the same and a click that turned one off seemed to do nothing. */
 .pt-band-button.is-playing,
-.pt-band-button[aria-pressed="true"],
-.pt-ladder__step.is-now { background: var(--pt-band); color: var(--pt-text-inverse); }
+.pt-band-button[aria-pressed="true"] { background: var(--pt-band); color: var(--pt-text-inverse); }
 /* What the band advises doing on the passage under way (🎹 on a stall at the
    bar line): ringed, until it is pressed. */
 .pt-band-button.is-advised { box-shadow: inset 0 0 0 2px var(--pt-band); }
@@ -1095,8 +1094,6 @@ a:hover { text-decoration: underline; }
   min-height: var(--pt-space-10);
 }
 .pt-context__row { display: flex; align-items: center; gap: var(--pt-space-3); flex: 1 1 auto; min-width: 0; min-height: var(--pt-bar-control); }
-/* Kept in the band for the room it takes, with nothing to read (score.html). */
-.pt-context__row.is-silent { visibility: hidden; }
 /* Playback is not a mode, so it takes the app's accent rather than a mode colour. */
 .pt-context--training { --pt-band: var(--pt-mode-training); --pt-band-bg: var(--pt-mode-training-bg); }
 .pt-context--strict { --pt-band: var(--pt-mode-strict); --pt-band-bg: var(--pt-mode-strict-bg); }
@@ -1128,35 +1125,157 @@ a:hover { text-decoration: underline; }
   .pt-countin__beat { transition: none; }
 }
 
-/* The steps a reinforcement takes a passage through (ladder.js), in the
-   training band: those behind it ticked, the one being played filled with the
-   band's colour as a toggle that is on, those ahead faint. */
+/* The steps a reinforcement takes a passage through (ladder.js), under the
+   name of the one being played: a pip each, those behind it and it in the
+   band's colour, it wider, those ahead faint. */
 .pt-ladder {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
-  gap: var(--pt-space-1);
-  margin: 0;
+  gap: 3px;
+  margin: 2px 0 0;
   padding: 0;
   list-style: none;
 }
 .pt-ladder__step {
+  width: 14px;
+  height: 4px;
   margin: 0;
-  padding: 2px var(--pt-space-2);
-  border: 1px solid color-mix(in srgb, var(--pt-band) 30%, transparent);
   border-radius: var(--pt-radius-pill);
-  font-size: var(--pt-font-size-xs);
-  font-weight: 600;
-  white-space: nowrap;
-  opacity: 0.55;
+  background: color-mix(in srgb, var(--pt-band) 25%, transparent);
 }
-.pt-ladder__step.is-done { opacity: 1; }
-.pt-ladder__step.is-done::before { content: "✓ "; }
-.pt-ladder__step.is-now { opacity: 1; border-color: var(--pt-band); }
-/* What the step asks for has a line of its own under the row: on the row's
-   line when it fits, a short one and a long one would move the score under the
-   player's eyes from one repetition to the next. */
-.pt-context.has-ladder .pt-context__row { flex-basis: 100%; }
+.pt-ladder__step.is-done { background: var(--pt-band); }
+.pt-ladder__step.is-now { width: 26px; background: var(--pt-band); }
+
+/* The practice band's board (score.html), read from the piano bench: tiles of
+   a small label over a large value, as a scoreboard is, then what the last go
+   at the passage came to — the widest of them, a card of its own. */
+.pt-board {
+  display: flex;
+  align-items: center;
+  gap: var(--pt-space-5);
+  flex: 1 1 300px;
+  min-width: 0;
+}
+.pt-tile {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+  flex: 0 0 auto;
+}
+.pt-tile .pt-eyebrow {
+  font-weight: 700;
+  white-space: nowrap;
+  color: color-mix(in srgb, var(--pt-band) 80%, var(--pt-text));
+}
+.pt-tile__value {
+  font-size: var(--pt-font-size-xl);
+  font-weight: 700;
+  line-height: 1.15;
+  color: var(--pt-text);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+/* A goal's dots, as the score draws them over the passage (repeatIndicatorClass):
+   filled once earned, red while the go under way is spoiled. */
+.pt-dots { display: flex; gap: 6px; padding-block: 5px; }
+.pt-dots__dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid var(--pt-band);
+}
+.pt-dots__dot.filled { background: var(--pt-band); }
+.pt-dots__dot.spoiled {
+  border-color: var(--pt-note-missed);
+  background: color-mix(in srgb, var(--pt-note-missed) 22%, transparent);
+}
+
+/* The verdict and the hint before it take the same slot, of one height
+   whatever they say — the verdict's three lines, each cut short rather than
+   wrapped, counted in the sizes they are set in so a larger text setting
+   keeps them — so a verdict coming or going never moves the score under the
+   player's eyes. */
+.pt-verdict,
+.pt-board__hint {
+  flex: 1 1 260px;
+  min-width: 0;
+  height: calc(var(--pt-font-size-lg) * 1.2 + var(--pt-font-size-sm) * 1.25 * 2 + var(--pt-space-1) * 2);
+}
+.pt-verdict {
+  display: flex;
+  align-items: center;
+  gap: var(--pt-space-3);
+  padding: var(--pt-space-1) var(--pt-space-3);
+  background: var(--pt-surface);
+  border-radius: var(--pt-radius-md);
+  border-left: 4px solid var(--pt-verdict);
+  box-shadow: var(--pt-shadow-sm);
+  color: var(--pt-text);
+  transition: opacity var(--pt-transition-med);
+  /* Each verdict is a new element (score.html): it comes in tinted, which
+     the eye catches at the edge of its field while the hands are on the keys. */
+  animation: pt-verdict-in 900ms ease-out;
+}
+.pt-verdict.is-clean { --pt-verdict: var(--pt-success); }
+.pt-verdict.is-failed { --pt-verdict: var(--pt-error); }
+/* The next go is under way: the verdict stays to be read, behind it. */
+.pt-verdict.is-stale { opacity: 0.45; }
+.pt-verdict__icon {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--pt-verdict);
+  color: var(--pt-text-inverse);
+  font-size: var(--pt-font-size-lg);
+  font-weight: 700;
+}
+.pt-verdict__text { display: flex; flex-direction: column; min-width: 0; line-height: 1.25; }
+.pt-verdict__text > * { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pt-verdict__headline { font-size: var(--pt-font-size-lg); line-height: 1.2; }
+.pt-verdict__detail { font-size: var(--pt-font-size-sm); color: var(--pt-text-muted); }
+.pt-verdict__call { font-size: var(--pt-font-size-sm); font-weight: 600; color: var(--pt-band); }
+@keyframes pt-verdict-in {
+  from { background: color-mix(in srgb, var(--pt-verdict) 28%, var(--pt-surface)); }
+  to { background: var(--pt-surface); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pt-verdict { animation: none; transition: none; }
+}
+.pt-board__hint { display: flex; align-items: center; }
+.pt-board__hint > span {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+  line-height: 1.3;
+}
+/* Kept in the band for the room it takes, with nothing to read (score.html). */
+.pt-board__hint.is-silent { visibility: hidden; }
+/* On a phone the tiles share a line of three cells and the verdict takes the
+   line under them: the same two lines whatever the tiles say, where wrapping
+   them as they came let a longer step name push a tile onto a line of its own
+   (and the score down a line) from one repetition to the next. */
+@media (max-width: 600px) {
+  .pt-board {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, max-content));
+    gap: var(--pt-space-2) var(--pt-space-4);
+  }
+  .pt-tile { min-width: 0; }
+  .pt-tile .pt-eyebrow,
+  .pt-tile__value { overflow: hidden; text-overflow: ellipsis; }
+  .pt-verdict, .pt-board__hint { grid-column: 1 / -1; }
+}
+
+/* ▶ counts the count-in on itself, where the eye already is: its label gives
+   way to the beats, in a button that holds its width either way. */
+.pt-transport { min-width: 7.5rem; justify-content: center; }
+.pt-transport.is-counting .pt-transport__label { display: none; }
+.pt-transport .pt-countin { display: flex; align-items: center; gap: var(--pt-space-2); }
 /* =============================================================================
    Popover (settings menu)
    ========================================================================== */

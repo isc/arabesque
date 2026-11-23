@@ -38,6 +38,10 @@ export function createTempoPlan({ mode, bpm, random = Math.random }) {
   let current = bpm
   let cleanStreak = 0
   let failStreak = 0
+  // How far the last run moved the tempo of a graduated climb, in BPM: up a
+  // step on a streak, down one after as many runs spoiled, and nothing in
+  // random mode, whose tempi are drawn rather than earned.
+  let moved = 0
 
   function nextBpm() {
     if (mode !== RANDOM) return current
@@ -49,6 +53,7 @@ export function createTempoPlan({ mode, bpm, random = Math.random }) {
   // Files a run and moves the tempo; says whether the run was clean.
   function record(verdict) {
     const clean = isCleanRun(verdict)
+    const before = current
     runs.push({ bpm: verdict.bpm, clean, verdict })
     if (mode === GRADUATED) {
       if (clean) {
@@ -66,6 +71,7 @@ export function createTempoPlan({ mode, bpm, random = Math.random }) {
         failStreak = 0
       }
     }
+    moved = current - before
     return clean
   }
 
@@ -84,6 +90,9 @@ export function createTempoPlan({ mode, bpm, random = Math.random }) {
     // The step a graduated climb has just earned, before any run is played at
     // it. A loop stopped there shows only runs at the old tempo, which reads as
     // a streak that earned nothing (feedback 9337d522). Null in random mode.
+    get moved() {
+      return moved
+    },
     get earnedBpm() {
       const last = runs[runs.length - 1]
       return mode === GRADUATED && last && current > last.bpm ? current : null
@@ -112,7 +121,7 @@ export function summarizeRuns(runs) {
 // between them for the hands to come back to the start, until stop() — or
 // until a run is aborted, which is how the engine says the player stopped it
 // or clicked elsewhere. `runOnce(bpm)` plays one run and resolves with the
-// engine's result; `onRun` hears that a run has just been judged.
+// engine's result; `onRun(result, clean)` hears that it has just been judged.
 export function createTempoTrainer({ plan, runOnce, onRun, pauseMs = 1000 }) {
   let stopped = false
   let pause = null
@@ -121,8 +130,8 @@ export function createTempoTrainer({ plan, runOnce, onRun, pauseMs = 1000 }) {
     while (!stopped) {
       const result = await runOnce(plan.nextBpm())
       if (result.aborted || stopped) break
-      plan.record(result.verdict)
-      onRun?.()
+      const clean = plan.record(result.verdict)
+      onRun?.(result, clean)
       await new Promise((resolve) => {
         pause = { id: setTimeout(resolve, pauseMs), resolve }
       })

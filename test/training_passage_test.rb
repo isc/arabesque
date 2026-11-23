@@ -57,6 +57,31 @@ class TrainingPassageTest < CapybaraTestBase
     assert_no_selector 'svg circle.repeat-indicator.filled'
   end
 
+  # A repetition over, the band says what it came to — the wrong note and
+  # where, which a dot turning red never said — and keeps it up, faded, once
+  # the next repetition is under way.
+  def test_the_band_says_why_a_repetition_was_spoiled
+    upload_two_measures
+    enter_training_mode
+    pick_passage(1, 2)
+
+    play_note('C4')
+    wait_for_training_cursor(2)
+    play_note('E4')
+    play_note('D4')
+    wait_for_training_cursor(1)
+    verdict = find('[data-testid=board-verdict].is-failed')
+    assert_equal '1 fausse note', verdict.find('.pt-verdict__headline').text
+    assert_equal 'Mes. 2, main droite : mi au lieu de ré', verdict.find('.pt-verdict__detail').text
+    assert_selector '[data-testid=board-goal] .pt-dots__dot.filled', count: 0
+
+    play_note('C4')
+    assert_selector '[data-testid=board-verdict].is-stale'
+    play_note('D4')
+    assert_selector '[data-testid=board-verdict].is-clean:not(.is-stale)', text: 'Propre'
+    assert_selector '[data-testid=board-goal] .pt-dots__dot.filled', count: 1
+  end
+
   # The passage changes what a repetition is; it does not change what the
   # journal stores. Each measure is still filed on its own merits, or the
   # measures the app offers to reinforce would follow the passage rather than
