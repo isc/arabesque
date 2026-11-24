@@ -106,9 +106,10 @@ export function advanceEvent(event, delta, tolerance) {
   return event.classification
 }
 
-// The note a wrong key at `now` was most likely meant for, to name it by:
+// The note a wrong key at `now` was most likely meant for, to put it against:
 // of the events due within the off-tempo window either side, settled or not,
-// the nearest in pitch. Null with none due — a key struck in a rest.
+// the nearest in pitch — the note itself, for a key struck twice. Null with
+// none due — a key struck in a rest.
 export function nearestOwedEvent(events, midiNumber, now, offTempoWindow) {
   let nearest = null
   for (const event of events) {

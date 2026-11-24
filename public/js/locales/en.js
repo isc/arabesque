@@ -69,6 +69,7 @@ export default {
     rounds: 'Rounds',
     tempoUp: '{streak} clean in a row: up to {bpm} BPM.',
     tempoDown: '{streak} spoiled in a row: back down to {bpm} BPM.',
+    paused: 'Paused, tempo and streak kept: ▶ takes the loop up again, ⏹ ends it.',
     ready: {
       graduated: 'Ready: {streak} clean runs in a row raise the tempo by {step} BPM.',
       random: 'Ready: each run takes another tempo, from {from} to {to}% of yours.',
@@ -76,7 +77,7 @@ export default {
   },
   // What a go at a passage came to, said in the band between two goes
   // (attemptVerdict.js): a headline, and where under it. `bar` and `beat`
-  // place a fault, `beatShort` in a list of them.
+  // place a fault.
   verdict: {
     clean: 'Clean',
     spoiled: 'Go again',
@@ -85,11 +86,9 @@ export default {
     earlyOne: '1 early note',
     early: '{n} early notes',
     bar: 'bar {n}',
-    beat: 'beat {n}',
-    beatShort: 'b. {n}',
+    beat: 'b. {n}',
     countIn: 'in the count-in',
     at: '{place}: {what}',
-    instead: '{played} instead of {expected}',
     stop: 'stopped {s} s',
     upTo: 'up to {s} s',
     more: 'and {n} more',
@@ -308,6 +307,7 @@ export default {
     pauseBtn: '⏸ Pause',
     startBtn: '▶ Start',
     resumeBtn: '▶ Resume',
+    endLoopBtn: '⏹ Finish',
     tempoBpm: 'Tempo in BPM',
     tempoDown: 'Decrease the tempo',
     tempoUp: 'Increase the tempo',

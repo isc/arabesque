@@ -72,7 +72,7 @@ class TrainingPassageTest < CapybaraTestBase
     wait_for_training_cursor(1)
     verdict = find('[data-testid=board-verdict].is-failed')
     assert_equal '1 fausse note', verdict.find('.pt-verdict__headline').text
-    assert_equal 'Mes. 2, main droite : mi au lieu de ré', verdict.find('.pt-verdict__detail').text
+    assert_equal 'Mes. 2 MD', verdict.find('.pt-verdict__detail').text
     assert_selector '[data-testid=board-goal] .pt-dots__dot.filled', count: 0
 
     play_note('C4')

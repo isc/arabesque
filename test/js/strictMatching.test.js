@@ -358,7 +358,7 @@ describe('what a stray strike is charged to', () => {
   })
 })
 
-// What a wrong key is named against in the band's verdict (attemptVerdict.js).
+// The note a wrong key is put against: marked red, placed by the band's verdict.
 describe('nearestOwedEvent', () => {
   const owed = (timeMs, midiNumber) => expectedEvent({ timeMs, sequence: [midiNumber], openUntilMs: timeMs + OFFTEMPO_WINDOW, noteData: { midiNumber } })
 

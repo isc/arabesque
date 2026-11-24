@@ -263,7 +263,7 @@ class StrictPlaythroughTest < CapybaraTestBase
 
   # The tempo trainer: the passage between two clicked measures, run after run
   # with a pause between them, the tempo moving with the results — and a
-  # summary of the runs when ⏸ ends it.
+  # summary of the runs when ⏹ ends it.
   def test_loop_replays_the_passage_and_sums_the_runs_up
     load_score('two-measures.xml', 2)
     start_strict_mode
@@ -293,6 +293,7 @@ class StrictPlaythroughTest < CapybaraTestBase
       trigger_click_on('⏸ Pause')
     end
 
+    click_on '⏹ Terminer'
     assert_text 'Boucle terminée'
     assert_text '1 passage'
     assert_text 'à 120 BPM'
@@ -326,6 +327,7 @@ class StrictPlaythroughTest < CapybaraTestBase
 
       trigger_click_on('⏸ Pause')
     end
+    click_on '⏹ Terminer'
 
     assert_selector 'li', exact_text: '✅ 100 % à 120 BPM'
     assert_selector 'li', exact_text: '❌ 100 % à 120 BPM (1 fausse note)'
@@ -347,7 +349,7 @@ class StrictPlaythroughTest < CapybaraTestBase
       advance_clock(END_OF_RUN_MS)
       verdict = find('[data-testid=board-verdict].is-failed', wait: 2)
       assert_equal '1 fausse note · 1 note manquée', verdict.find('.pt-verdict__headline').text
-      assert_equal 'Mes. 1, main droite : fa♯ au lieu de fa', verdict.find('.pt-verdict__detail').text
+      assert_equal 'Mes. 1 MD', verdict.find('.pt-verdict__detail').text
 
       # The pause, then the next run counting in: the verdict and its marks
       # are still up.
@@ -360,6 +362,71 @@ class StrictPlaythroughTest < CapybaraTestBase
       assert_selector '[data-testid=board-verdict].is-stale', wait: 2
       assert_no_selector 'svg .vf-notehead.missed-note'
 
+      trigger_click_on('⏸ Pause')
+    end
+  end
+
+  # ⏸ in a loop is a breath between two goes, not the end of the work
+  # (feedback 7f523e16): the run under way goes unjudged, and ▶ takes the loop
+  # up at the streak and tempo it had reached. What it was set up with stays as
+  # it was until ⏹ ends it.
+  def test_a_paused_loop_goes_on_where_it_was
+    load_score('two-measures.xml', 2)
+    start_strict_mode
+    pick_passage(1, 1)
+
+    with_clock_control do
+      trigger_click_on('▶ Démarrer')
+      advance_clock(COUNT_IN_MS)
+      assert_selector 'svg .vf-notehead.expected-note', count: 1, wait: 4
+      play_chord(%w[C4])
+      advance_clock(END_OF_RUN_MS)
+      assert_loop_board run: 1, streak: 1, verdict: 'Propre'
+
+      # Paused in the next run's count-in.
+      advance_clock(1000)
+      assert_selector '.pt-countin__beat.is-now', text: '1', wait: 2
+      trigger_click_on('⏸ Pause')
+    end
+
+    assert_text '▶ Reprendre'
+    assert_no_text 'Boucle terminée'
+    assert_selector '[data-testid=board-goal] .pt-dots__dot.filled', count: 1
+    assert_field 'Main gauche', type: 'checkbox', disabled: true
+    assert_no_button '🔁 Boucle'
+
+    with_clock_control do
+      trigger_click_on('▶ Reprendre')
+      advance_clock(COUNT_IN_MS)
+      assert_selector 'svg .vf-notehead.expected-note', count: 1, wait: 4
+      play_chord(%w[C4])
+      advance_clock(END_OF_RUN_MS)
+      assert_loop_board run: 2, streak: 2, verdict: 'Propre'
+      trigger_click_on('⏸ Pause')
+    end
+
+    click_on '⏹ Terminer'
+    assert_text 'Boucle terminée'
+    assert_text '2 passages'
+    assert_button '🔁 Boucle'
+  end
+
+  # A wrong key turns the note it was meant for red, as free play does: a run
+  # with two wrong notes used to end all green, the score not saying where
+  # they were. Played right after, the note stays red.
+  def test_a_wrong_key_leaves_the_note_it_was_meant_for_red
+    load_score('steady-quavers.xml', 16)
+    start_strict_mode
+    pick_passage(1, 1)
+
+    with_clock_control do
+      trigger_click_on('▶ Démarrer')
+      # F♯4 brushed with E4, the third quaver: F4, the fourth, is the nearest.
+      play_evenly(BAR_ONE.dup.tap { |notes| notes[2] = %w[E4 F#4] }, first_after: COUNT_IN_MS, gap: QUAVER_MS)
+      advance_clock(END_OF_RUN_MS)
+      assert_loop_board run: 1, streak: 0, verdict: '1 fausse note'
+      assert_selector 'svg .vf-notehead.missed-note', count: 1
+      assert_selector 'svg .vf-notehead.played-note', count: 7
       trigger_click_on('⏸ Pause')
     end
   end

@@ -14,7 +14,6 @@ import {
   sourceMeasuresToResetOnEntry,
   svgNoteheadFor,
   handOfNote,
-  wrongKeyNames,
 } from './noteExtraction.js'
 import {
   findMatchingEvent,
@@ -354,8 +353,19 @@ function unmarkNote(event) {
 }
 
 // A fault of the run, at the note `event` asked for.
-function addFault(kind, event, more = {}) {
-  faults.push({ kind, bar: event.sourceMeasureIndex, hand: handOfNote(event.noteData), ...more })
+function addFault(kind, event) {
+  faults.push({ kind, bar: event.sourceMeasureIndex, hand: handOfNote(event.noteData) })
+}
+
+// A wrong key, put against the note it was meant for: that note turns red,
+// as free play's do (musicxml.js, FUMBLED). Counted and nothing more, a run
+// with two wrong notes ended all green, the score not saying where they were.
+// A note still owed waits to be played to turn red — the green it would get
+// would say it went clean.
+function fumble(event) {
+  addFault('wrong', event)
+  event.fumbled = true
+  if (event.status !== EVENT_STATUS.PENDING) markNote(event, CLS_MISSED)
 }
 
 function missEvent(event) {
@@ -382,7 +392,7 @@ function handleNoteOn(midiNumber) {
     // Put against the note it was most likely meant for; with none due, a key
     // in a rest or the count-in, against its bar if it has one.
     const owed = nearestOwedEvent(pendingEvents, midiNumber, now, currentOffTempoWindowMs)
-    if (owed) addFault('wrong', owed, wrongKeyNames(owed.noteData, midiNumber))
+    if (owed) fumble(owed)
     else faults.push({ kind: 'wrong', bar: run?.sourceMeasureIndex ?? null })
     onProgressCb?.({ ...stats })
     return false
@@ -392,17 +402,16 @@ function handleNoteOn(midiNumber) {
   // More of the ornament to come, or a trill still alternating past the
   // realization it was credited for: the note is taken, nothing is settled yet.
   if (!classification) return true
-  if (classification === CLASSIFICATION.HIT) {
-    stats.hit++
-    markNote(event, CLS_PLAYED)
-  } else {
+  const hit = classification === CLASSIFICATION.HIT
+  if (hit) stats.hit++
+  else {
     // Single offtempo status; early vs late is captured in the stats only.
     const early = classification === CLASSIFICATION.OFFTEMPO_EARLY
     if (early) stats.offTempoEarly++
     else stats.offTempoLate++
     addFault(early ? 'early' : 'late', event)
-    markNote(event, CLS_OFFTEMPO)
   }
+  markNote(event, event.fumbled ? CLS_MISSED : hit ? CLS_PLAYED : CLS_OFFTEMPO)
   onProgressCb?.({ ...stats })
   return true
 }
