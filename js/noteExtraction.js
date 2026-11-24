@@ -1,8 +1,8 @@
-import { barCounter, fingeringKey, legacyFingeringKey, nextNoteIndex } from './fingeringKeys.js?v=c43a07152313'
-import { t } from './i18n.js?v=c43a07152313'
-import { withHands } from './utils.js?v=c43a07152313'
-import { GRACE_NOTE_OFFSET_WN } from './playbackTiming.js?v=c43a07152313'
-import { POSITION_EPSILON, roundPosition } from './noteLogAnalysis.js?v=c43a07152313'
+import { barCounter, fingeringKey, legacyFingeringKey, nextNoteIndex } from './fingeringKeys.js?v=2e7fe071d07b'
+import { t } from './i18n.js?v=2e7fe071d07b'
+import { withHands } from './utils.js?v=2e7fe071d07b'
+import { GRACE_NOTE_OFFSET_WN } from './playbackTiming.js?v=2e7fe071d07b'
+import { POSITION_EPSILON, roundPosition } from './noteLogAnalysis.js?v=2e7fe071d07b'
 
 // Ornament types from OSMD
 const OrnamentEnum = {
@@ -138,35 +138,6 @@ export function noteName({ note }) {
   const pitch = note?.pitch
   const letter = noteLetters()[getDiatonicIndex(pitch?.fundamentalNote)]
   return letter ? `${letter}${ACCIDENTAL_SIGNS[pitch.accidental] ?? ''}` : ''
-}
-
-// The black keys most often written as flats: mi♭ and si♭, where do♯ and fa♯
-// are the usual sharps. The fifth, sol♯ or la♭, goes the way the note owed is
-// written.
-const BLACK_KEY_FLATS = new Set([3, 10])
-
-// The note owed and the key played for it instead, named so the slip reads as
-// what it was: "la♮" for "la♭", the accidental forgotten, rather than a
-// spelling the staff never uses. A white key goes by its letter — with a ♮
-// where the note owed is that letter altered — and a black key by the letter
-// owed, sharpened or flattened, when it is one, or else by its usual name. An
-// octave apart or more, the letters alone would say nothing, so both carry it.
-export function wrongKeyNames(noteData, midiNumber) {
-  const letters = noteLetters()
-  const index = getDiatonicIndex(noteData.note?.pitch?.fundamentalNote)
-  const pitchClass = ((midiNumber % 12) + 12) % 12
-  const offset = index < 0 ? null : ((pitchClass - DIATONIC_NOTES[index] + 18) % 12) - 6
-  const white = DIATONIC_NOTES.indexOf(pitchClass)
-  const altered = index >= 0 && noteData.midiNumber % 12 !== DIATONIC_NOTES[index]
-  let played
-  if (white >= 0) played = letters[white] + (white === index && altered ? '♮' : '')
-  else if (offset === 1 || offset === -1) played = letters[index] + (offset > 0 ? '♯' : '♭')
-  else {
-    const flat = BLACK_KEY_FLATS.has(pitchClass) || (pitchClass === 8 && noteData.note?.pitch?.accidental === AccidentalEnum.FLAT)
-    played = flat ? `${letters[DIATONIC_NOTES.indexOf(pitchClass + 1)]}♭` : `${letters[DIATONIC_NOTES.indexOf(pitchClass - 1)]}♯`
-  }
-  if (Math.abs(midiNumber - noteData.midiNumber) < 12) return { expected: noteName(noteData), played }
-  return { expected: spelledNote(noteData), played: `${played}${octaveOfMidi(midiNumber)}` }
 }
 
 // Check if an accidental is explicitly specified (not undefined or NONE)

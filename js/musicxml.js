@@ -12,18 +12,17 @@ import {
   handOfNote,
   handOfStaff,
   isInnerStaff,
-  wrongKeyNames,
-} from './noteExtraction.js?v=c43a07152313'
-import { scrollSystemIntoView, isUnderStickyBars, nextPaint } from './utils.js?v=c43a07152313'
-import { placeChordFingerings } from './chordFingerings.js?v=c43a07152313'
-import { arrayBufferToXml, isMusicXml } from './mxlLoader.js?v=c43a07152313'
-import { stripPlaybackTempoMarks } from './tempoMarks.js?v=c43a07152313'
-import { recordError } from './errorLog.js?v=c43a07152313'
-import { REINFORCEMENT_CLEAN_PASSES } from './reinforcement.js?v=c43a07152313'
-import { POSITION_EPSILON, beatIndex, beatStartOf, crotchetsPerMinute, excess } from './noteLogAnalysis.js?v=c43a07152313'
-import { createSteadiness } from './steadiness.js?v=c43a07152313'
-import { handsKey, handsOfKey } from './hands.js?v=c43a07152313'
-import { climbOn, isGuided, ladderOf, rungs, startOfTurn, stepOf } from './ladder.js?v=c43a07152313'
+} from './noteExtraction.js?v=2e7fe071d07b'
+import { scrollSystemIntoView, isUnderStickyBars, nextPaint } from './utils.js?v=2e7fe071d07b'
+import { placeChordFingerings } from './chordFingerings.js?v=2e7fe071d07b'
+import { arrayBufferToXml, isMusicXml } from './mxlLoader.js?v=2e7fe071d07b'
+import { stripPlaybackTempoMarks } from './tempoMarks.js?v=2e7fe071d07b'
+import { recordError } from './errorLog.js?v=2e7fe071d07b'
+import { REINFORCEMENT_CLEAN_PASSES } from './reinforcement.js?v=2e7fe071d07b'
+import { POSITION_EPSILON, beatIndex, beatStartOf, crotchetsPerMinute, excess } from './noteLogAnalysis.js?v=2e7fe071d07b'
+import { createSteadiness } from './steadiness.js?v=2e7fe071d07b'
+import { handsKey, handsOfKey } from './hands.js?v=2e7fe071d07b'
+import { climbOn, isGuided, ladderOf, rungs, startOfTurn, stepOf } from './ladder.js?v=2e7fe071d07b'
 
 // The score on the stand: the sheet OSMD holds, and the note model built from
 // it. Replaced as a sheet comes in (renderMusicXML) and as it is drawn
@@ -1088,7 +1087,7 @@ function measureNoteBounds(measureIndex) {
   const notes = score.allNotes[measureIndex]?.notes.filter(inFragment)
   if (!notes?.length) return null
 
-  const drawn = notesBySystem(notes)[0]
+  const [drawn] = notesBySystem(notes).values()
   const noteElements = drawn.map((n) => svgNote(n.note))
   const svg = noteElements[0]?.ownerSVGElement
   if (!svg) return null
@@ -1278,7 +1277,7 @@ function paintFragment(first, last) {
   for (let i = first; i <= last; i++) {
     const owed = score.allNotes[i]?.notes.filter(isNoteOwed) ?? []
     if (owed.length === 0) continue
-    for (const group of notesBySystem(owed)) {
+    for (const group of notesBySystem(owed).values()) {
       const boxes = getBoundingBoxesForNotes(group.map((n) => svgNote(n.note)))
       if (boxes.length === 0) continue
       const { minX, maxX } = calculateCombinedBounds(boxes)
@@ -1304,17 +1303,11 @@ function paintMeasureRange(className, from, to) {
   for (let i = from; i <= to; i++) markMeasure(i, className)
 }
 
-// A bar's notes, one array per system it is drawn on, in order: a single one,
-// but for a bar the file splits across two systems (see barCounter in
+// A bar's notes by the system they are drawn on, in order: a single one, but
+// for a bar the file splits across two systems (see barCounter in
 // fingeringKeys.js).
 function notesBySystem(notes) {
-  const groups = new Map()
-  for (const noteData of notes) {
-    const system = graphicalMeasureForNote(noteData.note).parentMusicSystem
-    if (!groups.has(system)) groups.set(system, [])
-    groups.get(system).push(noteData)
-  }
-  return [...groups.values()]
+  return Map.groupBy(notes, (noteData) => graphicalMeasureForNote(noteData.note).parentMusicSystem)
 }
 
 // An SVG rect of class `className` over { x, y, width, height }.
@@ -1355,12 +1348,15 @@ function setupMeasureClickHandlers() {
     }
   }
 
-  const rectsBySvg = new Map()
-
+  // A rect per bar and system it is drawn on, measured first: the bars of a
+  // system are then given the same height, the tallest's — one reaching down
+  // to its ledger lines stood lower than its neighbour, and a passage shaded
+  // across them came out as boxes of uneven height (feedback bddda4e0).
+  const parts = []
   for (const measureIndex of firstPassMeasureIndexes(score.allNotes)) {
     const measureData = score.allNotes[measureIndex]
-    const rects = []
-    for (const notes of notesBySystem(measureData.notes)) {
+    measureClickRectangles.set(measureData.sourceMeasureIndex, [])
+    for (const [system, notes] of notesBySystem(measureData.notes)) {
       const noteElements = notes.map((n) => svgNote(n.note))
       const noteBoxes = getBoundingBoxesForNotes(noteElements)
       if (noteBoxes.length === 0) continue
@@ -1377,13 +1373,21 @@ function setupMeasureClickHandlers() {
       const staffLines = [...sourceMeasures].flatMap(staffLineBoxes)
       const vBounds = calculateCombinedBounds([...noteBoxes, ...staffLines])
       const bounds = { minX: hBounds.minX, maxX: hBounds.maxX, minY: vBounds.minY, maxY: vBounds.maxY }
-      const rect = createMeasureRectangle(bounds, measureIndex)
-
-      if (!rectsBySvg.has(svg)) rectsBySvg.set(svg, [])
-      rectsBySvg.get(svg).push(rect)
-      rects.push(rect)
+      parts.push({ measureData, measureIndex, system, svg, bounds })
     }
-    measureClickRectangles.set(measureData.sourceMeasureIndex, rects)
+  }
+  for (const onSystem of Map.groupBy(parts, (part) => part.system).values()) {
+    const minY = Math.min(...onSystem.map((part) => part.bounds.minY))
+    const maxY = Math.max(...onSystem.map((part) => part.bounds.maxY))
+    for (const { bounds } of onSystem) Object.assign(bounds, { minY, maxY })
+  }
+
+  const rectsBySvg = new Map()
+  for (const { measureData, measureIndex, svg, bounds } of parts) {
+    const rect = createMeasureRectangle(bounds, measureIndex)
+    if (!rectsBySvg.has(svg)) rectsBySvg.set(svg, [])
+    rectsBySvg.get(svg).push(rect)
+    measureClickRectangles.get(measureData.sourceMeasureIndex).push(rect)
   }
 
   for (const [svg, rects] of rectsBySvg) {
@@ -1640,12 +1644,7 @@ function handleWrongNote(measureData, expectedNote, midiNote) {
   spoilRepetition()
   steadiness.fault()
   fumbled.add(expectedNote)
-  repetition.faults.push({
-    kind: 'wrong',
-    bar: measureData.sourceMeasureIndex,
-    hand: handOfNote(expectedNote),
-    ...wrongKeyNames(expectedNote, midiNote),
-  })
+  repetition.faults.push({ kind: 'wrong', bar: measureData.sourceMeasureIndex, hand: handOfNote(expectedNote) })
   // A wrong note can be the first thing played in a measure, but not the
   // first of a run: with no attempt open the journal has nothing to count it in.
   if (!attempt.open && runUnderway()) startAttempt(measureData)

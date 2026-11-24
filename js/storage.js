@@ -1,5 +1,5 @@
-import { scopedKey, listProfiles, pruneRemovedProfileKeys, SCOPE_SEPARATOR } from './profiles.js?v=c43a07152313'
-import { recordError, watchStall } from './errorLog.js?v=c43a07152313'
+import { scopedKey, listProfiles, pruneRemovedProfileKeys, SCOPE_SEPARATOR } from './profiles.js?v=2e7fe071d07b'
+import { recordError, watchStall } from './errorLog.js?v=2e7fe071d07b'
 
 // Each profile has a database of its own, named from this (profiles.js). The
 // main profile's is the bare name — the one this device had before profiles.

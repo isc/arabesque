@@ -1,34 +1,34 @@
-import { initMidi, nativePairingAvailable, openNativePairing } from './midi.js?v=c43a07152313'
-import { initMusicXML, repeatIndicatorClass } from './musicxml.js?v=c43a07152313'
-import { initFingeringEditor } from './fingeringEditor.js?v=c43a07152313'
-import { fingeringPad } from './fingeringPad.js?v=c43a07152313'
-import { initNoteCircles } from './noteCircles.js?v=c43a07152313'
-import { initPracticeTracker } from './practiceTracker.js?v=c43a07152313'
-import { TWO_HANDS, handsKey } from './hands.js?v=c43a07152313'
-import { formatDuration, formatDate, statusLabel, scorePageUrl, onForeground, onBackground, onIdle, nextPaint, withHands, passage, pickPassageMeasure, passageText } from './utils.js?v=c43a07152313'
-import { initStorage } from './storage.js?v=c43a07152313'
-import { initNoteLog, keepScoreNoteLogs } from './noteLog.js?v=c43a07152313'
-import { initFragmentSuggestions } from './fragmentSuggestions.js?v=c43a07152313'
-import { loadMxlAsXml } from './mxlLoader.js?v=c43a07152313'
-import { injectFingerings } from './fingeringInjector.js?v=c43a07152313'
-import { migrateFingeringRecord } from './fingeringKeys.js?v=c43a07152313'
-import { initPlayback, getBPM } from './playback.js?v=c43a07152313'
-import { initStrictPlaythrough } from './strictPlaythrough.js?v=c43a07152313'
-import { initKeyboardHint, C8 } from './keyboardHint.js?v=c43a07152313'
-import { createTempoPlan, createTempoTrainer, GRADUATED, BPM_STEP, STREAK, RANDOM_RATIOS } from './tempoTrainer.js?v=c43a07152313'
-import { attemptVerdict } from './attemptVerdict.js?v=c43a07152313'
-import { BPM_DEFAULT } from './bpmStepper.js?v=c43a07152313'
-import { bpmField } from './bpmField.js?v=c43a07152313'
-import { resultModal } from './resultModal.js?v=c43a07152313'
-import { headerMenu } from './headerMenu.js?v=c43a07152313'
-import { fetchNoteLogs, initAutoSync, triggerSync } from './autoSync.js?v=c43a07152313'
-import { scopedKey } from './profiles.js?v=c43a07152313'
-import { t, tn } from './i18n.js?v=c43a07152313'
-import { recordError } from './errorLog.js?v=c43a07152313'
-import { loadCatalog, fileUrl, isCollection } from './catalog.js?v=c43a07152313'
-import { playthroughCharts, withRunLines, hotMeasures } from './playthroughHistory.js?v=c43a07152313'
-import { goalLines, goalNews, goalsHint, pieceFigures, pieceGoals, statusProgress } from './pieceGoals.js?v=c43a07152313'
-import { firstPassIndexOf, runSize } from './noteExtraction.js?v=c43a07152313'
+import { initMidi, nativePairingAvailable, openNativePairing } from './midi.js?v=2e7fe071d07b'
+import { initMusicXML, repeatIndicatorClass } from './musicxml.js?v=2e7fe071d07b'
+import { initFingeringEditor } from './fingeringEditor.js?v=2e7fe071d07b'
+import { fingeringPad } from './fingeringPad.js?v=2e7fe071d07b'
+import { initNoteCircles } from './noteCircles.js?v=2e7fe071d07b'
+import { initPracticeTracker } from './practiceTracker.js?v=2e7fe071d07b'
+import { TWO_HANDS, handsKey } from './hands.js?v=2e7fe071d07b'
+import { formatDuration, formatDate, statusLabel, scorePageUrl, onForeground, onBackground, onIdle, nextPaint, withHands, passage, pickPassageMeasure, passageText } from './utils.js?v=2e7fe071d07b'
+import { initStorage } from './storage.js?v=2e7fe071d07b'
+import { initNoteLog, keepScoreNoteLogs } from './noteLog.js?v=2e7fe071d07b'
+import { initFragmentSuggestions } from './fragmentSuggestions.js?v=2e7fe071d07b'
+import { loadMxlAsXml } from './mxlLoader.js?v=2e7fe071d07b'
+import { injectFingerings } from './fingeringInjector.js?v=2e7fe071d07b'
+import { migrateFingeringRecord } from './fingeringKeys.js?v=2e7fe071d07b'
+import { initPlayback, getBPM } from './playback.js?v=2e7fe071d07b'
+import { initStrictPlaythrough } from './strictPlaythrough.js?v=2e7fe071d07b'
+import { initKeyboardHint, C8 } from './keyboardHint.js?v=2e7fe071d07b'
+import { createTempoPlan, createTempoTrainer, GRADUATED, BPM_STEP, STREAK, RANDOM_RATIOS } from './tempoTrainer.js?v=2e7fe071d07b'
+import { attemptVerdict } from './attemptVerdict.js?v=2e7fe071d07b'
+import { BPM_DEFAULT } from './bpmStepper.js?v=2e7fe071d07b'
+import { bpmField } from './bpmField.js?v=2e7fe071d07b'
+import { resultModal } from './resultModal.js?v=2e7fe071d07b'
+import { headerMenu } from './headerMenu.js?v=2e7fe071d07b'
+import { fetchNoteLogs, initAutoSync, triggerSync } from './autoSync.js?v=2e7fe071d07b'
+import { scopedKey } from './profiles.js?v=2e7fe071d07b'
+import { t, tn } from './i18n.js?v=2e7fe071d07b'
+import { recordError } from './errorLog.js?v=2e7fe071d07b'
+import { loadCatalog, fileUrl, isCollection } from './catalog.js?v=2e7fe071d07b'
+import { playthroughCharts, withRunLines, hotMeasures } from './playthroughHistory.js?v=2e7fe071d07b'
+import { goalLines, goalNews, goalsHint, pieceFigures, pieceGoals, statusProgress } from './pieceGoals.js?v=2e7fe071d07b'
+import { firstPassIndexOf, runSize } from './noteExtraction.js?v=2e7fe071d07b'
 
 // What the strict and training bands say once a passage's first bar is picked
 // and its last is awaited: to click that bar, while a click would reach the
@@ -205,7 +205,9 @@ export function midiApp() {
     // asked.
     playbackBpm: null,
     playbackMeasure: 0,
-    isStrictPlaying: false,
+    // Strict mode's transport: 'stopped' | 'playing' | 'paused', the last a
+    // loop held by ⏸, its tempo and streak waiting for ▶ (tempoTrainer.js).
+    strictTransport: 'stopped',
     // 'free', 'training', 'reinforcement' (training on a list the app picked)
     // or 'strict', moved by setMode alone. It was three booleans, written from
     // four places, which could disagree: the strict tab over a reinforcement,
@@ -288,7 +290,19 @@ export function midiApp() {
     // The hands are not the player's to change: frozen by a strict run at its
     // start, or set step by step by a reinforcement.
     get handsAreSet() {
-      return this.isStrictPlaying || this.mode === 'reinforcement'
+      return this.strictSessionOn || this.mode === 'reinforcement'
+    },
+    get isStrictPlaying() {
+      return this.strictTransport === 'playing'
+    },
+    // A strict run under way, or a loop paused: what it was set up with — the
+    // tempo, the loop, the hands — is fixed until it ends.
+    get strictSessionOn() {
+      return this.strictTransport !== 'stopped'
+    },
+    // The words on ▶ / ⏸, as score.<key> and score.<key>Btn.
+    get strictTransportWords() {
+      return { playing: 'pause', paused: 'resume' }[this.strictTransport] ?? 'start'
     },
 
     showHistoryModal: false,
@@ -885,6 +899,8 @@ export function midiApp() {
         this.stopListening()
         return
       }
+      // A loop only pauses: listening to the passage is a breath like any
+      // other, and ▶ takes the loop up after it.
       if (this.isStrictPlaying) this.toggleStrictPlaythrough()
       await this.startListening()
     },
@@ -912,20 +928,25 @@ export function midiApp() {
       return t('score.playbackHint')
     },
 
+    // ▶ / ⏸ in the strict band. ⏸ stops a single run, and pauses a loop: the
+    // run under way goes unjudged, and ▶ takes the loop up at the tempo and
+    // streak it had reached (feedback 7f523e16).
     toggleStrictPlaythrough() {
       if (this.isStrictPlaying) {
-        // Mid-run the engine's aborted result ends the loop; between runs the
-        // loop has to be told itself.
-        trainer?.stop()
-        strictPlaythrough.stop()
+        if (trainer) this.pauseTempoTrainer()
+        else strictPlaythrough.stop()
         return
       }
 
       this.stopListening()
+      this.strictTransport = 'playing'
+      this.paintStrictRange()
+      if (trainer) {
+        trainer.resume()
+        return
+      }
 
       strictPlaythrough.setActiveHands(this.activeHands)
-      this.isStrictPlaying = true
-      this.paintStrictRange()
 
       if (this.strictPassage.loop) this.startTempoTrainer()
       else this.startStrictRun(this.strictBpm).then((result) => this.finishSingleRun(result))
@@ -969,7 +990,7 @@ export function midiApp() {
     },
 
     finishSingleRun(result) {
-      this.isStrictPlaying = false
+      this.strictTransport = 'stopped'
       this.paintStrictRange()
       if (result.aborted) return
       // A clean finish resets the start point so the next ▶ replays from
@@ -978,8 +999,9 @@ export function midiApp() {
       this.showStrictResult(result.verdict)
     },
 
-    // Runs the passage in a loop until ⏸, the plan moving the tempo between
-    // runs, then sums the session up in the result modal.
+    // Runs the passage in a loop until the session ends (endStrictSession),
+    // the plan moving the tempo between runs, then sums it up in the result
+    // modal.
     async startTempoTrainer() {
       const plan = createTempoPlan({ mode: this.trainerMode, bpm: this.strictBpm })
       trainer = createTempoTrainer({
@@ -988,6 +1010,7 @@ export function midiApp() {
           this.trainerStatus = { bpm, run: plan.runs.length + 1, cleanStreak: plan.cleanStreak }
           return this.startStrictRun(bpm, { settle: false })
         },
+        abortRun: () => strictPlaythrough.stop(),
         // The streak moves as soon as the run is judged, not a pause later, and
         // the band says what the run came to and where it takes the tempo.
         onRun: ({ faults }, clean) => {
@@ -997,7 +1020,7 @@ export function midiApp() {
       })
       const summary = await trainer.start()
       trainer = null
-      this.isStrictPlaying = false
+      this.strictTransport = 'stopped'
       this.paintStrictRange()
       this.trainerStatus = null
       this.showTrainerSummary({ ...summary, runs: plan.runs })
@@ -1005,8 +1028,27 @@ export function midiApp() {
       await this.settleStrictRuns()
     },
 
+    // A loop held, the run under way unjudged — and what was played until
+    // then settled, as the end of a loop settles it: a pause may be the last
+    // thing done before the page is left.
+    async pauseTempoTrainer() {
+      trainer.pause()
+      this.strictTransport = 'paused'
+      this.paintStrictRange()
+      await strictRunRecorded
+      await this.settleStrictRuns()
+    },
+
+    // The run or loop under way, paused or not, over: ⏹ beside a paused loop,
+    // and whatever picks another passage, another way of running it or
+    // another mode.
+    endStrictSession() {
+      if (trainer) trainer.stop()
+      else strictPlaythrough.stop()
+    },
+
     toggleLoop() {
-      if (this.isStrictPlaying) this.toggleStrictPlaythrough()
+      this.endStrictSession()
       this.strictPassage.loop = !this.strictPassage.loop
       // The end of the passage is the loop's: a single run goes to the end.
       this.selectStrictPassage(this.strictPassage.start, null)
@@ -1015,7 +1057,7 @@ export function midiApp() {
     // A click sets where a run starts. With the loop on, the next click
     // further along sets where the passage ends; the one after starts over.
     pickStrictMeasure(measureIndex) {
-      if (this.isStrictPlaying) this.toggleStrictPlaythrough()
+      this.endStrictSession()
       const { start, end, armed } = pickPassageMeasure(measureIndex, this.strictPassage)
       this.selectStrictPassage(start, end, armed)
     },
@@ -1243,6 +1285,7 @@ export function midiApp() {
 
     // What the strict band says before a run.
     strictBandText() {
+      if (this.strictTransport === 'paused') return t('board.paused')
       const from = (this.strictPassage.start ?? 0) + 1
       // What clicking a bar does is only worth saying while the click is
       // strict mode's: listening takes it over, and the playback band says so
@@ -1304,10 +1347,8 @@ export function midiApp() {
     async enterMode(name, measuresToReinforce = []) {
       // A piece playing itself competes with the player's hands.
       this.stopListening()
-      if (this.isStrictPlaying) {
-        // The tempo trainer's loop with it, which a run stopped between two
-        // runs would not end.
-        this.toggleStrictPlaythrough()
+      if (this.strictSessionOn) {
+        this.endStrictSession()
         // The run stopped by the switch closes the session it was played in;
         // the mode being switched to opens the next one. Sequenced, or the two
         // ends race and the session is credited twice.
