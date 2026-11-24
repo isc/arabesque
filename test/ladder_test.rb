@@ -1,8 +1,8 @@
 require_relative 'test_helper'
 
 # The ladder a reinforcement takes each passage up (ladder.js): a hand alone,
-# the other, the two together, then at the pace of the runs — the hands set by
-# the drill, step by step, and given back as it ends.
+# the other, the two together, then to the click, slow and at the tempo — the
+# hands set by the drill, step by step, and given back as it ends.
 #
 # one-hand-rest-measure.xml is three bars of whole notes on two staves: E5 over
 # C3, a rest over D3, G5 over E3.
@@ -79,34 +79,85 @@ class LadderTest < CapybaraTestBase
     assert_selector 'svg circle.repeat-indicator.filled', count: 1
   end
 
-  # Once built, the passage is asked for the pace of the runs: a clean
-  # repetition under it fills no dot and is told how far off it was — until the
-  # third, which passes whatever its pace. Three bars of whole notes for one
-  # hand, asked for at 2 s a whole note: ♩ = 120.
-  def test_a_passage_built_is_asked_for_the_pace_of_the_runs
+  # Once built, the passage is played to the click, by strict mode's engine:
+  # at 70 % of the tempo, then at the tempo — the pace of the runs here, 2 s a
+  # whole note, ♩ = 120. With a single passage the turn comes straight back to
+  # it, and the loop goes on to the next run by itself. Three bars of whole
+  # notes for one hand.
+  def test_a_passage_built_is_played_to_the_click
     open_score('repeat-endings', 4)
     reinforce_bars(1..3, pace: 2_000)
-    assert_steps 'Sans tempo', 'Au tempo', 'À froid'
-    assert_text 'À votre rythme'
+    assert_steps 'Sans tempo', 'Clic lent', 'Au clic'
+    play_notes(BARS)
+    assert_selector 'svg circle.repeat-indicator.filled', count: 1
+    assert_on_step 'Clic lent', done: 1, playing: 'Clic lent · ♩ = 84'
+    assert_text 'Au clic lent : ▶ lance le décompte.'
+    # Before ▶ the keys go nowhere: the click has not started.
+    play_note('C4')
+    assert_no_selector 'svg .vf-notehead.played-note'
 
     with_clock_control do
-      play_repetition(gap: 3_000)
-      assert_selector 'svg circle.repeat-indicator.filled', count: 1
-      assert_text 'Au tempo de vos jeux complets : ♩ = 120.'
+      trigger_click_on('▶ Démarrer')
+      # ♩ = 84: a count-in bar, then a whole note a bar, 2857 ms each.
+      play_at(BARS.zip([2857, 5714, 8571]))
+      # Judged 750 ms after the last note: its window, then the engine's tail.
+      at(9330)
+      assert_selector 'svg circle.repeat-indicator.filled', count: 2, wait: 2
+      assert_selector '[data-testid=board-verdict].is-clean', text: 'Propre'
+      assert_on_step 'Au clic', done: 2, playing: 'Au clic · ♩ = 120'
 
-      play_repetition(gap: 3_000)
-      assert_text 'Propre, mais à ♩ = 80 : visez ♩ = 120.'
-      assert_selector 'svg circle.repeat-indicator.filled', count: 1
-
-      play_repetition(gap: 1_500)
-      assert_selector 'svg circle.repeat-indicator.filled', count: 2
-      assert_text 'Une dernière fois, à froid, à ♩ = 120.'
-
-      2.times { play_repetition(gap: 3_000) }
-      assert_selector 'svg circle.repeat-indicator.filled', count: 2
-      play_repetition(gap: 3_000)
+      # A second's gap, then the count-in at ♩ = 120: 2 s a bar.
+      play_at(BARS.zip([12_321, 14_321, 16_321]))
+      at(17_080)
     end
     assert_text 'Renforcement terminé'
+  end
+
+  # A step to the click spoiled three times over with no note pointing at a
+  # hand — nothing played at all — slows the click for a clean run, the loop
+  # going on to it by itself.
+  def test_a_click_too_fast_is_slowed_down
+    open_score('repeat-endings', 4)
+    reinforce_bars(1..3, pace: 2_000)
+    play_notes(BARS)
+    assert_on_step 'Clic lent', done: 1, playing: 'Clic lent · ♩ = 84'
+
+    with_clock_control do
+      trigger_click_on('▶ Démarrer')
+      # Three silent runs at ♩ = 84, 9321 ms each, a second's gap between.
+      at(9330)
+      assert_selector '[data-testid=board-verdict].is-failed', text: '3 notes manquées', wait: 2
+      at(29_970)
+      assert_on_step 'Clic lent', done: 1, playing: 'Plus lent · ♩ = 59'
+      assert_text 'Le clic va trop vite pour l’instant : une fois à ♩ = 59, puis on remonte.'
+      trigger_click_on('⏸ Pause')
+    end
+    assert_text '▶ Reprendre'
+    assert_no_selector 'svg circle.repeat-indicator.filled', count: 2
+  end
+
+  # A fragment is drilled to the click as it is without: from where it starts
+  # inside its first bar to where it ends inside its last. The notes outside
+  # it are not asked for, so not missed, and a player going on past its end is
+  # playing no wrong note. steady-quavers.xml at ♩ = 120, the slow click 84:
+  # the second half of bar 1 and the first of bar 2, a quaver 357 ms.
+  def test_a_fragment_is_played_to_the_click_from_inside_its_bar
+    open_score('steady-quavers', 16)
+    reinforce([{ from: { bar: 0, position: 0.5 }, until: { bar: 1, position: 0.5 }, hands: 'both', pace: 2_000 }])
+    fragment = %w[G4 A4 B4 C5 C5 B4 A4 G4]
+    play_notes(fragment)
+    assert_on_step 'Clic lent', done: 1, playing: 'Clic lent · ♩ = 84'
+
+    with_clock_control do
+      trigger_click_on('▶ Démarrer')
+      # A count-in bar and half of bar 1, then a quaver each, and F4 after.
+      play_at((fragment + %w[F4]).each_with_index.map { |note, i| [note, (4286 + (i * 357.14)).round] })
+      at(7_540)
+      assert_selector 'svg circle.repeat-indicator.filled', count: 2, wait: 2
+      assert_selector '[data-testid=board-verdict].is-clean', text: 'Propre'
+      assert_no_selector 'svg .vf-notehead.missed-note'
+      trigger_click_on('⏸ Pause')
+    end
   end
 
   # A turn that starts with one hand is no try at the passage: only those
@@ -184,10 +235,21 @@ class LadderTest < CapybaraTestBase
     play_chord(%w[G5 E3])
   end
 
-  # Bars 1 to 3 of repeat-endings.xml, a whole note each `gap` ms after the
-  # one before, then the beat that takes the passage back to its top.
-  def play_repetition(gap:)
-    play_evenly(%w[C4 D4 E4], gap: gap)
-    advance_clock(300)
+  # Bars 1 to 3 of repeat-endings.xml, a whole note each.
+  BARS = %w[C4 D4 E4].freeze
+
+  # The parked clock taken to `ms` since the first call of the test.
+  def at(ms)
+    @elapsed ||= 0
+    advance_clock(ms - @elapsed)
+    @elapsed = ms
+  end
+
+  # Each note played at its instant, [[note, ms]…], on that same clock.
+  def play_at(timeline)
+    timeline.each do |note, ms|
+      at(ms)
+      play_note(note)
+    end
   end
 end

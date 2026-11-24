@@ -504,8 +504,9 @@ function showLosses({ sessions, runs, model, traversalsOf }, top) {
   const offered = reinforcementOffer(noteLogWindow(sessions).flatMap(traversalsOf), sessions, model, TWO_HANDS)
   // A passage the runs mostly stalled on at the bar line is the one the drill
   // advises block chords on, where they suit it (musicxml.js).
-  // With the tempo its drill asks it for once built, in crotchets a minute:
-  // the pace the runs held around it (paceToHold in fragments.js).
+  // With the tempo its drill clicks it at once built, in crotchets a minute,
+  // where no strict tempo is set for the piece: the pace the runs held around
+  // it (paceToHold in fragments.js).
   const tempo = (f) => (f.pace ? ` at ${crotchetsPerMinute(f.pace)}` : '')
   const offer = (f) => `${fragmentLabel(f, model)}${tempo(f)}${f.stalledAtBarLine ? ' (stalls at the bar line)' : ''}`
   console.log(`\nreinforcement offers now, both hands: ${offered.map(offer).join(', ') || 'nothing'}`)

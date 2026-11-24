@@ -162,8 +162,8 @@ function judge({ attacks, wrong, hands, blockChords }, model) {
     apply(steadiness.attack(point))
     previous = point
   }
-  // What a drill weighed the repetition by where it asked for a tempo
-  // (ladder.js): read before the close, which starts it over.
+  // The pace the traversal held, which the practice report prints: read
+  // before the close, which starts it over.
   const { meanPace } = steadiness
   apply(steadiness.close())
   weighLosses(ordered)

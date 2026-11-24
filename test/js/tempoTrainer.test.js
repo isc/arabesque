@@ -159,12 +159,13 @@ describe('summarizeRuns', () => {
 describe('the loop', () => {
   afterEach(() => vi.useRealTimers())
 
-  // A run the player pauses midway: the caller holds the loop, then stops the
+  // A run the player pauses midway: the caller holds the loop, which stops the
   // engine, whose aborted result comes back.
   const PAUSED = { aborted: true, pausing: true }
 
-  // Each run resolves at once with the verdict queued for it; the loop's own
-  // gaps are the only time that passes.
+  // The tempo trainer: each run at the tempo the plan hands out, resolving at
+  // once with the verdict queued for it. The loop's own gaps are the only
+  // time that passes.
   function trainerWith(results, onRun) {
     vi.useFakeTimers()
     const played = []
@@ -172,17 +173,17 @@ describe('the loop', () => {
     const runOnce = vi.fn((bpm) => {
       played.push(bpm)
       const next = results.shift()
-      if (next.pausing) trainer.pause()
+      if (next.pausing) loop.pause()
       return Promise.resolve(next.aborted ? next : { verdict: { ...next, bpm } })
     })
-    const trainer = createTempoTrainer({ plan, runOnce, onRun, gapMs: 1000 })
-    return { trainer, played, runOnce }
+    const loop = createTempoTrainer({ plan, runOnce, onRun, gapMs: 1000 })
+    return { loop, played, summary: loop.summary }
   }
 
   it('plays run after run with a gap between them, at the tempo the plan hands out', async () => {
     const onRun = vi.fn()
-    const { trainer, played } = trainerWith([CLEAN, CLEAN, CLEAN, CLEAN, { aborted: true }], onRun)
-    const done = trainer.start()
+    const { loop, played, summary } = trainerWith([CLEAN, CLEAN, CLEAN, CLEAN, { aborted: true }], onRun)
+    const done = loop.start()
     await vi.advanceTimersByTimeAsync(999)
     expect(played).toEqual([100])
     await vi.advanceTimersByTimeAsync(1)
@@ -191,33 +192,43 @@ describe('the loop', () => {
     // Three clean runs raised the tempo; the aborted fifth run ended the loop.
     expect(played).toEqual([100, 100, 100, 105, 105])
     expect(onRun).toHaveBeenCalledTimes(4)
-    // Each with the run's result and whether it was clean.
     expect(onRun).toHaveBeenLastCalledWith({ verdict: { ...CLEAN, bpm: 105 } }, true)
-    expect(await done).toMatchObject({ count: 4, cleanCount: 4, fromBpm: 100, toBpm: 105, bestStreak: 4, earnedBpm: null })
+    await done
+    expect(summary()).toMatchObject({ count: 4, cleanCount: 4, fromBpm: 100, toBpm: 105, bestStreak: 4, earnedBpm: null })
   })
 
   it('says so when it stops on a step no run was played at', async () => {
-    const { trainer } = trainerWith([CLEAN, CLEAN, CLEAN, { aborted: true }])
-    const done = trainer.start()
+    const { loop, summary } = trainerWith([CLEAN, CLEAN, CLEAN, { aborted: true }])
+    const done = loop.start()
     await vi.advanceTimersByTimeAsync(3000)
-    expect(await done).toMatchObject({ count: 3, toBpm: 100, earnedBpm: 100 + BPM_STEP })
+    await done
+    expect(summary()).toMatchObject({ count: 3, toBpm: 100, earnedBpm: 100 + BPM_STEP })
   })
 
   it('ends between runs when stopped during the gap', async () => {
-    const { trainer, played } = trainerWith([CLEAN, CLEAN])
-    const done = trainer.start()
+    const { loop, played, summary } = trainerWith([CLEAN, CLEAN])
+    const done = loop.start()
     await vi.advanceTimersByTimeAsync(500)
-    trainer.stop()
-    expect(await done).toMatchObject({ count: 1 })
+    loop.stop()
+    await done
+    expect(summary()).toMatchObject({ count: 1 })
     await vi.advanceTimersByTimeAsync(5000)
+    expect(played).toEqual([100])
+  })
+
+  // A drill's steps to the click end the loop from onRun, as the drill moves
+  // off them.
+  it('ends when a run judged stops it', async () => {
+    const { loop, played } = trainerWith([CLEAN, CLEAN], () => loop.stop())
+    await loop.start()
     expect(played).toEqual([100])
   })
 
   // A breath between two goes, not the end of the work (feedback 7f523e16).
   it('holds where it is when paused midway, and goes on at the tempo and streak it had', async () => {
     const onRun = vi.fn()
-    const { trainer, played } = trainerWith([CLEAN, CLEAN, PAUSED, CLEAN, { aborted: true }], onRun)
-    const done = trainer.start()
+    const { loop, played, summary } = trainerWith([CLEAN, CLEAN, PAUSED, CLEAN, { aborted: true }], onRun)
+    const done = loop.start()
     await vi.advanceTimersByTimeAsync(2000)
     // The third run paused midway: nothing judged of it, and nothing after it.
     expect(played).toEqual([100, 100, 100])
@@ -225,40 +236,43 @@ describe('the loop', () => {
     await vi.advanceTimersByTimeAsync(60000)
     expect(played).toEqual([100, 100, 100])
 
-    trainer.resume()
+    loop.resume()
     await vi.advanceTimersByTimeAsync(0)
     expect(played).toEqual([100, 100, 100, 100])
     // The streak was kept: that run was its third clean one.
     await vi.advanceTimersByTimeAsync(1000)
     expect(played).toEqual([100, 100, 100, 100, 105])
-    expect(await done).toMatchObject({ count: 3, cleanCount: 3, earnedBpm: 105 })
+    await done
+    expect(summary()).toMatchObject({ count: 3, cleanCount: 3, earnedBpm: 105 })
   })
 
   it('waits out a pause taken between runs', async () => {
-    const { trainer, played } = trainerWith([CLEAN, CLEAN, { aborted: true }])
-    trainer.start()
+    const { loop, played } = trainerWith([CLEAN, CLEAN, { aborted: true }])
+    loop.start()
     await vi.advanceTimersByTimeAsync(500)
-    trainer.pause()
+    loop.pause()
     await vi.advanceTimersByTimeAsync(5000)
     expect(played).toEqual([100])
-    trainer.resume()
+    loop.resume()
     await vi.advanceTimersByTimeAsync(0)
     expect(played).toEqual([100, 100])
   })
 
   it('ends when stopped while paused', async () => {
-    const { trainer, played } = trainerWith([CLEAN, PAUSED])
-    const done = trainer.start()
+    const { loop, played, summary } = trainerWith([CLEAN, PAUSED])
+    const done = loop.start()
     await vi.advanceTimersByTimeAsync(1000)
-    trainer.stop()
-    expect(await done).toMatchObject({ count: 1 })
+    loop.stop()
+    await done
+    expect(summary()).toMatchObject({ count: 1 })
     expect(played).toEqual([100, 100])
   })
 
   it('does not count a run stopped midway', async () => {
-    const { trainer } = trainerWith([CLEAN, { aborted: true }])
-    const done = trainer.start()
+    const { loop, summary } = trainerWith([CLEAN, { aborted: true }])
+    const done = loop.start()
     await vi.advanceTimersByTimeAsync(1000)
-    expect(await done).toMatchObject({ count: 1 })
+    await done
+    expect(summary()).toMatchObject({ count: 1 })
   })
 })

@@ -159,8 +159,7 @@ export function createSteadiness() {
     },
     // The pace the traversal has held so far, in ms per whole note: the mean
     // over all of it, where a verdict's `pace` is the median it was weighed
-    // against. What a passage asked for at a tempo is weighed by (ladder.js).
-    // Null before its second attack.
+    // against. Null before its second attack.
     get meanPace() {
       return held.written > 0 ? held.ms / held.written : null
     },
