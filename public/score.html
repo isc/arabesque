@@ -170,7 +170,7 @@
       <a
         href="#"
         class="pt-chip pt-reinforce-badge"
-        x-show="measuresToReinforce.length > 0 && currentMode !== 'training' && !isStrictPlaying"
+        x-show="measuresToReinforce.length > 0 && currentMode !== 'training' && !strictSessionOn"
         @click.prevent="startReinforcementMode()"
         x-text="reinforceLabel()"
         :aria-label="reinforceLabel('handsFull')"
@@ -208,9 +208,9 @@
           class="pt-band-button pt-transport"
           :class="{ 'is-playing': isStrictPlaying, 'is-counting': countInBeat > 0 }"
           @click="toggleStrictPlaythrough"
-          :aria-label="isStrictPlaying ? $t('score.pause') : $t('score.start')"
+          :aria-label="$t(`score.${strictTransportWords}`)"
         >
-          <span class="pt-transport__label" x-text="isStrictPlaying ? $t('score.pauseBtn') : $t('score.startBtn')"></span>
+          <span class="pt-transport__label" x-text="$t(`score.${strictTransportWords}Btn`)"></span>
           <template x-if="countInBeat > 0">
             <span class="pt-countin" aria-hidden="true">
               <template x-for="n in countInBeats" :key="n">
@@ -225,16 +225,24 @@
              What sets a run up steps aside while one plays — none of it can
              change a run under way — and leaves the board the line. -->
         <div data-bpm-field="strictBpm"></div>
+        <!-- A paused loop keeps its tempo and streak (tempoTrainer.js): ending
+             it is a step of its own, which sums it up. -->
         <button
           class="pt-band-button"
-          x-show="!isStrictPlaying"
+          x-show="strictTransport === 'paused'"
+          @click="endStrictSession"
+          x-text="$t('score.endLoopBtn')"
+        >⏹ Terminer</button>
+        <button
+          class="pt-band-button"
+          x-show="!strictSessionOn"
           :aria-pressed="strictPassage.loop"
           :title="$t('score.loopTitle')"
           @click="toggleLoop"
           x-text="$t('score.loopBtn')"
         >🔁 Boucle</button>
         <select
-          x-show="strictPassage.loop && !isStrictPlaying"
+          x-show="strictPassage.loop && !strictSessionOn"
           class="pt-band-select"
           x-model="trainerMode"
           :aria-label="$t('score.trainerModeAria')"

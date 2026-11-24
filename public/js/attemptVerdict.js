@@ -6,13 +6,16 @@
 // the click they had lost, nor where.
 //
 // A fault is what an engine noticed, as it noticed it:
-//   { kind: 'wrong', bar, hand, expected, played }  a key none of the notes owed
-//   { kind: 'missed', bar, hand }                   a note the click went past
-//   { kind: 'hole', bar, beat, lostMs }              the flow stopping (steadiness.js)
-//   { kind: 'late' | 'early', bar, hand }            a note off the click
+//   { kind: 'wrong', bar, hand }          a key none of the notes owed
+//   { kind: 'missed', bar, hand }         a note the click went past
+//   { kind: 'hole', bar, beat, lostMs }   the flow stopping (steadiness.js)
+//   { kind: 'late' | 'early', bar, hand } a note off the click
 // `bar` is the bar's index (sourceMeasureIndex), `hand` 'right' or 'left',
-// `expected` and `played` the two notes already named (wrongKeyNames in
-// noteExtraction.js), `beat` counted from 1.
+// `beat` counted from 1.
+//
+// Where, and not what: the note a wrong key was played for is red on the
+// score, and naming the two — "fa♯ au lieu de fa" — made the line too long to
+// read from the bench (feedback b758ae14).
 //
 // Pure: faults in, words out.
 import { locale, t, tn } from './i18n.js'
@@ -55,31 +58,26 @@ function byBar(faults) {
   return [...bars].map(([bar, within]) => ({ bar, within: [...within] }))
 }
 
-// A bar and what in it, in full where it is said alone — "mes. 9, main
-// gauche", "mes. 3, temps 2" — and shortened in a list of bars: "mes. 9 MG".
-// A key struck in the count-in has no bar.
-function barPlace({ bar, within }, kind, short) {
+// A bar and what in it: "mes. 9 MG", "mes. 3 t. 2 et 4". A key struck in
+// the count-in has no bar.
+function barPlace({ bar, within }, kind) {
   if (bar == null) return t('verdict.countIn')
   const place = t('verdict.bar', { n: bar + 1 })
   if (within.length === 0) return place
   const parts = kind === 'hole'
-    ? t(short ? 'verdict.beatShort' : 'verdict.beat', { n: LIST.format(within.map(String)) })
-    : LIST.format(within.map((hand) => t(short || within.length > 1 ? `hands.${hand}` : `handsFull.${hand}`)))
-  return short ? `${place} ${parts}` : `${place}, ${parts}`
+    ? t('verdict.beat', { n: LIST.format(within.map(String)) })
+    : LIST.format(within.map((hand) => t(`hands.${hand}`)))
+  return `${place} ${parts}`
 }
 
-// What is worth saying of a kind of fault beyond its count: where, and what
-// one of them was — the note played for the one owed, or the time lost.
+// Where a kind of fault fell, the first few bars of it — and for holes, what
+// the worst of them cost.
 function whereAndWhat(kind, faults) {
   const bars = byBar(faults)
-  const [first] = faults
-  const alone = bars.length === 1
   const more = bars.length > BARS_LISTED ? ` ${t('verdict.more', { n: bars.length - BARS_LISTED })}` : ''
-  const place = alone ? barPlace(bars[0], kind, false) : bars.slice(0, BARS_LISTED).map((bar) => barPlace(bar, kind, true)).join(', ') + more
-  let what = null
-  if (kind === 'hole') what = t(alone && faults.length === 1 ? 'verdict.stop' : 'verdict.upTo', { s: longest(faults) })
-  else if (kind === 'wrong' && alone && first.expected) what = t('verdict.instead', first)
-  return what ? t('verdict.at', { place, what }) : place
+  const place = bars.slice(0, BARS_LISTED).map((bar) => barPlace(bar, kind)).join(', ') + more
+  if (kind !== 'hole') return place
+  return t('verdict.at', { place, what: t(faults.length === 1 ? 'verdict.stop' : 'verdict.upTo', { s: longest(faults) }) })
 }
 
 // { clean, headline, detail }: the verdict's line in bold, and the line under

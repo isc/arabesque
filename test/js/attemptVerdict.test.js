@@ -2,28 +2,30 @@ import { describe, it, expect } from 'vitest'
 import { attemptVerdict } from '../../public/js/attemptVerdict.js'
 
 // The suite runs in English (support/setup.js). Bars are indices: bar 9 is 8.
-const wrong = (bar, hand, expected = 'A♭', played = 'A♮') => ({ kind: 'wrong', bar, hand, expected, played })
+const wrong = (bar, hand) => ({ kind: 'wrong', bar, hand })
 const hole = (bar, beat, lostMs) => ({ kind: 'hole', bar, beat, lostMs })
 
 describe('attemptVerdict', () => {
-  it('names a wrong note by where it was and what was played for it', () => {
+  // Where, not what: the note is red on the score, and the line has to be
+  // read from the bench (feedback b758ae14).
+  it('places a wrong note by its bar and hand', () => {
     expect(attemptVerdict({ clean: false, faults: [wrong(8, 'left')] })).toEqual({
       clean: false,
       headline: '1 wrong note',
-      detail: 'Bar 9, left hand: A♮ instead of A♭',
+      detail: 'Bar 9 LH',
     })
   })
 
   it('gives a hole its beat and the time it cost', () => {
-    expect(attemptVerdict({ clean: false, faults: [hole(2, 2, 1430)] }).detail).toBe('Bar 3, beat 2: stopped 1.4 s')
+    expect(attemptVerdict({ clean: false, faults: [hole(2, 2, 1430)] }).detail).toBe('Bar 3 b. 2: stopped 1.4 s')
   })
 
   // The headline counts every kind; the line under it is about the one to fix
   // first, a wrong note ahead of a hole whatever came first.
   it('counts each kind and places the one to fix first', () => {
-    const verdict = attemptVerdict({ clean: false, faults: [hole(0, 1, 900), wrong(1, 'right', 'E♭', 'E♮')] })
+    const verdict = attemptVerdict({ clean: false, faults: [hole(0, 1, 900), wrong(1, 'right')] })
     expect(verdict.headline).toBe('1 wrong note · 1 hole')
-    expect(verdict.detail).toBe('Bar 2, right hand: E♮ instead of E♭')
+    expect(verdict.detail).toBe('Bar 2 RH')
   })
 
   it('lists the bars a kind fell in, each once, with what in it', () => {
@@ -34,7 +36,7 @@ describe('attemptVerdict', () => {
 
   it('names both hands of a bar that both slipped in', () => {
     expect(attemptVerdict({ clean: false, faults: [{ kind: 'missed', bar: 4, hand: 'right' }, { kind: 'missed', bar: 4, hand: 'left' }] }).detail)
-      .toBe('Bar 5, RH and LH')
+      .toBe('Bar 5 RH and LH')
   })
 
   it('counts the bars past the first few rather than naming them all', () => {

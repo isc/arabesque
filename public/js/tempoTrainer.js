@@ -117,38 +117,63 @@ export function summarizeRuns(runs) {
   }
 }
 
-// The loop: one run after another at the tempo the plan hands out, a pause
+// The loop: one run after another at the tempo the plan hands out, a gap
 // between them for the hands to come back to the start, until stop() — or
-// until a run is aborted, which is how the engine says the player stopped it
-// or clicked elsewhere. `runOnce(bpm)` plays one run and resolves with the
-// engine's result; `onRun(result, clean)` hears that it has just been judged.
-export function createTempoTrainer({ plan, runOnce, onRun, pauseMs = 1000 }) {
+// until a run is aborted from elsewhere. `runOnce(bpm)` plays one run and
+// resolves with the engine's result, which `abortRun()` cuts short;
+// `onRun(result, clean)` hears that a run has just been judged.
+//
+// pause() holds the loop where it is, the plan with it: the run under way is
+// aborted and goes unjudged, and resume() starts the next one at the tempo and
+// streak the plan had reached. A pause is a breath between two goes, not the
+// end of the work (feedback 7f523e16): stopping used to be the only way to
+// take one, and it threw the climb away.
+export function createTempoTrainer({ plan, runOnce, abortRun, onRun, gapMs = 1000 }) {
   let stopped = false
-  let pause = null
+  let gap = null
+  let held = null
 
   async function start() {
     while (!stopped) {
+      if (held) await held.promise
+      if (stopped) break
       const result = await runOnce(plan.nextBpm())
-      if (result.aborted || stopped) break
+      if (stopped) break
+      if (result.aborted) {
+        if (held) continue
+        break
+      }
       const clean = plan.record(result.verdict)
       onRun?.(result, clean)
       await new Promise((resolve) => {
-        pause = { id: setTimeout(resolve, pauseMs), resolve }
+        gap = { id: setTimeout(resolve, gapMs), resolve }
       })
-      pause = null
+      gap = null
     }
     return { ...summarizeRuns(plan.runs), earnedBpm: plan.earnedBpm }
   }
 
-  // Between runs the loop just ends; mid-run the caller also stops the
-  // engine, whose aborted result ends it.
-  function stop() {
-    stopped = true
-    if (pause) {
-      clearTimeout(pause.id)
-      pause.resolve()
-    }
+  // Held before the run is cut short, so that its aborted result reads as a
+  // pause rather than as the end.
+  function pause() {
+    held ??= Promise.withResolvers()
+    abortRun?.()
   }
 
-  return { start, stop }
+  function resume() {
+    held?.resolve()
+    held = null
+  }
+
+  function stop() {
+    stopped = true
+    if (gap) {
+      clearTimeout(gap.id)
+      gap.resolve()
+    }
+    resume()
+    abortRun?.()
+  }
+
+  return { start, pause, resume, stop }
 }
