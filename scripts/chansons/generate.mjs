@@ -72,6 +72,9 @@ function parseMeasure(text) {
 // A syllable ending in `-` is hyphenated to the next one, across a barline
 // too ("et Mon- | sieur"), so the syllabic type is read off the whole staff
 // rather than one measure at a time. A `_` is a space within a syllable.
+// A word that goes on in the other staff's words ends in `->`: its hyphen is
+// printed, since OSMD would otherwise draw one across to this staff's next
+// syllable, wherever that is.
 function parseWords(text) {
   let open = false
   return text.split('|').map((measure) =>
@@ -80,10 +83,12 @@ function parseWords(text) {
       .split(/\s+/)
       .filter(Boolean)
       .map((syllable) => {
-        const opens = syllable.endsWith('-')
+        const crosses = syllable.endsWith('->')
+        const opens = !crosses && syllable.endsWith('-')
         const syllabic = opens ? (open ? 'middle' : 'begin') : open ? 'end' : 'single'
         open = opens
-        return { syllabic, text: syllable.replace(/-$/, '').replace(/_/g, '\u00a0') }
+        const text = crosses ? syllable.slice(0, -1) : syllable.replace(/-$/, '')
+        return { syllabic, text: text.replace(/_/g, '\u00a0') }
       }),
   )
 }

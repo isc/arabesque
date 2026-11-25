@@ -11,6 +11,10 @@
 // perdrix". "Au bord de l'eau" has one syllable too many for the bar's pattern,
 // so that bar is four eighths. Its second verse goes another way, down from high
 // C, so it is written out rather than left as words under the first.
+// "À quoi tu penses ?" is from the book again, a teaching piece like the five:
+// the left hand sings G A G and the right answers, the words naming the notes
+// at the end. The book breaks its line inside bar 4, between "po" and "tu te
+// ba-"; here that is one bar, as its rhythm reads.
 //
 // "Promenons-nous dans les bois" is the exception among the twelve: the book keeps
 // it to C and D for a first lesson. It has the tune's real notes here, moved to
@@ -50,7 +54,9 @@
 // rhWords and lhWords sing that staff: same `|` measures, syllables separated
 // by spaces, landing on the measure's notes in order (a rest is not sung, and
 // a measure may be left blank). A syllable ending in `-` is hyphenated to the
-// next, across a barline too ("et Mon- | sieur"). A `_` is a space within a
+// next, across a barline too ("et Mon- | sieur"); one ending in `->` goes on in
+// the other hand's words ("pia->", then "no" on the treble), so it keeps its
+// hyphen but is not tied to its own staff's next syllable. A `_` is a space within a
 // syllable, and a syllable left once the measure's notes have theirs goes under
 // its printed rest: (1_2_3). Only the first verse is written; the book prints the
 // others as prose under the score.
@@ -235,5 +241,16 @@ export const SONGS = [
     showTime: true,
     rh: 'C4e-1 D4e E4q | E4e-3 E4e E4q | E4e-3 F4e G4q | G4e-5 G4e G4q | F4e-4 E4e D4q | D4e-2 D4e D4q | E4e-3 D4e C4q | C4e-1 C4e C4e C4e | C5e-5 B4e A4q | A4e-3 A4e A4q | B4e-4 A4e G4q | G4e-2 G4e G4q | A4e-3 G4e F4q | F4e-1 F4e F4q | E4e-3 D4e C4q | C4e-1 C4e C4e C4e',
     rhWords: "Do ré mi | la per- drix | mi fa sol | elle s'en- vole | fa mi ré | dans un pré | mi ré do | au bord de l'eau | Do si la | la voi- là | si la sol | dans son vol | la sol fa | près du bois | mi ré do | au bord de l'eau",
+  },
+  {
+    slug: 'a-quoi-tu-penses',
+    title: 'À quoi tu penses ?',
+    time: '6/8',
+    showTime: true,
+    rh: 'rq. | R | R | F4q-4 G4e F4q G4e | E4q.-3 rq. | R | R | G4q-5 G4e F4e E4e D4e | C4q.',
+    lh: '*p G3e-5 A3e G3e | C4q-2 C4e G3e A3e G3e | D4q-1 D4e G3e A3e G3e | R | rq. G3e-5 A3e G3e | C4q-2 C4e G3e A3e G3e | D4q-1 D4e G3e A3e G3e | R | rq.',
+    rhWords: '| | | no dans le tem- | po | | | Sol Sol Fa Mi Ré | Do',
+    lhWords: "À quoi tu | pen- ses quand tu a- | van- ces sur le pia-> | | tu te ba- | lan- ces et tu t'é- | lan- ces Sol La Sol",
+    repeatEnd: 8,
   },
 ]
