@@ -98,7 +98,7 @@ class CollectionTest < CapybaraTestBase
     fill_in 'Rechercher une partition', with: 'chansons'
 
     assert_selector 'tbody tr', count: 1
-    assert_selector 'td small', text: '18 exercices'
+    assert_selector 'td small', text: '19 exercices'
     assert_match(/Chansons_01/, find('td a', text: 'Chansons')[:href])
   end
 
