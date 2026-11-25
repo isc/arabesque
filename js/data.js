@@ -6,15 +6,15 @@
 // menu, and signing in by email (see supabaseClient.js). Signing in is what
 // turns cloud sync on; this page is where that becomes true for the device,
 // every profile on it included.
-import { initStorage } from './storage.js?v=b17d6dce355f'
-import { initPracticeTracker } from './practiceTracker.js?v=b17d6dce355f'
-import { localDayKey } from './days.js?v=b17d6dce355f'
-import { lastSyncAt, importBackup as importBackupFile } from './sync.js?v=b17d6dce355f'
-import { initAutoSync, requestSync } from './autoSync.js?v=b17d6dce355f'
-import { deleteCurrentUser } from './account.js?v=b17d6dce355f'
-import { t, locale } from './i18n.js?v=b17d6dce355f'
-import { recordError } from './errorLog.js?v=b17d6dce355f'
-import { headerMenu } from './headerMenu.js?v=b17d6dce355f'
+import { initStorage } from './storage.js?v=09ede8c00e6e'
+import { initPracticeTracker } from './practiceTracker.js?v=09ede8c00e6e'
+import { localDayKey } from './days.js?v=09ede8c00e6e'
+import { lastSyncAt, importBackup as importBackupFile } from './sync.js?v=09ede8c00e6e'
+import { initAutoSync, requestSync } from './autoSync.js?v=09ede8c00e6e'
+import { deleteCurrentUser } from './account.js?v=09ede8c00e6e'
+import { t, locale } from './i18n.js?v=09ede8c00e6e'
+import { recordError } from './errorLog.js?v=09ede8c00e6e'
+import { headerMenu } from './headerMenu.js?v=09ede8c00e6e'
 import {
   AVATARS,
   MAIN_PROFILE_ID,
@@ -26,7 +26,7 @@ import {
   updateProfile,
   removeProfile,
   switchProfile,
-} from './profiles.js?v=b17d6dce355f'
+} from './profiles.js?v=09ede8c00e6e'
 
 // The file name of a backup carries the profile it came from — except the
 // main profile's, which keeps the name it always had.
@@ -136,7 +136,7 @@ export function dataApp() {
     async init() {
       // Fetched from its CDN while the practice data opens, which it does not
       // need. Caught at once, or a failure would also be logged as unhandled.
-      const client = import('./supabaseClient.js?v=b17d6dce355f').catch((err) => {
+      const client = import('./supabaseClient.js?v=09ede8c00e6e').catch((err) => {
         recordError(err, 'Supabase client could not be loaded')
         return null
       })

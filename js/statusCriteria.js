@@ -2,9 +2,9 @@
 // library says it under a filtered list, a score's history against the piece
 // (pieceGoals.js). A module of its own so that the library, the page the app
 // opens on, does not load what the history needs.
-import { STATUS_THRESHOLDS } from './aggregates.js?v=b17d6dce355f'
-import { t, tn } from './i18n.js?v=b17d6dce355f'
-import { statusLabel } from './utils.js?v=b17d6dce355f'
+import { STATUS_THRESHOLDS } from './aggregates.js?v=09ede8c00e6e'
+import { t, tn } from './i18n.js?v=09ede8c00e6e'
+import { statusLabel } from './utils.js?v=09ede8c00e6e'
 
 export function statusCriteria(status) {
   const { cleanAttempts, measureRatio, practiceDays, timesCompleted } = STATUS_THRESHOLDS[status]

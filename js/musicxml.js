@@ -12,17 +12,17 @@ import {
   handOfNote,
   handOfStaff,
   isInnerStaff,
-} from './noteExtraction.js?v=b17d6dce355f'
-import { scrollSystemIntoView, isUnderStickyBars, nextPaint } from './utils.js?v=b17d6dce355f'
-import { placeChordFingerings } from './chordFingerings.js?v=b17d6dce355f'
-import { arrayBufferToXml, isMusicXml } from './mxlLoader.js?v=b17d6dce355f'
-import { stripPlaybackTempoMarks } from './tempoMarks.js?v=b17d6dce355f'
-import { recordError } from './errorLog.js?v=b17d6dce355f'
-import { REINFORCEMENT_CLEAN_PASSES } from './reinforcement.js?v=b17d6dce355f'
-import { POSITION_EPSILON, beatIndex, beatStartOf, crotchetsPerMinute, excess } from './noteLogAnalysis.js?v=b17d6dce355f'
-import { createSteadiness } from './steadiness.js?v=b17d6dce355f'
-import { handsKey, handsOfKey } from './hands.js?v=b17d6dce355f'
-import { climbOn, isGuided, ladderOf, rungs, startOfTurn, stepOf } from './ladder.js?v=b17d6dce355f'
+} from './noteExtraction.js?v=09ede8c00e6e'
+import { scrollSystemIntoView, isInFullView, isUnderStickyBars, nextPaint } from './utils.js?v=09ede8c00e6e'
+import { placeChordFingerings } from './chordFingerings.js?v=09ede8c00e6e'
+import { arrayBufferToXml, isMusicXml } from './mxlLoader.js?v=09ede8c00e6e'
+import { stripPlaybackTempoMarks } from './tempoMarks.js?v=09ede8c00e6e'
+import { recordError } from './errorLog.js?v=09ede8c00e6e'
+import { REINFORCEMENT_CLEAN_PASSES } from './reinforcement.js?v=09ede8c00e6e'
+import { POSITION_EPSILON, beatIndex, beatStartOf, crotchetsPerMinute, excess } from './noteLogAnalysis.js?v=09ede8c00e6e'
+import { createSteadiness } from './steadiness.js?v=09ede8c00e6e'
+import { handsKey, handsOfKey } from './hands.js?v=09ede8c00e6e'
+import { climbOn, isGuided, ladderOf, rungs, startOfTurn, stepOf } from './ladder.js?v=09ede8c00e6e'
 
 // The score on the stand: the sheet OSMD holds, and the note model built from
 // it. Replaced as a sheet comes in (renderMusicXML) and as it is drawn
@@ -447,11 +447,14 @@ export function initMusicXML() {
       startReinforcementPassage()
     },
     // The run a drill's step to the click asks for, for strict mode's engine
-    // to play (app.js): the passage's bars, the notes of them it owes, the
-    // tempo. Null on any other step: the notes played there are this engine's.
+    // to play (app.js): the passage's bars, where in the first of them it
+    // starts and the notes of them it owes, the tempo. Null on any other step:
+    // the notes played there are this engine's.
     clickRun: () => {
       const click = reinforcement.on && stepUnderway()?.click
-      return click ? { start: training.start, end: training.end, bpm: click, owes: inFragment } : null
+      if (!click) return null
+      const from = Math.max(0, training.fragment.from - training.start)
+      return { start: training.start, end: training.end, from, bpm: click, owes: inFragment }
     },
     judgeClickRun,
   }
@@ -1784,11 +1787,18 @@ function scrollToNextMeasureIfNeeded(nextIndex) {
   // carries its dots under the sticky bars, with nothing else to bring them back.
   const dotsTop = repeatIndicatorsTopY(nextIndex)
   const dotsHidden = dotsTop !== null && isUnderStickyBars(dotsTop)
+  if (dotsHidden || (systemChanged && !staysInView(nextIndex))) scrollToMeasure(nextIndex)
+  if (systemChanged || dotsHidden) cursor.systemIndex = nextSystemIndex
+}
 
-  if (systemChanged || dotsHidden) {
-    scrollToMeasure(nextIndex)
-    cursor.systemIndex = nextSystemIndex
-  }
+// A passage played again and again leaves the page where it is while the bar
+// it moves on to is all on screen: one across two systems that both fit went
+// up and down with every repetition (feedback 029831ab).
+function staysInView(measureIndex) {
+  return training.end != null && measureRects(measureIndex).every((rect) => {
+    const { top, bottom } = rect.getBoundingClientRect()
+    return isInFullView(top, bottom)
+  })
 }
 
 // Moves the training cursor onto `to` and opens the measure there. What the

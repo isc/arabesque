@@ -1,20 +1,20 @@
-import { scheduleCursorAdvances } from './playback.js?v=b17d6dce355f'
+import { scheduleCursorAdvances } from './playback.js?v=09ede8c00e6e'
 import {
   tsToSeconds,
   buildMeasureStartTimes,
   buildCursorTimeline,
   cursorStepsBeforeMeasure,
   measureIndexAt,
-} from './playbackTiming.js?v=b17d6dce355f'
-import { handsKey } from './hands.js?v=b17d6dce355f'
-import { prepareClick, playClick, clickTrack } from './metronomeClick.js?v=b17d6dce355f'
+} from './playbackTiming.js?v=09ede8c00e6e'
+import { handsKey } from './hands.js?v=09ede8c00e6e'
+import { prepareClick, playClick, clickTrack } from './metronomeClick.js?v=09ede8c00e6e'
 import {
   requiredSequence,
   isNoteActiveForHands,
   sourceMeasuresToResetOnEntry,
   svgNoteheadFor,
   handOfNote,
-} from './noteExtraction.js?v=b17d6dce355f'
+} from './noteExtraction.js?v=09ede8c00e6e'
 import {
   findMatchingEvent,
   nearestOwedEvent,
@@ -24,7 +24,7 @@ import {
   isGraceStrike,
   EVENT_STATUS,
   CLASSIFICATION,
-} from './strictMatching.js?v=b17d6dce355f'
+} from './strictMatching.js?v=09ede8c00e6e'
 
 const DEFAULT_TOLERANCE_MS = 150
 // Notes played beyond the strict tolerance but within this wider window are
@@ -175,8 +175,10 @@ function start({
   // The music is about to come in: the run before is behind the player.
   onAttemptStarted,
   // Whether the run asks for a note: all of them, but for a drill of a
-  // fragment (ladder.js), which asks for those inside it as training does.
+  // fragment (ladder.js), which asks for those inside it as training does —
+  // and starts `from` where it does in its first bar, in whole notes.
   owes = () => true,
+  from = 0,
 }) {
   if (isRunning || !osmdInstance || !allNotes?.length) {
     // Nothing to run: over before it began, and said so the way any aborted
@@ -208,21 +210,24 @@ function start({
   allNotes = allNotes.slice(startMeasureIndex, lastMeasureIndex + 1)
   const measureStartTimes = buildMeasureStartTimes(allNotes)
   // Counted in on the time signature of the run's first bar, and on into that
-  // bar when it is a pickup (clickTrack).
-  const { countInMs, countInBeats, clicks } = clickTrack(allNotes, bpm)
+  // bar when it is a pickup, or straight into a run from partway into it
+  // (clickTrack). The run's first bar then starts before the count-in is over,
+  // by as much of it as the run leaves out.
+  const { countInMs, countInBeats, clicks } = clickTrack(allNotes, bpm, from)
+  const musicMs = countInMs - tsToSeconds(from, bpm) * 1000
 
   pendingEvents = []
   graceNotes = []
   measureRuns = allNotes.map((measureData, i) => ({
     sourceMeasureIndex: measureData.sourceMeasureIndex,
-    startMs: countInMs + tsToSeconds(measureStartTimes[i], bpm) * 1000,
+    startMs: musicMs + tsToSeconds(measureStartTimes[i], bpm) * 1000,
     durationMs: tsToSeconds(measureData.duration, bpm) * 1000,
     wrongNotes: 0,
     // Some of its notes not asked for: its attempt says nothing of the bar
     // as a whole (practiceTracker's `partial`).
     partial: false,
   }))
-  const cursorTimes = buildCursorTimeline(allNotes, measureStartTimes, bpm, countInMs)
+  const cursorTimes = buildCursorTimeline(allNotes, measureStartTimes, bpm, musicMs)
 
   // Each note sorted into what the run asks for (pendingEvents) or merely lets
   // through (graceNotes), the former carrying the notehead it lights up — looked
@@ -237,7 +242,7 @@ function start({
       if (!isNoteActiveForHands(noteData, activeHands)) continue
 
       const ts = measureOffset + noteData.timestamp
-      const noteTimeMs = countInMs + tsToSeconds(ts, bpm) * 1000
+      const noteTimeMs = musicMs + tsToSeconds(ts, bpm) * 1000
       if (!owes(noteData)) {
         measureRuns[i].partial = true
         unowed.push(noteTimeMs)
@@ -300,8 +305,14 @@ function start({
     onAttemptStartedCb?.()
   }, Math.max(0, countInMs - offTempoWindow)))
 
+  // On the run's first note: one from partway into its bar has the cursor
+  // wait there rather than walk the beats before it through the count-in.
   if (osmdInstance.cursor) {
-    timeouts.push(...scheduleCursorAdvances(osmdInstance.cursor, cursorTimes, { skipSteps: cursorSkipSteps }))
+    const before = Math.max(0, cursorTimes.findIndex((ms) => ms >= countInMs - 1))
+    timeouts.push(...scheduleCursorAdvances(osmdInstance.cursor, cursorTimes.slice(before), {
+      skipSteps: cursorSkipSteps + before,
+      keepInView: endMeasureIndex != null,
+    }))
   }
 
   // Schedule repeat-reset class wipes BEFORE the per-event window-open loop:

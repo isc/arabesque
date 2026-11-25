@@ -1,7 +1,7 @@
-import { t, tn, locale } from './i18n.js?v=b17d6dce355f'
-import { startOfLocalDay, daysBetween } from './days.js?v=b17d6dce355f'
-import { TWO_HANDS } from './hands.js?v=b17d6dce355f'
-import { partsOf } from './catalog.js?v=b17d6dce355f'
+import { t, tn, locale } from './i18n.js?v=09ede8c00e6e'
+import { startOfLocalDay, daysBetween } from './days.js?v=09ede8c00e6e'
+import { TWO_HANDS } from './hands.js?v=09ede8c00e6e'
+import { partsOf } from './catalog.js?v=09ede8c00e6e'
 
 // Built once: the active locale is fixed for the page lifetime (switching
 // language reloads), so the verbose-date formatter needn't rebuild per call.
@@ -80,6 +80,12 @@ function getStickyOffset() {
 // rather than recomputing the offset.
 export function isUnderStickyBars(top) {
   return top < getStickyOffset()
+}
+
+// True when what spans viewport y `top` to `bottom` is all on screen, clear of
+// the sticky bars.
+export function isInFullView(top, bottom) {
+  return !isUnderStickyBars(top) && bottom <= window.innerHeight
 }
 
 // Vertical band scanned above the reference line to catch fingerings, dynamics

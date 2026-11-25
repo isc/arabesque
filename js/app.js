@@ -1,34 +1,34 @@
-import { initMidi, nativePairingAvailable, openNativePairing } from './midi.js?v=b17d6dce355f'
-import { initMusicXML, repeatIndicatorClass } from './musicxml.js?v=b17d6dce355f'
-import { initFingeringEditor } from './fingeringEditor.js?v=b17d6dce355f'
-import { fingeringPad } from './fingeringPad.js?v=b17d6dce355f'
-import { initNoteCircles } from './noteCircles.js?v=b17d6dce355f'
-import { initPracticeTracker } from './practiceTracker.js?v=b17d6dce355f'
-import { TWO_HANDS, handsKey } from './hands.js?v=b17d6dce355f'
-import { formatDuration, formatDate, statusLabel, scorePageUrl, onForeground, onBackground, onIdle, nextPaint, withHands, passage, pickPassageMeasure, passageText } from './utils.js?v=b17d6dce355f'
-import { initStorage } from './storage.js?v=b17d6dce355f'
-import { initNoteLog, keepScoreNoteLogs } from './noteLog.js?v=b17d6dce355f'
-import { initFragmentSuggestions } from './fragmentSuggestions.js?v=b17d6dce355f'
-import { loadMxlAsXml } from './mxlLoader.js?v=b17d6dce355f'
-import { injectFingerings } from './fingeringInjector.js?v=b17d6dce355f'
-import { migrateFingeringRecord } from './fingeringKeys.js?v=b17d6dce355f'
-import { initPlayback, getBPM } from './playback.js?v=b17d6dce355f'
-import { initStrictPlaythrough } from './strictPlaythrough.js?v=b17d6dce355f'
-import { initKeyboardHint, C8 } from './keyboardHint.js?v=b17d6dce355f'
-import { createTempoPlan, createTempoTrainer, createRunLoop, isCleanRun, GRADUATED, BPM_STEP, STREAK, RANDOM_RATIOS } from './tempoTrainer.js?v=b17d6dce355f'
-import { attemptVerdict } from './attemptVerdict.js?v=b17d6dce355f'
-import { BPM_DEFAULT } from './bpmStepper.js?v=b17d6dce355f'
-import { bpmField } from './bpmField.js?v=b17d6dce355f'
-import { resultModal } from './resultModal.js?v=b17d6dce355f'
-import { headerMenu } from './headerMenu.js?v=b17d6dce355f'
-import { fetchNoteLogs, initAutoSync, triggerSync } from './autoSync.js?v=b17d6dce355f'
-import { scopedKey } from './profiles.js?v=b17d6dce355f'
-import { t, tn } from './i18n.js?v=b17d6dce355f'
-import { recordError } from './errorLog.js?v=b17d6dce355f'
-import { loadCatalog, fileUrl, isCollection } from './catalog.js?v=b17d6dce355f'
-import { playthroughCharts, withRunLines, hotMeasures } from './playthroughHistory.js?v=b17d6dce355f'
-import { goalLines, goalNews, goalsHint, pieceFigures, pieceGoals, statusProgress } from './pieceGoals.js?v=b17d6dce355f'
-import { firstPassIndexOf, runSize } from './noteExtraction.js?v=b17d6dce355f'
+import { initMidi, nativePairingAvailable, openNativePairing } from './midi.js?v=09ede8c00e6e'
+import { initMusicXML, repeatIndicatorClass } from './musicxml.js?v=09ede8c00e6e'
+import { initFingeringEditor } from './fingeringEditor.js?v=09ede8c00e6e'
+import { fingeringPad } from './fingeringPad.js?v=09ede8c00e6e'
+import { initNoteCircles } from './noteCircles.js?v=09ede8c00e6e'
+import { initPracticeTracker } from './practiceTracker.js?v=09ede8c00e6e'
+import { TWO_HANDS, handsKey } from './hands.js?v=09ede8c00e6e'
+import { formatDuration, formatDate, statusLabel, scorePageUrl, onForeground, onBackground, onIdle, nextPaint, withHands, passage, pickPassageMeasure, passageText } from './utils.js?v=09ede8c00e6e'
+import { initStorage } from './storage.js?v=09ede8c00e6e'
+import { initNoteLog, keepScoreNoteLogs } from './noteLog.js?v=09ede8c00e6e'
+import { initFragmentSuggestions } from './fragmentSuggestions.js?v=09ede8c00e6e'
+import { loadMxlAsXml } from './mxlLoader.js?v=09ede8c00e6e'
+import { injectFingerings } from './fingeringInjector.js?v=09ede8c00e6e'
+import { migrateFingeringRecord } from './fingeringKeys.js?v=09ede8c00e6e'
+import { initPlayback, getBPM } from './playback.js?v=09ede8c00e6e'
+import { initStrictPlaythrough } from './strictPlaythrough.js?v=09ede8c00e6e'
+import { initKeyboardHint, C8 } from './keyboardHint.js?v=09ede8c00e6e'
+import { createTempoPlan, createTempoTrainer, createRunLoop, isCleanRun, GRADUATED, BPM_STEP, STREAK, RANDOM_RATIOS } from './tempoTrainer.js?v=09ede8c00e6e'
+import { attemptVerdict } from './attemptVerdict.js?v=09ede8c00e6e'
+import { BPM_DEFAULT } from './bpmStepper.js?v=09ede8c00e6e'
+import { bpmField } from './bpmField.js?v=09ede8c00e6e'
+import { resultModal } from './resultModal.js?v=09ede8c00e6e'
+import { headerMenu } from './headerMenu.js?v=09ede8c00e6e'
+import { fetchNoteLogs, initAutoSync, triggerSync } from './autoSync.js?v=09ede8c00e6e'
+import { scopedKey } from './profiles.js?v=09ede8c00e6e'
+import { t, tn } from './i18n.js?v=09ede8c00e6e'
+import { recordError } from './errorLog.js?v=09ede8c00e6e'
+import { loadCatalog, fileUrl, isCollection } from './catalog.js?v=09ede8c00e6e'
+import { playthroughCharts, withRunLines, hotMeasures } from './playthroughHistory.js?v=09ede8c00e6e'
+import { goalLines, goalNews, goalsHint, pieceFigures, pieceGoals, statusProgress } from './pieceGoals.js?v=09ede8c00e6e'
+import { firstPassIndexOf, runSize } from './noteExtraction.js?v=09ede8c00e6e'
 
 // What the strict and training bands say once a passage's first bar is picked
 // and its last is awaited: to click that bar, while a click would reach the
@@ -973,11 +973,12 @@ export function midiApp() {
 
     // One strict run at `bpm`, resolving with the engine's result once it is
     // over — and filed in the journal on the way. Of the selected passage, but
-    // for a drill's, whose bars and the notes of them it owes (`owes`) are the
-    // drill's (clickRun in musicxml.js). `settle` is what follows a filing but
+    // for a drill's, whose bars, where in the first it starts (`from`) and
+    // the notes of them it owes (`owes`) are the drill's (clickRun in
+    // musicxml.js). `settle` is what follows a filing but
     // can wait for the end of a loop: the cloud sync and the reinforcement
     // suggestions, which read the score's whole history back.
-    startStrictRun(bpm, { settle = true, start = this.strictPassage.start, end = this.strictPassage.end, owes } = {}) {
+    startStrictRun(bpm, { settle = true, start = this.strictPassage.start, end = this.strictPassage.end, from, owes } = {}) {
       return new Promise((resolve) => {
         strictPlaythrough.start({
           bpm,
@@ -987,6 +988,7 @@ export function midiApp() {
           // engine the run covers the whole score, so the journal sees it.
           startMeasureIndex: start ?? 0,
           endMeasureIndex: end,
+          from,
           owes,
           onAttemptStarted: () => this.attemptStarted(),
           onCountIn: ({ beat, beats }) => {

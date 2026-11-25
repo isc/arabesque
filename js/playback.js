@@ -1,4 +1,4 @@
-import { isTestEnv, scrollSystemIntoView } from './utils.js?v=b17d6dce355f'
+import { isInFullView, isTestEnv, scrollSystemIntoView } from './utils.js?v=09ede8c00e6e'
 import {
   tsToSeconds,
   buildMeasureStartTimes,
@@ -6,9 +6,9 @@ import {
   cursorStepsBeforeMeasure,
   measureIndexAt,
   GRACE_NOTE_OFFSET_WN,
-} from './playbackTiming.js?v=b17d6dce355f'
-import { BPM_DEFAULT } from './bpmStepper.js?v=b17d6dce355f'
-import { isNoteActiveForHands } from './noteExtraction.js?v=b17d6dce355f'
+} from './playbackTiming.js?v=09ede8c00e6e'
+import { BPM_DEFAULT } from './bpmStepper.js?v=09ede8c00e6e'
+import { isNoteActiveForHands } from './noteExtraction.js?v=09ede8c00e6e'
 
 // The three states the transport can be in. Paused is not stopped: the piece is
 // still on the stand at the bar it was held at.
@@ -351,8 +351,11 @@ function placeCursor(cursor, skipSteps) {
 // The page follows the cursor a system at a time (scrollSystemIntoView), and
 // goes to the first one now rather than at that first time: a strict run's is
 // the end of its count-in, and the sheet must not move on the downbeat the
-// player is reading it for.
-export function scheduleCursorAdvances(cursor, cursorTimes, { skipSteps = 0 } = {}) {
+// player is reading it for. A passage played again and again — `keepInView`,
+// a strict loop or a drill — leaves the page where it is while the cursor's
+// system is all on screen: one across two systems that both fit went up and
+// down with every go (feedback 029831ab).
+export function scheduleCursorAdvances(cursor, cursorTimes, { skipSteps = 0, keepInView = false } = {}) {
   placeCursor(cursor, skipSteps)
   let lastCursorTop = null
   const followCursor = () => {
@@ -363,7 +366,8 @@ export function scheduleCursorAdvances(cursor, cursorTimes, { skipSteps = 0 } = 
     // How far down the score, not down the page: a band coming up over the
     // score moves everything under it, and that is no change of system.
     const top = rect.top - scoreSvg.getBoundingClientRect().top
-    if (lastCursorTop === null || Math.abs(top - lastCursorTop) > 10) scrollSystemIntoView(rect.top, scoreSvg)
+    const moved = lastCursorTop === null || Math.abs(top - lastCursorTop) > 10
+    if (moved && !(keepInView && isInFullView(rect.top, rect.bottom))) scrollSystemIntoView(rect.top, scoreSvg)
     lastCursorTop = top
   }
   followCursor()
