@@ -6,10 +6,10 @@
 //   is synchronous (no async/ordering issues).
 // - Switching language persists the choice and reloads, which re-renders every
 //   string — static and JS-built — without any reactive plumbing.
-import fr from './locales/fr.js?v=09ede8c00e6e'
-import en from './locales/en.js?v=09ede8c00e6e'
+import fr from './locales/fr.js?v=d2f2aa5d0592'
+import en from './locales/en.js?v=d2f2aa5d0592'
 // Must be imported before this module reads the stored language (see the file).
-import { KEY_PREFIX } from './legacyKeys.js?v=09ede8c00e6e'
+import { KEY_PREFIX } from './legacyKeys.js?v=d2f2aa5d0592'
 
 const DICTS = { fr, en }
 const SUPPORTED = ['fr', 'en']

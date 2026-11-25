@@ -1,20 +1,20 @@
-import { scheduleCursorAdvances } from './playback.js?v=09ede8c00e6e'
+import { scheduleCursorAdvances } from './playback.js?v=d2f2aa5d0592'
 import {
   tsToSeconds,
   buildMeasureStartTimes,
   buildCursorTimeline,
   cursorStepsBeforeMeasure,
   measureIndexAt,
-} from './playbackTiming.js?v=09ede8c00e6e'
-import { handsKey } from './hands.js?v=09ede8c00e6e'
-import { prepareClick, playClick, clickTrack } from './metronomeClick.js?v=09ede8c00e6e'
+} from './playbackTiming.js?v=d2f2aa5d0592'
+import { handsKey } from './hands.js?v=d2f2aa5d0592'
+import { prepareClick, playClick, clickTrack } from './metronomeClick.js?v=d2f2aa5d0592'
 import {
   requiredSequence,
   isNoteActiveForHands,
   sourceMeasuresToResetOnEntry,
   svgNoteheadFor,
   handOfNote,
-} from './noteExtraction.js?v=09ede8c00e6e'
+} from './noteExtraction.js?v=d2f2aa5d0592'
 import {
   findMatchingEvent,
   nearestOwedEvent,
@@ -24,7 +24,7 @@ import {
   isGraceStrike,
   EVENT_STATUS,
   CLASSIFICATION,
-} from './strictMatching.js?v=09ede8c00e6e'
+} from './strictMatching.js?v=d2f2aa5d0592'
 
 const DEFAULT_TOLERANCE_MS = 150
 // Notes played beyond the strict tolerance but within this wider window are
@@ -96,6 +96,9 @@ let onAttemptStartedCb = null
 // What went wrong in the run, fault by fault, for the verdict the band says of
 // it (attemptVerdict.js).
 let faults = []
+// The keys down, for the notes a tie holds: one is heard to its end only while
+// the key that struck it stays down (checkHold).
+let keysDown = new Set()
 
 export function initStrictPlaythrough() {
   return {
@@ -104,6 +107,7 @@ export function initStrictPlaythrough() {
     clearMarks,
     repaintMarks,
     handleNoteOn,
+    handleNoteOff,
     setActiveHands,
     get isPlaying() { return isRunning },
   }
@@ -194,6 +198,7 @@ function start({
   fadingMarks = [...markedNotes.keys()].map((noteData) => [noteData, svgNoteheadFor(activeOsmd, noteData)])
   markedNotes = new Map()
   faults = []
+  keysDown = new Set()
   activeOsmd = osmdInstance
   onCompleteCb = onComplete
   onProgressCb = onProgress
@@ -232,8 +237,13 @@ function start({
   // Each note sorted into what the run asks for (pendingEvents) or merely lets
   // through (graceNotes), the former carrying the notehead it lights up — looked
   // up here, once, rather than at every strike. When the notes not asked for
-  // are due, for the end of the run below.
+  // are due, for the end of the run below. And the notes a tie holds, each
+  // with the event that struck its tie: asked for nothing, but checked as they
+  // come round (checkHold) — they never turned green, held or not (feedback
+  // 7cd0121a).
   const unowed = []
+  const struckTies = new Map()
+  const holds = []
   for (let i = 0; i < allNotes.length; i++) {
     const measureData = allNotes[i]
     const measureOffset = measureStartTimes[i] - measureData.measureIndex
@@ -257,15 +267,28 @@ function start({
         continue
       }
 
+      const noteheadEl = svgNoteheadFor(activeOsmd, noteData)
       const event = eventForNote(noteData, {
         timeMs: noteTimeMs,
         bpm,
         offTempoWindow,
-        noteheadEl: svgNoteheadFor(activeOsmd, noteData),
+        noteheadEl,
         measureIndex: i,
         sourceMeasureIndex: measureData.sourceMeasureIndex,
       })
-      if (event) pendingEvents.push(event)
+      const tie = noteData.note?.NoteTie
+      if (event) {
+        pendingEvents.push(event)
+        if (tie && !noteData.isTieContinuation) struckTies.set(tie, event)
+      } else if (noteData.isTieContinuation) {
+        holds.push({
+          noteData,
+          noteheadEl,
+          timeMs: noteTimeMs,
+          sourceMeasureIndex: measureData.sourceMeasureIndex,
+          struck: struckTies.get(tie),
+        })
+      }
     }
   }
 
@@ -321,11 +344,13 @@ function start({
   // runs first and the new expected-note class survives.
   for (const { atMs, sources } of planRepeatResets(allNotes, measureRuns)) {
     timeouts.push(setTimeout(() => {
-      for (const event of pendingEvents) {
+      for (const event of [...pendingEvents, ...holds]) {
         if (sources.has(event.sourceMeasureIndex)) unmarkNote(event)
       }
     }, atMs))
   }
+
+  for (const hold of holds) timeouts.push(setTimeout(() => checkHold(hold), hold.timeMs))
 
   // Visual cue lights up at T (in sync with cursor). Match remains possible
   // until T + offTempoWindow — within tolerance is "in tempo", beyond is
@@ -393,6 +418,20 @@ function fumble(event) {
   if (event.status !== EVENT_STATUS.PENDING) markNote(event, CLS_MISSED)
 }
 
+// A note a tie holds, come round: heard only while the key that struck the tie
+// is still down — green then, and off the click's colour, a fault, where it was
+// let go before. Nothing is said of one whose tie went unstruck: that note is
+// already missed.
+function checkHold(hold) {
+  if (hold.struck?.status !== EVENT_STATUS.SETTLED) return
+  if (keysDown.has(hold.noteData.midiNumber)) {
+    markNote(hold, CLS_PLAYED)
+    return
+  }
+  addFault('released', hold)
+  markNote(hold, CLS_OFFTEMPO)
+}
+
 function missEvent(event) {
   event.status = EVENT_STATUS.MISSED
   stats.missed++
@@ -403,6 +442,7 @@ function missEvent(event) {
 
 function handleNoteOn(midiNumber) {
   if (!isRunning) return false
+  keysDown.add(midiNumber)
   const now = performance.now() - startedAtPerf
   const match = findMatchingEvent(pendingEvents, midiNumber, now, currentOffTempoWindowMs)
   if (!match) {
@@ -439,6 +479,10 @@ function handleNoteOn(midiNumber) {
   markNote(event, event.fumbled ? CLS_MISSED : hit ? CLS_PLAYED : CLS_OFFTEMPO)
   onProgressCb?.({ ...stats })
   return true
+}
+
+function handleNoteOff(midiNumber) {
+  keysDown.delete(midiNumber)
 }
 
 // The measure being played through at `ms` from the start of the run, or null
