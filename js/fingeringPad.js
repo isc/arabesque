@@ -5,7 +5,7 @@
 // headerMenu(): the component provides `scoreUrl` — a score opened from disk
 // has none, and takes no fingerings — `rerenderScore()` and `repaintScore()`,
 // and calls setupFingeringHandlers() after every redraw.
-import { noteLabel } from './noteExtraction.js?v=04f189e58f88'
+import { noteLabel } from './noteExtraction.js?v=b17d6dce355f'
 
 export function fingeringPad({ storage, fingeringEditor, noteCircles }) {
   // The pad's own keys while it is open, null once it is closing. Kept here

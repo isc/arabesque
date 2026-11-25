@@ -15,14 +15,14 @@
 // Page-specific seam (kept out of here): feedbackContext() — extra,
 // non-identifying context merged into a report (practice stats on the library,
 // current score on the score page).
-import { CHANGELOG } from './changelog.js?v=04f189e58f88'
-import { startOfLocalDay } from './days.js?v=04f189e58f88'
-import { feedbackEnabled, buildBaseContext, submitFeedback, defaultFeedbackEmail } from './feedback.js?v=04f189e58f88'
-import { getLang, locale } from './i18n.js?v=04f189e58f88'
-import { INSTALL_AVAILABLE_EVENT, installAvailable, promptInstall } from './installPrompt.js?v=04f189e58f88'
-import { nativePairingAvailable, openNativePairing } from './midi.js?v=04f189e58f88'
-import { keyHintAllowed, storeKeyHintAllowed } from './keyHintSetting.js?v=04f189e58f88'
-import { recordError } from './errorLog.js?v=04f189e58f88'
+import { CHANGELOG } from './changelog.js?v=b17d6dce355f'
+import { startOfLocalDay } from './days.js?v=b17d6dce355f'
+import { feedbackEnabled, buildBaseContext, submitFeedback, defaultFeedbackEmail } from './feedback.js?v=b17d6dce355f'
+import { getLang, locale } from './i18n.js?v=b17d6dce355f'
+import { INSTALL_AVAILABLE_EVENT, installAvailable, promptInstall } from './installPrompt.js?v=b17d6dce355f'
+import { nativePairingAvailable, openNativePairing } from './midi.js?v=b17d6dce355f'
+import { keyHintAllowed, storeKeyHintAllowed } from './keyHintSetting.js?v=b17d6dce355f'
+import { recordError } from './errorLog.js?v=b17d6dce355f'
 
 const CHANGELOG_SEEN_KEY = 'arabesque:changelog-seen'
 const CHANGELOG_DATE_FORMATTER = new Intl.DateTimeFormat(locale(), {
@@ -143,7 +143,7 @@ export function headerMenu() {
       // visit ever opens the form. Nothing waits on the result — null,
       // from a capture that failed or a browser that could not make one, simply
       // means the form offers no picture and the report goes as words alone.
-      const { captureViewport } = await import('./screenshot.js?v=04f189e58f88')
+      const { captureViewport } = await import('./screenshot.js?v=b17d6dce355f')
       this.feedbackShot = await captureViewport()
     },
 

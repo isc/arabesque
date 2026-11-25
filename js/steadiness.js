@@ -27,7 +27,7 @@
 // with the tempo of another one.
 //
 // Pure: attacks in, verdicts out, so the rule can be tested without a score.
-import { median } from './practiceTime.js?v=04f189e58f88'
+import { median } from './practiceTime.js?v=b17d6dce355f'
 
 export const HOLE_FACTOR = 1.8
 export const HOLE_MIN_EXCESS_MS = 250
@@ -159,8 +159,7 @@ export function createSteadiness() {
     },
     // The pace the traversal has held so far, in ms per whole note: the mean
     // over all of it, where a verdict's `pace` is the median it was weighed
-    // against. What a passage asked for at a tempo is weighed by (ladder.js).
-    // Null before its second attack.
+    // against. Null before its second attack.
     get meanPace() {
       return held.written > 0 ? held.ms / held.written : null
     },

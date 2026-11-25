@@ -1,34 +1,34 @@
-import { initMidi, nativePairingAvailable, openNativePairing } from './midi.js?v=04f189e58f88'
-import { initMusicXML, repeatIndicatorClass } from './musicxml.js?v=04f189e58f88'
-import { initFingeringEditor } from './fingeringEditor.js?v=04f189e58f88'
-import { fingeringPad } from './fingeringPad.js?v=04f189e58f88'
-import { initNoteCircles } from './noteCircles.js?v=04f189e58f88'
-import { initPracticeTracker } from './practiceTracker.js?v=04f189e58f88'
-import { TWO_HANDS, handsKey } from './hands.js?v=04f189e58f88'
-import { formatDuration, formatDate, statusLabel, scorePageUrl, onForeground, onBackground, onIdle, nextPaint, withHands, passage, pickPassageMeasure, passageText } from './utils.js?v=04f189e58f88'
-import { initStorage } from './storage.js?v=04f189e58f88'
-import { initNoteLog, keepScoreNoteLogs } from './noteLog.js?v=04f189e58f88'
-import { initFragmentSuggestions } from './fragmentSuggestions.js?v=04f189e58f88'
-import { loadMxlAsXml } from './mxlLoader.js?v=04f189e58f88'
-import { injectFingerings } from './fingeringInjector.js?v=04f189e58f88'
-import { migrateFingeringRecord } from './fingeringKeys.js?v=04f189e58f88'
-import { initPlayback, getBPM } from './playback.js?v=04f189e58f88'
-import { initStrictPlaythrough } from './strictPlaythrough.js?v=04f189e58f88'
-import { initKeyboardHint, C8 } from './keyboardHint.js?v=04f189e58f88'
-import { createTempoPlan, createTempoTrainer, GRADUATED, BPM_STEP, STREAK, RANDOM_RATIOS } from './tempoTrainer.js?v=04f189e58f88'
-import { attemptVerdict } from './attemptVerdict.js?v=04f189e58f88'
-import { BPM_DEFAULT } from './bpmStepper.js?v=04f189e58f88'
-import { bpmField } from './bpmField.js?v=04f189e58f88'
-import { resultModal } from './resultModal.js?v=04f189e58f88'
-import { headerMenu } from './headerMenu.js?v=04f189e58f88'
-import { fetchNoteLogs, initAutoSync, triggerSync } from './autoSync.js?v=04f189e58f88'
-import { scopedKey } from './profiles.js?v=04f189e58f88'
-import { t, tn } from './i18n.js?v=04f189e58f88'
-import { recordError } from './errorLog.js?v=04f189e58f88'
-import { loadCatalog, fileUrl, isCollection } from './catalog.js?v=04f189e58f88'
-import { playthroughCharts, withRunLines, hotMeasures } from './playthroughHistory.js?v=04f189e58f88'
-import { goalLines, goalNews, goalsHint, pieceFigures, pieceGoals, statusProgress } from './pieceGoals.js?v=04f189e58f88'
-import { firstPassIndexOf, runSize } from './noteExtraction.js?v=04f189e58f88'
+import { initMidi, nativePairingAvailable, openNativePairing } from './midi.js?v=b17d6dce355f'
+import { initMusicXML, repeatIndicatorClass } from './musicxml.js?v=b17d6dce355f'
+import { initFingeringEditor } from './fingeringEditor.js?v=b17d6dce355f'
+import { fingeringPad } from './fingeringPad.js?v=b17d6dce355f'
+import { initNoteCircles } from './noteCircles.js?v=b17d6dce355f'
+import { initPracticeTracker } from './practiceTracker.js?v=b17d6dce355f'
+import { TWO_HANDS, handsKey } from './hands.js?v=b17d6dce355f'
+import { formatDuration, formatDate, statusLabel, scorePageUrl, onForeground, onBackground, onIdle, nextPaint, withHands, passage, pickPassageMeasure, passageText } from './utils.js?v=b17d6dce355f'
+import { initStorage } from './storage.js?v=b17d6dce355f'
+import { initNoteLog, keepScoreNoteLogs } from './noteLog.js?v=b17d6dce355f'
+import { initFragmentSuggestions } from './fragmentSuggestions.js?v=b17d6dce355f'
+import { loadMxlAsXml } from './mxlLoader.js?v=b17d6dce355f'
+import { injectFingerings } from './fingeringInjector.js?v=b17d6dce355f'
+import { migrateFingeringRecord } from './fingeringKeys.js?v=b17d6dce355f'
+import { initPlayback, getBPM } from './playback.js?v=b17d6dce355f'
+import { initStrictPlaythrough } from './strictPlaythrough.js?v=b17d6dce355f'
+import { initKeyboardHint, C8 } from './keyboardHint.js?v=b17d6dce355f'
+import { createTempoPlan, createTempoTrainer, createRunLoop, isCleanRun, GRADUATED, BPM_STEP, STREAK, RANDOM_RATIOS } from './tempoTrainer.js?v=b17d6dce355f'
+import { attemptVerdict } from './attemptVerdict.js?v=b17d6dce355f'
+import { BPM_DEFAULT } from './bpmStepper.js?v=b17d6dce355f'
+import { bpmField } from './bpmField.js?v=b17d6dce355f'
+import { resultModal } from './resultModal.js?v=b17d6dce355f'
+import { headerMenu } from './headerMenu.js?v=b17d6dce355f'
+import { fetchNoteLogs, initAutoSync, triggerSync } from './autoSync.js?v=b17d6dce355f'
+import { scopedKey } from './profiles.js?v=b17d6dce355f'
+import { t, tn } from './i18n.js?v=b17d6dce355f'
+import { recordError } from './errorLog.js?v=b17d6dce355f'
+import { loadCatalog, fileUrl, isCollection } from './catalog.js?v=b17d6dce355f'
+import { playthroughCharts, withRunLines, hotMeasures } from './playthroughHistory.js?v=b17d6dce355f'
+import { goalLines, goalNews, goalsHint, pieceFigures, pieceGoals, statusProgress } from './pieceGoals.js?v=b17d6dce355f'
+import { firstPassIndexOf, runSize } from './noteExtraction.js?v=b17d6dce355f'
 
 // What the strict and training bands say once a passage's first bar is picked
 // and its last is awaited: to click that bar, while a click would reach the
@@ -98,8 +98,11 @@ export function midiApp() {
   // Orders the reinforcement refreshes fired at every measure boundary (see
   // refreshReinforcementSuggestions).
   let reinforcementRefreshSeq = 0
-  // The tempo trainer's loop while one is running (see tempoTrainer.js).
-  let trainer = null
+  // The loop strict runs are played in while one is on, running or paused: the
+  // tempo trainer's, or a drill's steps to the click (createRunLoop).
+  let runLoop = null
+  // What a loop calls to cut the run under way short.
+  const stopStrictRun = () => strictPlaythrough.stop()
   // The last strict run being filed. Awaited by anything that would otherwise
   // end the same session underneath it (see setMode): closing a session twice
   // credits its practice time twice.
@@ -300,6 +303,20 @@ export function midiApp() {
     get strictSessionOn() {
       return this.strictTransport !== 'stopped'
     },
+    // What sets a strict run up — the tempo, the loop — under strict mode's
+    // tab, and until it starts.
+    get strictSetup() {
+      return this.mode === 'strict' && !this.strictSessionOn
+    },
+    // The keys go to strict mode's engine: under its tab, and on a drill's
+    // step to the click (ladder.js).
+    get keysToStrict() {
+      return this.mode === 'strict' || Boolean(this.ladder?.click)
+    },
+    // Block chords are the drill's own engine's: not on a step to the click.
+    get blockChordsOffered() {
+      return this.blockChordsFit && !this.ladder?.click
+    },
     // The words on ▶ / ⏸, as score.<key> and score.<key>Btn.
     get strictTransportWords() {
       return { playing: 'pause', paused: 'resume' }[this.strictTransport] ?? 'start'
@@ -420,7 +437,7 @@ export function midiApp() {
           // The strict engine takes no key before ▶ — and neither does anything
           // else: the free engine used to, and a piece played through under the
           // strict tab opened the free results and filed a free session.
-          if (this.mode === 'strict') {
+          if (this.keysToStrict) {
             strictPlaythrough.handleNoteOn(midiNote)
             noteLog.keyDown(midiNote, velocity)
             return
@@ -430,7 +447,7 @@ export function midiApp() {
         },
         onNoteReleased: (midiNote) => {
           noteLog.keyUp(midiNote)
-          if (this.mode === 'strict') return
+          if (this.keysToStrict) return
           musicxml.deactivateNote(midiNote)
           keyHint.keyUp(midiNote)
         },
@@ -494,8 +511,11 @@ export function midiApp() {
         },
         // Null once the drill is over, finished or left: what is worth
         // drilling is read again then, for the hands it has given back.
+        // A step to the click hands the keys to strict mode's engine, whose
+        // marks go with it: what the next step lights is the drill's own.
         onLadder: (ladder) => {
           this.ladder = ladder
+          if (!ladder?.click) strictPlaythrough.clearMarks()
           if (!ladder) this.refreshReinforcementSuggestions()
         },
         // A step of the ladder taken with one hand, or a drill giving back the
@@ -933,7 +953,7 @@ export function midiApp() {
     // streak it had reached (feedback 7f523e16).
     toggleStrictPlaythrough() {
       if (this.isStrictPlaying) {
-        if (trainer) this.pauseTempoTrainer()
+        if (runLoop) this.pauseRunLoop()
         else strictPlaythrough.stop()
         return
       }
@@ -941,23 +961,23 @@ export function midiApp() {
       this.stopListening()
       this.strictTransport = 'playing'
       this.paintStrictRange()
-      if (trainer) {
-        trainer.resume()
-        return
+      if (runLoop) runLoop.resume()
+      // A drill sets the hands of its steps itself (onHandsChanged).
+      else if (this.mode === 'reinforcement') this.startClickRuns()
+      else {
+        strictPlaythrough.setActiveHands(this.activeHands)
+        if (this.strictPassage.loop) this.startTempoTrainer()
+        else this.startStrictRun(this.strictBpm).then((result) => this.finishSingleRun(result))
       }
-
-      strictPlaythrough.setActiveHands(this.activeHands)
-
-      if (this.strictPassage.loop) this.startTempoTrainer()
-      else this.startStrictRun(this.strictBpm).then((result) => this.finishSingleRun(result))
     },
 
-    // One strict run of the selected passage at `bpm`, resolving with the
-    // engine's result once it is over — and filed in the journal on the way.
-    // `settle` is what follows a filing but can wait for the end of a loop:
-    // the cloud sync and the reinforcement suggestions, which read the
-    // score's whole history back.
-    startStrictRun(bpm, { settle = true } = {}) {
+    // One strict run at `bpm`, resolving with the engine's result once it is
+    // over — and filed in the journal on the way. Of the selected passage, but
+    // for a drill's, whose bars and the notes of them it owes (`owes`) are the
+    // drill's (clickRun in musicxml.js). `settle` is what follows a filing but
+    // can wait for the end of a loop: the cloud sync and the reinforcement
+    // suggestions, which read the score's whole history back.
+    startStrictRun(bpm, { settle = true, start = this.strictPassage.start, end = this.strictPassage.end, owes } = {}) {
       return new Promise((resolve) => {
         strictPlaythrough.start({
           bpm,
@@ -965,8 +985,9 @@ export function midiApp() {
           osmdInstance: musicxml.getOsmdInstance(),
           // No pick means from the top — and index 0 is also what tells the
           // engine the run covers the whole score, so the journal sees it.
-          startMeasureIndex: this.strictPassage.start ?? 0,
-          endMeasureIndex: this.strictPassage.end,
+          startMeasureIndex: start ?? 0,
+          endMeasureIndex: end,
+          owes,
           onAttemptStarted: () => this.attemptStarted(),
           onCountIn: ({ beat, beats }) => {
             this.countInBeat = beat
@@ -1004,13 +1025,13 @@ export function midiApp() {
     // modal.
     async startTempoTrainer() {
       const plan = createTempoPlan({ mode: this.trainerMode, bpm: this.strictBpm })
-      trainer = createTempoTrainer({
+      const trainer = createTempoTrainer({
         plan,
         runOnce: (bpm) => {
           this.trainerStatus = { bpm, run: plan.runs.length + 1, cleanStreak: plan.cleanStreak }
           return this.startStrictRun(bpm, { settle: false })
         },
-        abortRun: () => strictPlaythrough.stop(),
+        abortRun: stopStrictRun,
         // The streak moves as soon as the run is judged, not a pause later, and
         // the band says what the run came to and where it takes the tempo.
         onRun: ({ faults }, clean) => {
@@ -1018,21 +1039,45 @@ export function midiApp() {
           this.judgeAttempt({ clean, faults }, tempoCall(plan))
         },
       })
-      const summary = await trainer.start()
-      trainer = null
-      this.strictTransport = 'stopped'
+      await this.playRunLoop(trainer)
       this.paintStrictRange()
       this.trainerStatus = null
-      this.showTrainerSummary({ ...summary, runs: plan.runs })
+      this.showTrainerSummary({ ...trainer.summary(), runs: plan.runs })
       await strictRunRecorded
       await this.settleStrictRuns()
+    },
+
+    // ▶ on a drill's step to the click (ladder.js): strict runs of its
+    // passage at the step's tempo, the drill climbing on each as it comes in.
+    // One after another while the drill keeps to the click on that passage —
+    // a hand alone or a slower click included — and paused as a loop is.
+    startClickRuns() {
+      return this.playRunLoop(createRunLoop({
+        runOnce: () => {
+          const { bpm, ...bars } = musicxml.clickRun()
+          return this.startStrictRun(bpm, { ...bars, settle: false })
+        },
+        abortRun: stopStrictRun,
+        onRun: ({ verdict, faults }) => {
+          if (!musicxml.judgeClickRun({ clean: isCleanRun(verdict), faults })) runLoop.stop()
+        },
+      }))
+    },
+
+    // Strict runs in a loop until it is stopped, the loop ending the session
+    // they are played in.
+    async playRunLoop(loop) {
+      runLoop = loop
+      await loop.start()
+      runLoop = null
+      this.strictTransport = 'stopped'
     },
 
     // A loop held, the run under way unjudged — and what was played until
     // then settled, as the end of a loop settles it: a pause may be the last
     // thing done before the page is left.
-    async pauseTempoTrainer() {
-      trainer.pause()
+    async pauseRunLoop() {
+      runLoop.pause()
       this.strictTransport = 'paused'
       this.paintStrictRange()
       await strictRunRecorded
@@ -1043,7 +1088,7 @@ export function midiApp() {
     // and whatever picks another passage, another way of running it or
     // another mode.
     endStrictSession() {
-      if (trainer) trainer.stop()
+      if (runLoop) runLoop.stop()
       else strictPlaythrough.stop()
     },
 
@@ -1180,25 +1225,23 @@ export function midiApp() {
       return t('score.trainingHint', { times })
     },
 
-    // What the last repetitions of a drill call for — faster, steadier, a
-    // step down — or null when they call for nothing, and outside a drill.
+    // What the last goes of a drill call for — steadier, a step down — or
+    // null when they call for nothing, and outside a drill.
     ladderCall() {
       if (!this.ladder) return null
-      const { down, hint, tempo, played } = this.ladder
-      if (hint === 'slow') return t('score.ladderSlow', { played, tempo })
+      const { down, hint, click } = this.ladder
       if (hint === 'steady') return t('score.ladderSteady')
-      return down ? t(`score.ladderDown.${down}`) : null
+      return down ? t(`score.ladderDown.${down}`, { click }) : null
     },
 
     // What a drill asks for on the step under way (score.ladderAsk in the
-    // catalogs, by the step's kind) — which passage of how many it is, the
-    // board says beside it. The last step is asked with the pace it holds,
-    // when it holds one. Null for a ladder with nothing to say: a clean
-    // repetition a turn, which the band's own line already asks for.
+    // catalogs, by the step's kind) — which passage of how many it is, and
+    // the tempo of its click, the board says beside it. A step stepped down
+    // to is said by ladderCall instead. Null for a ladder with nothing to say:
+    // a clean repetition a turn, which the band's own line already asks for.
     ladderAsk() {
       if (!this.ladderShown) return null
-      const { kind, tempo } = this.ladder
-      return t(`score.ladderAsk.${kind === 'confirm' && tempo ? 'confirmTempo' : kind}`, { tempo })
+      return t(`score.ladderAsk.${this.ladder.kind}`)
     },
 
     // Whether the band shows the ladder under way: not one with nothing to
@@ -1218,7 +1261,9 @@ export function midiApp() {
     get ladderStep() {
       const steps = this.ladderSteps
       const n = steps.findIndex((step) => step.now) + 1
-      return { label: t('board.step', { n, of: steps.length }), name: t(`score.ladderName.${this.ladder?.kind}`) }
+      const name = t(`score.ladderName.${this.ladder?.kind}`)
+      const click = this.ladder?.click
+      return { label: t('board.step', { n, of: steps.length }), name: click ? t('score.ladderAtClick', { name, click }) : name }
     },
 
     // A go at the passage is over, and judged: the band says what it came to.
@@ -1314,6 +1359,12 @@ export function midiApp() {
       if (!this.scoreUrl || !result.measures.length) return
       const { hit, offTempoEarly, offTempoLate, wrongNotes } = result.verdict
       if (hit + offTempoEarly + offTempoLate + wrongNotes === 0) return
+      // A drill's run to the click is a go at its passage, filed with the
+      // drill's others in the session it goes on in.
+      if (this.mode === 'reinforcement') {
+        practiceTracker.recordDrillRun(result.measures)
+        return
+      }
 
       practiceTracker.recordStrictRun(result)
       // One session per run: a session carries at most one playthrough, and
@@ -1322,10 +1373,12 @@ export function midiApp() {
       if (settle) await this.settleStrictRuns()
     },
 
-    // What follows the filing of a run, or of a loop's worth of them.
+    // What follows the filing of a run, or of a loop's worth of them. Not the
+    // suggestions through a drill, which offers nothing while it lasts and
+    // reads them again when it is over (onLadder).
     settleStrictRuns() {
       triggerSync('session ended')
-      return this.refreshReinforcementSuggestions()
+      if (this.mode !== 'reinforcement') return this.refreshReinforcementSuggestions()
     },
 
     // Reinforcement is a flavor of training, so currentMode reports
@@ -1375,7 +1428,9 @@ export function midiApp() {
       // Before the engine moves: a reinforcement starts its first measure at
       // once, and a measure started on the session being closed goes with it.
       await rollSession(this.currentMode)
-      if (name === 'reinforcement') musicxml.setReinforcementMode(measuresToReinforce)
+      // The click the drill's last turns are played to is the tempo the
+      // player works the piece at in strict mode, if they have set one.
+      if (name === 'reinforcement') musicxml.setReinforcementMode(measuresToReinforce, { bpm: savedBpm('strictBpm', this.scoreUrl, null) })
       else musicxml.setTrainingMode(name === 'training')
       // A new mode is a new start: a wait only counts again from the next key.
       keyHint.rest()

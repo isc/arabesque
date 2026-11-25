@@ -18,7 +18,7 @@
 // read from the bench (feedback b758ae14).
 //
 // Pure: faults in, words out.
-import { locale, t, tn } from './i18n.js?v=04f189e58f88'
+import { locale, t, tn } from './i18n.js?v=b17d6dce355f'
 
 // The order faults are told in, the one to fix first ahead: a wrong note is
 // learnt if it is not stopped, a hole is the hand looking for the next one,

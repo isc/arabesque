@@ -11,10 +11,10 @@
 // from the log whenever asked, by the rule as it stands, so nothing of it is
 // filed with a session. The bar-and-join suggestions (reinforcement.js) are
 // for sessions with no log.
-import { REINFORCEMENT_CLEAN_PASSES } from './reinforcement.js?v=04f189e58f88'
-import { POSITION_EPSILON, attackNumber, beatIndex, beatStartOf, paceOf, roundPosition } from './noteLogAnalysis.js?v=04f189e58f88'
-import { TWO_HANDS } from './hands.js?v=04f189e58f88'
-import { median } from './practiceTime.js?v=04f189e58f88'
+import { REINFORCEMENT_CLEAN_PASSES } from './reinforcement.js?v=b17d6dce355f'
+import { POSITION_EPSILON, attackNumber, beatIndex, beatStartOf, paceOf, roundPosition } from './noteLogAnalysis.js?v=b17d6dce355f'
+import { TWO_HANDS } from './hands.js?v=b17d6dce355f'
+import { median } from './practiceTime.js?v=b17d6dce355f'
 
 // Fragments are compared and merged as (bar, position) pairs, source bars
 // and whole notes.
@@ -173,16 +173,17 @@ export function fragmentsToReinforce(traversals, model, { hands, limit = 5 } = {
   return merged
 }
 
-// The pace a drill asks a passage for once it is built (ladder.js), in ms per
-// whole note: the one the last runs played with `hands` held around it — the
+// The pace a drill clicks a passage at once it is built (ladder.js), where the
+// player has set no strict tempo for the piece, in ms per whole note: the one
+// the last runs played with `hands` held around it — the
 // pace their intervals were weighed against in the bars of the fragment, which
 // is the pace of the bars before, a stall there left out — eased a little, so
 // that a passage is asked for what the runs do on their way to it and not for
 // their best. Read where it is drilled, since a piece changes pace: the Adagio
 // of the C minor prelude is not held to its Presto. A run here is any stretch
 // of free play long enough to have a pace, a whole piece or its first page.
-// Null when the window holds none through these bars: nothing is then asked
-// of the pace.
+// Null when the window holds none through these bars: there is then no click
+// to play the passage to.
 //
 // Answers for one fragment after another: the runs are sorted out once for an
 // offer, which the page asks for again at every bar.

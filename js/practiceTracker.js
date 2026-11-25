@@ -1,10 +1,10 @@
-import { initStorage } from './storage.js?v=04f189e58f88'
-import { TWO_HANDS, handsKey } from './hands.js?v=04f189e58f88'
-import { scopedKey } from './profiles.js?v=04f189e58f88'
-import { localDayKey, shiftDayKey, startOfLocalDay, byStartedAt, sessionDay } from './days.js?v=04f189e58f88'
-import { loadCatalog } from './catalog.js?v=04f189e58f88'
-import { getFullPlaythroughs, getLastMeasureEndTime, sessionAttempts } from './practiceTime.js?v=04f189e58f88'
-import { measuresToReinforce } from './reinforcement.js?v=04f189e58f88'
+import { initStorage } from './storage.js?v=b17d6dce355f'
+import { TWO_HANDS, handsKey } from './hands.js?v=b17d6dce355f'
+import { scopedKey } from './profiles.js?v=b17d6dce355f'
+import { localDayKey, shiftDayKey, startOfLocalDay, byStartedAt, sessionDay } from './days.js?v=b17d6dce355f'
+import { loadCatalog } from './catalog.js?v=b17d6dce355f'
+import { getFullPlaythroughs, getLastMeasureEndTime, sessionAttempts } from './practiceTime.js?v=b17d6dce355f'
+import { measuresToReinforce } from './reinforcement.js?v=b17d6dce355f'
 import {
   AGGREGATES_VERSION,
   applyName,
@@ -12,8 +12,8 @@ import {
   foldSession,
   knownNames,
   titleOf,
-} from './aggregates.js?v=04f189e58f88'
-import { buildDailyLog, buildPracticeCalendar, buildScoreHistory } from './practiceJournal.js?v=04f189e58f88'
+} from './aggregates.js?v=b17d6dce355f'
+import { buildDailyLog, buildPracticeCalendar, buildScoreHistory } from './practiceJournal.js?v=b17d6dce355f'
 
 // Where a session interrupted by a page teardown waits to be closed properly
 // (see stashPendingSession). The profile's own: the snapshot must be replayed
@@ -60,6 +60,7 @@ export function initPracticeTracker(storageInstance = null) {
     recordSteadiness,
     endMeasureAttempt,
     recordStrictRun,
+    recordDrillRun,
     markScoreCompleted,
     restartPlaythrough,
     setActiveHands,
@@ -466,6 +467,15 @@ export function initPracticeTracker(storageInstance = null) {
     for (const attempt of measures) recordMeasureAttempt(attempt, { persist: false })
     if (completed) markScoreCompleted()
     currentSession.strict = verdict
+  }
+
+  // A drill's run to the click (ladder.js), its measures filed as attempts in
+  // the session under way, which goes on: the drill's other goes are filed
+  // there as they come.
+  function recordDrillRun(measures) {
+    if (!currentSession) return
+    for (const attempt of measures) recordMeasureAttempt(attempt, { persist: false })
+    if (persist) storage.saveSession({ ...currentSession })
   }
 
   // `at` (an ISO string) dates the restart, for a caller that knows when the

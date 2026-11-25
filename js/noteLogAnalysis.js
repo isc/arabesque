@@ -31,9 +31,9 @@
 //
 // Positions are compared exactly: whoever builds the model rounds them with
 // roundPosition, so that both hands on a beat share one.
-import { createSteadiness, isHole, outOfPace, writtenBetween } from './steadiness.js?v=04f189e58f88'
-import { TWO_HANDS, handsKey } from './hands.js?v=04f189e58f88'
-import { median } from './practiceTime.js?v=04f189e58f88'
+import { createSteadiness, isHole, outOfPace, writtenBetween } from './steadiness.js?v=b17d6dce355f'
+import { TWO_HANDS, handsKey } from './hands.js?v=b17d6dce355f'
+import { median } from './practiceTime.js?v=b17d6dce355f'
 
 // How finely positions are told apart, in whole notes: far below any note,
 // far above the error of summing durations.
@@ -162,8 +162,8 @@ function judge({ attacks, wrong, hands, blockChords }, model) {
     apply(steadiness.attack(point))
     previous = point
   }
-  // What a drill weighed the repetition by where it asked for a tempo
-  // (ladder.js): read before the close, which starts it over.
+  // The pace the traversal held, which the practice report prints: read
+  // before the close, which starts it over.
   const { meanPace } = steadiness
   apply(steadiness.close())
   weighLosses(ordered)
