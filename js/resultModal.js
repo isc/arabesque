@@ -4,55 +4,66 @@
 // component spreads (app.js), as it does headerMenu(). It reads nothing of the
 // component's: each end hands over what the modal reports, through the show…
 // method made for it.
-import { t } from './i18n.js?v=d2f2aa5d0592'
-import { TWO_HANDS } from './hands.js?v=d2f2aa5d0592'
-import { withHands, passageText } from './utils.js?v=d2f2aa5d0592'
-import { CLEAN_RATE } from './tempoTrainer.js?v=d2f2aa5d0592'
+import { t } from './i18n.js?v=2989825dbf7e'
+import { TWO_HANDS } from './hands.js?v=2989825dbf7e'
+import { withHands, passageText } from './utils.js?v=2989825dbf7e'
+import { CLEAN_RATE } from './tempoTrainer.js?v=2989825dbf7e'
 import {
   strictAccuracy,
-  faultsText,
   strictRunLabel,
   rankingOf,
-  wrongMeasuresText,
+  runFigure,
+  runFaults,
+  runRecords,
+  faultBars,
   resultCharts,
-} from './playthroughHistory.js?v=d2f2aa5d0592'
+} from './playthroughHistory.js?v=2989825dbf7e'
 
 // `onOpen` runs as the modal opens.
 export function resultModal({ onOpen }) {
   return {
     showResultModal: false,
     resultMode: null,
-    // A piece played through: the ranking of its comparable runs, its charts
-    // and where the run went wrong, made once as the modal opens — the chart
-    // used to be generated twice per render, once to ask whether there was
-    // one — and the hands they were all played with, named in the title when
-    // they aren't both.
+    // A piece played through, freely or to the click: what records it set,
+    // where it went wrong, the ranking of its comparable runs and their chart,
+    // made once as the modal opens — the chart used to be generated twice per
+    // render, once to ask whether there was one — and the hands they were all
+    // played with, named in the title when they aren't both. A strict run
+    // started partway into the score has its verdict and where it went wrong
+    // alone: it is no run of the piece.
     previousPlaythroughs: [],
     resultCharts: [],
-    resultWrongMeasures: '',
+    resultRecords: [],
+    resultWhere: [],
     // What the run did for the piece's goals (goalNews in pieceGoals.js).
     resultGoalNews: null,
     resultHands: TWO_HANDS,
-    // A strict run's verdict, a tempo trainer's summary, a training passage's
-    // line, a reinforcement's first tries (musicxml.js).
+    // A strict run's verdict — the run's headline figure, in a run to the
+    // click — a tempo trainer's summary, a training passage's line, a
+    // reinforcement's first tries (musicxml.js).
     strictResult: null,
     trainerSummary: null,
     resultTrainingText: '',
     reinforcementFirstTries: null,
 
-    // `allPlaythroughs` comes most recent first (getAllPlaythroughs).
-    showScoreComplete(allPlaythroughs, goalNews) {
+    // `allPlaythroughs` comes most recent first (getAllPlaythroughs). A run to
+    // the click comes with its verdict and the faults its engine noted, which
+    // say where it went wrong better than its wrong measures do.
+    showScoreComplete(allPlaythroughs, goalNews = { earned: [], next: '' }, { verdict = null, faults = null } = {}) {
+      const [latest] = allPlaythroughs
       this.previousPlaythroughs = rankingOf(allPlaythroughs)
       this.resultCharts = resultCharts(this.previousPlaythroughs)
-      this.resultWrongMeasures = wrongMeasuresText(allPlaythroughs[0]?.wrongMeasures ?? [])
+      this.resultRecords = runRecords(allPlaythroughs)
+      this.resultWhere = faultBars(faults ?? (latest?.wrongMeasures ?? []).map((bar) => ({ kind: 'wrong', bar })))
       this.resultGoalNews = goalNews
-      this.resultHands = this.previousPlaythroughs[0]?.hands ?? TWO_HANDS
-      this.openResultModal('free')
+      this.strictResult = verdict
+      this.resultHands = latest?.hands ?? TWO_HANDS
+      this.openResultModal('run')
     },
 
-    showStrictResult(verdict) {
-      this.strictResult = verdict
-      this.openResultModal('strict')
+    // A strict run started partway into the score.
+    showStrictResult(verdict, faults) {
+      this.showScoreComplete([], undefined, { verdict, faults })
     },
 
     showTrainerSummary(summary) {
@@ -92,16 +103,16 @@ export function resultModal({ onOpen }) {
 
     resultTitle() {
       switch (this.resultMode) {
-        case 'strict':         return t('score.resultTitleStrict')
         case 'trainer':        return t('score.resultTitleTrainer')
         case 'training':       return t('score.resultTitleTraining')
         case 'reinforcement':  return t('score.resultTitleReinforcement')
-        default:               return withHands(t('score.resultTitleScore'), this.resultHands)
+        default:               return withHands(t(this.strictResult ? 'score.resultTitleStrict' : 'score.resultTitleScore'), this.resultHands)
       }
     },
 
-    // Beside a run's time in the ranking.
-    faultsText,
+    // A run in the ranking: its time or its hit rate, and what it got wrong.
+    runFigure,
+    runFaults,
 
     strictAccuracyPercent() {
       return this.strictResult ? strictAccuracy(this.strictResult) : 0

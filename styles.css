@@ -2116,16 +2116,33 @@ dialog > article > footer {
 
 /* A star just earned leads the result, in the colour of the stars. What the
    run won is drawn in. */
-.pt-goal-earned {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--pt-space-2) var(--pt-space-6);
-  margin-bottom: var(--pt-space-3);
+.pt-goal-earned,
+.pt-records {
+  margin: 0 0 var(--pt-space-3);
   padding: var(--pt-space-3) var(--pt-space-4);
   border: 1px solid color-mix(in srgb, var(--pt-record) 35%, transparent);
   border-radius: var(--pt-radius-md);
   background: var(--pt-record-bg);
 }
+.pt-goal-earned {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--pt-space-2) var(--pt-space-6);
+}
+/* The records a run set, a line each (runRecords in playthroughHistory.js). */
+.pt-records { list-style: none; display: grid; gap: var(--pt-space-1); }
+.pt-record { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--pt-space-2); }
+.pt-record small { color: var(--pt-text-muted); }
+/* Where a run went wrong, kind by kind: the kind, then its bars. */
+.pt-where {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: var(--pt-space-1) var(--pt-space-3);
+  margin: 0 0 var(--pt-space-3);
+}
+.pt-where > div { display: contents; }
+.pt-where dt { font-weight: 600; }
+.pt-where dd { margin: 0; color: var(--pt-text-muted); }
 .pt-goal-earned__item { display: flex; align-items: center; gap: var(--pt-space-3); margin: 0; }
 .pt-goal-earned .pt-goal__stars { flex: none; font-size: var(--pt-font-size-3xl); }
 .pt-goal-earned .is-won { display: inline-block; animation: pt-star-won 500ms cubic-bezier(0.2, 1.6, 0.4, 1) 150ms backwards; }

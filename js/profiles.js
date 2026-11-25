@@ -26,7 +26,7 @@
 // page: switching writes the new id and navigates, so that every module that
 // derived a name from it at import time (storage, practiceTracker) starts over
 // on the right one.
-import { t } from './i18n.js?v=d2f2aa5d0592'
+import { t } from './i18n.js?v=2989825dbf7e'
 
 export const PROFILES_KEY = 'arabesque:profiles'
 export const MAIN_PROFILE_ID = 'main'
