@@ -22,6 +22,10 @@
 // That bare URL lets a copy of this file outlive its deploy's modules, so they
 // import APP_VERSION from it and nothing else (test/js/stampVersion.test.js): a
 // new export asked of an old copy would stop their whole graph from linking.
+// It also keeps this file out of the pages' module preloads: WebKit serves a
+// preloaded URL from the copy it preloaded, reload included, and under a bare
+// URL that is one deploy's copy for every deploy after
+// (scripts/preload-modules.mjs).
 //
 // Pages load this on a <script type="module"> tag of its own, ahead of their
 // entry script, and it imports nothing statically: it has to run when the entry
@@ -29,7 +33,7 @@
 //
 // Left at 'dev' in the repo, which is what both sides say when the app is
 // served from a checkout, so the check never fires in development or in tests.
-export const APP_VERSION = '2989825dbf7e'
+export const APP_VERSION = '46e82bdb6096'
 
 // legacyKeys.js owns this prefix; inlined rather than imported, see above.
 const RELOAD_KEY = 'arabesque:version-reload'
@@ -52,7 +56,7 @@ function spendAttempt(key, value) {
 // rather than at the top (see there): it is the first script of every page, so
 // this reaches a module already running.
 const record = (error, where) =>
-  import('./errorLog.js?v=2989825dbf7e')
+  import('./errorLog.js?v=46e82bdb6096')
     .then(({ recordError }) => recordError(error, where))
     .catch(() => {})
 
@@ -147,7 +151,7 @@ function showBootFailure() {
   report.addEventListener('click', async () => {
     report.disabled = true
     try {
-      const { buildBaseContext, defaultFeedbackEmail, submitFeedback } = await import('./feedback.js?v=2989825dbf7e')
+      const { buildBaseContext, defaultFeedbackEmail, submitFeedback } = await import('./feedback.js?v=46e82bdb6096')
       await submitFeedback({
         message: `${text.title} (${location.pathname})`,
         email: defaultFeedbackEmail(),

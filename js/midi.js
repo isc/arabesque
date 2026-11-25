@@ -1,7 +1,7 @@
-import { isTestEnv, onForeground } from './utils.js?v=2989825dbf7e'
-import mockMIDI, { MOCK_DEVICE_NAME } from './midi_mock.js?v=2989825dbf7e'
-import { t } from './i18n.js?v=2989825dbf7e'
-import { recordError } from './errorLog.js?v=2989825dbf7e'
+import { isTestEnv, onForeground } from './utils.js?v=46e82bdb6096'
+import mockMIDI, { MOCK_DEVICE_NAME } from './midi_mock.js?v=46e82bdb6096'
+import { t } from './i18n.js?v=46e82bdb6096'
+import { recordError } from './errorLog.js?v=46e82bdb6096'
 
 const NOTE_ON = 144
 const NOTE_OFF = 128
