@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { moduleGraph, withPreloads } from '../../scripts/preload-modules.mjs'
-import { htmlPages } from '../../scripts/stamp-version.mjs'
+import { htmlPages, withVersionedUrls } from '../../scripts/stamp-version.mjs'
 
 const PUBLIC_DIR = join(import.meta.dirname, '..', '..', 'public')
 const page = (name) => readFileSync(join(PUBLIC_DIR, name), 'utf8')
@@ -26,6 +26,14 @@ describe('module preloads', () => {
     for (const href of preloaded(html)) expect(existsSync(join(PUBLIC_DIR, href)), href).toBe(true)
     const importMap = html.indexOf('<script type="importmap">')
     if (importMap >= 0) expect(html.indexOf('<!-- preloads: ')).toBeGreaterThan(importMap)
+  })
+
+  // WebKit answers a preloaded URL from the copy it preloaded, reload included,
+  // so a URL another deploy also uses must never be one (scripts/preload-modules.mjs).
+  it.each(htmlPages())('%s: preloads only URLs no other deploy uses', (name) => {
+    const stamped = withVersionedUrls(withPreloads(page(name), name), 'abc')
+    const shared = preloaded(stamped).filter((href) => !href.endsWith('?v=abc') && !href.startsWith('vendor/'))
+    expect(shared).toEqual([])
   })
 
   it('gives the same page when run twice', () => {

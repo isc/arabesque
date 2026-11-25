@@ -22,6 +22,10 @@
 // That bare URL lets a copy of this file outlive its deploy's modules, so they
 // import APP_VERSION from it and nothing else (test/js/stampVersion.test.js): a
 // new export asked of an old copy would stop their whole graph from linking.
+// It also keeps this file out of the pages' module preloads: WebKit serves a
+// preloaded URL from the copy it preloaded, reload included, and under a bare
+// URL that is one deploy's copy for every deploy after
+// (scripts/preload-modules.mjs).
 //
 // Pages load this on a <script type="module"> tag of its own, ahead of their
 // entry script, and it imports nothing statically: it has to run when the entry
