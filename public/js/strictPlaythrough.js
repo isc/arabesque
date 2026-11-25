@@ -174,6 +174,9 @@ function start({
   onCountIn,
   // The music is about to come in: the run before is behind the player.
   onAttemptStarted,
+  // Whether the run asks for a note: all of them, but for a drill of a
+  // fragment (ladder.js), which asks for those inside it as training does.
+  owes = () => true,
 }) {
   if (isRunning || !osmdInstance || !allNotes?.length) {
     // Nothing to run: over before it began, and said so the way any aborted
@@ -215,12 +218,17 @@ function start({
     startMs: countInMs + tsToSeconds(measureStartTimes[i], bpm) * 1000,
     durationMs: tsToSeconds(measureData.duration, bpm) * 1000,
     wrongNotes: 0,
+    // Some of its notes not asked for: its attempt says nothing of the bar
+    // as a whole (practiceTracker's `partial`).
+    partial: false,
   }))
   const cursorTimes = buildCursorTimeline(allNotes, measureStartTimes, bpm, countInMs)
 
   // Each note sorted into what the run asks for (pendingEvents) or merely lets
   // through (graceNotes), the former carrying the notehead it lights up — looked
-  // up here, once, rather than at every strike.
+  // up here, once, rather than at every strike. When the notes not asked for
+  // are due, for the end of the run below.
+  const unowed = []
   for (let i = 0; i < allNotes.length; i++) {
     const measureData = allNotes[i]
     const measureOffset = measureStartTimes[i] - measureData.measureIndex
@@ -230,6 +238,11 @@ function start({
 
       const ts = measureOffset + noteData.timestamp
       const noteTimeMs = countInMs + tsToSeconds(ts, bpm) * 1000
+      if (!owes(noteData)) {
+        measureRuns[i].partial = true
+        unowed.push(noteTimeMs)
+        continue
+      }
 
       // Not asked for, and not wrong either: see isGraceStrike.
       if (noteData.isGrace) {
@@ -254,10 +267,11 @@ function start({
   pendingEvents.sort((a, b) => a.timeMs - b.timeMs)
   graceNotes.sort((a, b) => a.timeMs - b.timeMs)
   const lastRun = measureRuns[measureRuns.length - 1]
-  straysFreeFromMs = Math.max(
-    lastRun.startMs + lastRun.durationMs - tolerance,
-    (pendingEvents[pendingEvents.length - 1]?.timeMs ?? 0) + tolerance,
-  )
+  const lastDueMs = pendingEvents[pendingEvents.length - 1]?.timeMs ?? 0
+  // A fragment ending inside its bar is gone on from where the rest of the
+  // bar comes in, as a passage is from its last bar line.
+  const goingOnMs = Math.min(lastRun.startMs + lastRun.durationMs, ...unowed.filter((ms) => ms > lastDueMs))
+  straysFreeFromMs = Math.max(goingOnMs - tolerance, lastDueMs + tolerance)
   stats = {
     total: pendingEvents.length,
     hit: 0,
@@ -453,6 +467,7 @@ function measureAttempts() {
       wrongNotes: run.wrongNotes,
       clean: counts.missed === 0 && run.wrongNotes === 0,
       hands,
+      ...(run.partial && { partial: true }),
     })
   }
   // pendingEvents is sorted by time, so the attempts come out in playing order.

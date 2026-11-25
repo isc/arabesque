@@ -60,6 +60,7 @@ export function initPracticeTracker(storageInstance = null) {
     recordSteadiness,
     endMeasureAttempt,
     recordStrictRun,
+    recordDrillRun,
     markScoreCompleted,
     restartPlaythrough,
     setActiveHands,
@@ -466,6 +467,15 @@ export function initPracticeTracker(storageInstance = null) {
     for (const attempt of measures) recordMeasureAttempt(attempt, { persist: false })
     if (completed) markScoreCompleted()
     currentSession.strict = verdict
+  }
+
+  // A drill's run to the click (ladder.js), its measures filed as attempts in
+  // the session under way, which goes on: the drill's other goes are filed
+  // there as they come.
+  function recordDrillRun(measures) {
+    if (!currentSession) return
+    for (const attempt of measures) recordMeasureAttempt(attempt, { persist: false })
+    if (persist) storage.saveSession({ ...currentSession })
   }
 
   // `at` (an ISO string) dates the restart, for a caller that knows when the

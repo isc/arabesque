@@ -338,8 +338,8 @@ export default {
     reinforcementHint: 'Each passage must be played {times}× without a mistake or a hesitation; a dot earned moves on to the next.',
     // The ladder a reinforcement takes a passage up (ladder.js): the name of
     // each step in the band's row and what it asks for, by the step's kind,
-    // then what the last repetitions call for — faster, steadier, or a step
-    // down, to one hand or to the passage with nothing asked of its pace.
+    // then what the last goes call for — steadier, or a step down, to one
+    // hand or to a slower click.
     ladderAria: 'Steps of the passage',
     ladderPassage: 'Passage {n} of {of}',
     ladderName: {
@@ -347,26 +347,29 @@ export default {
       left: 'Left hand',
       together: 'Both hands',
       whole: 'Any tempo',
-      tempo: 'In tempo',
+      slowClick: 'Slow click',
+      click: 'To the click',
+      slower: 'Slower',
       again: 'Again',
       confirm: 'Cold',
     },
+    // A step to the click, named with its tempo on the board.
+    ladderAtClick: '{name} · ♩ = {click}',
     ladderAsk: {
       right: 'Right hand alone, without a mistake or a hesitation.',
       left: 'Left hand alone, without a mistake or a hesitation.',
       together: 'Both hands, at your own pace, without a mistake or a hesitation.',
       whole: 'At your own pace, without a mistake or a hesitation.',
-      tempo: 'At the tempo of your full runs: ♩ = {tempo}.',
+      slowClick: 'To a slow click: ▶ starts the count-in.',
+      click: 'To the click, cold: ▶ starts the count-in.',
       again: 'Once more, without a mistake or a hesitation.',
       confirm: 'One last time, cold, without a mistake or a hesitation.',
-      confirmTempo: 'One last time, cold, at ♩ = {tempo}.',
     },
-    ladderSlow: 'Clean, but at ♩ = {played}: aim for ♩ = {tempo}.',
     ladderSteady: 'It keeps catching: slow down, steadiness first.',
     ladderDown: {
       right: 'The right hand keeps catching: alone once, then both hands.',
       left: 'The left hand keeps catching: alone once, then both hands.',
-      pace: 'Too fast for now: once at your own pace, then in tempo.',
+      slower: 'The click is too fast for now: once at ♩ = {click}, then back up.',
     },
     blockChordsBtn: '🎹 Block chords',
     blockChordsTitle: 'Play each beat as one chord',

@@ -117,18 +117,35 @@ export function summarizeRuns(runs) {
   }
 }
 
-// The loop: one run after another at the tempo the plan hands out, a gap
-// between them for the hands to come back to the start, until stop() — or
-// until a run is aborted from elsewhere. `runOnce(bpm)` plays one run and
-// resolves with the engine's result, which `abortRun()` cuts short;
-// `onRun(result, clean)` hears that a run has just been judged.
+// The tempo trainer itself: the loop below, each run at the tempo the plan
+// hands out and filed with it as it is judged — `onRun(result, clean)` hears
+// of it — and `summary()`, what the runs come to once it is over.
+export function createTempoTrainer({ plan, runOnce, abortRun, onRun, gapMs }) {
+  const loop = createRunLoop({
+    runOnce: () => runOnce(plan.nextBpm()),
+    abortRun,
+    onRun: (result) => {
+      const clean = plan.record(result.verdict)
+      onRun?.(result, clean)
+    },
+    gapMs,
+  })
+  return { ...loop, summary: () => ({ ...summarizeRuns(plan.runs), earnedBpm: plan.earnedBpm }) }
+}
+
+// The loop strict runs are played in, the tempo trainer's and a drill's steps
+// to the click (ladder.js): one run after another, a gap between them for the
+// hands to come back to the start, until stop() — or until a run is aborted
+// from elsewhere. `runOnce()` plays one run and resolves with the engine's
+// result, which `abortRun()` cuts short; `onRun(result)` hears of each run
+// judged, and may stop the loop there.
 //
-// pause() holds the loop where it is, the plan with it: the run under way is
-// aborted and goes unjudged, and resume() starts the next one at the tempo and
-// streak the plan had reached. A pause is a breath between two goes, not the
-// end of the work (feedback 7f523e16): stopping used to be the only way to
-// take one, and it threw the climb away.
-export function createTempoTrainer({ plan, runOnce, abortRun, onRun, gapMs = 1000 }) {
+// pause() holds the loop where it is: the run under way is aborted and goes
+// unjudged, and resume() starts the next one, with whatever the caller had
+// made of the runs before — the tempo and streak a climb had reached. A pause
+// is a breath between two goes, not the end of the work (feedback 7f523e16):
+// stopping used to be the only way to take one, and it threw the climb away.
+export function createRunLoop({ runOnce, abortRun, onRun, gapMs = 1000 }) {
   let stopped = false
   let gap = null
   let held = null
@@ -137,20 +154,19 @@ export function createTempoTrainer({ plan, runOnce, abortRun, onRun, gapMs = 100
     while (!stopped) {
       if (held) await held.promise
       if (stopped) break
-      const result = await runOnce(plan.nextBpm())
+      const result = await runOnce()
       if (stopped) break
       if (result.aborted) {
         if (held) continue
         break
       }
-      const clean = plan.record(result.verdict)
-      onRun?.(result, clean)
+      onRun?.(result)
+      if (stopped) break
       await new Promise((resolve) => {
         gap = { id: setTimeout(resolve, gapMs), resolve }
       })
       gap = null
     }
-    return { ...summarizeRuns(plan.runs), earnedBpm: plan.earnedBpm }
   }
 
   // Held before the run is cut short, so that its aborted result reads as a

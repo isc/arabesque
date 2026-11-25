@@ -199,8 +199,8 @@
     >
       <!-- Everything strict mode is driven with lives here, next to what it
            says about the run, so the modebar above stays the same in every
-           mode. -->
-      <div class="pt-band-controls" x-show="mode === 'strict'">
+           mode. A drill's steps to the click are run by the same ▶. -->
+      <div class="pt-band-controls" x-show="keysToStrict">
         <!-- The count-in is counted on ▶ itself, where the eye already is to
              press it: in the board's place it hid the verdict the player had
              that one bar to read (the button keeps its width, see styles.css). -->
@@ -235,14 +235,14 @@
         >⏹ Terminer</button>
         <button
           class="pt-band-button"
-          x-show="!strictSessionOn"
+          x-show="strictSetup"
           :aria-pressed="strictPassage.loop"
           :title="$t('score.loopTitle')"
           @click="toggleLoop"
           x-text="$t('score.loopBtn')"
         >🔁 Boucle</button>
         <select
-          x-show="strictPassage.loop && !strictSessionOn"
+          x-show="strictPassage.loop && strictSetup"
           class="pt-band-select"
           x-model="trainerMode"
           :aria-label="$t('score.trainerModeAria')"
@@ -254,7 +254,7 @@
       </div>
       <!-- Empty, the cluster would still draw its border: a sliver in the band.
            A reinforcement brings its own passages. -->
-      <div class="pt-band-controls" x-show="currentMode === 'training' && (mode === 'training' || blockChordsFit)">
+      <div class="pt-band-controls" x-show="currentMode === 'training' && (mode === 'training' || blockChordsOffered)">
         <button
           class="pt-band-button"
           x-show="mode === 'training'"
@@ -267,7 +267,7 @@
              stalled at the bar line (sayBlockChords in musicxml.js). -->
         <button
           class="pt-band-button"
-          x-show="blockChordsFit"
+          x-show="blockChordsOffered"
           :class="{ 'is-advised': blockChordsAdvised }"
           :aria-pressed="blockChords"
           :title="$t('score.blockChordsTitle')"

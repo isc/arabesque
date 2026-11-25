@@ -4,7 +4,7 @@
 // in both places, so its markup is built here once and mounted before Alpine
 // boots (startAlpine), and its behaviour is a mixin the page's component
 // spreads, as headerMenu.js does for the menu. The component provides the
-// tempi the fields move (strictBpm, playbackBpm), strictSessionOn, and
+// tempi the fields move (strictBpm, playbackBpm), strictSetup, and
 // commitBpm(field), which keeps a tempo once a press is over (app.js).
 import { stepBpm, holdToRepeat, BPM_MIN, BPM_MAX } from './bpmStepper.js'
 import { BPM_STEP } from './tempoTrainer.js'
@@ -64,7 +64,7 @@ export function bpmField() {
 // binds, and when it is shown — strict mode's steps aside while a run plays,
 // which needs the tempo to hold, and leaves the board the line.
 const FIELDS = {
-  strictBpm: { id: 'strict-bpm', words: 'score.tempo', model: 'x-model.number', shown: '!strictSessionOn' },
+  strictBpm: { id: 'strict-bpm', words: 'score.tempo', model: 'x-model.number', shown: 'strictSetup' },
   // Debounced: every tempo change reschedules the rest of the piece.
   playbackBpm: { id: 'playback-bpm', words: 'score.playbackTempo', model: 'x-model.number.debounce.400ms' },
 }

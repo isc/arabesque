@@ -120,7 +120,7 @@ const training = {
 // passage now comes back to it cold, the way a run does.
 //
 // A turn is climbed in steps, the passage's ladder (ladder.js): each hand
-// alone before the two, then at the pace of the runs. Each passage keeps its
+// alone before the two, then to the click. Each passage keeps its
 // `ladder`, a turn's steps per dot, and its `climb`, where it stands on the
 // turn under way; the hands a step is played with are the engine's to set
 // (playWith), and `hands` holds those the drill was started with (handsKey),
@@ -154,19 +154,18 @@ const attempt = {
 // over starts this over too (startRepetition).
 const steadiness = createSteadiness()
 
-// What a drill's ladder weighs a repetition by, besides training.clean: the
-// pace it held from its first attack to its last, read as it ends, and its
+// What a drill's ladder weighs a repetition by, besides training.clean: its
 // faults as they came — a wrong key, owed by one hand or the other, or a hole
 // — which the page says too (attemptVerdict.js).
 const repetition = {
-  pace: null,
   faults: [],
 }
 
-// The wrong notes each hand owed in a repetition, as the ladder weighs them.
+// The notes each hand got wrong in a go, or missed — a strict run's notes the
+// click went past — as the ladder weighs them.
 function wrongByHand(faults) {
   const wrong = { right: 0, left: 0 }
-  for (const { kind, hand } of faults) if (kind === 'wrong') wrong[hand]++
+  for (const { kind, hand } of faults) if ((kind === 'wrong' || kind === 'missed') && hand) wrong[hand]++
   return wrong
 }
 
@@ -417,18 +416,21 @@ export function initMusicXML() {
     svgNote,
     graphicalMeasureForNote,
     // `items` as the page offers them: fragments, { from, until } as source
-    // bars and positions (fragmentSuggestions.js).
-    setReinforcementMode: (items) => {
+    // bars and positions (fragmentSuggestions.js). `bpm` is the tempo the
+    // player works the piece at, if they have set one (strict mode's).
+    setReinforcementMode: (items, { bpm = null } = {}) => {
       // In the order of the score, which each round of turns goes down once.
       // Each with its ladder: both hands are taken apart only where the
-      // passage has notes for both, and the pace is the one the runs held
-      // (`pace`, fragments.js), where they said one.
+      // passage has notes for both, and the click is at `bpm`, or else at
+      // the pace the runs held there (`pace`, fragments.js), where they said
+      // one.
       const hands = handsKey(activeHands)
       const passages = (items ?? [])
         .flatMap((item) => {
           const passage = reinforcementPassage(item)
           if (!passage) return []
-          const ladder = ladderOf({ hands, twoHanded: handsPlaying(passage).size > 1, pace: item.pace, turns: targetRepeatCount })
+          const click = bpm ?? (item.pace && crotchetsPerMinute(item.pace))
+          const ladder = ladderOf({ hands, twoHanded: handsPlaying(passage).size > 1, bpm: click, turns: targetRepeatCount })
           return [{ ...passage, stalledAtBarLine: item.stalledAtBarLine, banked: 0, ladder, climb: startOfTurn() }]
         })
         .sort((a, b) => a.fragment.from - b.fragment.from)
@@ -444,6 +446,14 @@ export function initMusicXML() {
       training.on = true
       startReinforcementPassage()
     },
+    // The run a drill's step to the click asks for, for strict mode's engine
+    // to play (app.js): the passage's bars, the notes of them it owes, the
+    // tempo. Null on any other step: the notes played there are this engine's.
+    clickRun: () => {
+      const click = reinforcement.on && stepUnderway()?.click
+      return click ? { start: training.start, end: training.end, bpm: click, owes: inFragment } : null
+    },
+    judgeClickRun,
   }
 }
 
@@ -486,26 +496,24 @@ function handsPlaying({ start, end, fragment }) {
 
 // Tells the page where the drill stands (onLadder): which passage of how many,
 // the steps of its ladder with those behind it and the one under way
-// (rungs), the step being played, and what the last repetitions call for.
-// `down` says the step under way was stepped down from, and to what: one
-// hand, 'right' or 'left', or the passage with nothing asked of its 'pace'.
+// (rungs), the step being played and the tempo it is clicked at, if any, and
+// what the last goes call for. `down` says the step under way was stepped
+// down to, and to what: one hand, 'right' or 'left', or a 'slower' click.
 // `guided` is false for a ladder with nothing to show: a clean repetition a
 // turn.
 function sayLadder() {
-  const { passages, index, hands } = reinforcement
+  const { passages, index } = reinforcement
   const { ladder, banked, climb } = passages[index]
-  const { kind, pace } = stepUnderway()
-  const down = climb.detour && (climb.detour.hands === hands ? 'pace' : climb.detour.hands)
+  const { kind, click } = stepUnderway()
   callbacks.onLadder?.({
     passage: index + 1,
     passages: passages.length,
     guided: isGuided(ladder),
     steps: rungs(ladder, banked, climb),
     kind,
-    down,
-    tempo: pace && crotchetsPerMinute(pace),
+    click,
+    down: climb.detour?.kind ?? null,
     hint: climb.hint,
-    played: climb.played && crotchetsPerMinute(climb.played),
   })
 }
 
@@ -574,20 +582,44 @@ function startStep() {
   scrollToMeasure(training.start)
 }
 
-// A repetition of the drill passage is over: where that leaves it on its
-// ladder (climbOn). Says whether the turn's last step was passed, which is
+// A go at the drill passage is over, { clean, faults }: where that leaves it on
+// its ladder (climbOn). Says whether the turn's last step was passed, which is
 // what fills its dot.
-function climbTheLadder() {
+function climbTheLadder({ clean, faults }) {
   const passage = reinforcement.passages[reinforcement.index]
-  const { climb, earned } = climbOn(passage.ladder[passage.banked], passage.climb, {
-    clean: training.clean,
-    pace: repetition.pace,
-    wrong: wrongByHand(repetition.faults),
-  })
+  const { climb, earned } = climbOn(passage.ladder[passage.banked], passage.climb, { clean, wrong: wrongByHand(faults) })
   passage.climb = climb
   // A dot earned moves the drill on, which says where it stands then.
   if (!earned) sayLadder()
   return earned
+}
+
+// A run of a step to the click is over, { clean, faults }, played by strict
+// mode's engine (clickRun): said to the page, then climbed on as a repetition
+// is — the passage set up again only where the step it stands on next is
+// played with other hands, or the turn passes. Answers whether the next go is
+// another run to the click of this passage, which the page's loop goes on to.
+function judgeClickRun(go) {
+  callbacks.onAttemptJudged?.(go)
+  const earned = climbTheLadder(go)
+  spendFirstTry(earned)
+  if (earned) {
+    training.banked++
+    updateRepeatIndicators()
+    if (passTheTurn()) return false
+  }
+  if (stepUnderway().hands !== handsKey(activeHands)) startStep()
+  return Boolean(stepUnderway().click)
+}
+
+// The turn's first go, played cold, counted (firstTries) — but for one in block
+// chords, which spends it without saying anything of the passage as written.
+function spendFirstTry(earned, asWritten = true) {
+  if (!reinforcement.firstTry) return
+  reinforcement.firstTry = false
+  if (!asWritten) return
+  reinforcement.firstTries.played++
+  if (earned) reinforcement.firstTries.clean++
 }
 
 // Whose turn it is once the passage at `index` has earned a dot, `banked`
@@ -1652,13 +1684,11 @@ function handleWrongNote(measureData, expectedNote, midiNote) {
   flashWrongNote(expectedNote)
 }
 
-// A repetition about to be played, or a run: its dot unspoiled, its pace not
-// yet measured.
+// A repetition about to be played, or a run: its dot unspoiled.
 function startRepetition() {
   training.clean = true
   steadiness.discard()
   fumbled.clear()
-  repetition.pace = null
   repetition.faults = []
 }
 
@@ -1801,7 +1831,7 @@ function advanceTraining(next, goesOn) {
     ...passage,
     banked: training.banked,
     target: targetRepeatCount,
-    clean: climbs ? climbTheLadder() : training.clean && asWritten,
+    clean: climbs ? climbTheLadder({ clean: training.clean, faults: repetition.faults }) : training.clean && asWritten,
     measureCount: score.allNotes.length,
   })
   // Set before the pause below, so the dot that has just been earned fills
@@ -1809,15 +1839,7 @@ function advanceTraining(next, goesOn) {
   const earned = banked > training.banked
   training.banked = banked
   updateRepeatIndicators()
-  // A turn's first repetition, played cold: one in block chords spends it
-  // without saying anything of the passage as written.
-  if (reinforcement.firstTry && action !== 'step') {
-    reinforcement.firstTry = false
-    if (asWritten) {
-      reinforcement.firstTries.played++
-      if (earned) reinforcement.firstTries.clean++
-    }
-  }
+  if (action !== 'step') spendFirstTry(earned, asWritten)
 
   if (action === 'scoreDone') {
     callbacks.onTrainingComplete?.()
@@ -1892,10 +1914,7 @@ function handleNoteValidated(measureData, group, { struck = true } = {}) {
   const goesOn = runsOn(next)
   // What a finished traversal left pending is judged before the journal files
   // the measure and the mode reads the verdict to bank its dot.
-  if (!goesOn) {
-    repetition.pace = steadiness.meanPace
-    applySteadiness(steadiness.close())
-  }
+  if (!goesOn) applySteadiness(steadiness.close())
   callbacks.onMeasureCompleted?.()
 
   if (!training.on) advanceFreePlay(measureData, next, goesOn)

@@ -92,8 +92,8 @@ class PlaqueTest < CapybaraTestBase
   # The runs stalled at the join into bar 2, the hand looking for the next
   # chord once the downbeat was down: the drill advises block chords there.
   # They keep the turn on the passage however cleanly they go; its dots are
-  # earned playing it as written, which is what settles it. The cold first try
-  # went to the chords, so the end has none to report.
+  # earned playing it as written, which takes it on to the click — where block
+  # chords have no part.
   def test_a_stall_at_the_bar_line_is_advised_block_chords_and_drilled_as_written
     open_score('broken-chords', 32)
     with_clock_control do
@@ -118,12 +118,12 @@ class PlaqueTest < CapybaraTestBase
 
     click_on '🎹 Plaqué'
     with_clock_control do
-      3.times { play_evenly(JOIN, first_after: 300) }
+      play_evenly(JOIN, first_after: 300)
+      advance_clock(300)
     end
-    assert_text 'Renforcement terminé'
-    assert_no_selector '.pt-modal-stat'
-    find('dialog[open] button[aria-label="Close"]').click
-    assert_no_selector '.pt-reinforce-badge'
+    assert_selector 'svg circle.repeat-indicator.filled', count: 1
+    assert_selector '[data-testid=board-step] .pt-tile__value', text: 'Clic lent'
+    assert_no_button '🎹 Plaqué'
   end
 
   private
