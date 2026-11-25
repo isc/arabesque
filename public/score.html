@@ -276,7 +276,7 @@
         >🎹 Plaqué</button>
       </div>
 
-      <div class="pt-board">
+      <div class="pt-board" :class="{ 'is-bare': boardBare }">
         <div class="pt-tile" x-show="board.passage" data-testid="board-passage">
           <span class="pt-eyebrow" x-text="board.passage?.label"></span>
           <span class="pt-tile__value" x-text="board.passage?.value"></span>

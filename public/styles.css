@@ -1202,6 +1202,10 @@ a:hover { text-decoration: underline; }
   min-width: 0;
   height: calc(var(--pt-font-size-lg) * 1.2 + var(--pt-font-size-sm) * 1.25 * 2 + var(--pt-space-1) * 2);
 }
+/* Alone on the board — a strict run with no loop has nothing to tally — the
+   hint takes the line it needs: held at the height a verdict takes, it left
+   the band a tall empty strip around the count (feedback 0982af14). */
+.pt-board.is-bare .pt-board__hint { height: auto; }
 .pt-verdict {
   display: flex;
   align-items: center;

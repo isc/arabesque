@@ -10,6 +10,7 @@
 //   { kind: 'missed', bar, hand }         a note the click went past
 //   { kind: 'hole', bar, beat, lostMs }   the flow stopping (steadiness.js)
 //   { kind: 'late' | 'early', bar, hand } a note off the click
+//   { kind: 'released', bar, hand }       a tied note let go before it came round
 // `bar` is the bar's index (sourceMeasureIndex), `hand` 'right' or 'left',
 // `beat` counted from 1.
 //
@@ -23,7 +24,7 @@ import { locale, t, tn } from './i18n.js'
 // The order faults are told in, the one to fix first ahead: a wrong note is
 // learnt if it is not stopped, a hole is the hand looking for the next one,
 // and the click is the last thing worth chasing while the notes are not there.
-const FAULT_ORDER = ['wrong', 'missed', 'hole', 'late', 'early']
+const FAULT_ORDER = ['wrong', 'missed', 'hole', 'late', 'early', 'released']
 
 // Bars named in a line before it gives up and counts the rest.
 const BARS_LISTED = 3
@@ -34,6 +35,7 @@ const COUNT_KEYS = {
   hole: 'score.holes',
   late: 'verdict.late',
   early: 'verdict.early',
+  released: 'verdict.released',
 }
 
 // Built once: the language is fixed for the life of the page (i18n.js).

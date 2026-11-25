@@ -78,6 +78,8 @@ export default {
     late: '{n} notes en retard',
     earlyOne: '1 note en avance',
     early: '{n} notes en avance',
+    releasedOne: '1 note lâchée trop tôt',
+    released: '{n} notes lâchées trop tôt',
     bar: 'mes. {n}',
     beat: 't. {n}',
     countIn: 'pendant le décompte',

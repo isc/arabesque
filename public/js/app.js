@@ -447,7 +447,10 @@ export function midiApp() {
         },
         onNoteReleased: (midiNote) => {
           noteLog.keyUp(midiNote)
-          if (this.keysToStrict) return
+          if (this.keysToStrict) {
+            strictPlaythrough.handleNoteOff(midiNote)
+            return
+          }
           musicxml.deactivateNote(midiNote)
           keyHint.keyUp(midiNote)
         },
@@ -1285,6 +1288,12 @@ export function midiApp() {
     // is nothing to show.
     get board() {
       return this.mode === 'strict' ? this.strictBoard() : this.trainingBoardParts()
+    },
+    // A board with nothing on it but its hint — a strict run with no loop —
+    // which then takes no more height than it needs (styles.css).
+    get boardBare() {
+      const { passage, goal } = this.board
+      return !passage && !goal && !this.ladderShown && !this.attempt
     },
 
     // A strict loop's: the passage looped, the run under way and its tempo,
