@@ -18,9 +18,10 @@ jobs:
   delete-preview:
     runs-on: ubuntu-latest
     steps:
-      # The rule preview.yml published by, from the base branch: gh-pages,
-      # checked out below, carries no scripts.
-      - name: Checkout the slug script
+      # The rule preview.yml published by, and the script that lists the
+      # previews still open, from the base branch: gh-pages, checked out
+      # below, carries no scripts.
+      - name: Checkout the preview scripts
         uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.base.ref }}
@@ -47,21 +48,27 @@ jobs:
           fetch-depth: 1
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Remove preview directory
+      # The directory goes, then the ⚙️ menu's list of open previews is rebuilt
+      # without it (scripts/preview-index.sh reads the commit, hence the order),
+      # and both leave in one push.
+      - name: Remove preview directory and update the index
         working-directory: site
         env:
           SLUG: ${{ steps.slug.outputs.slug }}
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
         run: |
           dir="previews/${SLUG:?}"
           if [ -d "$dir" ]; then
             git config user.name 'github-actions[bot]'
             git config user.email 'github-actions[bot]@users.noreply.github.com'
             git rm -rfq "$dir"
-            git commit -qm "cleanup: remove preview ${{ steps.slug.outputs.slug }}"
-            git push origin gh-pages
+            git commit -qm "cleanup: remove preview $SLUG"
           else
             echo "No preview directory at $dir, nothing to clean."
           fi
+          ../tools/scripts/preview-index.sh .
+          git push origin gh-pages
 
       - name: Update PR comment
         uses: Wandalen/wretry.action@v3.8.0

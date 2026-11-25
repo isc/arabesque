@@ -12,7 +12,9 @@
     <script type="module" src="js/appStore.js"></script>
     <script type="module">
       import { initI18n } from './js/i18n.js'
+      import { mountVersionLine } from './js/previews.js'
       initI18n()
+      mountVersionLine(document.querySelector('.pt-version-line'))
     </script>
   </head>
   <body>
@@ -76,6 +78,7 @@
 
       <footer class="pt-footer">
         <a href="privacy.html" data-i18n="common.privacy">Confidentialité</a>
+        <p class="pt-hint pt-version-line"></p>
       </footer>
     </main>
   </body>

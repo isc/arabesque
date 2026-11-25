@@ -10,7 +10,7 @@ const read = (...path) => readFileSync(join(PUBLIC_DIR, ...path), 'utf8')
 // App Store links to. Every page is one or the other (see the test below), so
 // a page added later is placed in one of them on purpose.
 const APP_PAGES = ['library.html', 'score.html', 'practice.html', 'data.html']
-const OTHER_PAGES = ['index.html', 'privacy.html', 'support.html']
+const OTHER_PAGES = ['index.html', 'privacy.html', 'support.html', '404.html']
 
 describe('the service worker shell', () => {
   const shell = shellAssets()
