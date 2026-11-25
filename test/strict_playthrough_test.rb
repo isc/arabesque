@@ -431,6 +431,59 @@ class StrictPlaythroughTest < CapybaraTestBase
     end
   end
 
+  # A note a tie holds asks for no key, but the key that struck the tie has to
+  # be still down when it comes round: it then turns green with the rest —
+  # it never did (feedback 7cd0121a) — and otherwise off the click's colour.
+  # tied-notes.xml: G4 a whole note tied over the bar line to a half, F4
+  # struck under it as it comes round.
+  def test_a_tied_note_held_turns_green_and_one_let_go_does_not
+    load_score('tied-notes.xml', 3)
+    start_strict_mode
+
+    with_clock_control do
+      trigger_click_on('▶ Démarrer')
+      # The count-in, G4 struck and held over the bar line, F4 struck there.
+      advance_clock(COUNT_IN_MS)
+      simulate_midi_input('ON G4')
+      advance_clock(2_000)
+      play_note('F4')
+      advance_clock(500)
+      simulate_midi_input('OFF G4')
+      advance_clock(1_000)
+    end
+    within('dialog.pt-result-dialog') { click_on 'Fermer' }
+    assert_selector 'svg .vf-notehead.played-note', count: 3
+    assert_no_selector 'svg .vf-notehead.offtempo-note'
+
+    with_clock_control do
+      trigger_click_on('▶ Démarrer')
+      # G4 let go before the bar line, where the note its tie holds comes round.
+      advance_clock(COUNT_IN_MS)
+      simulate_midi_input('ON G4')
+      advance_clock(1_500)
+      simulate_midi_input('OFF G4')
+      advance_clock(500)
+      play_note('F4')
+      advance_clock(1_000)
+    end
+    within('dialog.pt-result-dialog') { click_on 'Fermer' }
+    assert_selector 'svg .vf-notehead.played-note', count: 2
+    assert_selector 'svg .vf-notehead.offtempo-note', count: 1
+  end
+
+  # With nothing to tally — no loop, no verdict — the band is as tall as its
+  # controls: held at the height a verdict takes, it was a tall empty strip
+  # around the count (feedback 0982af14).
+  def test_a_run_with_no_loop_keeps_the_band_to_its_controls
+    load_score('two-measures.xml', 2)
+    start_strict_mode
+    assert_text 'Cliquez sur une mesure'
+    band, controls = page.evaluate_script(<<~JS)
+      ['.pt-context', '.pt-band-controls'].map((selector) => document.querySelector(selector).getBoundingClientRect().height)
+    JS
+    assert_operator band - controls, :<, 24, "The band (#{band}px) should be no taller than its controls (#{controls}px) and their padding"
+  end
+
   # The square marking where a run starts used to stay on the score for the
   # whole run, still sitting on a measure the player had passed bars ago —
   # feedback 945d80b4. It marks where the *next* run begins, so it comes off

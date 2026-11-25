@@ -55,6 +55,11 @@ describe('attemptVerdict', () => {
     expect(attemptVerdict({ clean: true, faults: [] }).detail).toBe('')
   })
 
+  // A tied note let go before it came round is said, last: it spoils nothing.
+  it('says a tied note was let go too soon', () => {
+    expect(attemptVerdict({ clean: true, faults: [{ kind: 'released', bar: 1, hand: 'left' }] }).detail).toBe('1 note let go too soon')
+  })
+
   // A wrong key struck in a rest is counted by the run without a note to put
   // it against: its bar is all there is to say.
   it('places a wrong note it cannot name', () => {

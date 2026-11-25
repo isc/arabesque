@@ -85,6 +85,8 @@ export default {
     late: '{n} late notes',
     earlyOne: '1 early note',
     early: '{n} early notes',
+    releasedOne: '1 note let go too soon',
+    released: '{n} notes let go too soon',
     bar: 'bar {n}',
     beat: 'b. {n}',
     countIn: 'in the count-in',
