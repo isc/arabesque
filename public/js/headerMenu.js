@@ -182,15 +182,14 @@ const TRIGGER_HTML = `
 <div class="pt-popover-anchor"
      @${INSTALL_AVAILABLE_EVENT}.window="canInstall = $event.detail"
      @click.outside="closeMenu()">
-  <button type="button" class="pt-icon-button pt-changelog-btn" :aria-pressed="menuOpen" :aria-label="$t('menu.open')" @click="toggleMenu()">
-    ⚙️
+  <button type="button" class="pt-icon-button pt-changelog-btn" data-icon="settings" :aria-pressed="menuOpen" :aria-label="$t('menu.open')" @click="toggleMenu()">
     <span class="pt-changelog-dot" x-show="hasUnseenChangelog" aria-hidden="true"></span>
   </button>
   <div class="pt-popover" x-show="menuOpen" x-cloak>
     <div class="pt-popover__section">
       <a href="score.html" class="pt-menu-item" @click="closeMenu()" x-text="$t('library.loadScore')">📄 Charger une partition</a>
       <button type="button" class="pt-menu-item" x-show="canInstall" @click="install()" x-text="$t('menu.install')">📲 Installer l'application</button>
-      <button type="button" class="pt-menu-item" x-show="canPairMIDI" @click="pairMIDI()" x-text="$t('score.connectMidi')">🎹 Connecter clavier MIDI</button>
+      <button type="button" class="pt-menu-item" x-show="canPairMIDI" @click="pairMIDI()" data-icon="piano" x-text="$t('score.connectMidi')">Connecter clavier MIDI</button>
       <button type="button" class="pt-menu-item" @click="openChangelog()">
         <span x-text="$t('library.changelog')">✨ Nouveautés</span>
         <span class="pt-menu-dot" x-show="hasUnseenChangelog" aria-hidden="true"></span>

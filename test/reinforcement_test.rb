@@ -1,6 +1,6 @@
 require_relative 'test_helper'
 
-# 🎯 Renforcer: the spots fumbled in a run, offered back as a training drill of
+# Renforcer: the spots fumbled in a run, offered back as a training drill of
 # the beat they fell in and the beat before (fragments.js). repeat-endings.xml
 # has one note a bar, a whole note, so the beat before a bar's downbeat holds
 # no note: the fragment reaches back to the last one played, and a wrong note
@@ -15,9 +15,9 @@ class ReinforcementTest < CapybaraTestBase
     assert_no_text 'Partition terminée'
 
     click_on 'Renforcer 1 passage'
-    assert_text 'Mode Entraînement Actif'
+    assert_training_mode_on
     assert_selector 'svg rect.fragment-range', count: 2
-    # No 🔁 in a drill, and no 🎹 on a line: no sliver of an empty cluster.
+    # No Boucle in a drill, and no Plaqué on a line: no sliver of an empty cluster.
     assert_no_selector '.pt-context--training .pt-band-controls'
 
     # The free session interrupted mid-piece is closed rather than stranded
@@ -34,7 +34,7 @@ class ReinforcementTest < CapybaraTestBase
     uncheck 'Main gauche'
     play_notes(%w[C4 E4 D4])
     assert_selector '.pt-reinforce-badge', text: 'Renforcer 1 passage · MD'
-    assert_selector '.pt-reinforce-badge[aria-label="🎯 Renforcer 1 passage · main droite"]'
+    assert_selector '.pt-reinforce-badge[aria-label="Renforcer 1 passage · main droite"]'
 
     # Both hands back: nothing was fumbled two-handed (feedback 0868d96f).
     check 'Main gauche'
@@ -73,7 +73,7 @@ class ReinforcementTest < CapybaraTestBase
     click_on 'Renforcer 1 passage'
 
     # In training on the way into bar 2: the notes of bars 1 and 2
-    assert_text 'Mode Entraînement Actif'
+    assert_training_mode_on
     assert_selector 'svg rect.fragment-range', count: 2
 
     drill_the_join
@@ -89,10 +89,10 @@ class ReinforcementTest < CapybaraTestBase
   # strict run played there was filed as training.
   def test_a_reinforcement_started_from_the_strict_tab_leaves_it
     open_with_the_second_bar_fumbled
-    click_on '⏱ Mode strict'
+    click_on 'Strict'
     click_on 'Renforcer 1 passage'
 
-    assert_selector 'button[data-mode="training"][aria-pressed="true"]'
+    assert_training_mode_on
     assert_no_selector '.pt-context--strict', visible: true
     drill_the_join
     assert_text 'Renforcement terminé'
@@ -104,7 +104,7 @@ class ReinforcementTest < CapybaraTestBase
   def test_training_after_a_drill_left_by_hand
     open_with_the_second_bar_fumbled
     click_on 'Renforcer 1 passage'
-    assert_text 'Mode Entraînement Actif'
+    assert_training_mode_on
 
     click_on 'Libre'
     enter_training_mode

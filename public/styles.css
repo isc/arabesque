@@ -69,9 +69,9 @@
 
   /* Practice mode colors */
   --pt-mode-training: #7c3aed;
-  --pt-mode-training-bg: #f3efff;
-  --pt-mode-strict: #dc2626;
-  --pt-mode-strict-bg: #fef2f2;
+  /* The accent, not red: red is what a fault is drawn in, and a strict
+     passage tinted red over the notes read as one, as did its goal's dots. */
+  --pt-mode-strict: var(--pt-accent);
   --pt-mode-reinforcement: #d97706;
   --pt-mode-reinforcement-bg: #fef7ec;
 
@@ -118,6 +118,7 @@
   --pt-radius-sm: 4px;
   --pt-radius-md: 8px;
   --pt-radius-lg: 12px;
+  --pt-radius-xl: 16px;
   --pt-radius-pill: 999px;
 
   /* Shadows */
@@ -130,6 +131,9 @@
   --pt-z-sticky: 20;
   --pt-z-popover: 50;
   --pt-z-modal: 100;
+
+  /* The ring keyboard focus draws around a control. */
+  --pt-focus-ring: 2px solid color-mix(in srgb, var(--pt-accent) 45%, transparent);
 
   /* Motion */
   --pt-transition-fast: 120ms ease;
@@ -156,7 +160,12 @@
   --pt-key-shadow: 0 2px 3px rgba(15, 18, 30, 0.35);
 
   /* Typography */
-  --pt-font-ui: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  /* Each platform's own face, named first: San Francisco on Apple devices,
+     Segoe UI on Windows, Roboto on Android. Inter comes next for a machine
+     that has none of them, where system-ui means DejaVu Sans — the Linux
+     server the screenshots and the browser tests are taken on, which renders
+     as the iPad does once Inter is installed (it is a near twin of SF). */
+  --pt-font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI Variable Text", "Segoe UI", Roboto, Inter, system-ui, "Helvetica Neue", Arial, sans-serif;
   --pt-font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   /* The type scale: every font size set in rem is one of these steps. The
      first six set text, the last four display — headings, figures, glyphs. A
@@ -260,7 +269,7 @@ a[role="button"] { display: inline-block; }
 :is(button, [role="button"]) {
   padding: 0.75rem 1rem;
   border: 1px solid var(--pt-accent);
-  border-radius: var(--pt-radius-sm);
+  border-radius: var(--pt-radius-md);
   background: var(--pt-accent);
   color: var(--pt-text-inverse);
   font-family: inherit;
@@ -324,7 +333,7 @@ button[type="submit"] { width: 100%; margin-bottom: 1rem; }
 /* Keyboard focus stays visible on buttons; the base removes it from fields in
    favour of the ring below. */
 :is(button, [role="button"]):focus-visible {
-  outline: 2px solid color-mix(in srgb, var(--pt-accent) 45%, transparent);
+  outline: var(--pt-focus-ring);
   outline-offset: 2px;
 }
 
@@ -358,7 +367,7 @@ input:not([type="checkbox"], [type="file"]), select, textarea {
   appearance: none;
   padding: 0.75rem 1rem;
   border: 1px solid var(--pt-field-border);
-  border-radius: var(--pt-radius-sm);
+  border-radius: var(--pt-radius-md);
   background-color: var(--pt-field-bg);
   color: var(--pt-field-text);
   transition: background-color var(--pt-transition-fast), border-color var(--pt-transition-fast),
@@ -563,15 +572,13 @@ a:hover { text-decoration: underline; }
   background: var(--pt-bg-elevated);
   font-size: var(--pt-font-size-sm);
 }
-.pt-page-header__search::before {
-  content: "🔍";
+.pt-page-header__search[data-icon]::before {
   position: absolute;
-  left: 8px; top: 50%;
+  left: 10px; top: 50%;
+  width: 16px; height: 16px;
   transform: translateY(-50%);
-  font-size: var(--pt-font-size-xs);
   pointer-events: none;
-  color: var(--pt-text-muted);
-  opacity: 0.6;
+  color: var(--pt-text-subtle);
 }
 @media (max-width: 600px) {
   .pt-page-header { gap: var(--pt-space-2); }
@@ -639,6 +646,40 @@ a:hover { text-decoration: underline; }
 .pt-data-actions button, .pt-data-actions [role="button"] { margin: 0; }
 
 /* --- Controls -------------------------------------------------------------- */
+/* An icon: what a [data-icon] element draws ahead of its text, as a mask in
+   the text's colour and at its size. One set, one stroke, where emoji drew
+   each glyph in a palette and a style of its own, and differently on every
+   platform. Being a pseudo-element, it survives the x-text that writes the
+   label; a control holding nothing else names its words in an aria-label.
+   The glyphs are the block below, which scripts/icons.mjs writes. */
+[data-icon]::before {
+  content: "";
+  display: inline-block;
+  flex: none;
+  width: 1.15em;
+  height: 1.15em;
+  vertical-align: -0.2em;
+  background-color: currentColor;
+  -webkit-mask: var(--pt-glyph) center / contain no-repeat;
+  mask: var(--pt-glyph) center / contain no-repeat;
+}
+/* icons:start — written by scripts/icons.mjs */
+[data-icon="check"] { --pt-glyph: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6 9 17l-5-5'/%3E%3C/svg%3E"); }
+[data-icon="history"] { --pt-glyph: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8'/%3E%3Cpath d='M3 3v5h5'/%3E%3Cpath d='M12 7v5l4 2'/%3E%3C/svg%3E"); }
+[data-icon="listen"] { --pt-glyph: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 14h3a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-7a9 9 0 0 1 18 0v7a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3'/%3E%3C/svg%3E"); }
+[data-icon="loop"] { --pt-glyph: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m17 2 4 4-4 4'/%3E%3Cpath d='M3 11v-1a4 4 0 0 1 4-4h14'/%3E%3Cpath d='m7 22-4-4 4-4'/%3E%3Cpath d='M21 13v1a4 4 0 0 1-4 4H3'/%3E%3C/svg%3E"); }
+[data-icon="metronome"] { --pt-glyph: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 11.4V9.1'/%3E%3Cpath d='m12 17 6.59-6.59'/%3E%3Cpath d='m15.05 5.7-.218-.691a3 3 0 0 0-5.663 0L4.418 19.695A1 1 0 0 0 5.37 21h13.253a1 1 0 0 0 .951-1.31L18.45 16.2'/%3E%3Ccircle cx='20' cy='9' r='2'/%3E%3C/svg%3E"); }
+[data-icon="pause"] { --pt-glyph: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='black' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='14' y='3' width='5' height='18' rx='1'/%3E%3Crect x='5' y='3' width='5' height='18' rx='1'/%3E%3C/svg%3E"); }
+[data-icon="piano"] { --pt-glyph: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M10 13v4'/%3E%3Cpath d='M14 13v4'/%3E%3Cpath d='M18 13v4'/%3E%3Cpath d='M2 13h20'/%3E%3Cpath d='M22 11.5A3.5 3.5 0 0018.5 8a3.52 3.52 0 01-3.173-2A7 7 0 002 9v10a2 2 0 002 2h16a2 2 0 002-2z'/%3E%3Cpath d='M6 13v4'/%3E%3C/svg%3E"); }
+[data-icon="play"] { --pt-glyph: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='black' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z'/%3E%3C/svg%3E"); }
+[data-icon="search"] { --pt-glyph: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m21 21-4.34-4.34'/%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3C/svg%3E"); }
+[data-icon="settings"] { --pt-glyph: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915'/%3E%3Ccircle cx='12' cy='12' r='3'/%3E%3C/svg%3E"); }
+[data-icon="stop"] { --pt-glyph: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='black' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect width='18' height='18' x='3' y='3' rx='2'/%3E%3C/svg%3E"); }
+[data-icon="target"] { --pt-glyph: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='10'/%3E%3Ccircle cx='12' cy='12' r='6'/%3E%3Ccircle cx='12' cy='12' r='2'/%3E%3C/svg%3E"); }
+[data-icon="trophy"] { --pt-glyph: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M10 14.66V17a1 1 0 0 1-1 1 2 2 0 0 0-2 2v2'/%3E%3Cpath d='M14 14.66V17a1 1 0 0 0 1 1 2 2 0 0 1 2 2v2'/%3E%3Cpath d='M17.916 10H19.5A2.5 2.5 0 0 0 22 7.5V5a1 1 0 0 0-1-1h-3'/%3E%3Cpath d='M4 22h16'/%3E%3Cpath d='M6 9a6 6 0 0 0 12 0V3a1 1 0 0 0-1-1H7a1 1 0 0 0-1 1z'/%3E%3Cpath d='M6.084 10H4.5A2.5 2.5 0 0 1 2 7.5V5a1 1 0 0 1 1-1h3'/%3E%3C/svg%3E"); }
+[data-icon="x"] { --pt-glyph: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M18 6 6 18'/%3E%3Cpath d='m6 6 12 12'/%3E%3C/svg%3E"); }
+/* icons:end */
+
 /* A square button holding one glyph: the ⚙️ menu, the calendar's year arrows
    and close, the on-screen keyboard's ✕. */
 /* No `cursor: pointer` here: the base gives it to every button and takes it
@@ -824,8 +865,15 @@ a:hover { text-decoration: underline; }
 
 /* The MIDI keyboard's pill: a status once one is connected, and until then
    the button that connects one, muted. */
-.pt-midi-status:not(.is-disconnected) { background-color: var(--pt-success-bg); color: var(--pt-success); border-color: transparent; }
-.pt-midi-status.is-disconnected { background-color: var(--pt-surface-2); color: var(--pt-text-muted); }
+.pt-midi-status:not(.is-disconnected)::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--pt-success);
+  box-shadow: 0 0 0 3px var(--pt-success-bg);
+}
+.pt-midi-status.is-disconnected { color: var(--pt-text-muted); }
 
 /* Part navigator in the topbar (collections, e.g. exercices de Hanon) */
 .pt-part-nav { display: flex; align-items: center; gap: var(--pt-space-1); flex-shrink: 0; }
@@ -901,15 +949,29 @@ a:hover { text-decoration: underline; }
   flex: 0 0 auto;
   white-space: nowrap;
 }
-.pt-segmented button[data-mode="training"][aria-pressed="true"] { color: var(--pt-mode-training); }
-.pt-segmented button[data-mode="strict"][aria-pressed="true"] { color: var(--pt-mode-strict); }
+.pt-segmented button[data-mode="training"][aria-pressed="true"]::before { color: var(--pt-mode-training); }
+.pt-segmented button[data-mode="strict"][aria-pressed="true"]::before { color: var(--pt-mode-strict); }
 
 .pt-hands__option {
+  position: relative;
   padding: 5px 10px;
   cursor: pointer;
   margin: 0;
 }
-.pt-hands__option input[type="checkbox"] { margin: 0; width: 14px; height: 14px; }
+/* The tick box covers its toggle, unpainted: the toggle's pressed look says
+   whether it is ticked, and a tap anywhere on it lands on the box. */
+.pt-hands__option input[type="checkbox"] {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  border: none;
+  border-radius: inherit;
+  background: none;
+  cursor: inherit;
+}
+.pt-hands__option input:focus-visible { outline: var(--pt-focus-ring); outline-offset: 1px; }
 /* Frozen for the length of a strict run: the checkbox dims on its own (base
    layer), the label has to stop offering itself. */
 .pt-hands__option:has(input:disabled) { cursor: not-allowed; color: var(--pt-text-muted); }
@@ -941,19 +1003,20 @@ a:hover { text-decoration: underline; }
    segmented controls' beside it rather than a pill's. */
 .pt-action-button { border-radius: var(--pt-radius-md); }
 .pt-action-button.is-active { background: var(--pt-accent-soft); color: var(--pt-accent); border-color: color-mix(in srgb, var(--pt-accent) 20%, transparent); }
-.pt-action-button.is-primary {
+/* The filled command: a dialog's main action, a band's transport. */
+:is(.pt-action-button, .pt-band-button).is-primary {
   background: var(--pt-accent);
   color: var(--pt-text-inverse);
   border-color: var(--pt-accent);
+  font-weight: 600;
 }
-.pt-action-button.is-primary:hover { background: var(--pt-accent-strong); border-color: var(--pt-accent-strong); }
+:is(.pt-action-button, .pt-band-button).is-primary:hover { background: var(--pt-accent-strong); border-color: var(--pt-accent-strong); }
 
 /* Band cluster: transport + BPM (+ the strict band's loop controls) live in a
-   single panel tinted with the band's own colour, so they read as an extension
-   of the band they sit in. Inner items share the same color/typography in one
-   box, rather than independent boxes that would look unrelated.
-   The tint is --pt-band / --pt-band-bg, set once per band below, which is what
-   lets strict mode and playback share the whole component. */
+   single panel, hairlines between its parts, so they read as one control
+   rather than as boxes that look unrelated. It is neutral in every band: the
+   band's colour names the mode, and the one filled part — the transport — is
+   the action, in the accent. */
 .pt-band-controls {
   display: inline-flex;
   /* No align-items: every item stretches to the line (see the rule below), so
@@ -963,11 +1026,13 @@ a:hover { text-decoration: underline; }
   height: var(--pt-bar-control);
   flex: 0 0 auto;
   background: var(--pt-bg-elevated);
-  border: 1px solid color-mix(in srgb, var(--pt-band) 30%, transparent);
+  border: 1px solid var(--pt-border-strong);
   border-radius: var(--pt-radius-md);
   overflow: hidden;
-  color: var(--pt-band);
+  color: var(--pt-text);
+  box-shadow: var(--pt-shadow-sm);
 }
+
 .pt-band-controls > * {
   display: inline-flex;
   align-items: center;
@@ -978,25 +1043,25 @@ a:hover { text-decoration: underline; }
   gap: 6px;
   padding: 0 14px;
   border: none;
+  border-radius: 0;
   background: transparent;
-  color: var(--pt-band);
+  color: var(--pt-text);
   font-size: var(--pt-font-size-sm);
-  font-weight: 600;
+  font-weight: 500;
   white-space: nowrap;
 }
 /* The hover tint is for a real pointer only: a tap leaves :hover on the button
    until something else is touched. */
 @media (hover: hover) {
-  .pt-band-button:hover { background-color: color-mix(in srgb, var(--pt-band-bg) 70%, var(--pt-band) 12%); }
+  .pt-band-button:hover { background-color: var(--pt-surface-2); }
 }
-/* A toggle that is on is filled: as a tint it came out the colour of the hover
-   above, to within two units, so under the pointer or a finger on and off looked
-   the same and a click that turned one off seemed to do nothing. */
-.pt-band-button.is-playing,
-.pt-band-button[aria-pressed="true"] { background: var(--pt-band); color: var(--pt-text-inverse); }
+/* A toggle that is on takes the accent, as every accent toggle does, text
+   included: in the hover tint alone, under the pointer or a finger on and off
+   looked the same and a click that turned one off seemed to do nothing. */
+.pt-band-button[aria-pressed="true"] { background: var(--pt-accent-soft); color: var(--pt-accent); }
 /* What the band advises doing on the passage under way (🎹 on a stall at the
    bar line): ringed, until it is pressed. */
-.pt-band-button.is-advised { box-shadow: inset 0 0 0 2px var(--pt-band); }
+.pt-band-button.is-advised { box-shadow: inset 0 0 0 2px var(--pt-accent); }
 /* Sized to its longest option, so a progression reads in full, the chevron
    close by; hovered and focused like the buttons beside it, with their
    tint rather than the base ring. No height here: a definite one opts the box
@@ -1009,28 +1074,40 @@ a:hover { text-decoration: underline; }
   background-color: transparent;
   background-position: right 8px center;
   box-shadow: none;
-  color: var(--pt-band);
+  color: var(--pt-text);
   font-size: var(--pt-font-size-sm);
 }
 .pt-band-controls .pt-band-select:hover,
 .pt-band-controls .pt-band-select:focus {
   outline: none;
   box-shadow: none;
-  background-color: color-mix(in srgb, var(--pt-band-bg) 70%, var(--pt-band) 12%);
+  background-color: var(--pt-surface-2);
 }
 .pt-band-controls .pt-bpm-field {
   gap: var(--pt-space-1);
   padding: 0 10px;
 }
 .pt-band-controls .pt-bpm-field input[type="number"] {
-  width: 80px;
-  padding: 4px 8px;
-  border: 1px solid color-mix(in srgb, currentColor 25%, transparent);
-  background: var(--pt-bg-elevated);
-  color: var(--pt-band);
+  width: 3.2em;
+  padding: 0;
+  border: none;
+  background: transparent;
+  box-shadow: none;
+  color: var(--pt-text);
+  font-family: inherit;
+  font-size: var(--pt-font-size-md);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
   height: 28px;
+  appearance: textfield;
 }
-.pt-band-controls .pt-bpm-field__suffix { color: color-mix(in srgb, var(--pt-band) 75%, transparent); }
+/* The field's own −/+ beside it say how to change it; the spinner a number
+   input draws on a desktop is a second, smaller pair. */
+.pt-bpm-field input[type="number"]::-webkit-inner-spin-button,
+.pt-bpm-field input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+.pt-band-controls .pt-bpm-field__suffix { color: var(--pt-text-subtle); font-weight: 500; }
+.pt-band-controls .pt-bpm-field__step { color: var(--pt-text-muted); }
 /* Setting a tempo with a thumb: the spinner a number input draws is a few
    pixels tall on a desktop and nothing at all on touch, so the field carries
    its own −/+ (held down, they keep stepping — see bpmStepper.js). They carry
@@ -1070,16 +1147,16 @@ a:hover { text-decoration: underline; }
    Mode-context band (under modebar, varies per mode)
    ========================================================================== */
 
-/* The band takes its colour from the --pt-band pair each modifier below names,
-   the neutral chrome standing in for a band that names none. Everything in it —
-   the band itself and the control cluster it carries — is tinted from that one
-   pair, so a new band is a line of colour rather than an edit to every rule
-   here. */
+/* The band names its mode with the --pt-band colour each modifier below sets:
+   a rule along its top edge, a breath of it in the ground, the goal's dots and
+   the ladder's pips, the verdict's call. Nothing else takes it — not its text, not
+   its controls — so a mode reads as a mode and never as an alarm, and a new
+   band is a line of colour rather than an edit to every rule here. */
 .pt-context {
   --pt-band: var(--pt-text-muted);
-  --pt-band-bg: var(--pt-bg-elevated);
-  background: var(--pt-band-bg);
-  border-bottom: 1px solid color-mix(in srgb, var(--pt-band) 20%, transparent);
+  background: color-mix(in srgb, var(--pt-band) 3%, var(--pt-bg-elevated));
+  border-bottom: 1px solid var(--pt-border);
+  box-shadow: inset 0 2px 0 var(--pt-band);
   padding: var(--pt-space-2) var(--pt-space-4);
   display: flex;
   align-items: center;
@@ -1088,16 +1165,16 @@ a:hover { text-decoration: underline; }
   flex-wrap: wrap;
   gap: var(--pt-space-3);
   font-size: var(--pt-font-size-sm);
-  color: var(--pt-band);
+  color: var(--pt-text-muted);
   /* The band holds its height as its contents swap from the hint to the
      count-in, so pressing ▶ does not shift the score the player is reading. */
   min-height: var(--pt-space-10);
 }
 .pt-context__row { display: flex; align-items: center; gap: var(--pt-space-3); flex: 1 1 auto; min-width: 0; min-height: var(--pt-bar-control); }
 /* Playback is not a mode, so it takes the app's accent rather than a mode colour. */
-.pt-context--training { --pt-band: var(--pt-mode-training); --pt-band-bg: var(--pt-mode-training-bg); }
-.pt-context--strict { --pt-band: var(--pt-mode-strict); --pt-band-bg: var(--pt-mode-strict-bg); }
-.pt-context--playback { --pt-band: var(--pt-accent); --pt-band-bg: var(--pt-accent-soft); }
+.pt-context--training { --pt-band: var(--pt-mode-training); }
+.pt-context--strict { --pt-band: var(--pt-mode-strict); }
+.pt-context--playback { --pt-band: var(--pt-accent); }
 /* On a phone the controls are wider than the screen: the loop's progression
    picker takes a line of its own under the other three. */
 @media (max-width: 600px) {
@@ -1105,7 +1182,7 @@ a:hover { text-decoration: underline; }
   .pt-band-controls > * { height: var(--pt-bar-control); }
   /* Same two classes as the rule above it, so the border it puts back
      outweighs that rule's `border: none` by coming later. */
-  .pt-band-controls .pt-band-select { flex: 1 1 100%; border-top: 1px solid color-mix(in srgb, var(--pt-band) 20%, transparent); }
+  .pt-band-controls .pt-band-select { flex: 1 1 100%; border-top: 1px solid var(--pt-border); }
 }
 
 .pt-countin__beat {
@@ -1164,13 +1241,13 @@ a:hover { text-decoration: underline; }
   flex: 0 0 auto;
 }
 .pt-tile .pt-eyebrow {
-  font-weight: 700;
+  font-weight: 600;
   white-space: nowrap;
-  color: color-mix(in srgb, var(--pt-band) 80%, var(--pt-text));
 }
 .pt-tile__value {
   font-size: var(--pt-font-size-xl);
-  font-weight: 700;
+  font-weight: 600;
+  letter-spacing: -0.01em;
   line-height: 1.15;
   color: var(--pt-text);
   font-variant-numeric: tabular-nums;
@@ -1212,8 +1289,8 @@ a:hover { text-decoration: underline; }
   gap: var(--pt-space-3);
   padding: var(--pt-space-1) var(--pt-space-3);
   background: var(--pt-surface);
+  border: 1px solid var(--pt-border);
   border-radius: var(--pt-radius-md);
-  border-left: 4px solid var(--pt-verdict);
   box-shadow: var(--pt-shadow-sm);
   color: var(--pt-text);
   transition: opacity var(--pt-transition-med);
@@ -1232,18 +1309,17 @@ a:hover { text-decoration: underline; }
   width: 32px;
   height: 32px;
   border-radius: 50%;
-  background: var(--pt-verdict);
-  color: var(--pt-text-inverse);
+  background: color-mix(in srgb, var(--pt-verdict) 14%, transparent);
+  color: var(--pt-verdict);
   font-size: var(--pt-font-size-lg);
-  font-weight: 700;
 }
 .pt-verdict__text { display: flex; flex-direction: column; min-width: 0; line-height: 1.25; }
 .pt-verdict__text > * { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.pt-verdict__headline { font-size: var(--pt-font-size-lg); line-height: 1.2; }
+.pt-verdict__headline { font-size: var(--pt-font-size-lg); font-weight: 600; line-height: 1.2; letter-spacing: -0.01em; }
 .pt-verdict__detail { font-size: var(--pt-font-size-sm); color: var(--pt-text-muted); }
 .pt-verdict__call { font-size: var(--pt-font-size-sm); font-weight: 600; color: var(--pt-band); }
 @keyframes pt-verdict-in {
-  from { background: color-mix(in srgb, var(--pt-verdict) 28%, var(--pt-surface)); }
+  from { background: color-mix(in srgb, var(--pt-verdict) 18%, var(--pt-surface)); }
   to { background: var(--pt-surface); }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -1278,6 +1354,7 @@ a:hover { text-decoration: underline; }
 /* ▶ counts the count-in on itself, where the eye already is: its label gives
    way to the beats, in a button that holds its width either way. */
 .pt-transport { min-width: 7.5rem; justify-content: center; }
+.pt-transport__label { display: inline-flex; align-items: center; gap: 6px; }
 .pt-transport.is-counting .pt-transport__label { display: none; }
 .pt-transport .pt-countin { display: flex; align-items: center; gap: var(--pt-space-2); }
 /* =============================================================================
@@ -1850,11 +1927,11 @@ dialog.pt-boot-failure[open] { background: var(--pt-bg); }
 dialog > article {
   margin: 0;
   max-width: 700px;
-  padding: var(--pt-space-5) var(--pt-space-6);
+  padding: var(--pt-space-6);
   border: none;
-  border-radius: var(--pt-radius-lg);
+  border-radius: var(--pt-radius-xl);
   background: var(--pt-bg-elevated);
-  box-shadow: var(--pt-shadow-lg);
+  box-shadow: var(--pt-shadow-xl);
   width: 100%;
   max-height: calc(100vh - 64px);
   overflow-y: auto;
@@ -1866,9 +1943,8 @@ dialog > article {
 dialog > article:has(> .pt-modal-body) { display: flex; flex-direction: column; overflow: hidden; }
 dialog > article > .pt-modal-body { overflow-y: auto; }
 dialog > article > header {
-  padding: 0 0 var(--pt-space-3);
-  margin: 0 0 var(--pt-space-3);
-  border-bottom: 1px solid var(--pt-border);
+  padding: 0;
+  margin: 0 0 var(--pt-space-4);
   background: transparent;
   display: flex;
   align-items: center;
@@ -1876,11 +1952,10 @@ dialog > article > header {
   gap: var(--pt-space-3);
 }
 dialog > article > header p { margin: 0; }
-dialog > article > header strong { font-weight: 600; }
+dialog > article > header strong { font-size: var(--pt-font-size-lg); font-weight: 600; letter-spacing: -0.01em; }
 dialog > article > footer {
-  padding: var(--pt-space-3) 0 0;
-  margin: var(--pt-space-4) 0 0;
-  border-top: 1px solid var(--pt-border);
+  padding: 0;
+  margin: var(--pt-space-6) 0 0;
   background: transparent;
   display: flex;
   gap: var(--pt-space-2);
@@ -1926,7 +2001,11 @@ dialog > article > footer {
   gap: var(--pt-space-2);
   margin-bottom: var(--pt-space-2);
 }
-.pt-modal-stat strong { font-size: var(--pt-font-size-2xl); font-weight: 700; }
+.pt-modal-stat strong { font-size: var(--pt-font-size-2xl); font-weight: 700; font-variant-numeric: tabular-nums; }
+/* A run's headline figure, what its result leads with. */
+.pt-modal-stat--hero { gap: var(--pt-space-3); margin-bottom: var(--pt-space-3); }
+.pt-modal-stat--hero strong { font-size: var(--pt-font-size-5xl); line-height: 1; letter-spacing: -0.03em; }
+.pt-modal-stat--hero span { color: var(--pt-text-muted); }
 /* The strict accuracy: neutral by default, and coloured up — never down —
    as the figure improves, so a good run reads as one. */
 .pt-modal-stat--strict strong { color: var(--pt-text); }
@@ -1939,9 +2018,11 @@ dialog > article > footer {
    <template x-for> sits inside <tbody> as the actual first child, which
    makes :first-child match nothing on the data rows. */
 .pt-playthrough-table { border-spacing: 0; }
-.pt-playthrough-table tbody td { padding: 6px 8px; font-size: var(--pt-font-size-sm); border-top: 1px solid var(--pt-border); }
+.pt-playthrough-table tbody td { padding: 8px 10px; font-size: var(--pt-font-size-sm); font-variant-numeric: tabular-nums; border-top: 1px solid var(--pt-border); }
 .pt-playthrough-table tbody tr:first-of-type td { border-top: none; }
 .pt-playthrough-table tbody tr.is-current { background: var(--pt-accent-soft); }
+.pt-playthrough-table tbody tr.is-current td:first-child { border-radius: var(--pt-radius-md) 0 0 var(--pt-radius-md); }
+.pt-playthrough-table tbody tr.is-current td:last-child { border-radius: 0 var(--pt-radius-md) var(--pt-radius-md) 0; }
 .pt-playthrough-table tbody tr.is-current td:first-child strong { color: var(--pt-accent); }
 .pt-playthrough-table tbody td small { color: var(--pt-text-muted); }
 
@@ -1962,7 +2043,7 @@ dialog > article > footer {
 
 .pt-modal-section { margin-top: var(--pt-space-4); }
 .pt-modal-section h4,
-.pt-changelog-entry h4 { color: var(--pt-text-muted); font-size: var(--pt-font-size-sm); letter-spacing: 0.01em; }
+.pt-changelog-entry h4 { color: var(--pt-text-muted); font-size: var(--pt-font-size-sm); font-weight: 500; letter-spacing: 0.01em; }
 
 .pt-modal-note { color: var(--pt-text-muted); margin-top: var(--pt-space-3); font-size: var(--pt-font-size-sm); }
 .pt-modal-note--inline { margin-left: var(--pt-space-2); margin-top: 0; }
@@ -1972,12 +2053,13 @@ dialog > article > footer {
 .pt-changelog-btn { position: relative; }
 .pt-changelog-dot {
   position: absolute;
-  top: 6px;
-  right: 6px;
+  top: 1px;
+  right: 1px;
   width: 8px;
   height: 8px;
   border-radius: 50%;
   background: var(--pt-accent);
+  box-shadow: 0 0 0 2px var(--pt-bg-elevated);
 }
 .pt-changelog-entry { margin-top: var(--pt-space-4); }
 .pt-changelog-entry:first-of-type { margin-top: 0; }
@@ -1988,6 +2070,25 @@ dialog > article > footer {
 .pt-criteria li:last-child { margin-bottom: 0; }
 
 .pt-strict-breakdown { list-style: none; padding: 0; margin: var(--pt-space-3) 0; color: var(--pt-text-muted); font-size: var(--pt-font-size-sm); }
+
+/* What a run to the click lost, a chip for each kind of fault under its
+   figure, keyed with the colour that fault takes on the score. */
+.pt-fault-chips {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--pt-space-2);
+  padding: 0;
+  margin: 0 0 var(--pt-space-3);
+  font-size: var(--pt-font-size-sm);
+}
+.pt-fault-chips .pt-chip { margin: 0; gap: var(--pt-space-2); }
+.pt-fault-chips small { color: var(--pt-text-muted); }
+/* The colour each kind of fault leaves on the score, as its key. */
+.pt-legend-dot { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+.pt-legend-dot--offtempo { background: var(--pt-note-offtempo); }
+.pt-legend-dot--missed { background: var(--pt-note-missed); }
+.pt-legend-dot--wrong { background: var(--pt-note-missed); border-radius: 2px; }
 
 /* Score history: a summary, the next status, the goals, the charts, the bars
    to work and the journal, each section one step of the same column. */
@@ -2118,10 +2219,9 @@ dialog > article > footer {
    run won is drawn in. */
 .pt-goal-earned,
 .pt-records {
-  margin: 0 0 var(--pt-space-3);
+  margin: 0 0 var(--pt-space-5);
   padding: var(--pt-space-3) var(--pt-space-4);
-  border: 1px solid color-mix(in srgb, var(--pt-record) 35%, transparent);
-  border-radius: var(--pt-radius-md);
+  border-radius: var(--pt-radius-lg);
   background: var(--pt-record-bg);
 }
 .pt-goal-earned {
@@ -2131,18 +2231,21 @@ dialog > article > footer {
 }
 /* The records a run set, a line each (runRecords in playthroughHistory.js). */
 .pt-records { list-style: none; display: grid; gap: var(--pt-space-1); }
-.pt-record { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--pt-space-2); }
+.pt-record { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--pt-space-2); margin: 0; }
+.pt-record [data-icon] { color: var(--pt-record); align-self: center; }
+.pt-record strong { font-weight: 600; }
 .pt-record small { color: var(--pt-text-muted); }
 /* Where a run went wrong, kind by kind: the kind, then its bars. */
 .pt-where {
-  display: grid;
-  grid-template-columns: max-content 1fr;
-  gap: var(--pt-space-1) var(--pt-space-3);
-  margin: 0 0 var(--pt-space-3);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--pt-space-1) var(--pt-space-5);
+  margin: 0 0 var(--pt-space-5);
+  font-size: var(--pt-font-size-sm);
 }
-.pt-where > div { display: contents; }
-.pt-where dt { font-weight: 600; }
-.pt-where dd { margin: 0; color: var(--pt-text-muted); }
+.pt-where > div { display: flex; gap: var(--pt-space-2); }
+.pt-where dt { font-weight: 500; }
+.pt-where dd { margin: 0; color: var(--pt-text-muted); font-variant-numeric: tabular-nums; }
 .pt-goal-earned__item { display: flex; align-items: center; gap: var(--pt-space-3); margin: 0; }
 .pt-goal-earned .pt-goal__stars { flex: none; font-size: var(--pt-font-size-3xl); }
 .pt-goal-earned .is-won { display: inline-block; animation: pt-star-won 500ms cubic-bezier(0.2, 1.6, 0.4, 1) 150ms backwards; }

@@ -69,7 +69,7 @@ class SteadinessTest < CapybaraTestBase
 
     # Strict mode marks its off-tempo notes in the same colour: the mark goes.
     find('dialog[open] button[aria-label="Close"]').click
-    click_on '⏱ Mode strict'
+    click_on 'Strict'
     assert_no_selector 'svg .vf-notehead.late-note'
   end
 
@@ -362,7 +362,7 @@ class SteadinessTest < CapybaraTestBase
   # `notes`, the rest of the bars around them owed nothing.
   def drill_the_fragment(notes, shaded_bars:)
     click_on 'Renforcer 1 passage'
-    assert_text 'Mode Entraînement Actif'
+    assert_training_mode_on
     assert_selector 'svg rect.fragment-range', count: shaded_bars
 
     with_clock_control do

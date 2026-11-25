@@ -190,7 +190,7 @@ class KeyboardHintTest < CapybaraTestBase
   # count toward the next mode either.
   def test_strict_mode_never_brings_it_up
     open_two_measures
-    click_on '⏱ Mode strict'
+    click_on 'Strict'
     3.times { play_note('G4') }
     assert_no_selector '.pt-keyhint'
 

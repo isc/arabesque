@@ -18,7 +18,7 @@ class TrainingModeTest < CapybaraTestBase
     record_played_notes
     replay_cassette('simple-score-3-repeats')
 
-    assert_text 'Félicitations'
+    assert_text 'Entraînement terminé'
     assert_text 'complété toutes les mesures'
 
     # The cassette repeats the measure 3 times. Each repetition lights its 4
@@ -50,7 +50,7 @@ class TrainingModeTest < CapybaraTestBase
     # Check repeat indicators: 2 filled circles, 1 empty
     assert_selector 'svg circle.repeat-indicator', count: 3
     assert_selector 'svg circle.repeat-indicator.filled', count: 2
-    assert_no_text 'Félicitations'
+    assert_no_text 'Entraînement terminé'
     assert_no_text 'complété toutes les mesures'
   end
 

@@ -412,10 +412,10 @@ class CapybaraTestBase < Minitest::Test
   # on the wall clock. 50ms lets it through, and is far short of the first bar.
   def listen_then_pause
     with_clock_control do
-      trigger_click_on('▶ Écouter')
+      trigger_click_on('Écouter')
       advance_clock(50)
       yield if block_given?
-      trigger_click_on('⏸ Pause')
+      trigger_click_on('Pause')
     end
     assert_text 'En pause à la mesure 1'
   end
@@ -723,9 +723,14 @@ class CapybaraTestBase < Minitest::Test
   end
 
   def enter_training_mode
-    click_on 'Mode Entraînement'
-    assert_text 'Mode Entraînement Actif'
+    click_on 'Entraînement'
+    assert_training_mode_on
     assert_selector 'svg rect.measure-click-area.selected'
+  end
+
+  # The training tab pressed: entered by hand, or by a reinforcement.
+  def assert_training_mode_on
+    assert_selector 'button[data-mode="training"][aria-pressed="true"]'
   end
 
   # 120 BPM → 2s count-in, ±150ms strict window, ±450ms off-tempo. The window
@@ -736,19 +741,19 @@ class CapybaraTestBase < Minitest::Test
   COUNT_IN_MS = 4 * 60_000 / STRICT_BPM
 
   def start_strict_mode(bpm: STRICT_BPM)
-    click_on '⏱ Mode strict'
+    click_on 'Strict'
     fill_in 'Tempo en BPM', with: bpm.to_s
   end
 
-  # The gesture: 🔁, then the first bar of the passage and its last.
+  # The gesture: Boucle, then the first bar of the passage and its last.
   def pick_passage(first, last)
     arm_passage(first)
     click_measure(last)
   end
 
-  # Its first half: 🔁 and the first bar, the band waiting for the last.
+  # Its first half: Boucle and the first bar, the band waiting for the last.
   def arm_passage(first)
-    click_on '🔁 Boucle'
+    click_on 'Boucle'
     assert_text 'Cliquez sur la première puis la dernière mesure du passage à travailler.'
     click_measure(first)
     assert_text "Départ à la mesure #{first} — cliquez sur la dernière mesure du passage."

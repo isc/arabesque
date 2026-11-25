@@ -91,13 +91,13 @@ class LadderTest < CapybaraTestBase
     play_notes(BARS)
     assert_selector 'svg circle.repeat-indicator.filled', count: 1
     assert_on_step 'Clic lent', done: 1, playing: 'Clic lent · ♩ = 84'
-    assert_text 'Au clic lent : ▶ lance le décompte.'
+    assert_text "Au clic lent : ▶\uFE0E lance le décompte."
     # Before ▶ the keys go nowhere: the click has not started.
     play_note('C4')
     assert_no_selector 'svg .vf-notehead.played-note'
 
     with_clock_control do
-      trigger_click_on('▶ Démarrer')
+      trigger_click_on('Démarrer')
       # ♩ = 84: a count-in bar, then a whole note a bar, 2857 ms each.
       play_at(BARS.zip([2857, 5714, 8571]))
       # Judged 750 ms after the last note: its window, then the engine's tail.
@@ -123,16 +123,16 @@ class LadderTest < CapybaraTestBase
     assert_on_step 'Clic lent', done: 1, playing: 'Clic lent · ♩ = 84'
 
     with_clock_control do
-      trigger_click_on('▶ Démarrer')
+      trigger_click_on('Démarrer')
       # Three silent runs at ♩ = 84, 9321 ms each, a second's gap between.
       at(9330)
       assert_selector '[data-testid=board-verdict].is-failed', text: '3 notes manquées', wait: 2
       at(29_970)
       assert_on_step 'Clic lent', done: 1, playing: 'Plus lent · ♩ = 59'
       assert_text 'Le clic va trop vite pour l’instant : une fois à ♩ = 59, puis on remonte.'
-      trigger_click_on('⏸ Pause')
+      trigger_click_on('Pause')
     end
-    assert_text '▶ Reprendre'
+    assert_text 'Reprendre'
     assert_no_selector 'svg circle.repeat-indicator.filled', count: 2
   end
 
@@ -150,7 +150,7 @@ class LadderTest < CapybaraTestBase
     assert_on_step 'Clic lent', done: 1, playing: 'Clic lent · ♩ = 84'
 
     with_clock_control do
-      trigger_click_on('▶ Démarrer')
+      trigger_click_on('Démarrer')
       # A count-in bar, and in straight away — not on through the first half of
       # bar 1, the click still counting (feedback ee14d941) — then a quaver
       # each, and F4 after.
@@ -159,7 +159,7 @@ class LadderTest < CapybaraTestBase
       assert_selector 'svg circle.repeat-indicator.filled', count: 2, wait: 2
       assert_selector '[data-testid=board-verdict].is-clean', text: 'Propre'
       assert_no_selector 'svg .vf-notehead.missed-note'
-      trigger_click_on('⏸ Pause')
+      trigger_click_on('Pause')
     end
   end
 
