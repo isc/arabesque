@@ -9,6 +9,11 @@
 # CPUS=4 mimics a GitHub runner, which is what you want when reproducing a CI
 # failure; leave it unset to use the whole machine.
 #
+# MEMORY caps the container, 8g unless set. The whole suite peaks at ~3.4 GB
+# with its 8 workers (measured on charras), so the cap only bites on a leak, and
+# then the run dies in its own container instead of pushing a shared host into
+# swap, where everything else on it stalls.
+#
 # Commands go into a container that stays up between runs. Creating one per
 # command was most of the wall clock — about 2s of setup around a test whose
 # body takes 0.9s — where `docker exec` costs 0.10s.
@@ -72,9 +77,10 @@ fi
 docker build -q --provenance=false -t "$image" -f "$repo/test/Dockerfile" "$repo" >/dev/null
 
 # What the container cannot be talked out of once it exists: the image it came
-# from, the CPU budget, and the gems the lock file asks for. Anything else
-# belongs on the exec below, not here.
-spec="$(docker image inspect -f '{{.Id}}' "$image")|${CPUS:-all}|$(digest < "$repo/Gemfile.lock" | cut -c1-12)"
+# from, its CPU and memory budgets, and the gems the lock file asks for.
+# Anything else belongs on the exec below, not here.
+memory="${MEMORY:-8g}"
+spec="$(docker image inspect -f '{{.Id}}' "$image")|${CPUS:-all}|$memory|$(digest < "$repo/Gemfile.lock" | cut -c1-12)"
 current="$(docker inspect -f '{{.State.Running}} {{index .Config.Labels "arabesque.spec"}}' "$container" 2>/dev/null || true)"
 
 if [ "$current" != "true $spec" ]; then
@@ -93,11 +99,19 @@ if [ "$current" != "true $spec" ]; then
   #
   # It sleeps for a day rather than forever so a forgotten one lets go on its own;
   # the running check above simply starts a fresh one the next morning.
+  #
+  # That leaves sleep as PID 1, which inherits every orphan: each Chrome process
+  # a worker left behind ended up its child, and sleep never reaps anything, so
+  # they piled up as zombies, 528 in one day-old container on charras. --init
+  # puts Docker's tiny init in front to reap them. --memory-swap equal to
+  # --memory means no swap at all: past the cap, the container's own OOM killer
+  # ends the run rather than the host paging for it.
   docker rm -f "$container" >/dev/null 2>&1 || true
   docker run -d --name "$container" \
     --user "$(id -u):$(id -g)" -e HOME=/tmp \
     --label arabesque.test=1 --label "arabesque.spec=$spec" \
     ${CPUS:+--cpus="$CPUS"} \
+    --init --memory="$memory" --memory-swap="$memory" \
     -v "$repo:/app" -v "$volume:/gems" \
     "$image" sleep 1d >/dev/null
 
