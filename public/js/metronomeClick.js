@@ -101,16 +101,26 @@ function barClicks(bars, wholeMs) {
 // ends, which comes in on its own beat — "1 2 3 4 | 1 2 3" and in on 4. It used
 // to come in straight after the one bar, on what the click had counted as a
 // downbeat.
-export function clickTrack(bars, bpm) {
+//
+// A run starting `from` partway into its first bar, in whole notes — a drill's
+// fragment (ladder.js) — is counted a bar and goes straight in, on whichever
+// beat of its bar it starts. Counted on into the bar as a pickup is, a fragment
+// on the fourth beat was left three beats of silence after the count, eight
+// seconds at ♩ = 21, to work out alone that they were not to be played
+// (feedback ee14d941).
+export function clickTrack(bars, bpm, from = 0) {
   const wholeMs = tsToSeconds(1, bpm) * 1000
-  const { timeSignature, barOffset = 0 } = bars[0]
+  const [first, ...rest] = bars
+  const { timeSignature, barOffset = 0 } = first
   const full = barLength(timeSignature)
+  const lead = from > 0 ? 0 : barOffset
   const countIn = [{ duration: full, timeSignature }]
-  if (barOffset > 0) countIn.push({ duration: barOffset, timeSignature })
+  if (lead > 0) countIn.push({ duration: lead, timeSignature })
+  const opening = { ...first, barOffset: barOffset + from, duration: first.duration - from }
   return {
-    countInMs: (full + barOffset) * wholeMs,
+    countInMs: (full + lead) * wholeMs,
     countInBeats: Math.round(full / barPulse(timeSignature, wholeMs).beat),
-    clicks: barClicks([...countIn, ...bars], wholeMs)
+    clicks: barClicks([...countIn, opening, ...rest], wholeMs)
       .map(({ bar, ...click }) => ({ ...click, countIn: bar < countIn.length })),
   }
 }

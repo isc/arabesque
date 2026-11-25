@@ -541,3 +541,19 @@ describe('a database that does not answer', () => {
     expect(recorded()).toEqual(['IndexedDB readonly sessions still pending after 5s', 'IndexedDB readonly sessions settled after 5s'])
   })
 })
+
+// A drill's run to the click is filed into the session it is played in, which
+// goes on: it threw on a name it did not have (feedbacks ac3e2751, ee14d941),
+// and none of those runs reached the journal.
+describe('a drill run to the click', () => {
+  it('is filed into the session under way, and saved', async () => {
+    const { storage, practiceTracker } = await aDevice()
+    practiceTracker.startSession('scores/a.mxl', 'A', 'X', 'training', 4)
+    const attempt = { startedAt: '2026-11-25T20:56:00.000Z', durationMs: 2000, wrongNotes: 1, clean: false, hands: 'both', partial: true }
+    practiceTracker.recordDrillRun([{ sourceMeasureIndex: 3, ...attempt }])
+
+    const { id, measures } = practiceTracker.getCurrentSession()
+    expect(measures).toEqual([{ sourceMeasureIndex: 3, attempts: [attempt] }])
+    await vi.waitFor(async () => expect((await storage.getSession(id))?.measures).toEqual(measures))
+  })
+})

@@ -475,7 +475,7 @@ export function initPracticeTracker(storageInstance = null) {
   function recordDrillRun(measures) {
     if (!currentSession) return
     for (const attempt of measures) recordMeasureAttempt(attempt, { persist: false })
-    if (persist) storage.saveSession({ ...currentSession })
+    storage.saveSession({ ...currentSession })
   }
 
   // `at` (an ISO string) dates the restart, for a caller that knows when the

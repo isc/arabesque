@@ -973,11 +973,12 @@ export function midiApp() {
 
     // One strict run at `bpm`, resolving with the engine's result once it is
     // over — and filed in the journal on the way. Of the selected passage, but
-    // for a drill's, whose bars and the notes of them it owes (`owes`) are the
-    // drill's (clickRun in musicxml.js). `settle` is what follows a filing but
+    // for a drill's, whose bars, where in the first it starts (`from`) and
+    // the notes of them it owes (`owes`) are the drill's (clickRun in
+    // musicxml.js). `settle` is what follows a filing but
     // can wait for the end of a loop: the cloud sync and the reinforcement
     // suggestions, which read the score's whole history back.
-    startStrictRun(bpm, { settle = true, start = this.strictPassage.start, end = this.strictPassage.end, owes } = {}) {
+    startStrictRun(bpm, { settle = true, start = this.strictPassage.start, end = this.strictPassage.end, from, owes } = {}) {
       return new Promise((resolve) => {
         strictPlaythrough.start({
           bpm,
@@ -987,6 +988,7 @@ export function midiApp() {
           // engine the run covers the whole score, so the journal sees it.
           startMeasureIndex: start ?? 0,
           endMeasureIndex: end,
+          from,
           owes,
           onAttemptStarted: () => this.attemptStarted(),
           onCountIn: ({ beat, beats }) => {
