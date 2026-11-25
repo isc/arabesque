@@ -31,7 +31,7 @@
 // pinned element (the score page's whole stack of header, modes and bands is
 // sticky, and it is the most diagnostic thing on the page).
 
-import { recordError } from './errorLog.js?v=2c3d03114163'
+import { recordError } from './errorLog.js?v=8250151c5067'
 
 const XHTML_NS = 'http://www.w3.org/1999/xhtml'
 const SVG_NS = 'http://www.w3.org/2000/svg'
