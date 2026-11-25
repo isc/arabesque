@@ -588,6 +588,20 @@ export default {
     changesBody:
       "Cette page évolue avec l'application. La date de mise à jour en haut indique la dernière version ; un changement qui vous concerne sera annoncé dans les « Nouveautés ».",
   },
+  // Branch previews, opened from the ⚙️ menu (previews.js).
+  previews: {
+    heading: 'Préversions',
+    production: '↩︎ Version publiée',
+    none: 'Aucune préversion ouverte.',
+    unavailable: 'La liste des préversions n’a pas pu se charger.',
+    strip: '🧪 Préversion',
+    back: 'Revenir à la version publiée',
+    shown: 'préversions affichées dans le menu ⚙️',
+    hidden: 'préversions masquées',
+  },
+  notFound: {
+    heading: 'Page introuvable',
+  },
   support: {
     pageTitle: 'Arabesque · Assistance',
     heading: 'Assistance',

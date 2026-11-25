@@ -1,6 +1,7 @@
 // How every app page boots Alpine. In order:
 // - the markup the page builds from modules goes in — the ⚙️ menu
-//   (headerMenu.js), which every app page carries, then the page's own
+//   (headerMenu.js), which every app page carries, and on a branch preview
+//   the strip back to production (previews.js), then the page's own
 //   (journalEntries.js, bpmField.js) — for Alpine to find its bindings and
 //   for the static chrome to be translated with the rest;
 // - the static chrome is translated and the FR/EN switch wired (initI18n), and
@@ -11,13 +12,14 @@
 //   Alpine evaluates `x-data`, however slow the page's import graph is to
 //   resolve. Otherwise Alpine can win the race and every expression throws
 //   "<name> is not defined".
-import { initI18n, t, tn } from './i18n.js?v=46e82bdb6096'
-import { mountHeaderMenu } from './headerMenu.js?v=46e82bdb6096'
+import { initI18n, t, tn } from './i18n.js?v=2c3d03114163'
+import { mountHeaderMenu } from './headerMenu.js?v=2c3d03114163'
+import { mountPreviewStrip } from './previews.js?v=2c3d03114163'
 
 const ALPINE = 'vendor/alpinejs.3.14.9.min.js'
 
 export function startAlpine(components, mounts = []) {
-  for (const mount of [mountHeaderMenu, ...mounts]) mount()
+  for (const mount of [mountHeaderMenu, mountPreviewStrip, ...mounts]) mount()
   initI18n()
   document.addEventListener('alpine:init', () => {
     window.Alpine.magic('t', () => (key, params) => t(key, params))

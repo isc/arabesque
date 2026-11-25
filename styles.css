@@ -1299,6 +1299,12 @@ a:hover { text-decoration: underline; }
   padding: var(--pt-space-3);
   min-width: 260px;
   max-width: 320px;
+  /* On the score page the menu hangs from the sticky bars, so what runs past
+     the bottom of the screen cannot be scrolled to with the page: an iPad held
+     sideways ran out of room once the previews joined the list. */
+  max-height: 80vh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   z-index: var(--pt-z-popover);
   display: flex;
   flex-direction: column;
@@ -1335,6 +1341,30 @@ a:hover { text-decoration: underline; }
 /* Keep the switches compact instead of stretching to the popover's full
    width (the section is a column flex, which would otherwise stretch them). */
 .pt-popover .pt-segmented { align-self: flex-start; }
+
+/* A branch preview in the menu's list (previews.js): its pull request's number
+   ahead of the title, and the one this page belongs to picked out. */
+.pt-preview-item { align-items: baseline; }
+.pt-preview-item__number { color: var(--pt-text-muted); font-variant-numeric: tabular-nums; }
+.pt-preview-item[aria-current="true"] { background: var(--pt-accent-soft); }
+
+/* Across the top of a preview's every page, in the flow rather than over it, so
+   that it scrolls away with the page (previews.js says why). */
+.pt-preview-strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--pt-space-1) var(--pt-space-2);
+  padding: var(--pt-space-1) var(--pt-space-4);
+  background: var(--pt-accent-soft);
+  border-bottom: 1px solid var(--pt-border);
+  font-size: var(--pt-font-size-sm);
+}
+.pt-preview-strip__name { flex: 1 1 16ch; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* The support page's version line, tapped five times to show the previews:
+   no double-tap zoom, no text selected on the way. */
+.pt-version-line { touch-action: manipulation; user-select: none; -webkit-user-select: none; }
 
 /* =============================================================================
    Data page (backup + account)

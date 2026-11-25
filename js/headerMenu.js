@@ -15,14 +15,15 @@
 // Page-specific seam (kept out of here): feedbackContext() — extra,
 // non-identifying context merged into a report (practice stats on the library,
 // current score on the score page).
-import { CHANGELOG } from './changelog.js?v=46e82bdb6096'
-import { startOfLocalDay } from './days.js?v=46e82bdb6096'
-import { feedbackEnabled, buildBaseContext, submitFeedback, defaultFeedbackEmail } from './feedback.js?v=46e82bdb6096'
-import { getLang, locale } from './i18n.js?v=46e82bdb6096'
-import { INSTALL_AVAILABLE_EVENT, installAvailable, promptInstall } from './installPrompt.js?v=46e82bdb6096'
-import { nativePairingAvailable, openNativePairing } from './midi.js?v=46e82bdb6096'
-import { keyHintAllowed, storeKeyHintAllowed } from './keyHintSetting.js?v=46e82bdb6096'
-import { recordError } from './errorLog.js?v=46e82bdb6096'
+import { CHANGELOG } from './changelog.js?v=2c3d03114163'
+import { startOfLocalDay } from './days.js?v=2c3d03114163'
+import { feedbackEnabled, buildBaseContext, submitFeedback, defaultFeedbackEmail } from './feedback.js?v=2c3d03114163'
+import { getLang, locale } from './i18n.js?v=2c3d03114163'
+import { INSTALL_AVAILABLE_EVENT, installAvailable, promptInstall } from './installPrompt.js?v=2c3d03114163'
+import { nativePairingAvailable, openNativePairing } from './midi.js?v=2c3d03114163'
+import { keyHintAllowed, storeKeyHintAllowed } from './keyHintSetting.js?v=2c3d03114163'
+import { recordError } from './errorLog.js?v=2c3d03114163'
+import { openPreviews, previewSlug, previewUrl, previewsWanted, productionUrl } from './previews.js?v=2c3d03114163'
 
 const CHANGELOG_SEEN_KEY = 'arabesque:changelog-seen'
 const CHANGELOG_DATE_FORMATTER = new Intl.DateTimeFormat(locale(), {
@@ -44,6 +45,7 @@ export function headerMenu() {
     menuOpen: false,
     toggleMenu() {
       this.menuOpen = !this.menuOpen
+      if (this.menuOpen && this.previewsShown) this.loadPreviews()
     },
     closeMenu() {
       this.menuOpen = false
@@ -88,6 +90,23 @@ export function headerMenu() {
     setKeyHintAllowed(allowed) {
       storeKeyHintAllowed(allowed)
       this.keyHintAllowed = allowed
+    },
+
+    // --- Branch previews (previews.js) ---
+    // Read again each time the menu opens: a pull request opened since the page
+    // was is what the player has come to try. undefined until read, null when
+    // it could not be.
+    previewsShown: previewsWanted(),
+    previewSlug,
+    previewList: undefined,
+    async loadPreviews() {
+      this.previewList = await openPreviews()
+    },
+    openPreview(slug) {
+      location.assign(previewUrl(slug))
+    },
+    leavePreview() {
+      location.assign(productionUrl())
     },
 
     // --- Changelog ("Nouveautés") ---
@@ -143,7 +162,7 @@ export function headerMenu() {
       // visit ever opens the form. Nothing waits on the result — null,
       // from a capture that failed or a browser that could not make one, simply
       // means the form offers no picture and the report goes as words alone.
-      const { captureViewport } = await import('./screenshot.js?v=46e82bdb6096')
+      const { captureViewport } = await import('./screenshot.js?v=2c3d03114163')
       this.feedbackShot = await captureViewport()
     },
 
@@ -216,6 +235,19 @@ const TRIGGER_HTML = `
         <button type="button" :aria-pressed="String(keyHintAllowed)" @click="setKeyHintAllowed(true)" x-text="$t('menu.keyHintAllowed')">Si besoin</button>
         <button type="button" :aria-pressed="String(!keyHintAllowed)" @click="setKeyHintAllowed(false)" x-text="$t('menu.keyHintNever')">Jamais</button>
       </div>
+    </div>
+    <hr x-show="previewsShown" />
+    <div class="pt-popover__section" x-show="previewsShown">
+      <h4 x-text="$t('previews.heading')">Préversions</h4>
+      <button type="button" class="pt-menu-item" x-show="previewSlug" @click="leavePreview()" x-text="$t('previews.production')">↩︎ Version publiée</button>
+      <template x-for="preview in previewList ?? []" :key="preview.slug">
+        <button type="button" class="pt-menu-item pt-preview-item" :aria-current="String(preview.slug === previewSlug)" @click="openPreview(preview.slug)">
+          <span class="pt-preview-item__number" x-text="'#' + preview.number"></span>
+          <span x-text="preview.title"></span>
+        </button>
+      </template>
+      <small class="pt-hint" x-show="previewList?.length === 0" x-text="$t('previews.none')"></small>
+      <small class="pt-hint" x-show="previewList === null" x-text="$t('previews.unavailable')"></small>
     </div>
   </div>
 </div>`
