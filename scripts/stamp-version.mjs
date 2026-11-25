@@ -28,7 +28,8 @@ const PUBLIC_DIR = join(import.meta.dirname, '..', 'public')
 // A page needs both halves: the stamp to compare against, and the module that
 // compares it. Stamping one without the other would ship a page that cannot
 // notice it is stale.
-export const VERSION_SCRIPT = '<script type="module" src="js/version.js"></script>'
+export const VERSION_MODULE = 'js/version.js'
+export const VERSION_SCRIPT = `<script type="module" src="${VERSION_MODULE}"></script>`
 
 // Generated rather than hand-listed: a file added to public/ and left out would
 // be the one thing missing offline, and nothing would say so.

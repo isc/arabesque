@@ -19,6 +19,16 @@
 // Alpine goes in for every page that boots it, being the next thing such a page
 // asks for.
 //
+// All but js/version.js. WebKit answers a URL that a living document preloaded
+// from the copy it preloaded, ahead of every cache rule: no worker asked, not
+// even on a reload. Every other module's URL names its own deploy
+// (scripts/stamp-version.mjs), so being held does it no harm; version.js keeps
+// one URL across deploys, and its first preload pinned that deploy's copy under
+// every page after. The iPad kept 2e7fe071's through the next two deploys,
+// reloading each page once per deploy for nothing and reporting the wrong
+// version (feedback dad36859, replayed in WebKit). Its own tag, a line below
+// the block, asks for it in the same wave anyway, and it imports nothing.
+//
 // The block goes in ahead of js/errorLog.js, which every page loads first
 // (test/js/errorLog.test.js): early in the head, and after score.html's import
 // map, which a module fetch started before it would leave unread.
@@ -28,7 +38,7 @@
 // nothing on a local server. Running it twice gives the same pages.
 import { readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { htmlPages } from './stamp-version.mjs'
+import { htmlPages, VERSION_MODULE } from './stamp-version.mjs'
 import { replacedOnce } from './replace-once.mjs'
 
 const PUBLIC_DIR = join(import.meta.dirname, '..', 'public')
@@ -75,7 +85,7 @@ export function moduleGraph(html) {
 export function withPreloads(html, where) {
   const bare = html.replace(BLOCK, '')
   const [anchor, indent] = bare.match(ANCHOR) ?? []
-  const modules = moduleGraph(bare)
+  const modules = moduleGraph(bare).filter((path) => path !== VERSION_MODULE)
   const links = modules.map((path) => `<link rel="modulepreload" href="${path}" />`)
   if (modules.includes(ALPINE_BOOT)) {
     links.push(`<link rel="preload" as="script" href="${read(ALPINE_BOOT).match(ALPINE_SRC)[1]}" />`)
