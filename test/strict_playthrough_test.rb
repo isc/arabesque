@@ -44,7 +44,7 @@ class StrictPlaythroughTest < CapybaraTestBase
 
     strict_run { play_chord(%w[C4 E4 G4]) }
 
-    assert_text '100%'
+    assert_text '100 %'
     assert_text '3 sur 3'
     assert_no_text 'fausses notes'
     assert_no_text 'manquées'
@@ -74,7 +74,7 @@ class StrictPlaythroughTest < CapybaraTestBase
 
     play_silent_run
 
-    assert_text '0%'
+    assert_text '0 %'
     assert_text '3 manquées'
 
     # The verdict stays on the score to be read, but leaves with the mode.
@@ -159,6 +159,31 @@ class StrictPlaythroughTest < CapybaraTestBase
     end
   end
 
+  # A run of the whole piece to the click ends as a free one does: the records
+  # it set, where it went wrong, its ranking against the runs at its tempo. It
+  # used to say a figure and nothing else (feedback dad36859).
+  def test_a_whole_run_to_the_click_ends_with_its_records_and_ranking
+    visit '/score.html?url=/test-fixtures/chord.xml'
+    wait_for_score_render(1)
+    start_strict_mode
+
+    strict_run { play_chord(%w[C4 E4]) }
+    within('dialog.pt-result-dialog') do
+      assert_selector '[data-testid=result-where]', text: /Notes manquées\s*mes\. 1/
+      assert_no_selector '[data-testid=result-records]'
+      click_on 'Fermer'
+    end
+    wait_for_records('sessions', where: 'record.completedAt && record.measures.length === 1')
+
+    strict_run { play_chord(%w[C4 E4 G4]) }
+    within('dialog.pt-result-dialog') do
+      assert_selector '[data-testid=result-records] li', text: /Record de justesse à 120 BPM\s*100 %\s*avant : 67 %/
+      assert_selector '[data-testid=result-records] li', text: /Record de tempo propre\s*120 BPM\s*une première/
+      assert_selector 'tr.is-current', text: '100 %'
+      assert_selector 'tr', text: /67 %.*1 note manquée/
+    end
+  end
+
   # A run to the end with a note missed is still the piece played through —
   # the metronome moved on — and it is listed with its verdict, which is the
   # point. Demanding a clean run left nearly every real run out of the journal.
@@ -168,7 +193,7 @@ class StrictPlaythroughTest < CapybaraTestBase
     start_strict_mode
 
     strict_run { play_chord(%w[C4 E4]) }
-    assert_text '67%'
+    assert_text '67 %'
     assert_text '1 manquée'
 
     wait_for_records('sessions', where: 'record.completedAt && record.measures.length === 1')
@@ -603,7 +628,7 @@ class StrictPlaythroughTest < CapybaraTestBase
     # mordent on E5: principal, diatonic upper, principal.
     play_mordent_run(%w[C5 B4 C5], %w[E5 F5 E5])
 
-    assert_text '100%'
+    assert_text '100 %'
     assert_text '3 sur 3'
     assert_no_text 'fausses notes'
     assert_no_text 'hors tempo'
@@ -618,7 +643,7 @@ class StrictPlaythroughTest < CapybaraTestBase
   def test_an_ornament_left_out_is_a_missed_note
     play_mordent_run(%w[C5], %w[E5])
 
-    assert_text '33%'
+    assert_text '33 %'
     assert_text '2 manquées'
     assert_no_text 'fausses notes'
   end
@@ -629,7 +654,7 @@ class StrictPlaythroughTest < CapybaraTestBase
   def test_the_notes_of_an_ornament_are_wrong_in_the_wrong_order
     play_mordent_run(%w[C5 C5 B4], %w[E5 F5 E5])
 
-    assert_text '67%'
+    assert_text '67 %'
     assert_text '1 manquée'
     assert_text '1 fausse'
   end
@@ -649,7 +674,7 @@ class StrictPlaythroughTest < CapybaraTestBase
       play_note('Eb5')
     end
 
-    assert_text '100%'
+    assert_text '100 %'
     assert_text '2 sur 2'
     assert_no_text 'fausses notes'
   end
@@ -676,7 +701,7 @@ class StrictPlaythroughTest < CapybaraTestBase
       play_note('C4')
     end
 
-    assert_text '100%'
+    assert_text '100 %'
     assert_no_text 'fausse'
   end
 
@@ -762,8 +787,10 @@ class StrictPlaythroughTest < CapybaraTestBase
       assert_selector 'svg .vf-notehead.expected-note', wait: 4, **expected
       yield
       advance_clock(END_OF_RUN_MS)
-      assert_text 'Playthrough strict terminé', wait: 4
     end
+    # Up once the run is filed with the others, which a parked clock holds
+    # back: the run is over and judged by now.
+    assert_text 'Playthrough strict terminé', wait: 4
   end
 
   # One run of mordent-ornament.xml — C5 (mordent), E5 (inverted mordent), G5,
