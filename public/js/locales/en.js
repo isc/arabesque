@@ -598,6 +598,20 @@ export default {
     changesBody:
       'This page changes along with the app. The date at the top says which version you are reading; anything that affects you will be announced in "What’s new".',
   },
+  // Branch previews, opened from the ⚙️ menu (previews.js).
+  previews: {
+    heading: 'Previews',
+    production: '↩︎ Published version',
+    none: 'No preview open.',
+    unavailable: 'The list of previews could not be loaded.',
+    strip: '🧪 Preview',
+    back: 'Back to the published version',
+    shown: 'previews shown in the ⚙️ menu',
+    hidden: 'previews hidden',
+  },
+  notFound: {
+    heading: 'Page not found',
+  },
   support: {
     pageTitle: 'Arabesque · Support',
     heading: 'Support',

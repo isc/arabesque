@@ -84,6 +84,30 @@ jobs:
           done
           echo "::warning::Preview did not become live with the expected SHA in 5 minutes — comment posted anyway"
 
+      # The ⚙️ menu's list of open previews (scripts/preview-index.sh), once
+      # this one is online: listed before, it would have opened a 404. Nothing
+      # but the index is checked out, and no file fetched but that one — the
+      # rest of gh-pages is a whole copy of the site per preview.
+      - name: Checkout the preview index
+        uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+          path: site
+          fetch-depth: 1
+          filter: blob:none
+          sparse-checkout: previews/index.json
+          sparse-checkout-cone-mode: false
+
+      # A push with nothing to send when the index came out unchanged, which
+      # is most pushes to a pull request.
+      - name: Update the preview index
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          scripts/preview-index.sh site
+          git -C site push origin gh-pages
+
       # Retried: the issues API now and then answers a transient 504 here.
       - name: Comment PR with the preview link
         uses: Wandalen/wretry.action@v3.8.0

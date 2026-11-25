@@ -116,6 +116,19 @@ a preview registered before that unregisters itself on its next update
 (`public/sw.js` says why). So a change to the worker is tried locally, as
 "New HTML pages" below describes, not on its preview.
 
+A preview is also played **inside the iOS app**, where the MIDI keyboard works
+(Safari on the iPad has no Web MIDI): the ⚙️ menu lists the open previews and
+opens the page you are on in the one tapped, and a preview's pages carry a strip
+back to the same page in production (`public/js/previews.js`). The list shows on
+a device once the version line at the bottom of the support page has been tapped
+five times (five more hide it again), and always on a preview. It reads
+`previews/index.json`, which `scripts/preview-index.sh` rebuilds from the open
+pull requests and the preview directories on `gh-pages` each time `preview.yml`
+or `preview-cleanup.yml` writes there. A page of a preview that is gone —
+its PR merged under a player still on it — lands on production's same page
+(`public/404.html`). The test server serves the previews listed in
+`test/fixtures/previews-index.json` the same way (`app.rb`).
+
 ## Library
 
 **IMPORTANT:** After adding or removing a score (editing `public/data/scores.json`
