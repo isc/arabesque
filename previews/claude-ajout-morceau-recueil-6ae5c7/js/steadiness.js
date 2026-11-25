@@ -27,7 +27,7 @@
 // with the tempo of another one.
 //
 // Pure: attacks in, verdicts out, so the rule can be tested without a score.
-import { median } from './practiceTime.js?v=cab86f1d9cb2'
+import { median } from './practiceTime.js?v=85ddf5f4f1db'
 
 export const HOLE_FACTOR = 1.8
 export const HOLE_MIN_EXCESS_MS = 250
