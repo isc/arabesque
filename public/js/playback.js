@@ -1,4 +1,4 @@
-import { isTestEnv, scrollSystemIntoView } from './utils.js'
+import { isInFullView, isTestEnv, scrollSystemIntoView } from './utils.js'
 import {
   tsToSeconds,
   buildMeasureStartTimes,
@@ -351,8 +351,11 @@ function placeCursor(cursor, skipSteps) {
 // The page follows the cursor a system at a time (scrollSystemIntoView), and
 // goes to the first one now rather than at that first time: a strict run's is
 // the end of its count-in, and the sheet must not move on the downbeat the
-// player is reading it for.
-export function scheduleCursorAdvances(cursor, cursorTimes, { skipSteps = 0 } = {}) {
+// player is reading it for. A passage played again and again — `keepInView`,
+// a strict loop or a drill — leaves the page where it is while the cursor's
+// system is all on screen: one across two systems that both fit went up and
+// down with every go (feedback 029831ab).
+export function scheduleCursorAdvances(cursor, cursorTimes, { skipSteps = 0, keepInView = false } = {}) {
   placeCursor(cursor, skipSteps)
   let lastCursorTop = null
   const followCursor = () => {
@@ -363,7 +366,8 @@ export function scheduleCursorAdvances(cursor, cursorTimes, { skipSteps = 0 } = 
     // How far down the score, not down the page: a band coming up over the
     // score moves everything under it, and that is no change of system.
     const top = rect.top - scoreSvg.getBoundingClientRect().top
-    if (lastCursorTop === null || Math.abs(top - lastCursorTop) > 10) scrollSystemIntoView(rect.top, scoreSvg)
+    const moved = lastCursorTop === null || Math.abs(top - lastCursorTop) > 10
+    if (moved && !(keepInView && isInFullView(rect.top, rect.bottom))) scrollSystemIntoView(rect.top, scoreSvg)
     lastCursorTop = top
   }
   followCursor()

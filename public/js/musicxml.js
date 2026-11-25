@@ -13,7 +13,7 @@ import {
   handOfStaff,
   isInnerStaff,
 } from './noteExtraction.js'
-import { scrollSystemIntoView, isUnderStickyBars, nextPaint } from './utils.js'
+import { scrollSystemIntoView, isInFullView, isUnderStickyBars, nextPaint } from './utils.js'
 import { placeChordFingerings } from './chordFingerings.js'
 import { arrayBufferToXml, isMusicXml } from './mxlLoader.js'
 import { stripPlaybackTempoMarks } from './tempoMarks.js'
@@ -447,11 +447,14 @@ export function initMusicXML() {
       startReinforcementPassage()
     },
     // The run a drill's step to the click asks for, for strict mode's engine
-    // to play (app.js): the passage's bars, the notes of them it owes, the
-    // tempo. Null on any other step: the notes played there are this engine's.
+    // to play (app.js): the passage's bars, where in the first of them it
+    // starts and the notes of them it owes, the tempo. Null on any other step:
+    // the notes played there are this engine's.
     clickRun: () => {
       const click = reinforcement.on && stepUnderway()?.click
-      return click ? { start: training.start, end: training.end, bpm: click, owes: inFragment } : null
+      if (!click) return null
+      const from = Math.max(0, training.fragment.from - training.start)
+      return { start: training.start, end: training.end, from, bpm: click, owes: inFragment }
     },
     judgeClickRun,
   }
@@ -1784,11 +1787,18 @@ function scrollToNextMeasureIfNeeded(nextIndex) {
   // carries its dots under the sticky bars, with nothing else to bring them back.
   const dotsTop = repeatIndicatorsTopY(nextIndex)
   const dotsHidden = dotsTop !== null && isUnderStickyBars(dotsTop)
+  if (dotsHidden || (systemChanged && !staysInView(nextIndex))) scrollToMeasure(nextIndex)
+  if (systemChanged || dotsHidden) cursor.systemIndex = nextSystemIndex
+}
 
-  if (systemChanged || dotsHidden) {
-    scrollToMeasure(nextIndex)
-    cursor.systemIndex = nextSystemIndex
-  }
+// A passage played again and again leaves the page where it is while the bar
+// it moves on to is all on screen: one across two systems that both fit went
+// up and down with every repetition (feedback 029831ab).
+function staysInView(measureIndex) {
+  return training.end != null && measureRects(measureIndex).every((rect) => {
+    const { top, bottom } = rect.getBoundingClientRect()
+    return isInFullView(top, bottom)
+  })
 }
 
 // Moves the training cursor onto `to` and opens the measure there. What the

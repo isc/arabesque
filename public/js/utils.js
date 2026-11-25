@@ -82,6 +82,12 @@ export function isUnderStickyBars(top) {
   return top < getStickyOffset()
 }
 
+// True when what spans viewport y `top` to `bottom` is all on screen, clear of
+// the sticky bars.
+export function isInFullView(top, bottom) {
+  return !isUnderStickyBars(top) && bottom <= window.innerHeight
+}
+
 // Vertical band scanned above the reference line to catch fingerings, dynamics
 // and tempo markings — anything that hovers above the top staff line. Kept
 // smaller than the tightest system spacing (~109px here) so we don't grab the

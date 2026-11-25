@@ -103,6 +103,17 @@ describe('clickTrack', () => {
       ])
     })
 
+    // A drill's fragment on the fourth beat: four beats counted, and in.
+    it('counts a bar, then goes straight into a run starting partway into its bar', () => {
+      const track = clickTrack(bars('4/4', [1, 1]), 120, 3 / 4)
+      expect(track.countInMs).toBe(2000)
+      expect(heard(track)).toEqual([
+        '0 accent ·', '500 beat ·', '1000 beat ·', '1500 beat ·',
+        '2000 beat',
+        '2500 accent', '3000 beat', '3500 beat', '4000 beat',
+      ])
+    })
+
     it('keeps the click on the beat under a pickup that is not a whole beat', () => {
       const track = clickTrack(bars('4/4', [1 / 8, 1]), 120)
       // The eighth comes in between the fourth beat and the downbeat.

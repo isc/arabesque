@@ -139,8 +139,9 @@ class LadderTest < CapybaraTestBase
   # A fragment is drilled to the click as it is without: from where it starts
   # inside its first bar to where it ends inside its last. The notes outside
   # it are not asked for, so not missed, and a player going on past its end is
-  # playing no wrong note. steady-quavers.xml at ♩ = 120, the slow click 84:
-  # the second half of bar 1 and the first of bar 2, a quaver 357 ms.
+  # playing no wrong note. The count-in leads straight into it.
+  # steady-quavers.xml at ♩ = 120, the slow click 84: the second half of bar 1
+  # and the first of bar 2, a quaver 357 ms.
   def test_a_fragment_is_played_to_the_click_from_inside_its_bar
     open_score('steady-quavers', 16)
     reinforce([{ from: { bar: 0, position: 0.5 }, until: { bar: 1, position: 0.5 }, hands: 'both', pace: 2_000 }])
@@ -150,9 +151,11 @@ class LadderTest < CapybaraTestBase
 
     with_clock_control do
       trigger_click_on('▶ Démarrer')
-      # A count-in bar and half of bar 1, then a quaver each, and F4 after.
-      play_at((fragment + %w[F4]).each_with_index.map { |note, i| [note, (4286 + (i * 357.14)).round] })
-      at(7_540)
+      # A count-in bar, and in straight away — not on through the first half of
+      # bar 1, the click still counting (feedback ee14d941) — then a quaver
+      # each, and F4 after.
+      play_at((fragment + %w[F4]).each_with_index.map { |note, i| [note, (2857 + (i * 357.14)).round] })
+      at(6_120)
       assert_selector 'svg circle.repeat-indicator.filled', count: 2, wait: 2
       assert_selector '[data-testid=board-verdict].is-clean', text: 'Propre'
       assert_no_selector 'svg .vf-notehead.missed-note'

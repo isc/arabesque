@@ -222,6 +222,45 @@ class AutoscrollTest < CapybaraTestBase
     assert_equal at_the_top, settled_scroll(from: further_down), 'The page should come back up to bar 1 for the left hand'
   end
 
+  # A passage across two systems that both fit on screen is played without
+  # the page going up and down: down to the second system and back to the
+  # first for every repetition, it did (feedback 029831ab).
+  def test_a_passage_on_two_systems_in_view_leaves_the_page_where_it_is
+    # A system a bar, room for the two of them, and the score going on below:
+    # a page that can move.
+    page.current_window.resize_to(300, 800)
+    load_score('repeat-endings.xml', 4)
+    enter_training_mode
+    pick_passage(1, 2)
+    still = settled_scroll
+
+    play_note('C4')
+    wait_for_training_cursor(2)
+    play_note('D4')
+    wait_for_training_cursor(1)
+    play_note('C4')
+    wait_for_training_cursor(2)
+    assert_equal still, settled_scroll, 'The page should stay where it is'
+  end
+
+  # The same for a strict loop, whose cursor goes down to the second system
+  # and back with every run.
+  def test_a_strict_loop_on_two_systems_in_view_leaves_the_page_where_it_is
+    page.current_window.resize_to(300, 800)
+    load_score('repeat-endings.xml', 4)
+    start_strict_mode
+    pick_passage(1, 2)
+    still = settled_scroll
+
+    with_clock_control do
+      trigger_click_on('▶ Démarrer')
+      # The count-in and bar 1 at ♩ = 120, and on into bar 2.
+      advance_clock(COUNT_IN_MS + 2_500)
+      trigger_click_on('⏸ Pause')
+    end
+    assert_equal still, settled_scroll, 'The page should stay where it is'
+  end
+
   private
 
   def work_on_bar_from_history(bar)
