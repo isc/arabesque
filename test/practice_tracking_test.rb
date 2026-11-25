@@ -39,7 +39,7 @@ class PracticeTrackingTest < CapybaraTestBase
 
     assert_selector 'dialog[open] tr.is-current', text: '1 fausse note'
     assert_selector 'dialog[open] tr', text: 'sans faute, 2 trous'
-    assert_text 'Fausses notes à la mesure 2.'
+    assert_selector '[data-testid=result-where]', text: /Fausses notes\s*mes\. 2/
   end
 
   # Under the time each run took, how clean it was.

@@ -1,7 +1,9 @@
 import { describe, it, expect } from 'vitest'
 import {
   rankingOf,
-  wrongMeasuresText,
+  runRecords,
+  faultBars,
+  runFigure,
   playthroughCharts,
   resultCharts,
   withRunLines,
@@ -30,12 +32,61 @@ describe('rankingOf', () => {
   })
 })
 
-describe('wrongMeasuresText', () => {
-  it('names a handful of measures by number, and only counts more', () => {
-    expect(wrongMeasuresText([])).toBe('')
-    expect(wrongMeasuresText([0, 4])).toContain('5')
-    expect(wrongMeasuresText([0, 1, 2, 3, 4, 5, 6])).toContain('7')
-    expect(wrongMeasuresText([0, 1, 2, 3, 4, 5, 6])).not.toContain('1, 2')
+// A strict run at `bpm`: `hit` of ten notes in time, and what else it got wrong.
+const strictRun = (day, hit, { bpm = 30, missed = 0, wrongNotes = 0, hands = 'both' } = {}) =>
+  run(day, 60_000, { hands, strict: { hit, total: 10, missed, wrongNotes, offTempoEarly: 0, offTempoLate: 10 - hit - missed, bpm } })
+
+describe('rankingOf, for strict runs', () => {
+  // A hit rate says nothing of a run at another tempo.
+  it('ranks the strict runs at the last one’s tempo, most accurate first', () => {
+    const last = strictRun(3, 8)
+    const ranking = rankingOf([last, strictRun(2, 9), strictRun(1, 6), strictRun(1, 10, { bpm: 40 }), run(1, 50_000)])
+    expect(ranking.map(runFigure)).toEqual(['90%', '80%', '60%'])
+    expect(ranking.find((pt) => pt.isCurrent).strict).toBe(last.strict)
+  })
+})
+
+describe('runRecords', () => {
+  it('says what a free run beat, and what the best before it was', () => {
+    const records = runRecords([run(3, 50_000, { wrongNotes: 4, holes: 2 }), run(2, 60_000, { wrongNotes: 3, holes: 5 }), run(1, 55_000, { wrongNotes: 6, holes: 3 })])
+    expect(records.map(({ key, value, before }) => [key, value, before])).toEqual([
+      ['time', '50s', '55s'],
+      ['holes', '2 holes', '3 holes'],
+    ])
+  })
+
+  it('has nothing to say of a first run, nor of a run that beat nothing', () => {
+    expect(runRecords([run(1, 50_000)])).toEqual([])
+    expect(runRecords([run(2, 70_000, { wrongNotes: 2 }), run(1, 60_000, { wrongNotes: 1 })])).toEqual([])
+  })
+
+  // Accuracy and faults at the run's tempo; the tempo itself across them, a
+  // first clean run said as one.
+  it('weighs a strict run at its tempo, and its tempo against the clean runs', () => {
+    const records = runRecords([strictRun(3, 10, { bpm: 35 }), strictRun(2, 9, { bpm: 35, missed: 1 }), strictRun(1, 10, { bpm: 30 })])
+    expect(records.map(({ key, value, before }) => [key, value, before])).toEqual([
+      ['accuracy', '100%', '90%'],
+      ['faults', 'no fault', '1 fault'],
+      ['tempo', '35 BPM', '30 BPM'],
+    ])
+    expect(records[0].title).toBe('Accuracy record at 35 BPM')
+    const first = runRecords([strictRun(2, 10), strictRun(1, 6, { missed: 2 })]).find((record) => record.key === 'tempo')
+    expect(first).toMatchObject({ value: '30 BPM', before: null })
+  })
+})
+
+describe('faultBars', () => {
+  it('lists the bars each kind of fault fell in, in order, each once', () => {
+    const faults = [{ kind: 'wrong', bar: 11 }, { kind: 'wrong', bar: 2 }, { kind: 'wrong', bar: 11 }, { kind: 'late', bar: 4 }, { kind: 'early', bar: 3 }, { kind: 'missed', bar: null }]
+    expect(faultBars(faults)).toEqual([
+      { label: 'Wrong notes', bars: 'bars 3 and 12' },
+      { label: 'Off the click', bars: 'bars 4 and 5' },
+    ])
+  })
+
+  it('counts the bars past a handful', () => {
+    const faults = [0, 1, 2, 3, 4, 5, 6, 7].map((bar) => ({ kind: 'missed', bar }))
+    expect(faultBars(faults)).toEqual([{ label: 'Missed notes', bars: 'bars 1, 2, 3, 4, 5, 6 and 2 more' }])
   })
 })
 

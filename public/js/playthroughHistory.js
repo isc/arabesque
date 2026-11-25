@@ -5,6 +5,7 @@ import { formatDuration, withRunKind } from './utils.js'
 import { playthroughGroups } from './hands.js'
 import { byStartedAt } from './days.js'
 import { t, tn, locale } from './i18n.js'
+import { isCleanRun } from './tempoTrainer.js'
 
 // Built once: the active locale is fixed for the page lifetime (switching
 // language reloads), so these don't need rebuilding per call/point.
@@ -55,12 +56,24 @@ function strictFaultsText({ missed, wrongNotes }) {
     .join(', ')
 }
 
+// The same as one count, for a strict run's record of them.
+const strictFaults = ({ strict }) => (strict.missed ?? 0) + (strict.wrongNotes ?? 0)
+const faultCountText = (n) => (n ? tn('score.faults', n) : t('score.noFault'))
+const percentText = (pct) => t('score.percent', { pct: Math.round(pct) })
+
 // What a run is measured by, per kind of run (see hands' playthroughGroups):
 // a free run by the time it took, a strict run by its hit rate — which means
 // nothing without the tempo, so its label carries it. Read wherever runs are
 // listed, titled or plotted, so a kind is described in one place. A run's
 // label says how clean it was as well — and a free run's, how steady: a time
 // alone reads the same for a run that stumbled through as for one that didn't.
+//
+// `rank` orders the runs the end of a piece ranks, best first, and `faults`
+// says what each got wrong beside its figure. `records` are the axes a run can
+// beat the runs before it on (runRecords): what it reads off a run — null
+// where the run says nothing on it — whether `lower` is better, and how it is
+// said; `atTempo` for an axis only runs at the same tempo are measured on,
+// `first` for one where the first run to have a figure at all is worth saying.
 const RUN_KINDS = {
   free: {
     title: 'score.playtimeEvolution',
@@ -70,19 +83,40 @@ const RUN_KINDS = {
     format: formatDuration,
     label: (pt) => `${formatDuration(pt.durationMs)} (${faultsText(pt)})`,
     range: paddedRange(Infinity),
+    rank: (a, b) => a.durationMs - b.durationMs,
+    faults: faultsText,
+    records: [
+      { key: 'time', title: 'score.recordTime', value: (pt) => pt.durationMs, lower: true, format: formatDuration },
+      { key: 'wrong-notes', title: 'score.recordWrongNotes', value: (pt) => pt.wrongNotes, lower: true, format: wrongNotesText },
+      { key: 'holes', title: 'score.recordHoles', value: (pt) => pt.holes, lower: true, format: holesText },
+    ],
   },
   strict: {
     title: 'score.accuracyEvolution',
     aria: 'score.strictChartAria',
     value: (pt) => strictAccuracy(pt.strict),
     best: Math.max,
-    format: (pct) => t('score.percent', { pct: Math.round(pct) }),
+    format: percentText,
     label: (pt) => {
       const summary = t('score.strictRunSummary', { pct: strictAccuracy(pt.strict), bpm: pt.strict.bpm })
       const faults = strictFaultsText(pt.strict)
       return faults ? `${summary} (${faults})` : summary
     },
     range: paddedRange(100),
+    rank: (a, b) => strictAccuracy(b.strict) - strictAccuracy(a.strict) || strictFaults(a) - strictFaults(b),
+    faults: (pt) => strictFaultsText(pt.strict) || t('score.noFault'),
+    records: [
+      { key: 'accuracy', title: 'score.recordAccuracy', value: (pt) => strictAccuracy(pt.strict), format: percentText, atTempo: true },
+      { key: 'faults', title: 'score.recordStrictFaults', value: strictFaults, lower: true, format: faultCountText, atTempo: true },
+      // The tempo a run is clean at by the tempo trainer's rule, across tempi.
+      {
+        key: 'tempo',
+        title: 'score.recordTempo',
+        value: (pt) => (isCleanRun(pt.strict) ? pt.strict.bpm : null),
+        format: (bpm) => t('score.atBpm', { bpm }),
+        first: true,
+      },
+    ],
   },
 }
 
@@ -106,27 +140,81 @@ export function strictRunLabel(verdict) {
   return RUN_KINDS.strict.label({ strict: verdict })
 }
 
-// The result modal's ranking: fastest first, the run just played flagged so
-// the modal can highlight it. `allPlaythroughs` comes most recent first
-// (getAllPlaythroughs), and only the runs comparable with that one are in the
-// running — playthroughGroups says which: a right-hand run beats every
+// The runs the most recent one is measured against: those of its kind and
+// hands (playthroughGroups), itself included — a right-hand run beats every
 // two-hand time on the clock without being the better performance, and a
-// strict run's time is the metronome's, not the player's.
-export function rankingOf(allPlaythroughs) {
-  const mostRecent = allPlaythroughs[0]
-  const comparable = playthroughGroups(allPlaythroughs).find((g) => g.playthroughs.includes(mostRecent))
-  return (comparable?.playthroughs ?? [])
-    .map((pt) => ({ ...pt, isCurrent: pt === mostRecent }))
-    .sort((a, b) => a.durationMs - b.durationMs)
+// strict run's time is the metronome's, not the player's. `allPlaythroughs`
+// comes most recent first (getAllPlaythroughs).
+function comparableRuns(allPlaythroughs) {
+  const [latest] = allPlaythroughs
+  return playthroughGroups(allPlaythroughs).find((g) => g.playthroughs.includes(latest))?.playthroughs ?? []
 }
 
-// Where a run went wrong, by measure number — past a handful of them, only
-// how many: a list that long says nothing more.
-export function wrongMeasuresText(measures) {
-  if (measures.length === 0) return ''
-  if (measures.length > WRONG_MEASURES_LISTED) return t('score.wrongMeasuresMany', { n: measures.length })
-  const list = PLAYTHROUGH_LIST_FORMATTER.format(measures.map((m) => String(m + 1)))
-  return tn('score.wrongMeasures', measures.length, { list })
+// A strict run's hit rate says nothing of one at another tempo.
+const atTempo = (runs, { strict }) => runs.filter((pt) => pt.strict?.bpm === strict.bpm)
+
+// The result modal's ranking, best first — the fastest free runs, the most
+// accurate strict ones at the same tempo — the run just played flagged so the
+// modal can highlight it.
+export function rankingOf(allPlaythroughs) {
+  const [latest] = allPlaythroughs
+  const comparable = comparableRuns(allPlaythroughs)
+  const ranked = latest?.strict ? atTempo(comparable, latest) : comparable
+  return ranked
+    .map((pt) => ({ ...pt, isCurrent: pt === latest }))
+    .sort(runKind(Boolean(latest?.strict)).rank)
+}
+
+// A ranked run's figure, and what it got wrong, as the ranking shows them.
+export function runFigure(pt) {
+  const kind = runKind(Boolean(pt.strict))
+  return kind.format(kind.value(pt))
+}
+export const runFaults = (pt) => runKind(Boolean(pt.strict)).faults(pt)
+
+// What the most recent run beat, axis by axis (RUN_KINDS' records): its figure
+// and the best before it among the runs it is measured against, `before` null
+// for a first. Nothing on an axis the run is the first to be measured on, but
+// for a first worth saying: the first clean run to the click.
+export function runRecords(allPlaythroughs) {
+  const [latest] = allPlaythroughs
+  const comparable = comparableRuns(allPlaythroughs)
+  if (comparable.length < 2) return []
+  return runKind(Boolean(latest.strict)).records.flatMap((axis) => {
+    const value = axis.value(latest)
+    if (value == null) return []
+    const pool = axis.atTempo ? atTempo(comparable, latest) : comparable
+    const before = pool.filter((pt) => pt !== latest).map(axis.value).filter((v) => v != null)
+    const record = { key: axis.key, title: t(axis.title, { bpm: latest.strict?.bpm }), value: axis.format(value) }
+    if (before.length === 0) return axis.first ? [{ ...record, before: null }] : []
+    const best = axis.lower ? Math.min(...before) : Math.max(...before)
+    const beaten = axis.lower ? value < best : value > best
+    return beaten ? [{ ...record, before: axis.format(best) }] : []
+  })
+}
+
+// Where a run went wrong, kind by kind: the bars of each in score order —
+// past a handful of them, only how many more. From the faults a strict run's
+// engine noted (strictPlaythrough.js), or a free run's wrong measures as
+// 'wrong' faults.
+const WHERE = [
+  { kinds: ['wrong'], label: 'score.whereWrong' },
+  { kinds: ['missed'], label: 'score.whereMissed' },
+  { kinds: ['late', 'early'], label: 'score.whereOffClick' },
+  { kinds: ['released'], label: 'score.whereReleased' },
+]
+
+export function faultBars(faults) {
+  return WHERE.flatMap(({ kinds, label }) => {
+    const bars = [...new Set(faults.filter((f) => kinds.includes(f.kind) && f.bar != null).map((f) => f.bar))].sort((a, b) => a - b)
+    if (bars.length === 0) return []
+    const numbers = bars.map((bar) => String(bar + 1))
+    const more = bars.length - WRONG_MEASURES_LISTED
+    const text = more > 0
+      ? `${t('score.whereBars', { list: numbers.slice(0, WRONG_MEASURES_LISTED).join(', ') })} ${t('verdict.more', { n: more })}`
+      : t('score.whereBars', { list: PLAYTHROUGH_LIST_FORMATTER.format(numbers) })
+    return [{ label: t(label), bars: text }]
+  })
 }
 
 // A day of the history, with a line under it for each kind of run and hand

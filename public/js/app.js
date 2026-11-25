@@ -469,9 +469,8 @@ export function midiApp() {
           practiceTracker.markScoreCompleted()
           await rollSession(this.currentMode)
 
-          const allPlaythroughs = this.scoreUrl ? await practiceTracker.getAllPlaythroughs(this.scoreUrl) : []
           window.scrollTo({ top: 0, behavior: 'smooth' })
-          this.showScoreComplete(allPlaythroughs, goalNews(allPlaythroughs, runSize(musicxml.getAllNotes())))
+          await this.showPieceComplete()
 
           await this.refreshReinforcementSuggestions()
         },
@@ -978,10 +977,10 @@ export function midiApp() {
     // over — and filed in the journal on the way. Of the selected passage, but
     // for a drill's, whose bars, where in the first it starts (`from`) and
     // the notes of them it owes (`owes`) are the drill's (clickRun in
-    // musicxml.js). `settle` is what follows a filing but
-    // can wait for the end of a loop: the cloud sync and the reinforcement
-    // suggestions, which read the score's whole history back.
-    startStrictRun(bpm, { settle = true, start = this.strictPassage.start, end = this.strictPassage.end, from, owes } = {}) {
+    // musicxml.js). What follows a filing — the cloud sync and the
+    // reinforcement suggestions, which read the score's whole history back —
+    // is the caller's, once the run or the loop is over (settleStrictRuns).
+    startStrictRun(bpm, { start = this.strictPassage.start, end = this.strictPassage.end, from, owes } = {}) {
       return new Promise((resolve) => {
         strictPlaythrough.start({
           bpm,
@@ -1000,14 +999,15 @@ export function midiApp() {
           },
           onComplete: (result) => {
             this.countInBeat = 0
-            // Not awaited here: the result modal is not going to wait on
-            // IndexedDB, and the run is already fully described by `result`.
-            // Chained, so that one await covers every run a loop has filed —
+            // Not awaited here: the run is already fully described by
+            // `result`, and only a run of the whole piece waits to be filed
+            // before its result (showSingleRunResult). Chained, so that one
+            // await covers every run a loop has filed —
             // and caught, since a chain left rejected skips every link after
             // it: one run that failed to file would silently drop all the
             // others on the page, and throw from setMode's await.
             strictRunRecorded = strictRunRecorded
-              .then(() => this.recordStrictRun(result, { settle }))
+              .then(() => this.recordStrictRun(result))
               .catch((error) => recordError(error, 'Strict run could not be recorded'))
             resolve(result)
           },
@@ -1015,14 +1015,35 @@ export function midiApp() {
       })
     },
 
-    finishSingleRun(result) {
+    // The run is over: its result shown, then what follows its filing — the
+    // sync and the suggestions, which need not hold the result up.
+    async finishSingleRun(result) {
       this.strictTransport = 'stopped'
       this.paintStrictRange()
-      if (result.aborted) return
-      // A clean finish resets the start point so the next ▶ replays from
-      // the top; aborted runs keep it for retry from the same spot.
+      if (!result.aborted) await this.showSingleRunResult(result)
+      await this.settleStrictRuns()
+    },
+
+    // A clean finish resets the start point so the next ▶ replays from the
+    // top; aborted runs keep it for retry from the same spot. A run of the
+    // whole piece ends as a free one does — its records, its ranking, its
+    // chart — once it is filed with the others (feedback dad36859: the strict
+    // end said a figure and nothing else).
+    async showSingleRunResult({ verdict, faults, completed }) {
       this.resetStrictRange()
-      this.showStrictResult(result.verdict)
+      if (!completed || !this.scoreUrl) {
+        this.showStrictResult(verdict, faults)
+        return
+      }
+      await strictRunRecorded
+      await this.showPieceComplete({ verdict, faults })
+    },
+
+    // A piece played through, freely or to the click: its result, with the
+    // runs filed before it and what it did for the piece's goals.
+    async showPieceComplete(strictRun) {
+      const allPlaythroughs = this.scoreUrl ? await practiceTracker.getAllPlaythroughs(this.scoreUrl) : []
+      this.showScoreComplete(allPlaythroughs, goalNews(allPlaythroughs, runSize(musicxml.getAllNotes())), strictRun)
     },
 
     // Runs the passage in a loop until the session ends (endStrictSession),
@@ -1034,7 +1055,7 @@ export function midiApp() {
         plan,
         runOnce: (bpm) => {
           this.trainerStatus = { bpm, run: plan.runs.length + 1, cleanStreak: plan.cleanStreak }
-          return this.startStrictRun(bpm, { settle: false })
+          return this.startStrictRun(bpm)
         },
         abortRun: stopStrictRun,
         // The streak moves as soon as the run is judged, not a pause later, and
@@ -1048,7 +1069,6 @@ export function midiApp() {
       this.paintStrictRange()
       this.trainerStatus = null
       this.showTrainerSummary({ ...trainer.summary(), runs: plan.runs })
-      await strictRunRecorded
       await this.settleStrictRuns()
     },
 
@@ -1060,7 +1080,7 @@ export function midiApp() {
       return this.playRunLoop(createRunLoop({
         runOnce: () => {
           const { bpm, ...bars } = musicxml.clickRun()
-          return this.startStrictRun(bpm, { ...bars, settle: false })
+          return this.startStrictRun(bpm, bars)
         },
         abortRun: stopStrictRun,
         onRun: ({ verdict, faults }) => {
@@ -1085,7 +1105,6 @@ export function midiApp() {
       runLoop.pause()
       this.strictTransport = 'paused'
       this.paintStrictRange()
-      await strictRunRecorded
       await this.settleStrictRuns()
     },
 
@@ -1366,7 +1385,7 @@ export function midiApp() {
     // already timed at the tempo it was played at, and says whether it counts
     // as the piece played in full. A run nobody played to (the metronome
     // ticking on an empty keyboard) is not practice and is not recorded.
-    async recordStrictRun(result, { settle = true } = {}) {
+    async recordStrictRun(result) {
       if (!this.scoreUrl || !result.measures.length) return
       const { hit, offTempoEarly, offTempoLate, wrongNotes } = result.verdict
       if (hit + offTempoEarly + offTempoLate + wrongNotes === 0) return
@@ -1381,15 +1400,15 @@ export function midiApp() {
       // One session per run: a session carries at most one playthrough, and
       // ending it here is what credits the practice time to the journal.
       await rollSession('strict', { sync: false })
-      if (settle) await this.settleStrictRuns()
     },
 
-    // What follows the filing of a run, or of a loop's worth of them. Not the
-    // suggestions through a drill, which offers nothing while it lasts and
-    // reads them again when it is over (onLadder).
-    settleStrictRuns() {
+    // What follows the filing of a run, or of a loop's worth of them, once
+    // they are filed. Not the suggestions through a drill, which offers
+    // nothing while it lasts and reads them again when it is over (onLadder).
+    async settleStrictRuns() {
+      await strictRunRecorded
       triggerSync('session ended')
-      if (this.mode !== 'reinforcement') return this.refreshReinforcementSuggestions()
+      if (this.mode !== 'reinforcement') await this.refreshReinforcementSuggestions()
     },
 
     // Reinforcement is a flavor of training, so currentMode reports
