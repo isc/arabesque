@@ -15,15 +15,15 @@
 // Page-specific seam (kept out of here): feedbackContext() — extra,
 // non-identifying context merged into a report (practice stats on the library,
 // current score on the score page).
-import { CHANGELOG } from './changelog.js?v=90835a25b0a4'
-import { startOfLocalDay } from './days.js?v=90835a25b0a4'
-import { feedbackEnabled, buildBaseContext, submitFeedback, defaultFeedbackEmail } from './feedback.js?v=90835a25b0a4'
-import { getLang, locale } from './i18n.js?v=90835a25b0a4'
-import { INSTALL_AVAILABLE_EVENT, installAvailable, promptInstall } from './installPrompt.js?v=90835a25b0a4'
-import { nativePairingAvailable, openNativePairing } from './midi.js?v=90835a25b0a4'
-import { keyHintAllowed, storeKeyHintAllowed } from './keyHintSetting.js?v=90835a25b0a4'
-import { recordError } from './errorLog.js?v=90835a25b0a4'
-import { openPreviews, previewSlug, previewUrl, previewsWanted, productionUrl } from './previews.js?v=90835a25b0a4'
+import { CHANGELOG } from './changelog.js?v=087c6f6132e8'
+import { startOfLocalDay } from './days.js?v=087c6f6132e8'
+import { feedbackEnabled, buildBaseContext, submitFeedback, defaultFeedbackEmail } from './feedback.js?v=087c6f6132e8'
+import { getLang, locale } from './i18n.js?v=087c6f6132e8'
+import { INSTALL_AVAILABLE_EVENT, installAvailable, promptInstall } from './installPrompt.js?v=087c6f6132e8'
+import { nativePairingAvailable, openNativePairing } from './midi.js?v=087c6f6132e8'
+import { keyHintAllowed, storeKeyHintAllowed } from './keyHintSetting.js?v=087c6f6132e8'
+import { recordError } from './errorLog.js?v=087c6f6132e8'
+import { openPreviews, previewSlug, previewUrl, previewsWanted, productionUrl } from './previews.js?v=087c6f6132e8'
 
 const CHANGELOG_SEEN_KEY = 'arabesque:changelog-seen'
 const CHANGELOG_DATE_FORMATTER = new Intl.DateTimeFormat(locale(), {
@@ -144,9 +144,10 @@ export function headerMenu() {
     feedback: { message: '', email: '' },
     feedbackStatus: 'idle', // 'idle' | 'sending' | 'sent' | 'error'
     feedbackError: '',
-    // A picture of the screen the modal is covering, or null when the capture
-    // could not be made. Attached by default and shown in the form, so it is
-    // never a surprise — the checkbox opts out.
+    // A picture of the screen the modal is covering — captureViewport's
+    // `{ image, capture }` — or null when the capture could not be made.
+    // Attached by default and shown in the form, so it is never a surprise —
+    // the checkbox opts out.
     feedbackShot: null,
     feedbackShotWanted: true,
 
@@ -162,7 +163,7 @@ export function headerMenu() {
       // visit ever opens the form. Nothing waits on the result — null,
       // from a capture that failed or a browser that could not make one, simply
       // means the form offers no picture and the report goes as words alone.
-      const { captureViewport } = await import('./screenshot.js?v=90835a25b0a4')
+      const { captureViewport } = await import('./screenshot.js?v=087c6f6132e8')
       this.feedbackShot = await captureViewport()
     },
 
@@ -178,12 +179,18 @@ export function headerMenu() {
       if (!message || this.feedbackStatus === 'sending') return
       this.feedbackStatus = 'sending'
       this.feedbackError = ''
+      const shot = this.feedbackShotWanted ? this.feedbackShot : null
       try {
         await submitFeedback({
           message,
           email: this.feedback.email,
-          screenshot: this.feedbackShotWanted ? this.feedbackShot : null,
-          context: { ...(await buildBaseContext()), ...(this.feedbackContext?.() ?? {}) },
+          screenshot: shot?.image,
+          context: {
+            ...(await buildBaseContext()),
+            ...(this.feedbackContext?.() ?? {}),
+            // How the picture was drawn (drawSettled in screenshot.js).
+            ...(shot && { capture: shot.capture }),
+          },
         })
         this.feedbackStatus = 'sent'
       } catch (err) {
@@ -307,7 +314,7 @@ const MODALS_HTML = `
               <input type="checkbox" x-model="feedbackShotWanted" :disabled="feedbackStatus === 'sending'" />
               <span x-text="$t('feedback.screenshotLabel')">Joindre l’image de l’écran</span>
             </label>
-            <img class="pt-feedback-shot__preview" x-show="feedbackShotWanted" :src="feedbackShot" :alt="$t('feedback.screenshotAlt')" />
+            <img class="pt-feedback-shot__preview" x-show="feedbackShotWanted" :src="feedbackShot.image" :alt="$t('feedback.screenshotAlt')" />
           </div>
         </template>
         <small class="pt-feedback-privacy" x-text="$t('feedback.privacy')"></small>
