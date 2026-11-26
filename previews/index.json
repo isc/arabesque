@@ -1,10 +1,5 @@
 [
   {
-    "number": 567,
-    "title": "Name a strict ranking's tempo, list the other tempi, and show the tempo under the history chart",
-    "slug": "claude-deux-feedbacks-envoyes-821c0f"
-  },
-  {
     "number": 217,
     "title": "Add mic mode (beta): play without MIDI via microphone pitch detection",
     "slug": "claude-micro-mode-non-midi-9j1r2l"
