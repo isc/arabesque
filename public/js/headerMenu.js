@@ -258,7 +258,7 @@ const MODALS_HTML = `
   <article>
     <header>
       <p><strong x-text="$t('library.changelog')">✨ Nouveautés</strong></p>
-      <button :aria-label="$t('common.close')" rel="prev" @click="showChangelogModal = false"></button>
+      <button :aria-label="$t('common.close')" rel="prev" data-icon="x" @click="showChangelogModal = false"></button>
     </header>
     <div class="pt-modal-body">
       <template x-for="entry in changelog" :key="entry.date">
@@ -278,7 +278,7 @@ const MODALS_HTML = `
   <article>
     <header>
       <p><strong x-text="$t('feedback.title')">💬 Votre avis</strong></p>
-      <button :aria-label="$t('common.close')" rel="prev" @click="closeFeedback()"></button>
+      <button :aria-label="$t('common.close')" rel="prev" data-icon="x" @click="closeFeedback()"></button>
     </header>
     <div class="pt-modal-body">
     <template x-if="feedbackStatus === 'sent'">

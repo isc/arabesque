@@ -802,7 +802,7 @@ class CapybaraTestBase < Minitest::Test
   def enter_fingering(notehead, digit)
     open_fingering_pad(notehead)
     click_button digit.to_s
-    click_button '✓ Valider'
+    click_button 'Valider'
     assert_no_selector 'dialog#fingeringModal[open]'
   end
 

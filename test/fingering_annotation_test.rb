@@ -62,7 +62,7 @@ class FingeringAnnotationTest < CapybaraTestBase
     click_button '3'
     click_button '1'
     assert_selector '[data-testid="fingering-display"]', text: '31'
-    click_button '✓ Valider'
+    click_button 'Valider'
     assert_no_selector 'dialog#fingeringModal[open]'
     assert_fingering '31'
   end

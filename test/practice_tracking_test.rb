@@ -29,7 +29,8 @@ class PracticeTrackingTest < CapybaraTestBase
   end
 
   # A free run's wrong notes and holes sit beside its time in the ranking, and
-  # the measures they fell in are named above it (feedback a01bf6cb, 1e84f2eb).
+  # under its time at the top, with the measures they fell in (feedback
+  # a01bf6cb, 1e84f2eb).
   def test_score_complete_modal_shows_wrong_notes
     open_two_measures
     seed_store('sessions', [session_record('judged-run', 'free', noon_two_days_ago, 60_000, holes: 2)])
@@ -39,7 +40,7 @@ class PracticeTrackingTest < CapybaraTestBase
 
     assert_selector 'dialog[open] tr.is-current', text: '1 fausse note'
     assert_selector 'dialog[open] tr', text: 'sans faute, 2 trous'
-    assert_selector '[data-testid=result-where]', text: /Fausses notes\s*mes\. 2/
+    assert_selector '[data-testid=result-faults] li', text: /1 fausse note\s*mes\. 2/
   end
 
   # Under the time each run took, how clean it was.

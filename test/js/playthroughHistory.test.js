@@ -3,6 +3,7 @@ import {
   rankingOf,
   runRecords,
   faultBars,
+  faultChips,
   runFigure,
   playthroughCharts,
   resultCharts,
@@ -79,14 +80,39 @@ describe('faultBars', () => {
   it('lists the bars each kind of fault fell in, in order, each once', () => {
     const faults = [{ kind: 'wrong', bar: 11 }, { kind: 'wrong', bar: 2 }, { kind: 'wrong', bar: 11 }, { kind: 'late', bar: 4 }, { kind: 'early', bar: 3 }, { kind: 'missed', bar: null }]
     expect(faultBars(faults)).toEqual([
-      { label: 'Wrong notes', bars: 'bars 3 and 12' },
-      { label: 'Off the click', bars: 'bars 4 and 5' },
+      { key: 'wrong', label: 'Wrong notes', bars: 'bars 3 and 12' },
+      { key: 'offClick', label: 'Off the click', bars: 'bars 4 and 5' },
     ])
   })
 
   it('counts the bars past a handful', () => {
     const faults = [0, 1, 2, 3, 4, 5, 6, 7].map((bar) => ({ kind: 'missed', bar }))
-    expect(faultBars(faults)).toEqual([{ label: 'Missed notes', bars: 'bars 1, 2, 3, 4, 5, 6 and 2 more' }])
+    expect(faultBars(faults)).toEqual([{ key: 'missed', label: 'Missed notes', bars: 'bars 1, 2, 3, 4, 5, 6 and 2 more' }])
+  })
+})
+
+describe('faultChips', () => {
+  const texts = (chips) => chips.map(({ text, detail }) => [text, detail].filter(Boolean).join(' · '))
+
+  it('says what a strict run lost, kind by kind, with where', () => {
+    const verdict = { hit: 9, total: 12, offTempoEarly: 0, offTempoLate: 2, missed: 1, wrongNotes: 0 }
+    const faults = [{ kind: 'late', bar: 0 }, { kind: 'late', bar: 2 }, { kind: 'missed', bar: 2 }]
+    expect(texts(faultChips({ verdict, faults }))).toEqual(['2 off tempo · too late · bars 1 and 3', '1 missed note · bar 3'])
+  })
+
+  it('names both sides of the click when a run fell on both', () => {
+    const verdict = { hit: 10, total: 12, offTempoEarly: 1, offTempoLate: 1, missed: 0, wrongNotes: 0 }
+    expect(texts(faultChips({ verdict }))).toEqual(['2 off tempo · 1 too early, 1 too late'])
+  })
+
+  it('lists nothing for a clean run to the click: its rate says it', () => {
+    expect(faultChips({ verdict: { hit: 12, total: 12, missed: 0, wrongNotes: 0 } })).toEqual([])
+  })
+
+  it('always gives a free run its wrong notes and holes, clean or not', () => {
+    const chips = faultChips({ run: { wrongNotes: 2, holes: 0 }, faults: [{ kind: 'wrong', bar: 4 }] })
+    expect(texts(chips)).toEqual(['2 wrong notes · bar 5', 'no holes'])
+    expect(chips.map((chip) => chip.dot)).toEqual(['wrong', 'clean'])
   })
 })
 

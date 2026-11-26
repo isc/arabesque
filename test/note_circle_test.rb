@@ -40,7 +40,7 @@ class NoteCircleTest < CapybaraTestBase
 
     open_fingering_pad(0)
     clear_field(REMINDER)
-    click_button '✓ Valider'
+    click_button 'Valider'
     assert_no_selector 'dialog#fingeringModal[open]'
     assert_circle_on 0, nil
 
@@ -53,7 +53,7 @@ class NoteCircleTest < CapybaraTestBase
     wait_for_score_render(4)
     assert_no_selector 'svg g.pt-circle'
     open_fingering_pad(0)
-    assert_button '⭕ Entourer'
+    assert_button 'Entourer'
   end
 
   # A fingering entered where there was none redraws the whole score, and a
@@ -102,10 +102,10 @@ class NoteCircleTest < CapybaraTestBase
   # once the pad has closed: by then the circle is stored and drawn.
   def circle_note(notehead, reminder)
     open_fingering_pad(notehead)
-    click_button '⭕ Entourer'
+    click_button 'Entourer'
     assert_selector 'svg g.pt-circle'
     find_field(REMINDER).set(reminder)
-    click_button '✓ Valider'
+    click_button 'Valider'
     assert_no_selector 'dialog#fingeringModal[open]'
   end
 
