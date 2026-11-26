@@ -1073,8 +1073,12 @@ a:hover { text-decoration: underline; }
    looked the same and a click that turned one off seemed to do nothing. */
 .pt-band-button[aria-pressed="true"] { background: var(--pt-accent-soft); color: var(--pt-accent); }
 /* What the band advises doing on the passage under way (🎹 on a stall at the
-   bar line): ringed, until it is pressed. */
-.pt-band-button.is-advised { box-shadow: inset 0 0 0 2px var(--pt-accent); }
+   bar line): ringed, until it is pressed. The ring takes the cluster's inner
+   curve: square, its corners were cut off by the cluster's rounded clip. */
+.pt-band-button.is-advised {
+  box-shadow: inset 0 0 0 2px var(--pt-accent);
+  border-radius: calc(var(--pt-radius-md) - 1px);
+}
 /* Sized to its longest option, so a progression reads in full, the chevron
    close by; hovered and focused like the buttons beside it, with their
    tint rather than the base ring. No height here: a definite one opts the box
