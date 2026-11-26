@@ -1,34 +1,34 @@
-import { initMidi, nativePairingAvailable, openNativePairing } from './midi.js?v=8250151c5067'
-import { initMusicXML, repeatIndicatorClass } from './musicxml.js?v=8250151c5067'
-import { initFingeringEditor } from './fingeringEditor.js?v=8250151c5067'
-import { fingeringPad } from './fingeringPad.js?v=8250151c5067'
-import { initNoteCircles } from './noteCircles.js?v=8250151c5067'
-import { initPracticeTracker } from './practiceTracker.js?v=8250151c5067'
-import { TWO_HANDS, handsKey } from './hands.js?v=8250151c5067'
-import { formatDuration, formatDate, statusLabel, scorePageUrl, onForeground, onBackground, onIdle, nextPaint, withHands, passage, pickPassageMeasure, passageText } from './utils.js?v=8250151c5067'
-import { initStorage } from './storage.js?v=8250151c5067'
-import { initNoteLog, keepScoreNoteLogs } from './noteLog.js?v=8250151c5067'
-import { initFragmentSuggestions } from './fragmentSuggestions.js?v=8250151c5067'
-import { loadMxlAsXml } from './mxlLoader.js?v=8250151c5067'
-import { injectFingerings } from './fingeringInjector.js?v=8250151c5067'
-import { migrateFingeringRecord } from './fingeringKeys.js?v=8250151c5067'
-import { initPlayback, getBPM } from './playback.js?v=8250151c5067'
-import { initStrictPlaythrough } from './strictPlaythrough.js?v=8250151c5067'
-import { initKeyboardHint, C8 } from './keyboardHint.js?v=8250151c5067'
-import { createTempoPlan, createTempoTrainer, createRunLoop, isCleanRun, GRADUATED, BPM_STEP, STREAK, RANDOM_RATIOS } from './tempoTrainer.js?v=8250151c5067'
-import { attemptVerdict } from './attemptVerdict.js?v=8250151c5067'
-import { BPM_DEFAULT } from './bpmStepper.js?v=8250151c5067'
-import { bpmField } from './bpmField.js?v=8250151c5067'
-import { resultModal } from './resultModal.js?v=8250151c5067'
-import { headerMenu } from './headerMenu.js?v=8250151c5067'
-import { fetchNoteLogs, initAutoSync, triggerSync } from './autoSync.js?v=8250151c5067'
-import { scopedKey } from './profiles.js?v=8250151c5067'
-import { t, tn } from './i18n.js?v=8250151c5067'
-import { recordError } from './errorLog.js?v=8250151c5067'
-import { loadCatalog, fileUrl, isCollection } from './catalog.js?v=8250151c5067'
-import { playthroughCharts, withRunLines, hotMeasures } from './playthroughHistory.js?v=8250151c5067'
-import { goalLines, goalNews, goalsHint, pieceFigures, pieceGoals, statusProgress } from './pieceGoals.js?v=8250151c5067'
-import { firstPassIndexOf, runSize } from './noteExtraction.js?v=8250151c5067'
+import { initMidi, nativePairingAvailable, openNativePairing } from './midi.js?v=c880e32ca4b8'
+import { initMusicXML, repeatIndicatorClass } from './musicxml.js?v=c880e32ca4b8'
+import { initFingeringEditor } from './fingeringEditor.js?v=c880e32ca4b8'
+import { fingeringPad } from './fingeringPad.js?v=c880e32ca4b8'
+import { initNoteCircles } from './noteCircles.js?v=c880e32ca4b8'
+import { initPracticeTracker } from './practiceTracker.js?v=c880e32ca4b8'
+import { TWO_HANDS, handsKey } from './hands.js?v=c880e32ca4b8'
+import { formatDuration, formatDate, statusLabel, scorePageUrl, onForeground, onBackground, onIdle, nextPaint, withHands, passage, pickPassageMeasure, passageText } from './utils.js?v=c880e32ca4b8'
+import { initStorage } from './storage.js?v=c880e32ca4b8'
+import { initNoteLog, keepScoreNoteLogs } from './noteLog.js?v=c880e32ca4b8'
+import { initFragmentSuggestions } from './fragmentSuggestions.js?v=c880e32ca4b8'
+import { loadMxlAsXml } from './mxlLoader.js?v=c880e32ca4b8'
+import { injectFingerings } from './fingeringInjector.js?v=c880e32ca4b8'
+import { migrateFingeringRecord } from './fingeringKeys.js?v=c880e32ca4b8'
+import { initPlayback, getBPM } from './playback.js?v=c880e32ca4b8'
+import { initStrictPlaythrough } from './strictPlaythrough.js?v=c880e32ca4b8'
+import { initKeyboardHint, C8 } from './keyboardHint.js?v=c880e32ca4b8'
+import { createTempoPlan, createTempoTrainer, createRunLoop, isCleanRun, GRADUATED, BPM_STEP, STREAK, RANDOM_RATIOS } from './tempoTrainer.js?v=c880e32ca4b8'
+import { attemptVerdict } from './attemptVerdict.js?v=c880e32ca4b8'
+import { BPM_DEFAULT } from './bpmStepper.js?v=c880e32ca4b8'
+import { bpmField } from './bpmField.js?v=c880e32ca4b8'
+import { resultModal } from './resultModal.js?v=c880e32ca4b8'
+import { headerMenu } from './headerMenu.js?v=c880e32ca4b8'
+import { fetchNoteLogs, initAutoSync, triggerSync } from './autoSync.js?v=c880e32ca4b8'
+import { scopedKey } from './profiles.js?v=c880e32ca4b8'
+import { t, tn } from './i18n.js?v=c880e32ca4b8'
+import { recordError } from './errorLog.js?v=c880e32ca4b8'
+import { loadCatalog, fileUrl, isCollection } from './catalog.js?v=c880e32ca4b8'
+import { playthroughCharts, withRunLines, hotMeasures } from './playthroughHistory.js?v=c880e32ca4b8'
+import { goalLines, goalNews, goalsHint, pieceFigures, pieceGoals, statusProgress } from './pieceGoals.js?v=c880e32ca4b8'
+import { firstPassIndexOf, runSize } from './noteExtraction.js?v=c880e32ca4b8'
 
 // What the strict and training bands say once a passage's first bar is picked
 // and its last is awaited: to click that bar, while a click would reach the
@@ -1242,7 +1242,7 @@ export function midiApp() {
       // passage does: that is said for as long as it is up.
       const called = this.ladderCall()
       if (called) return called
-      if (this.blockChordsAdvised) return t('score.blockChordsAdvice')
+      if (this.blockChordsAdvised) return t('score.blockChordsAdvice', { button: t('score.blockChordsBtn') })
       if (this.mode === 'reinforcement') return this.ladderAsk() ?? t('score.reinforcementHint', { times })
       // A passage of one bar is allowed, and "bars 5 to 5" is not a sentence.
       if (this.trainingPassage.end != null) return passageText('score.trainingPassage', this.trainingPassage, { times })
@@ -1360,7 +1360,7 @@ export function midiApp() {
 
     // What the strict band says before a run.
     strictBandText() {
-      if (this.strictTransport === 'paused') return t('board.paused')
+      if (this.strictTransport === 'paused') return t('board.paused', { resume: t('score.resume'), end: t('score.endLoopBtn') })
       const from = (this.strictPassage.start ?? 0) + 1
       // What clicking a bar does is only worth saying while the click is
       // strict mode's: listening takes it over, and the playback band says so

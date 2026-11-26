@@ -15,15 +15,15 @@
 // Page-specific seam (kept out of here): feedbackContext() — extra,
 // non-identifying context merged into a report (practice stats on the library,
 // current score on the score page).
-import { CHANGELOG } from './changelog.js?v=8250151c5067'
-import { startOfLocalDay } from './days.js?v=8250151c5067'
-import { feedbackEnabled, buildBaseContext, submitFeedback, defaultFeedbackEmail } from './feedback.js?v=8250151c5067'
-import { getLang, locale } from './i18n.js?v=8250151c5067'
-import { INSTALL_AVAILABLE_EVENT, installAvailable, promptInstall } from './installPrompt.js?v=8250151c5067'
-import { nativePairingAvailable, openNativePairing } from './midi.js?v=8250151c5067'
-import { keyHintAllowed, storeKeyHintAllowed } from './keyHintSetting.js?v=8250151c5067'
-import { recordError } from './errorLog.js?v=8250151c5067'
-import { openPreviews, previewSlug, previewUrl, previewsWanted, productionUrl } from './previews.js?v=8250151c5067'
+import { CHANGELOG } from './changelog.js?v=c880e32ca4b8'
+import { startOfLocalDay } from './days.js?v=c880e32ca4b8'
+import { feedbackEnabled, buildBaseContext, submitFeedback, defaultFeedbackEmail } from './feedback.js?v=c880e32ca4b8'
+import { getLang, locale } from './i18n.js?v=c880e32ca4b8'
+import { INSTALL_AVAILABLE_EVENT, installAvailable, promptInstall } from './installPrompt.js?v=c880e32ca4b8'
+import { nativePairingAvailable, openNativePairing } from './midi.js?v=c880e32ca4b8'
+import { keyHintAllowed, storeKeyHintAllowed } from './keyHintSetting.js?v=c880e32ca4b8'
+import { recordError } from './errorLog.js?v=c880e32ca4b8'
+import { openPreviews, previewSlug, previewUrl, previewsWanted, productionUrl } from './previews.js?v=c880e32ca4b8'
 
 const CHANGELOG_SEEN_KEY = 'arabesque:changelog-seen'
 const CHANGELOG_DATE_FORMATTER = new Intl.DateTimeFormat(locale(), {
@@ -162,7 +162,7 @@ export function headerMenu() {
       // visit ever opens the form. Nothing waits on the result — null,
       // from a capture that failed or a browser that could not make one, simply
       // means the form offers no picture and the report goes as words alone.
-      const { captureViewport } = await import('./screenshot.js?v=8250151c5067')
+      const { captureViewport } = await import('./screenshot.js?v=c880e32ca4b8')
       this.feedbackShot = await captureViewport()
     },
 
@@ -201,15 +201,14 @@ const TRIGGER_HTML = `
 <div class="pt-popover-anchor"
      @${INSTALL_AVAILABLE_EVENT}.window="canInstall = $event.detail"
      @click.outside="closeMenu()">
-  <button type="button" class="pt-icon-button pt-changelog-btn" :aria-pressed="menuOpen" :aria-label="$t('menu.open')" @click="toggleMenu()">
-    ⚙️
+  <button type="button" class="pt-icon-button pt-changelog-btn" data-icon="settings" :aria-pressed="menuOpen" :aria-label="$t('menu.open')" @click="toggleMenu()">
     <span class="pt-changelog-dot" x-show="hasUnseenChangelog" aria-hidden="true"></span>
   </button>
   <div class="pt-popover" x-show="menuOpen" x-cloak>
     <div class="pt-popover__section">
       <a href="score.html" class="pt-menu-item" @click="closeMenu()" x-text="$t('library.loadScore')">📄 Charger une partition</a>
       <button type="button" class="pt-menu-item" x-show="canInstall" @click="install()" x-text="$t('menu.install')">📲 Installer l'application</button>
-      <button type="button" class="pt-menu-item" x-show="canPairMIDI" @click="pairMIDI()" x-text="$t('score.connectMidi')">🎹 Connecter clavier MIDI</button>
+      <button type="button" class="pt-menu-item" x-show="canPairMIDI" @click="pairMIDI()" data-icon="piano" x-text="$t('score.connectMidi')">Connecter clavier MIDI</button>
       <button type="button" class="pt-menu-item" @click="openChangelog()">
         <span x-text="$t('library.changelog')">✨ Nouveautés</span>
         <span class="pt-menu-dot" x-show="hasUnseenChangelog" aria-hidden="true"></span>
