@@ -1,5 +1,10 @@
 [
   {
+    "number": 565,
+    "title": "Menu, library and data page: the line icon set instead of emoji",
+    "slug": "claude-design-library"
+  },
+  {
     "number": 217,
     "title": "Add mic mode (beta): play without MIDI via microphone pitch detection",
     "slug": "claude-micro-mode-non-midi-9j1r2l"
