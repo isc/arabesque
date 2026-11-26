@@ -15,15 +15,15 @@
 // Page-specific seam (kept out of here): feedbackContext() — extra,
 // non-identifying context merged into a report (practice stats on the library,
 // current score on the score page).
-import { CHANGELOG } from './changelog.js?v=53a4d14d84da'
-import { startOfLocalDay } from './days.js?v=53a4d14d84da'
-import { feedbackEnabled, buildBaseContext, submitFeedback, defaultFeedbackEmail } from './feedback.js?v=53a4d14d84da'
-import { getLang, locale } from './i18n.js?v=53a4d14d84da'
-import { INSTALL_AVAILABLE_EVENT, installAvailable, promptInstall } from './installPrompt.js?v=53a4d14d84da'
-import { nativePairingAvailable, openNativePairing } from './midi.js?v=53a4d14d84da'
-import { keyHintAllowed, storeKeyHintAllowed } from './keyHintSetting.js?v=53a4d14d84da'
-import { recordError } from './errorLog.js?v=53a4d14d84da'
-import { openPreviews, previewSlug, previewUrl, previewsWanted, productionUrl } from './previews.js?v=53a4d14d84da'
+import { CHANGELOG } from './changelog.js?v=bb6303a3b44d'
+import { startOfLocalDay } from './days.js?v=bb6303a3b44d'
+import { feedbackEnabled, buildBaseContext, submitFeedback, defaultFeedbackEmail } from './feedback.js?v=bb6303a3b44d'
+import { getLang, locale } from './i18n.js?v=bb6303a3b44d'
+import { INSTALL_AVAILABLE_EVENT, installAvailable, promptInstall } from './installPrompt.js?v=bb6303a3b44d'
+import { nativePairingAvailable, openNativePairing } from './midi.js?v=bb6303a3b44d'
+import { keyHintAllowed, storeKeyHintAllowed } from './keyHintSetting.js?v=bb6303a3b44d'
+import { recordError } from './errorLog.js?v=bb6303a3b44d'
+import { openPreviews, previewSlug, previewUrl, previewsWanted, productionUrl } from './previews.js?v=bb6303a3b44d'
 
 const CHANGELOG_SEEN_KEY = 'arabesque:changelog-seen'
 const CHANGELOG_DATE_FORMATTER = new Intl.DateTimeFormat(locale(), {
@@ -162,7 +162,7 @@ export function headerMenu() {
       // visit ever opens the form. Nothing waits on the result — null,
       // from a capture that failed or a browser that could not make one, simply
       // means the form offers no picture and the report goes as words alone.
-      const { captureViewport } = await import('./screenshot.js?v=53a4d14d84da')
+      const { captureViewport } = await import('./screenshot.js?v=bb6303a3b44d')
       this.feedbackShot = await captureViewport()
     },
 
@@ -206,18 +206,18 @@ const TRIGGER_HTML = `
   </button>
   <div class="pt-popover" x-show="menuOpen" x-cloak>
     <div class="pt-popover__section">
-      <a href="score.html" class="pt-menu-item" @click="closeMenu()" x-text="$t('library.loadScore')">📄 Charger une partition</a>
-      <button type="button" class="pt-menu-item" x-show="canInstall" @click="install()" x-text="$t('menu.install')">📲 Installer l'application</button>
+      <a href="score.html" class="pt-menu-item" @click="closeMenu()" data-icon="file" x-text="$t('library.loadScore')">Charger une partition</a>
+      <button type="button" class="pt-menu-item" x-show="canInstall" @click="install()" data-icon="smartphone" x-text="$t('menu.install')">Installer l'application</button>
       <button type="button" class="pt-menu-item" x-show="canPairMIDI" @click="pairMIDI()" data-icon="piano" x-text="$t('score.connectMidi')">Connecter clavier MIDI</button>
-      <button type="button" class="pt-menu-item" @click="openChangelog()">
-        <span x-text="$t('library.changelog')">✨ Nouveautés</span>
+      <button type="button" class="pt-menu-item" @click="openChangelog()" data-icon="sparkles">
+        <span x-text="$t('library.changelog')">Nouveautés</span>
         <span class="pt-menu-dot" x-show="hasUnseenChangelog" aria-hidden="true"></span>
       </button>
-      <button type="button" class="pt-menu-item" x-show="feedbackEnabled" @click="openFeedback()" x-text="$t('library.feedback')">💬 Avis</button>
-      <a href="practice.html" class="pt-menu-item" @click="closeMenu()" x-text="$t('menu.practice')">📅 Assiduité</a>
-      <a href="data.html" class="pt-menu-item" @click="closeMenu()" x-text="$t('menu.data')">🗂 Données</a>
-      <a href="support.html" class="pt-menu-item" @click="closeMenu()" x-text="$t('menu.support')">🛟 Assistance</a>
-      <a href="privacy.html" class="pt-menu-item" @click="closeMenu()" x-text="$t('menu.privacy')">🔒 Confidentialité</a>
+      <button type="button" class="pt-menu-item" x-show="feedbackEnabled" @click="openFeedback()" data-icon="message" x-text="$t('library.feedback')">Avis</button>
+      <a href="practice.html" class="pt-menu-item" @click="closeMenu()" data-icon="calendar" x-text="$t('menu.practice')">Assiduité</a>
+      <a href="data.html" class="pt-menu-item" @click="closeMenu()" data-icon="data" x-text="$t('menu.data')">Données</a>
+      <a href="support.html" class="pt-menu-item" @click="closeMenu()" data-icon="support" x-text="$t('menu.support')">Assistance</a>
+      <a href="privacy.html" class="pt-menu-item" @click="closeMenu()" data-icon="lock" x-text="$t('menu.privacy')">Confidentialité</a>
     </div>
     <hr />
     <div class="pt-popover__section">
@@ -257,7 +257,7 @@ const MODALS_HTML = `
 <dialog class="pt-changelog-dialog" :open="showChangelogModal">
   <article>
     <header>
-      <p><strong x-text="$t('library.changelog')">✨ Nouveautés</strong></p>
+      <p><strong x-text="$t('library.changelog')">Nouveautés</strong></p>
       <button :aria-label="$t('common.close')" rel="prev" data-icon="x" @click="showChangelogModal = false"></button>
     </header>
     <div class="pt-modal-body">
@@ -277,7 +277,7 @@ const MODALS_HTML = `
 <dialog :open="showFeedbackModal">
   <article>
     <header>
-      <p><strong x-text="$t('feedback.title')">💬 Votre avis</strong></p>
+      <p><strong x-text="$t('feedback.title')">Votre avis</strong></p>
       <button :aria-label="$t('common.close')" rel="prev" data-icon="x" @click="closeFeedback()"></button>
     </header>
     <div class="pt-modal-body">

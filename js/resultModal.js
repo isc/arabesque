@@ -4,10 +4,10 @@
 // component spreads (app.js), as it does headerMenu(). It reads nothing of the
 // component's: each end hands over what the modal reports, through the show…
 // method made for it.
-import { t } from './i18n.js?v=53a4d14d84da'
-import { TWO_HANDS } from './hands.js?v=53a4d14d84da'
-import { withHands, passageText } from './utils.js?v=53a4d14d84da'
-import { CLEAN_RATE } from './tempoTrainer.js?v=53a4d14d84da'
+import { t } from './i18n.js?v=bb6303a3b44d'
+import { TWO_HANDS } from './hands.js?v=bb6303a3b44d'
+import { withHands, passageText } from './utils.js?v=bb6303a3b44d'
+import { CLEAN_RATE } from './tempoTrainer.js?v=bb6303a3b44d'
 import {
   strictAccuracy,
   strictRunLabel,
@@ -17,7 +17,7 @@ import {
   runRecords,
   faultChips,
   resultCharts,
-} from './playthroughHistory.js?v=53a4d14d84da'
+} from './playthroughHistory.js?v=bb6303a3b44d'
 
 // `onOpen` runs as the modal opens.
 export function resultModal({ onOpen }) {
