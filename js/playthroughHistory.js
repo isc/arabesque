@@ -1,11 +1,11 @@
 // How the score page tells a piece's runs through: the ranking at the end of a
 // piece, and the history modal's charts, day lines and troubled bars. Pure —
 // runs in, words and SVG out; the page holds what is on screen (app.js).
-import { formatDuration, withRunKind } from './utils.js?v=c880e32ca4b8'
-import { playthroughGroups } from './hands.js?v=c880e32ca4b8'
-import { byStartedAt } from './days.js?v=c880e32ca4b8'
-import { t, tn, locale } from './i18n.js?v=c880e32ca4b8'
-import { isCleanRun } from './tempoTrainer.js?v=c880e32ca4b8'
+import { formatDuration, withRunKind } from './utils.js?v=53a4d14d84da'
+import { playthroughGroups } from './hands.js?v=53a4d14d84da'
+import { byStartedAt } from './days.js?v=53a4d14d84da'
+import { t, tn, locale } from './i18n.js?v=53a4d14d84da'
+import { isCleanRun } from './tempoTrainer.js?v=53a4d14d84da'
 
 // Built once: the active locale is fixed for the page lifetime (switching
 // language reloads), so these don't need rebuilding per call/point.
@@ -198,23 +198,50 @@ export function runRecords(allPlaythroughs) {
 // engine noted (strictPlaythrough.js), or a free run's wrong measures as
 // 'wrong' faults.
 const WHERE = [
-  { kinds: ['wrong'], label: 'score.whereWrong' },
-  { kinds: ['missed'], label: 'score.whereMissed' },
-  { kinds: ['late', 'early'], label: 'score.whereOffClick' },
-  { kinds: ['released'], label: 'score.whereReleased' },
+  { key: 'wrong', kinds: ['wrong'], label: 'score.whereWrong' },
+  { key: 'missed', kinds: ['missed'], label: 'score.whereMissed' },
+  { key: 'offClick', kinds: ['late', 'early'], label: 'score.whereOffClick' },
+  { key: 'released', kinds: ['released'], label: 'score.whereReleased' },
 ]
 
 export function faultBars(faults) {
-  return WHERE.flatMap(({ kinds, label }) => {
+  return WHERE.flatMap(({ key, kinds, label }) => {
     const bars = [...new Set(faults.filter((f) => kinds.includes(f.kind) && f.bar != null).map((f) => f.bar))].sort((a, b) => a - b)
     if (bars.length === 0) return []
     const numbers = bars.map((bar) => String(bar + 1))
     const more = bars.length - WRONG_MEASURES_LISTED
     const text = more > 0
       ? `${t('score.whereBars', { list: numbers.slice(0, WRONG_MEASURES_LISTED).join(', ') })} ${t('verdict.more', { n: more })}`
-      : t('score.whereBars', { list: PLAYTHROUGH_LIST_FORMATTER.format(numbers) })
-    return [{ label: t(label), bars: text }]
+      : t(numbers.length === 1 ? 'score.whereBarsOne' : 'score.whereBars', { list: PLAYTHROUGH_LIST_FORMATTER.format(numbers) })
+    return [{ key, label: t(label), bars: text }]
   })
+}
+
+// What a run lost, a chip a kind, under its figure: how many — a strict run's
+// notes off the click, missed and wrong, a free run's wrong notes and holes —
+// and the bars they fell in (faultBars). `dot` is the colour that kind leaves
+// on the score, the chip's key to it. A strict run lists only what it lost:
+// its rate says the rest. A free run always has both, "sans faute" being news.
+export function faultChips({ run = null, verdict = null, faults = [] }) {
+  const bars = Object.fromEntries(faultBars(faults).map((line) => [line.key, line.bars]))
+  const chip = (key, dot, text, side = '') => ({ key, dot, text, detail: [side, bars[key]].filter(Boolean).join(' · ') })
+  if (verdict) {
+    const { offTempoEarly: early = 0, offTempoLate: late = 0, missed = 0, wrongNotes = 0 } = verdict
+    const side = early && late
+      ? `${early} ${t('score.strictTooEarly')}, ${late} ${t('score.strictTooLate')}`
+      : t(early ? 'score.strictTooEarly' : 'score.strictTooLate')
+    return [
+      early + late && chip('offClick', 'offtempo', `${early + late} ${t('score.strictOffTempo')}`, side),
+      missed && chip('missed', 'missed', tn('score.missedNotes', missed)),
+      wrongNotes && chip('wrong', 'wrong', tn('score.wrongNotes', wrongNotes)),
+      bars.released && chip('released', 'offtempo', t('score.whereReleased')),
+    ].filter(Boolean)
+  }
+  if (!run) return []
+  return [
+    chip('wrong', run.wrongNotes ? 'wrong' : 'clean', wrongNotesText(run.wrongNotes)),
+    run.holes != null && chip('holes', run.holes ? 'offtempo' : 'clean', holesText(run.holes)),
+  ].filter(Boolean)
 }
 
 // A day of the history, with a line under it for each kind of run and hand

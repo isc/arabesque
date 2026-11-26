@@ -4,10 +4,10 @@
 // component spreads (app.js), as it does headerMenu(). It reads nothing of the
 // component's: each end hands over what the modal reports, through the show…
 // method made for it.
-import { t } from './i18n.js?v=c880e32ca4b8'
-import { TWO_HANDS } from './hands.js?v=c880e32ca4b8'
-import { withHands, passageText } from './utils.js?v=c880e32ca4b8'
-import { CLEAN_RATE } from './tempoTrainer.js?v=c880e32ca4b8'
+import { t } from './i18n.js?v=53a4d14d84da'
+import { TWO_HANDS } from './hands.js?v=53a4d14d84da'
+import { withHands, passageText } from './utils.js?v=53a4d14d84da'
+import { CLEAN_RATE } from './tempoTrainer.js?v=53a4d14d84da'
 import {
   strictAccuracy,
   strictRunLabel,
@@ -15,9 +15,9 @@ import {
   runFigure,
   runFaults,
   runRecords,
-  faultBars,
+  faultChips,
   resultCharts,
-} from './playthroughHistory.js?v=c880e32ca4b8'
+} from './playthroughHistory.js?v=53a4d14d84da'
 
 // `onOpen` runs as the modal opens.
 export function resultModal({ onOpen }) {
@@ -34,7 +34,10 @@ export function resultModal({ onOpen }) {
     previousPlaythroughs: [],
     resultCharts: [],
     resultRecords: [],
-    resultWhere: [],
+    // The run's headline figure when its verdict is not one (a free run's
+    // time), and what it lost, with where (faultChips).
+    resultFigure: null,
+    resultFaults: [],
     // What the run did for the piece's goals (goalNews in pieceGoals.js).
     resultGoalNews: null,
     resultHands: TWO_HANDS,
@@ -54,7 +57,12 @@ export function resultModal({ onOpen }) {
       this.previousPlaythroughs = rankingOf(allPlaythroughs)
       this.resultCharts = resultCharts(this.previousPlaythroughs)
       this.resultRecords = runRecords(allPlaythroughs)
-      this.resultWhere = faultBars(faults ?? (latest?.wrongMeasures ?? []).map((bar) => ({ kind: 'wrong', bar })))
+      this.resultFigure = !verdict && latest ? runFigure(latest) : null
+      this.resultFaults = faultChips({
+        run: latest,
+        verdict,
+        faults: faults ?? (latest?.wrongMeasures ?? []).map((bar) => ({ kind: 'wrong', bar })),
+      })
       this.resultGoalNews = goalNews
       this.strictResult = verdict
       this.resultHands = latest?.hands ?? TWO_HANDS
@@ -126,12 +134,6 @@ export function resultModal({ onOpen }) {
       const { hit = 0, total = 0 } = this.strictResult ?? {}
       const rate = total ? hit / total : 0
       return rate >= CLEAN_RATE ? 'is-good' : rate >= 0.7 ? 'is-fair' : ''
-    },
-
-    strictOffTempoTotal() {
-      const r = this.strictResult
-      if (!r) return 0
-      return (r.offTempoEarly ?? 0) + (r.offTempoLate ?? 0)
     },
 
     trainerTempoLine() {

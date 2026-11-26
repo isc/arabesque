@@ -15,15 +15,15 @@
 // Page-specific seam (kept out of here): feedbackContext() — extra,
 // non-identifying context merged into a report (practice stats on the library,
 // current score on the score page).
-import { CHANGELOG } from './changelog.js?v=c880e32ca4b8'
-import { startOfLocalDay } from './days.js?v=c880e32ca4b8'
-import { feedbackEnabled, buildBaseContext, submitFeedback, defaultFeedbackEmail } from './feedback.js?v=c880e32ca4b8'
-import { getLang, locale } from './i18n.js?v=c880e32ca4b8'
-import { INSTALL_AVAILABLE_EVENT, installAvailable, promptInstall } from './installPrompt.js?v=c880e32ca4b8'
-import { nativePairingAvailable, openNativePairing } from './midi.js?v=c880e32ca4b8'
-import { keyHintAllowed, storeKeyHintAllowed } from './keyHintSetting.js?v=c880e32ca4b8'
-import { recordError } from './errorLog.js?v=c880e32ca4b8'
-import { openPreviews, previewSlug, previewUrl, previewsWanted, productionUrl } from './previews.js?v=c880e32ca4b8'
+import { CHANGELOG } from './changelog.js?v=53a4d14d84da'
+import { startOfLocalDay } from './days.js?v=53a4d14d84da'
+import { feedbackEnabled, buildBaseContext, submitFeedback, defaultFeedbackEmail } from './feedback.js?v=53a4d14d84da'
+import { getLang, locale } from './i18n.js?v=53a4d14d84da'
+import { INSTALL_AVAILABLE_EVENT, installAvailable, promptInstall } from './installPrompt.js?v=53a4d14d84da'
+import { nativePairingAvailable, openNativePairing } from './midi.js?v=53a4d14d84da'
+import { keyHintAllowed, storeKeyHintAllowed } from './keyHintSetting.js?v=53a4d14d84da'
+import { recordError } from './errorLog.js?v=53a4d14d84da'
+import { openPreviews, previewSlug, previewUrl, previewsWanted, productionUrl } from './previews.js?v=53a4d14d84da'
 
 const CHANGELOG_SEEN_KEY = 'arabesque:changelog-seen'
 const CHANGELOG_DATE_FORMATTER = new Intl.DateTimeFormat(locale(), {
@@ -162,7 +162,7 @@ export function headerMenu() {
       // visit ever opens the form. Nothing waits on the result — null,
       // from a capture that failed or a browser that could not make one, simply
       // means the form offers no picture and the report goes as words alone.
-      const { captureViewport } = await import('./screenshot.js?v=c880e32ca4b8')
+      const { captureViewport } = await import('./screenshot.js?v=53a4d14d84da')
       this.feedbackShot = await captureViewport()
     },
 
@@ -258,7 +258,7 @@ const MODALS_HTML = `
   <article>
     <header>
       <p><strong x-text="$t('library.changelog')">✨ Nouveautés</strong></p>
-      <button :aria-label="$t('common.close')" rel="prev" @click="showChangelogModal = false"></button>
+      <button :aria-label="$t('common.close')" rel="prev" data-icon="x" @click="showChangelogModal = false"></button>
     </header>
     <div class="pt-modal-body">
       <template x-for="entry in changelog" :key="entry.date">
@@ -278,7 +278,7 @@ const MODALS_HTML = `
   <article>
     <header>
       <p><strong x-text="$t('feedback.title')">💬 Votre avis</strong></p>
-      <button :aria-label="$t('common.close')" rel="prev" @click="closeFeedback()"></button>
+      <button :aria-label="$t('common.close')" rel="prev" data-icon="x" @click="closeFeedback()"></button>
     </header>
     <div class="pt-modal-body">
     <template x-if="feedbackStatus === 'sent'">

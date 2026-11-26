@@ -33,7 +33,7 @@
 //
 // Left at 'dev' in the repo, which is what both sides say when the app is
 // served from a checkout, so the check never fires in development or in tests.
-export const APP_VERSION = 'c880e32ca4b8'
+export const APP_VERSION = '53a4d14d84da'
 
 // legacyKeys.js owns this prefix; inlined rather than imported, see above.
 const RELOAD_KEY = 'arabesque:version-reload'
@@ -56,7 +56,7 @@ function spendAttempt(key, value) {
 // rather than at the top (see there): it is the first script of every page, so
 // this reaches a module already running.
 const record = (error, where) =>
-  import('./errorLog.js?v=c880e32ca4b8')
+  import('./errorLog.js?v=53a4d14d84da')
     .then(({ recordError }) => recordError(error, where))
     .catch(() => {})
 
@@ -151,7 +151,7 @@ function showBootFailure() {
   report.addEventListener('click', async () => {
     report.disabled = true
     try {
-      const { buildBaseContext, defaultFeedbackEmail, submitFeedback } = await import('./feedback.js?v=c880e32ca4b8')
+      const { buildBaseContext, defaultFeedbackEmail, submitFeedback } = await import('./feedback.js?v=53a4d14d84da')
       await submitFeedback({
         message: `${text.title} (${location.pathname})`,
         email: defaultFeedbackEmail(),
