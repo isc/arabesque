@@ -39,9 +39,9 @@
 // has them, for the analysis of their score (noteLogAnalysis.js): a score
 // keeps its last sessions' at hand (keepScoreNoteLogs), and nothing is kept
 // past RETENTION_DAYS, sent or not — all a player who never signs in has.
-import { recordError } from './errorLog.js?v=bb6303a3b44d'
-import { scopedKey } from './profiles.js?v=bb6303a3b44d'
-import { recentSessions } from './reinforcement.js?v=bb6303a3b44d'
+import { recordError } from './errorLog.js?v=fd45c7b762b6'
+import { scopedKey } from './profiles.js?v=fd45c7b762b6'
+import { recentSessions } from './reinforcement.js?v=fd45c7b762b6'
 
 export const SEGMENT_EVENTS = 500
 export const RETENTION_DAYS = 60

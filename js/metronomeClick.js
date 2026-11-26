@@ -16,9 +16,9 @@
 // other half the other way — the app sounding the player's own keys too, so
 // that everything arrives in the same headphones — was tried and withdrawn as
 // well; playback.js says why.
-import { barLength } from './noteExtraction.js?v=bb6303a3b44d'
-import { POSITION_EPSILON } from './noteLogAnalysis.js?v=bb6303a3b44d'
-import { tsToSeconds } from './playbackTiming.js?v=bb6303a3b44d'
+import { barLength } from './noteExtraction.js?v=fd45c7b762b6'
+import { POSITION_EPSILON } from './noteLogAnalysis.js?v=fd45c7b762b6'
+import { tsToSeconds } from './playbackTiming.js?v=fd45c7b762b6'
 
 let audioContext = null
 
