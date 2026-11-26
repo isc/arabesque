@@ -1,11 +1,11 @@
 // How the score page tells a piece's runs through: the ranking at the end of a
 // piece, and the history modal's charts, day lines and troubled bars. Pure —
 // runs in, words and SVG out; the page holds what is on screen (app.js).
-import { formatDuration, withRunKind } from './utils.js?v=fd45c7b762b6'
-import { playthroughGroups } from './hands.js?v=fd45c7b762b6'
-import { byStartedAt } from './days.js?v=fd45c7b762b6'
-import { t, tn, locale } from './i18n.js?v=fd45c7b762b6'
-import { isCleanRun } from './tempoTrainer.js?v=fd45c7b762b6'
+import { formatDuration, withRunKind } from './utils.js?v=90835a25b0a4'
+import { playthroughGroups } from './hands.js?v=90835a25b0a4'
+import { byStartedAt } from './days.js?v=90835a25b0a4'
+import { t, tn, locale } from './i18n.js?v=90835a25b0a4'
+import { isCleanRun } from './tempoTrainer.js?v=90835a25b0a4'
 
 // Built once: the active locale is fixed for the page lifetime (switching
 // language reloads), so these don't need rebuilding per call/point.
@@ -61,6 +61,23 @@ const strictFaults = ({ strict }) => (strict.missed ?? 0) + (strict.wrongNotes ?
 const faultCountText = (n) => (n ? tn('score.faults', n) : t('score.noFault'))
 const percentText = (pct) => t('score.percent', { pct: Math.round(pct) })
 
+// A strict run's tempo. Its hit rate says nothing of a run at another one, so
+// the runs it is ranked and measured against are those at its own (atTempo).
+const tempoOf = (pt) => pt.strict.bpm
+const atTempo = (runs, latest) => runs.filter((pt) => tempoOf(pt) === tempoOf(latest))
+
+// What a chart draws under its line, one row each on the runs' own columns:
+// what its figure says nothing of. Under a free run's time, the counts, as
+// bars (countBars) in the colours the score itself gives a fumbled note and a
+// late one. Under a strict run's hit rate, the tempo it was played at
+// (tempoSteps): rates only compare at one tempo, and the line runs on across
+// them as the player speeds up.
+const FAULT_STRIPS = [
+  { key: 'wrong-notes', name: 'score.chartWrongNotes', value: (pt) => pt.wrongNotes, draw: countBars },
+  { key: 'holes', name: 'score.chartHoles', value: (pt) => pt.holes, draw: countBars },
+]
+const TEMPO_STRIP = { name: 'score.tempoBpm', value: tempoOf, draw: tempoSteps }
+
 // What a run is measured by, per kind of run (see hands' playthroughGroups):
 // a free run by the time it took, a strict run by its hit rate — which means
 // nothing without the tempo, so its label carries it. Read wherever runs are
@@ -74,6 +91,7 @@ const percentText = (pct) => t('score.percent', { pct: Math.round(pct) })
 // where the run says nothing on it — whether `lower` is better, and how it is
 // said; `atTempo` for an axis only runs at the same tempo are measured on,
 // `first` for one where the first run to have a figure at all is worth saying.
+// `strips` are the rows its charts draw under their line.
 const RUN_KINDS = {
   free: {
     title: 'score.playtimeEvolution',
@@ -90,6 +108,7 @@ const RUN_KINDS = {
       { key: 'wrong-notes', title: 'score.recordWrongNotes', value: (pt) => pt.wrongNotes, lower: true, format: wrongNotesText },
       { key: 'holes', title: 'score.recordHoles', value: (pt) => pt.holes, lower: true, format: holesText },
     ],
+    strips: FAULT_STRIPS,
   },
   strict: {
     title: 'score.accuracyEvolution',
@@ -117,19 +136,9 @@ const RUN_KINDS = {
         first: true,
       },
     ],
+    strips: [TEMPO_STRIP],
   },
 }
-
-// What a free run's chart draws under its line, one row of bars each on the
-// runs' own columns: the counts a time says nothing of. In the colours the
-// score itself gives a fumbled note and a late one. A run without a count
-// (holes, before the pace was judged) is marked as such rather than left to
-// read as a clean one. Strict runs have their hit rate, which says it all.
-const FAULT_STRIPS = [
-  { key: 'wrong-notes', name: 'score.chartWrongNotes', value: (pt) => pt.wrongNotes },
-  { key: 'holes', name: 'score.chartHoles', value: (pt) => pt.holes },
-]
-const stripsOf = (strict) => (strict ? [] : FAULT_STRIPS)
 
 function runKind(strict) {
   return strict ? RUN_KINDS.strict : RUN_KINDS.free
@@ -150,9 +159,6 @@ function comparableRuns(allPlaythroughs) {
   return playthroughGroups(allPlaythroughs).find((g) => g.playthroughs.includes(latest))?.playthroughs ?? []
 }
 
-// A strict run's hit rate says nothing of one at another tempo.
-const atTempo = (runs, { strict }) => runs.filter((pt) => pt.strict?.bpm === strict.bpm)
-
 // The result modal's ranking, best first — the fastest free runs, the most
 // accurate strict ones at the same tempo — the run just played flagged so the
 // modal can highlight it.
@@ -163,6 +169,26 @@ export function rankingOf(allPlaythroughs) {
   return ranked
     .map((pt) => ({ ...pt, isCurrent: pt === latest }))
     .sort(runKind(Boolean(latest?.strict)).rank)
+}
+
+// What the ranking is headed with: the tempo of a strict one, all at one.
+export function rankingHeading(allPlaythroughs) {
+  const [latest] = allPlaythroughs
+  return latest?.strict ? t('score.rankingAtTempo', { bpm: tempoOf(latest) }) : ''
+}
+
+// The tempi a strict run's comparable runs were also played at, fastest first:
+// how many runs at each, and the best rate. The ranking stays at the run's own
+// tempo, where rates compare; this is where the others stand beside it.
+export function otherTempi(allPlaythroughs) {
+  const [latest] = allPlaythroughs
+  if (!latest?.strict) return []
+  const byTempo = Map.groupBy(comparableRuns(allPlaythroughs), tempoOf)
+  byTempo.delete(tempoOf(latest))
+  const { value, best, format } = RUN_KINDS.strict
+  return [...byTempo]
+    .sort(([a], [b]) => b - a)
+    .map(([bpm, runs]) => ({ bpm, text: t('score.otherTempo', { bpm, n: runs.length, best: format(best(...runs.map(value))) }) }))
 }
 
 // A ranked run's figure, and what it got wrong, as the ranking shows them.
@@ -292,20 +318,21 @@ export function playthroughCharts(playthroughs) {
       return {
         key: group.key,
         title: chartTitle(group),
-        draw: (width) => chartSvg(group.playthroughs, metric, stripsOf(group.strict), width),
+        draw: (width) => chartSvg(group.playthroughs, metric, metric.strips, width),
         best: t('score.chartBest', { value: metric.format(best) }),
       }
     })
 }
 
 // The chart at the end of a piece, of the runs it ranks: the same picture as
-// the history's, under the same title. A list, as the history's is: empty
-// below two runs.
+// the history's, under the same title — but for the tempo row: a strict
+// ranking is all at one tempo (rankingOf), which its heading names. A list, as
+// the history's is: empty below two runs.
 export function resultCharts(runs) {
   if (runs.length < MIN_PLOTTED) return []
-  const strict = runs[0].strict
-  const metric = runKind(strict)
-  return [{ key: metric.title, title: t(metric.title), draw: (width) => chartSvg(runs, metric, stripsOf(strict), width) }]
+  const metric = runKind(runs[0].strict)
+  const strips = metric.strips.filter((strip) => strip !== TEMPO_STRIP)
+  return [{ key: metric.title, title: t(metric.title), draw: (width) => chartSvg(runs, metric, strips, width) }]
 }
 
 // A line needs two points.
@@ -320,9 +347,8 @@ const STRIP = { gap: 8, head: 16, bars: 28 }
 // drawing is one of the screen: scaled down whole to a phone's width, as it
 // once was, its labels came out at half their size. Nothing without a width,
 // which is an element not laid out yet. The runs are all of one kind, the way
-// playthroughGroups hands them over. `strips` are rows of bars
-// under the line, one bar per run in that run's column, each row on a scale
-// of its own that its left-hand figure gives.
+// playthroughGroups hands them over. `strips` are rows under the line, each
+// run in its own column, each row named and drawn by its `draw`.
 function chartSvg(playthroughs, metric, strips, width) {
   if (!width) return ''
 
@@ -376,38 +402,14 @@ function chartSvg(playthroughs, metric, strips, width) {
     .join('')
   const line = points.map((p) => `${p.x},${p.y}`).join(' ')
 
-  const barW = Math.min(8, (innerW / (n - 1)) * 0.6)
+  const columns = { xScale, xMin, xMax, points }
   const stripsSvg = strips
     .map((strip, s) => {
       const top = axisY + s * stripH + STRIP.gap
-      const barsTop = top + STRIP.head
-      const base = barsTop + STRIP.bars
-      const barX = (i) => xScale(i) - barW / 2
-      const counts = sorted.map(strip.value)
-      const max = Math.max(1, ...counts)
-      // A stretch of runs without a count is one block, however many they are.
-      const unknown = []
-      counts.forEach((count, i) => {
-        if (count != null) return
-        const last = unknown.at(-1)
-        if (last?.to === i - 1) last.to = i
-        else unknown.push({ from: i, to: i })
-      })
-      const blocks = unknown
-        .map(({ from, to }) => `<rect class="chart-unknown" x="${barX(from)}" y="${barsTop}" width="${xScale(to) - xScale(from) + barW}" height="${STRIP.bars}"><title>${t('score.chartNotMeasured')}</title></rect>`)
-        .join('')
-      const bars = counts
-        .map((count, i) => {
-          if (!count) return ''
-          const h = Math.max(2, (count / max) * STRIP.bars)
-          return `<rect class="chart-bar chart-bar--${strip.key}" x="${barX(i)}" y="${base - h}" width="${barW}" height="${h}" rx="1.5"><title>${points[i].tip}</title></rect>`
-        })
-        .join('')
+      const row = { key: strip.key, values: sorted.map(strip.value), top: top + STRIP.head, base: top + STRIP.head + STRIP.bars }
       return `<text x="${xMin}" y="${top + 11}" class="chart-label">${t(strip.name)}</text>
-    <text x="${xMin - 8}" y="${barsTop + 8}" text-anchor="end" class="chart-label">${max}</text>
-    ${blocks}
-    ${bars}
-    <line x1="${xMin}" x2="${xMax}" y1="${base}" y2="${base}" class="chart-axis" />`
+    ${strip.draw(row, columns)}
+    <line x1="${xMin}" x2="${xMax}" y1="${row.base}" y2="${row.base}" class="chart-axis" />`
     })
     .join('')
 
@@ -421,6 +423,60 @@ function chartSvg(playthroughs, metric, strips, width) {
     ${circles}
     ${stripsSvg}
   </svg>`
+}
+
+// A count per run as a bar, from zero to the worst run — one at the least —
+// which the figure on the left gives. A run without a count (holes, before
+// the pace was judged) is marked as such rather than left to read as a clean
+// one, and a stretch of them is one block, however many they are.
+function countBars({ key, values, top, base }, { xScale, xMin, points }) {
+  const barW = Math.min(8, (xScale(1) - xScale(0)) * 0.6)
+  const barX = (i) => xScale(i) - barW / 2
+  const max = Math.max(1, ...values)
+  const blocks = stretches(values.map((count) => count ?? null))
+    .filter(({ value }) => value === null)
+    .map(({ from, to }) => `<rect class="chart-unknown" x="${barX(from)}" y="${top}" width="${xScale(to) - xScale(from) + barW}" height="${base - top}"><title>${t('score.chartNotMeasured')}</title></rect>`)
+    .join('')
+  const bars = values
+    .map((count, i) => {
+      if (!count) return ''
+      const h = Math.max(2, (count / max) * (base - top))
+      return `<rect class="chart-bar chart-bar--${key}" x="${barX(i)}" y="${base - h}" width="${barW}" height="${h}" rx="1.5"><title>${points[i].tip}</title></rect>`
+    })
+    .join('')
+  return `<text x="${xMin - 8}" y="${top + 8}" text-anchor="end" class="chart-label">${max}</text>${blocks}${bars}`
+}
+
+// The runs of equal values side by side, as index ranges: a stretch of runs
+// without a count, a step at one tempo.
+function stretches(values) {
+  const found = []
+  values.forEach((value, i) => {
+    if (found.length && found.at(-1).value === value) found.at(-1).to = i
+    else found.push({ value, from: i, to: i })
+  })
+  return found
+}
+
+// The room a digit of the row's figures takes, in pixels, at the chart's size.
+const DIGIT_WIDTH = 7
+
+// Each run's tempo as a step line, from the slowest at the bottom of the row
+// to the fastest at the top, a run's step spanning its column. Each step at a
+// tempo is written over its middle when it is wide enough to hold the figure
+// — under the line at the top of the row, where the row's name sits above —
+// so two figures never meet.
+function tempoSteps({ values, top, base }, { xScale, xMin, xMax }) {
+  const low = Math.min(...values)
+  const high = Math.max(...values)
+  const y = (bpm) => (high === low ? (top + base) / 2 : base - ((bpm - low) / (high - low)) * (base - top))
+  const edge = (i) => (i === 0 ? xMin : i === values.length ? xMax : (xScale(i - 1) + xScale(i)) / 2)
+  const steps = stretches(values).map(({ value, from, to }) => ({ bpm: value, from: edge(from), to: edge(to + 1) }))
+  const path = steps.map(({ bpm, to }, i) => `${i ? 'V' : `M${xMin},`}${y(bpm)} H${to}`).join(' ')
+  const labels = steps
+    .filter(({ bpm, from, to }) => to - from >= String(bpm).length * DIGIT_WIDTH + 4)
+    .map(({ bpm, from, to }) => `<text x="${(from + to) / 2}" y="${y(bpm) === top ? top + 12 : y(bpm) - 4}" text-anchor="middle" class="chart-label">${bpm}</text>`)
+  return `<path d="${path}" class="chart-step" />${labels.join('')}`
 }
 
 // Top measures with the highest error rate, surfaced inside the history modal

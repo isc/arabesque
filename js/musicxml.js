@@ -12,17 +12,17 @@ import {
   handOfNote,
   handOfStaff,
   isInnerStaff,
-} from './noteExtraction.js?v=fd45c7b762b6'
-import { scrollSystemIntoView, isInFullView, isUnderStickyBars, nextPaint } from './utils.js?v=fd45c7b762b6'
-import { placeChordFingerings } from './chordFingerings.js?v=fd45c7b762b6'
-import { arrayBufferToXml, isMusicXml } from './mxlLoader.js?v=fd45c7b762b6'
-import { stripPlaybackTempoMarks } from './tempoMarks.js?v=fd45c7b762b6'
-import { recordError } from './errorLog.js?v=fd45c7b762b6'
-import { REINFORCEMENT_CLEAN_PASSES } from './reinforcement.js?v=fd45c7b762b6'
-import { POSITION_EPSILON, beatIndex, beatStartOf, crotchetsPerMinute, excess } from './noteLogAnalysis.js?v=fd45c7b762b6'
-import { createSteadiness } from './steadiness.js?v=fd45c7b762b6'
-import { handsKey, handsOfKey } from './hands.js?v=fd45c7b762b6'
-import { climbOn, isGuided, ladderOf, rungs, startOfTurn, stepOf } from './ladder.js?v=fd45c7b762b6'
+} from './noteExtraction.js?v=90835a25b0a4'
+import { scrollSystemIntoView, isInFullView, isUnderStickyBars, nextPaint } from './utils.js?v=90835a25b0a4'
+import { placeChordFingerings } from './chordFingerings.js?v=90835a25b0a4'
+import { arrayBufferToXml, isMusicXml } from './mxlLoader.js?v=90835a25b0a4'
+import { stripPlaybackTempoMarks } from './tempoMarks.js?v=90835a25b0a4'
+import { recordError } from './errorLog.js?v=90835a25b0a4'
+import { REINFORCEMENT_CLEAN_PASSES } from './reinforcement.js?v=90835a25b0a4'
+import { POSITION_EPSILON, beatIndex, beatStartOf, crotchetsPerMinute, excess } from './noteLogAnalysis.js?v=90835a25b0a4'
+import { createSteadiness } from './steadiness.js?v=90835a25b0a4'
+import { handsKey, handsOfKey } from './hands.js?v=90835a25b0a4'
+import { climbOn, isGuided, ladderOf, rungs, startOfTurn, stepOf } from './ladder.js?v=90835a25b0a4'
 
 // The score on the stand: the sheet OSMD holds, and the note model built from
 // it. Replaced as a sheet comes in (renderMusicXML) and as it is drawn

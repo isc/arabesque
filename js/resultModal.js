@@ -4,20 +4,22 @@
 // component spreads (app.js), as it does headerMenu(). It reads nothing of the
 // component's: each end hands over what the modal reports, through the show…
 // method made for it.
-import { t } from './i18n.js?v=fd45c7b762b6'
-import { TWO_HANDS } from './hands.js?v=fd45c7b762b6'
-import { withHands, passageText } from './utils.js?v=fd45c7b762b6'
-import { CLEAN_RATE } from './tempoTrainer.js?v=fd45c7b762b6'
+import { t } from './i18n.js?v=90835a25b0a4'
+import { TWO_HANDS } from './hands.js?v=90835a25b0a4'
+import { withHands, passageText } from './utils.js?v=90835a25b0a4'
+import { CLEAN_RATE } from './tempoTrainer.js?v=90835a25b0a4'
 import {
   strictAccuracy,
   strictRunLabel,
   rankingOf,
+  rankingHeading,
+  otherTempi,
   runFigure,
   runFaults,
   runRecords,
   faultChips,
   resultCharts,
-} from './playthroughHistory.js?v=fd45c7b762b6'
+} from './playthroughHistory.js?v=90835a25b0a4'
 
 // `onOpen` runs as the modal opens.
 export function resultModal({ onOpen }) {
@@ -33,6 +35,10 @@ export function resultModal({ onOpen }) {
     // alone: it is no run of the piece.
     previousPlaythroughs: [],
     resultCharts: [],
+    // A strict ranking's tempo, said over it, and how the runs at the other
+    // tempi stand.
+    resultRankingTitle: '',
+    resultOtherTempi: [],
     resultRecords: [],
     // The run's headline figure when its verdict is not one (a free run's
     // time), and what it lost, with where (faultChips).
@@ -56,6 +62,8 @@ export function resultModal({ onOpen }) {
       const [latest] = allPlaythroughs
       this.previousPlaythroughs = rankingOf(allPlaythroughs)
       this.resultCharts = resultCharts(this.previousPlaythroughs)
+      this.resultRankingTitle = rankingHeading(allPlaythroughs)
+      this.resultOtherTempi = otherTempi(allPlaythroughs)
       this.resultRecords = runRecords(allPlaythroughs)
       this.resultFigure = !verdict && latest ? runFigure(latest) : null
       this.resultFaults = faultChips({

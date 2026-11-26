@@ -1,7 +1,7 @@
-import { t, tn, locale } from './i18n.js?v=fd45c7b762b6'
-import { startOfLocalDay, daysBetween } from './days.js?v=fd45c7b762b6'
-import { TWO_HANDS } from './hands.js?v=fd45c7b762b6'
-import { partsOf } from './catalog.js?v=fd45c7b762b6'
+import { t, tn, locale } from './i18n.js?v=90835a25b0a4'
+import { startOfLocalDay, daysBetween } from './days.js?v=90835a25b0a4'
+import { TWO_HANDS } from './hands.js?v=90835a25b0a4'
+import { partsOf } from './catalog.js?v=90835a25b0a4'
 
 // Built once: the active locale is fixed for the page lifetime (switching
 // language reloads), so the verbose-date formatter needn't rebuild per call.
