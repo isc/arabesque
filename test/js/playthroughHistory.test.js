@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   rankingOf,
+  otherTempi,
   runRecords,
   faultBars,
   faultChips,
@@ -44,6 +45,23 @@ describe('rankingOf, for strict runs', () => {
     const ranking = rankingOf([last, strictRun(2, 9), strictRun(1, 6), strictRun(1, 10, { bpm: 40 }), run(1, 50_000)])
     expect(ranking.map(runFigure)).toEqual(['90%', '80%', '60%'])
     expect(ranking.find((pt) => pt.isCurrent).strict).toBe(last.strict)
+  })
+})
+
+describe('otherTempi', () => {
+  it('sums up the comparable strict runs at the other tempi, fastest first', () => {
+    const last = strictRun(5, 6, { bpm: 31 })
+    const runs = [last, strictRun(4, 10), strictRun(3, 7, { bpm: 31 }), strictRun(3, 8), strictRun(2, 9, { bpm: 29 }), strictRun(1, 10, { bpm: 32, hands: 'right' }), run(1, 50_000)]
+    expect(otherTempi(runs)).toEqual([
+      { bpm: 30, text: '30 BPM: 2×, best 100%' },
+      { bpm: 29, text: '29 BPM: 1×, best 90%' },
+    ])
+  })
+
+  it('has nothing to say of free runs, nor of strict runs all at one tempo', () => {
+    expect(otherTempi([run(2, 60_000), run(1, 50_000)])).toEqual([])
+    expect(otherTempi([strictRun(2, 6), strictRun(1, 9)])).toEqual([])
+    expect(otherTempi([])).toEqual([])
   })
 })
 
@@ -168,9 +186,39 @@ describe('the evolution charts', () => {
       expect(bars(svg, 'wrong-notes')).toEqual([12, 28, 8])
     })
 
-    it('leaves strict runs to their hit rate', () => {
+    it('draws no bars under strict runs', () => {
       const strict = (day, hit) => run(day, 60_000, { strict: { hit, total: 10, bpm: 80 } })
       expect(playthroughCharts([strict(2, 9), strict(1, 7)])[0].draw(600)).not.toContain('chart-bar')
+    })
+  })
+
+  describe('of strict runs', () => {
+    const tempi = (svg) => [...svg.matchAll(/class="chart-label">(\d+)</g)].map((m) => Number(m[1]))
+    const steps = (svg) => svg.match(/<path d="([^"]*)" class="chart-step"/)?.[1]
+
+    it('steps the tempo under the hit rate in the history, each step written', () => {
+      const svg = playthroughCharts([strictRun(4, 9, { bpm: 31 }), strictRun(3, 10), strictRun(2, 8), strictRun(1, 6)])[0].draw(600)
+      expect(svg).toContain('Tempo in BPM')
+      // Three runs at 30 along the bottom of the row, then one up at 31.
+      expect(steps(svg)).toMatch(/^M56,(\S+) H\S+ V(\S+) H588$/)
+      const [, bottom, up] = steps(svg).match(/^M56,(\S+) H\S+ V(\S+) H588$/)
+      expect(Number(up)).toBeLessThan(Number(bottom))
+      expect(tempi(svg)).toEqual([30, 31])
+    })
+
+    it('leaves a step too narrow for its figure unwritten', () => {
+      const runs = [strictRun(12, 9, { bpm: 31 }), ...Array.from({ length: 10 }, (_, i) => strictRun(11 - i, 8)), strictRun(1, 6, { bpm: 29 })]
+      expect(tempi(playthroughCharts(runs)[0].draw(200))).toEqual([30])
+    })
+
+    it('draws a flat line for runs all at one tempo, written once', () => {
+      const svg = playthroughCharts([strictRun(2, 9), strictRun(1, 8)])[0].draw(600)
+      expect(steps(svg)).toBeDefined()
+      expect(tempi(svg)).toEqual([30])
+    })
+
+    it('leaves the tempo out at the end of a run, whose ranking is all at one', () => {
+      expect(resultCharts([strictRun(2, 9), strictRun(1, 8)])[0].draw(600)).not.toContain('chart-step')
     })
   })
 })
