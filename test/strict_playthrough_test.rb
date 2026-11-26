@@ -169,7 +169,7 @@ class StrictPlaythroughTest < CapybaraTestBase
 
     strict_run { play_chord(%w[C4 E4]) }
     within('dialog.pt-result-dialog') do
-      assert_selector '[data-testid=result-where]', text: /Notes manquées\s*mes\. 1/
+      assert_selector '[data-testid=result-faults] li', text: /1 note manquée\s*mes\. 1/
       assert_no_selector '[data-testid=result-records]'
       click_on 'Fermer'
     end
@@ -323,8 +323,8 @@ class StrictPlaythroughTest < CapybaraTestBase
     assert_text '1 passage'
     assert_text 'à 120 BPM'
     # The run's own line, which the tempo line above would not stand in for.
-    assert_selector 'li', text: '✅ 100 % à 120 BPM'
-    assert_text 'meilleure série : 1 propres'
+    assert_selector 'li.is-clean', text: '100 % à 120 BPM'
+    assert_text 'meilleure série : 1 propre'
   end
 
   # A loop stops at its passage's last bar line, and a player who plays on
@@ -354,8 +354,8 @@ class StrictPlaythroughTest < CapybaraTestBase
     end
     click_on 'Terminer'
 
-    assert_selector 'li', exact_text: '✅ 100 % à 120 BPM'
-    assert_selector 'li', exact_text: '❌ 100 % à 120 BPM (1 fausse note)'
+    assert_selector 'li.is-clean', exact_text: '100 % à 120 BPM'
+    assert_selector 'li.is-failed', exact_text: '100 % à 120 BPM (1 fausse note)'
   end
 
   # Between two runs of a loop the board says what the last one came to and

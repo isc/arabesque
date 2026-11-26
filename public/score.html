@@ -396,7 +396,7 @@
         <h2 data-i18n="score.onboardingTitle">Charger un fichier MusicXML</h2>
         <p data-i18n-html="score.onboardingDrag">Glissez votre fichier ici ou cliquez pour le sélectionner. Les fichiers <code>.mxl</code> compressés sont acceptés.</p>
         <div class="pt-onboarding__cta">
-          <label for="musicxml-upload"><span data-i18n="score.onboardingChoose">📄 Choisir un fichier</span>
+          <label for="musicxml-upload"><span data-icon="file" data-i18n="score.onboardingChoose">Choisir un fichier</span>
             <input type="file" accept=".xml,.musicxml,.mxl" @change="loadMusicXMLFromFile($event.target.files[0])" id="musicxml-upload" />
           </label>
         </div>
@@ -414,7 +414,7 @@
       <article>
         <header>
           <p><strong x-text="resultTitle()"></strong></p>
-          <button aria-label="Close" rel="prev" @click="closeResultModal()"></button>
+          <button aria-label="Close" rel="prev" data-icon="x" @click="closeResultModal()"></button>
         </header>
 
         <div class="pt-modal-body">
@@ -425,30 +425,23 @@
                into the score has its figure and where it went wrong alone. -->
           <template x-if="resultMode === 'run'">
             <div>
-              <template x-if="strictResult">
-                <div>
-                  <p class="pt-modal-stat pt-modal-stat--strict pt-modal-stat--hero" :class="strictAccuracyClass()">
-                    <strong x-text="$t('score.percent', { pct: strictAccuracyPercent() })"></strong>
-                    <span x-text="$t('score.strictInTempo', { hit: strictResult?.hit ?? 0, total: strictResult?.total ?? 0 })"></span>
-                  </p>
-                  <ul class="pt-fault-chips">
-                    <li class="pt-chip" x-show="strictOffTempoTotal() > 0">
-                      <span class="pt-legend-dot pt-legend-dot--offtempo" aria-hidden="true"></span>
-                      <span><span x-text="strictOffTempoTotal()"></span> <span x-text="$t('score.strictOffTempo')">hors tempo</span></span>
-                      <small>(<span x-text="strictResult?.offTempoEarly ?? 0"></span> <span x-text="$t('score.strictTooEarly')">trop tôt</span>,
-                      <span x-text="strictResult?.offTempoLate ?? 0"></span> <span x-text="$t('score.strictTooLate')">trop tard</span>)</small>
-                    </li>
-                    <li class="pt-chip" x-show="strictResult?.missed > 0">
-                      <span class="pt-legend-dot pt-legend-dot--missed" aria-hidden="true"></span>
-                      <span x-text="$tn('score.missedNotes', strictResult?.missed ?? 0)"></span>
-                    </li>
-                    <li class="pt-chip" x-show="strictResult?.wrongNotes > 0">
-                      <span class="pt-legend-dot pt-legend-dot--wrong" aria-hidden="true"></span>
-                      <span x-text="$tn('score.wrongNotes', strictResult?.wrongNotes ?? 0)"></span>
-                    </li>
-                  </ul>
-                </div>
-              </template>
+              <p x-show="strictResult" class="pt-modal-stat pt-modal-stat--strict pt-modal-stat--hero" :class="strictAccuracyClass()">
+                <strong x-text="$t('score.percent', { pct: strictAccuracyPercent() })"></strong>
+                <span x-text="$t('score.strictInTempo', { hit: strictResult?.hit ?? 0, total: strictResult?.total ?? 0 })"></span>
+              </p>
+              <p x-show="resultFigure" class="pt-modal-stat pt-modal-stat--hero">
+                <strong x-text="resultFigure"></strong>
+                <span x-text="$t('score.runTime')">pour la jouer en entier</span>
+              </p>
+              <ul x-show="resultFaults.length > 0" class="pt-fault-chips" data-testid="result-faults">
+                <template x-for="fault in resultFaults" :key="fault.key">
+                  <li class="pt-chip">
+                    <span class="pt-legend-dot" :class="`pt-legend-dot--${fault.dot}`" aria-hidden="true"></span>
+                    <span x-text="fault.text"></span>
+                    <small x-show="fault.detail" x-text="fault.detail"></small>
+                  </li>
+                </template>
+              </ul>
               <ul x-show="resultRecords.length > 0" class="pt-records" data-testid="result-records">
                 <template x-for="record in resultRecords" :key="record.key">
                   <li class="pt-record">
@@ -467,14 +460,6 @@
                   </p>
                 </template>
               </div>
-              <dl x-show="resultWhere.length > 0" class="pt-where" data-testid="result-where">
-                <template x-for="line in resultWhere" :key="line.label">
-                  <div>
-                    <dt x-text="line.label"></dt>
-                    <dd x-text="line.bars"></dd>
-                  </div>
-                </template>
-              </dl>
               <p x-show="resultGoalNews.next" class="pt-goal-news" data-testid="result-goal-news" x-text="resultGoalNews.next"></p>
               <div class="pt-result-cols">
                 <div class="pt-playthrough-scroll" x-show="previousPlaythroughs.length > 0">
@@ -517,19 +502,20 @@
           <template x-if="resultMode === 'trainer'">
             <div>
               <p class="pt-modal-note" x-show="trainerSummary.count === 0" x-text="$t('score.trainerNoRun')">Aucun passage joué jusqu'au bout.</p>
-              <p class="pt-modal-stat pt-modal-stat--strict" x-show="trainerSummary.count > 0">
-                <strong x-text="$tn('score.trainerRuns', trainerSummary.count)"></strong>
-                <span x-text="trainerTempoLine()"></span>
-              </p>
-              <ul class="pt-strict-breakdown" x-show="trainerSummary.count > 0">
-                <li>
-                  ✅ <span x-text="$t('score.trainerClean', { n: trainerSummary.cleanCount })"></span>
-                  · <span x-text="$t('score.trainerBestStreak', { n: trainerSummary.bestStreak })"></span>
-                </li>
-                <template x-for="(run, i) in trainerSummary.runs" :key="i">
-                  <li><span x-text="run.clean ? '✅' : '❌'"></span> <span x-text="trainerRunLine(run)"></span></li>
-                </template>
-              </ul>
+              <template x-if="trainerSummary.count > 0">
+                <div>
+                  <p class="pt-modal-stat pt-modal-stat--hero">
+                    <strong x-text="$tn('score.trainerRuns', trainerSummary.count)"></strong>
+                    <span x-text="trainerTempoLine()"></span>
+                  </p>
+                  <p class="pt-modal-note pt-modal-note--lead" x-text="`${$tn('score.trainerClean', trainerSummary.cleanCount)} · ${$tn('score.trainerBestStreak', trainerSummary.bestStreak)}`"></p>
+                  <ul class="pt-run-list">
+                    <template x-for="(run, i) in trainerSummary.runs" :key="i">
+                      <li :class="run.clean ? 'is-clean' : 'is-failed'"><span aria-hidden="true" :data-icon="run.clean ? 'check' : 'x'"></span><span x-text="trainerRunLine(run)"></span></li>
+                    </template>
+                  </ul>
+                </div>
+              </template>
             </div>
           </template>
 
@@ -571,8 +557,8 @@
     <dialog id="scoreHistoryModal" class="pt-history-dialog" :open="showHistoryModal">
       <article>
         <header>
-          <p><strong x-text="$t('score.historyTitle')">📜 Historique de pratique</strong></p>
-          <button aria-label="Close" rel="prev" @click="showHistoryModal = false"></button>
+          <p><strong x-text="$t('score.historyTitle')">Historique de pratique</strong></p>
+          <button aria-label="Close" rel="prev" data-icon="x" @click="showHistoryModal = false"></button>
         </header>
 
         <div class="pt-modal-body pt-history">
@@ -737,7 +723,7 @@
       <article>
         <header>
           <p><strong data-i18n="score.noMidiTitle">Web MIDI non supporté</strong></p>
-          <button aria-label="Close" rel="prev" @click="closeNoMidiModal()"></button>
+          <button aria-label="Close" rel="prev" data-icon="x" @click="closeNoMidiModal()"></button>
         </header>
         <p>
           <span data-i18n="score.noMidiBody">Votre navigateur ne supporte pas Web MIDI API. Essayez avec</span>
@@ -755,7 +741,7 @@
             <strong data-i18n="score.fingeringTitle">Doigté</strong>
             <small class="pt-modal-note pt-modal-note--inline" x-text="selectedNoteLabel" data-testid="fingering-note"></small>
           </p>
-          <button aria-label="Close" rel="prev" @click="closeFingeringModal()"></button>
+          <button aria-label="Close" rel="prev" data-icon="x" @click="closeFingeringModal()"></button>
         </header>
 
         <p class="pt-fingering-display" x-text="fingeringSequence || '…'" data-testid="fingering-display"></p>
@@ -768,14 +754,14 @@
         <!-- A spot to watch: the note circled on the score, with a few words to
              remember it by (noteCircles.js). -->
         <div class="pt-circle-row">
-          <button class="pt-chip pt-action-button" x-show="selectedCircle === null" @click="circleNote()" x-text="$t('score.circleNote')">⭕ Entourer</button>
+          <button class="pt-chip pt-action-button" x-show="selectedCircle === null" @click="circleNote()" data-icon="circle" x-text="$t('score.circleNote')">Entourer</button>
           <template x-if="selectedCircle !== null">
             <input type="text" x-ref="circleText" x-model="circleText" maxlength="40" enterkeyhint="done" :placeholder="$t('score.circlePlaceholder')" :aria-label="$t('score.circlePlaceholder')" @keydown.enter.prevent="validateFingering()" data-testid="circle-text" />
           </template>
           <button class="pt-chip pt-action-button" x-show="selectedCircle !== null" @click="removeCircle()" x-text="$t('score.circleRemove')">Retirer le cercle</button>
         </div>
         <footer>
-          <button class="pt-chip pt-action-button is-primary" @click="validateFingering()" x-text="$t('score.fingeringValidate')">✓ Valider</button>
+          <button class="pt-chip pt-action-button is-primary" @click="validateFingering()" data-icon="check" x-text="$t('score.fingeringValidate')">Valider</button>
         </footer>
       </article>
     </dialog>
@@ -785,7 +771,7 @@
       <article>
         <header>
           <p><strong x-text="$t('score.midiHelpTitle')">Connexion clavier MIDI</strong></p>
-          <button aria-label="Close" rel="prev" @click="showMidiHelpModal = false"></button>
+          <button aria-label="Close" rel="prev" data-icon="x" @click="showMidiHelpModal = false"></button>
         </header>
 
         <p x-text="$t('score.midiHelpIntro')">Aucun périphérique MIDI détecté. Voici comment connecter votre clavier :</p>
@@ -853,7 +839,7 @@
           </template>
         </span>
         <button type="button" class="pt-chip pt-keyhint__never" @click="setKeyHintAllowed(false)" x-text="$t('score.keyHintNever')">Ne plus l’afficher</button>
-        <button type="button" class="pt-icon-button pt-keyhint__close" @click="dismissKeyHint()" :aria-label="$t('score.keyHintHide')">✕</button>
+        <button type="button" class="pt-icon-button pt-keyhint__close" @click="dismissKeyHint()" :aria-label="$t('score.keyHintHide')" data-icon="x"></button>
       </div>
       <div class="pt-keyhint__scroll">
         <div class="pt-keyhint__keys" id="key-hint-keys"></div>
