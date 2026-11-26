@@ -19,7 +19,7 @@ class PlaqueTest < CapybaraTestBase
   def test_each_beat_is_played_as_one_chord
     open_score('broken-chords', 32)
     enter_training_mode
-    click_on '🎹 Plaqué'
+    click_on 'Plaqué'
     assert_text 'Plaqué : chaque temps en un accord'
 
     with_clock_control do
@@ -52,40 +52,40 @@ class PlaqueTest < CapybaraTestBase
     open_score('steady-quavers', 16)
     enter_training_mode
     assert_text 'Chaque mesure doit être jouée'
-    assert_no_button '🎹 Plaqué'
+    assert_no_button 'Plaqué'
   end
 
   # Under the pointer, where a finger leaves a button too, on and off have to
-  # differ: off, the hover tint; on, the band's colour filling the button. Both
-  # were one tint, so a click that turned it off seemed to do nothing.
+  # differ: off, the hover tint; on, the accent's. Both were one tint, so a
+  # click that turned it off seemed to do nothing.
   def test_a_toggle_under_the_pointer_shows_whether_it_is_on
     open_score('broken-chords', 32)
     enter_training_mode
 
-    toggle = find_button('🎹 Plaqué')
+    toggle = find_button('Plaqué')
     toggle.hover
     toggle.click
-    assert_selector 'button[aria-pressed="true"]', text: '🎹 Plaqué'
-    wait_until('the button to fill') { filled_with_the_band_colour?(toggle) }
+    assert_selector 'button[aria-pressed="true"]', text: 'Plaqué'
+    wait_until('the button to take the accent') { in_the_accent?(toggle) }
 
     toggle.click
-    assert_selector 'button[aria-pressed="false"]', text: '🎹 Plaqué'
-    wait_until('the button to empty') { !filled_with_the_band_colour?(toggle) }
+    assert_selector 'button[aria-pressed="false"]', text: 'Plaqué'
+    wait_until('the button to leave the accent') { !in_the_accent?(toggle) }
   end
 
-  # 🔁 says which bars to click with block chords on, as it does with them off,
+  # Boucle says which bars to click with block chords on, as it does with them off,
   # or pressing it shows nothing. Once the passage is picked the band goes back
   # to the chords, and to the passage once they are off.
   def test_the_loop_asks_for_its_bars_while_block_chords_are_on
     open_score('broken-chords', 32)
     enter_training_mode
-    click_on '🎹 Plaqué'
+    click_on 'Plaqué'
     assert_text 'Plaqué : chaque temps en un accord'
 
     pick_passage(1, 2)
     assert_text 'Plaqué : chaque temps en un accord'
 
-    click_on '🎹 Plaqué'
+    click_on 'Plaqué'
     assert_text 'Mesures 1 à 2 : le passage entier doit être joué'
   end
 
@@ -104,9 +104,9 @@ class PlaqueTest < CapybaraTestBase
 
     click_on 'Renforcer 1 passage'
     assert_text 'Ce passage cale après la barre de mesure'
-    assert_selector 'button.is-advised', text: '🎹 Plaqué'
+    assert_selector 'button.is-advised', text: 'Plaqué'
 
-    click_on '🎹 Plaqué'
+    click_on 'Plaqué'
     assert_no_selector 'button.is-advised'
     with_clock_control do
       2.times do
@@ -116,19 +116,29 @@ class PlaqueTest < CapybaraTestBase
       assert_no_selector 'svg circle.repeat-indicator.filled'
     end
 
-    click_on '🎹 Plaqué'
+    click_on 'Plaqué'
     with_clock_control do
       play_evenly(JOIN, first_after: 300)
       advance_clock(300)
     end
     assert_selector 'svg circle.repeat-indicator.filled', count: 1
     assert_selector '[data-testid=board-step] .pt-tile__value', text: 'Clic lent'
-    assert_no_button '🎹 Plaqué'
+    assert_no_button 'Plaqué'
   end
 
   private
 
-  def filled_with_the_band_colour?(button)
-    button.evaluate_script("getComputedStyle(this).backgroundColor === getComputedStyle(this.closest('.pt-context')).color")
+  # Its text in the accent, which is how a toggle that is on reads, under the
+  # pointer or not.
+  def in_the_accent?(button)
+    button.evaluate_script(<<~JS)
+      (() => {
+        const probe = document.body.appendChild(document.createElement('i'))
+        probe.style.color = 'var(--pt-accent)'
+        const accent = getComputedStyle(probe).color
+        probe.remove()
+        return getComputedStyle(this).color === accent
+      })()
+    JS
   end
 end

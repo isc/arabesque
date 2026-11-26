@@ -1,7 +1,7 @@
 require_relative 'test_helper'
 
 # Training mode works a *passage*: one measure by default — the historical
-# behaviour, covered in training_mode_test.rb — or a range picked with 🔁, whose
+# behaviour, covered in training_mode_test.rb — or a range picked with Boucle, whose
 # measures are then drilled as one so the joins between them are part of what
 # has to come out clean.
 #
@@ -152,7 +152,7 @@ class TrainingPassageTest < CapybaraTestBase
     pick_passage(1, 2)
     assert_selector 'svg rect.measure-click-area.training-range', count: 2
 
-    click_on '🔁 Boucle'
+    click_on 'Boucle'
     assert_text 'Chaque mesure doit être jouée 3× sans erreur ni hésitation.'
     # Nothing is shaded once the passage is off: the work is back on the single
     # measure under the cursor, and `selected` is what says where that is.
@@ -172,7 +172,7 @@ class TrainingPassageTest < CapybaraTestBase
     assert_text 'Départ à la mesure 1.'
     assert_no_text 'cliquez sur la dernière mesure du passage'
 
-    click_on '⏹ Stop'
+    click_on 'Arrêter'
     assert_text 'Départ à la mesure 1 — cliquez sur la dernière mesure du passage.'
   end
 

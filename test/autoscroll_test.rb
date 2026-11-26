@@ -121,7 +121,7 @@ class AutoscrollTest < CapybaraTestBase
     at_the_top = settled_scroll
 
     with_clock_control do
-      trigger_click_on('▶ Démarrer')
+      trigger_click_on('Démarrer')
       # Past the first click of the count-in, which draws its beats.
       advance_clock(50)
       assert_selector '.pt-countin__beat.is-now', text: '1'
@@ -144,7 +144,7 @@ class AutoscrollTest < CapybaraTestBase
   end
 
   # The training band travels with the sticky bars: a drill scrolls to its
-  # passage, which took the band and its 🎹 out of sight (feedback 5110eacb).
+  # passage, which took the band and its Plaqué out of sight (feedback 5110eacb).
   def test_the_training_band_stays_in_view_as_the_score_scrolls
     page.current_window.resize_to(500, 500)
     load_score('high-note-measure.xml', 24)
@@ -253,10 +253,10 @@ class AutoscrollTest < CapybaraTestBase
     still = settled_scroll
 
     with_clock_control do
-      trigger_click_on('▶ Démarrer')
+      trigger_click_on('Démarrer')
       # The count-in and bar 1 at ♩ = 120, and on into bar 2.
       advance_clock(COUNT_IN_MS + 2_500)
-      trigger_click_on('⏸ Pause')
+      trigger_click_on('Pause')
     end
     assert_equal still, settled_scroll, 'The page should stay where it is'
   end

@@ -10,7 +10,7 @@ class StrictPlaythroughTest < CapybaraTestBase
   # was filed as a free run.
   def test_the_strict_tab_takes_no_notes_before_a_run
     load_score('two-measures.xml', 2)
-    click_on '⏱ Mode strict'
+    click_on 'Strict'
 
     play_notes(%w[C4 D4])
 
@@ -21,20 +21,20 @@ class StrictPlaythroughTest < CapybaraTestBase
   def test_strict_mode_button_starts_and_stops_engine
     load_score('chord.xml', 1)
 
-    click_on '⏱ Mode strict'
-    click_on '▶ Démarrer'
-    assert_text '⏸ Pause'
+    click_on 'Strict'
+    click_on 'Démarrer'
+    assert_text 'Pause'
     # Frozen for the length of a run, like the tempo beside them: the hands a
     # run asks for are fixed when it starts, and changing one mid-run would
     # clear the marks the run is still collecting.
     assert_field 'Main gauche', type: 'checkbox', disabled: true
     assert_field 'Main droite', type: 'checkbox', disabled: true
 
-    click_on '⏸ Pause'
-    assert_text '▶ Démarrer'
+    click_on 'Pause'
+    assert_text 'Démarrer'
     assert_field 'Main gauche', type: 'checkbox', disabled: false
     # Aborted runs do not surface the result modal
-    assert_no_text 'Playthrough strict terminé'
+    assert_no_text 'Joué en mode strict'
   end
 
   def test_perfect_play_reports_100_percent
@@ -75,7 +75,7 @@ class StrictPlaythroughTest < CapybaraTestBase
     play_silent_run
 
     assert_text '0 %'
-    assert_text '3 manquées'
+    assert_text '3 notes manquées'
 
     # The verdict stays on the score to be read, but leaves with the mode.
     within('dialog.pt-result-dialog') { click_on 'Fermer' }
@@ -194,7 +194,7 @@ class StrictPlaythroughTest < CapybaraTestBase
 
     strict_run { play_chord(%w[C4 E4]) }
     assert_text '67 %'
-    assert_text '1 manquée'
+    assert_text '1 note manquée'
 
     wait_for_records('sessions', where: 'record.completedAt && record.measures.length === 1')
 
@@ -241,7 +241,7 @@ class StrictPlaythroughTest < CapybaraTestBase
     play_note('C4')
     assert_selector 'svg .vf-notehead.played-note', count: 1
 
-    click_on '⏱ Mode strict'
+    click_on 'Strict'
     assert_no_selector 'svg .vf-notehead.played-note'
   end
 
@@ -275,8 +275,8 @@ class StrictPlaythroughTest < CapybaraTestBase
   # (feedback 91bf14f9).
   def test_the_progression_picker_sits_on_the_band_controls_midline
     load_score('two-measures.xml', 2)
-    click_on '⏱ Mode strict'
-    click_on '🔁 Boucle'
+    click_on 'Strict'
+    click_on 'Boucle'
     # evaluate_script does not wait, so this is what makes the measurement
     # below stable: the picker is revealed by x-show, not present from the
     # start.
@@ -297,7 +297,7 @@ class StrictPlaythroughTest < CapybaraTestBase
     assert_text 'Prêt : 3 passages propres d’affilée font monter le tempo de 5 BPM.'
 
     with_clock_control do
-      trigger_click_on('▶ Démarrer')
+      trigger_click_on('Démarrer')
 
       # The count-in, then the whole-note C4 of bar 1 — the only note expected.
       advance_clock(COUNT_IN_MS)
@@ -315,10 +315,10 @@ class StrictPlaythroughTest < CapybaraTestBase
       advance_clock(1000)
       assert_selector '.pt-countin__beat.is-now', text: '1', wait: 2
 
-      trigger_click_on('⏸ Pause')
+      trigger_click_on('Pause')
     end
 
-    click_on '⏹ Terminer'
+    click_on 'Terminer'
     assert_text 'Boucle terminée'
     assert_text '1 passage'
     assert_text 'à 120 BPM'
@@ -337,7 +337,7 @@ class StrictPlaythroughTest < CapybaraTestBase
     pick_passage(1, 1)
 
     with_clock_control do
-      trigger_click_on('▶ Démarrer')
+      trigger_click_on('Démarrer')
       # Bar 1 from the end of the count-in, then the first two quavers of bar 2.
       play_evenly(BAR_ONE + %w[C5 B4], first_after: COUNT_IN_MS, gap: QUAVER_MS)
       advance_clock(END_OF_RUN_MS)
@@ -350,9 +350,9 @@ class StrictPlaythroughTest < CapybaraTestBase
       advance_clock(END_OF_RUN_MS)
       assert_loop_board run: 2, streak: 0, verdict: '1 fausse note'
 
-      trigger_click_on('⏸ Pause')
+      trigger_click_on('Pause')
     end
-    click_on '⏹ Terminer'
+    click_on 'Terminer'
 
     assert_selector 'li', exact_text: '✅ 100 % à 120 BPM'
     assert_selector 'li', exact_text: '❌ 100 % à 120 BPM (1 fausse note)'
@@ -368,7 +368,7 @@ class StrictPlaythroughTest < CapybaraTestBase
     pick_passage(1, 1)
 
     with_clock_control do
-      trigger_click_on('▶ Démarrer')
+      trigger_click_on('Démarrer')
       # Bar 1 with F♯4 for its fourth quaver, F4.
       play_evenly(BAR_ONE.dup.tap { |notes| notes[3] = 'F#4' }, first_after: COUNT_IN_MS, gap: QUAVER_MS)
       advance_clock(END_OF_RUN_MS)
@@ -387,7 +387,7 @@ class StrictPlaythroughTest < CapybaraTestBase
       assert_selector '[data-testid=board-verdict].is-stale', wait: 2
       assert_no_selector 'svg .vf-notehead.missed-note'
 
-      trigger_click_on('⏸ Pause')
+      trigger_click_on('Pause')
     end
   end
 
@@ -401,7 +401,7 @@ class StrictPlaythroughTest < CapybaraTestBase
     pick_passage(1, 1)
 
     with_clock_control do
-      trigger_click_on('▶ Démarrer')
+      trigger_click_on('Démarrer')
       advance_clock(COUNT_IN_MS)
       assert_selector 'svg .vf-notehead.expected-note', count: 1, wait: 4
       play_chord(%w[C4])
@@ -411,29 +411,29 @@ class StrictPlaythroughTest < CapybaraTestBase
       # Paused in the next run's count-in.
       advance_clock(1000)
       assert_selector '.pt-countin__beat.is-now', text: '1', wait: 2
-      trigger_click_on('⏸ Pause')
+      trigger_click_on('Pause')
     end
 
-    assert_text '▶ Reprendre'
+    assert_text 'Reprendre'
     assert_no_text 'Boucle terminée'
     assert_selector '[data-testid=board-goal] .pt-dots__dot.filled', count: 1
     assert_field 'Main gauche', type: 'checkbox', disabled: true
-    assert_no_button '🔁 Boucle'
+    assert_no_button 'Boucle'
 
     with_clock_control do
-      trigger_click_on('▶ Reprendre')
+      trigger_click_on('Reprendre')
       advance_clock(COUNT_IN_MS)
       assert_selector 'svg .vf-notehead.expected-note', count: 1, wait: 4
       play_chord(%w[C4])
       advance_clock(END_OF_RUN_MS)
       assert_loop_board run: 2, streak: 2, verdict: 'Propre'
-      trigger_click_on('⏸ Pause')
+      trigger_click_on('Pause')
     end
 
-    click_on '⏹ Terminer'
+    click_on 'Terminer'
     assert_text 'Boucle terminée'
     assert_text '2 passages'
-    assert_button '🔁 Boucle'
+    assert_button 'Boucle'
   end
 
   # A wrong key turns the note it was meant for red, as free play does: a run
@@ -445,14 +445,14 @@ class StrictPlaythroughTest < CapybaraTestBase
     pick_passage(1, 1)
 
     with_clock_control do
-      trigger_click_on('▶ Démarrer')
+      trigger_click_on('Démarrer')
       # F♯4 brushed with E4, the third quaver: F4, the fourth, is the nearest.
       play_evenly(BAR_ONE.dup.tap { |notes| notes[2] = %w[E4 F#4] }, first_after: COUNT_IN_MS, gap: QUAVER_MS)
       advance_clock(END_OF_RUN_MS)
       assert_loop_board run: 1, streak: 0, verdict: '1 fausse note'
       assert_selector 'svg .vf-notehead.missed-note', count: 1
       assert_selector 'svg .vf-notehead.played-note', count: 7
-      trigger_click_on('⏸ Pause')
+      trigger_click_on('Pause')
     end
   end
 
@@ -466,7 +466,7 @@ class StrictPlaythroughTest < CapybaraTestBase
     start_strict_mode
 
     with_clock_control do
-      trigger_click_on('▶ Démarrer')
+      trigger_click_on('Démarrer')
       # The count-in, G4 struck and held over the bar line, F4 struck there.
       advance_clock(COUNT_IN_MS)
       simulate_midi_input('ON G4')
@@ -481,7 +481,7 @@ class StrictPlaythroughTest < CapybaraTestBase
     assert_no_selector 'svg .vf-notehead.offtempo-note'
 
     with_clock_control do
-      trigger_click_on('▶ Démarrer')
+      trigger_click_on('Démarrer')
       # G4 let go before the bar line, where the note its tie holds comes round.
       advance_clock(COUNT_IN_MS)
       simulate_midi_input('ON G4')
@@ -522,10 +522,10 @@ class StrictPlaythroughTest < CapybaraTestBase
     assert_selector 'svg rect.measure-click-area.strict-start'
 
     with_clock_control do
-      trigger_click_on('▶ Démarrer')
+      trigger_click_on('Démarrer')
       assert_no_selector 'svg rect.measure-click-area.strict-start'
 
-      trigger_click_on('⏸ Pause')
+      trigger_click_on('Pause')
       assert_selector 'svg rect.measure-click-area.strict-start'
     end
   end
@@ -538,7 +538,7 @@ class StrictPlaythroughTest < CapybaraTestBase
     start_strict_mode
 
     with_clock_control do
-      trigger_click_on('▶ Démarrer')
+      trigger_click_on('Démarrer')
 
       # 4/4 at 120 BPM: four beats of 500ms. The first lands on the click; the
       # budget only has to clear it, not reach the second.
@@ -568,7 +568,7 @@ class StrictPlaythroughTest < CapybaraTestBase
     record_clicks
 
     with_clock_control do
-      trigger_click_on('▶ Démarrer')
+      trigger_click_on('Démarrer')
 
       # 4/4 at 40: four beats of 1500ms, a click every 750ms. Stopped short of
       # the downbeat, whose click is the music's.
@@ -589,7 +589,7 @@ class StrictPlaythroughTest < CapybaraTestBase
     record_clicks
 
     with_clock_control do
-      trigger_click_on('▶ Démarrer')
+      trigger_click_on('Démarrer')
 
       # A bar, then the five eighths of the next before the pickup: the band
       # counts the two beats of each.
@@ -644,7 +644,7 @@ class StrictPlaythroughTest < CapybaraTestBase
     play_mordent_run(%w[C5], %w[E5])
 
     assert_text '33 %'
-    assert_text '2 manquées'
+    assert_text '2 notes manquées'
     assert_no_text 'fausses notes'
   end
 
@@ -655,7 +655,7 @@ class StrictPlaythroughTest < CapybaraTestBase
     play_mordent_run(%w[C5 C5 B4], %w[E5 F5 E5])
 
     assert_text '67 %'
-    assert_text '1 manquée'
+    assert_text '1 note manquée'
     assert_text '1 fausse'
   end
 
@@ -711,7 +711,7 @@ class StrictPlaythroughTest < CapybaraTestBase
   def test_the_tempo_is_set_by_the_buttons_beside_the_field
     open_two_measures
 
-    click_on '⏱ Mode strict'
+    click_on 'Strict'
     fill_in 'strict-bpm', with: '120'
     click_on 'Augmenter le tempo'
     assert_field 'strict-bpm', with: '125'
@@ -782,7 +782,7 @@ class StrictPlaythroughTest < CapybaraTestBase
   # runner happened to schedule it; the end of the run is waited out here.
   def strict_run(expected: {})
     with_clock_control do
-      trigger_click_on('▶ Démarrer')
+      trigger_click_on('Démarrer')
       advance_clock(COUNT_IN_MS)
       assert_selector 'svg .vf-notehead.expected-note', wait: 4, **expected
       yield
@@ -790,7 +790,7 @@ class StrictPlaythroughTest < CapybaraTestBase
     end
     # Up once the run is filed with the others, which a parked clock holds
     # back: the run is over and judged by now.
-    assert_text 'Playthrough strict terminé', wait: 4
+    assert_text 'Joué en mode strict', wait: 4
   end
 
   # One run of mordent-ornament.xml — C5 (mordent), E5 (inverted mordent), G5,

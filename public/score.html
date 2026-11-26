@@ -100,15 +100,16 @@
       <div class="pt-topbar__actions">
         <!-- MIDI status / connect -->
         <span class="pt-chip pt-midi-status" x-show="bluetoothConnected" x-cloak :title="$t('score.midiConnected')">
-          🎹 <span x-text="midiDeviceName || $t('score.midiKeyboard')"></span>
+          <span x-text="midiDeviceName || $t('score.midiKeyboard')"></span>
         </span>
         <button
           class="pt-chip pt-midi-status is-disconnected"
           x-show="!bluetoothConnected"
           x-cloak
           @click="connectMIDI"
+          data-icon="piano"
           x-text="$t('score.connectMidi')"
-        >🎹 Connecter clavier MIDI</button>
+        >Connecter clavier MIDI</button>
 
         <!-- History (only for library scores) -->
         <button
@@ -116,9 +117,9 @@
           x-show="!!scoreUrl"
           x-cloak
           @click="openScoreHistory"
-          :aria-label="$t('score.historyAria')"
+          data-icon="history"
           x-text="$t('score.history')"
-        >📜 Historique</button>
+        >Historique</button>
 
         <div data-menu-slot></div>
       </div>
@@ -138,14 +139,16 @@
           @click="setMode('training')"
           :aria-pressed="currentMode === 'training'"
           :title="$t('score.modeTrainingTitle')"
-          x-text="currentMode === 'training' ? $t('score.modeTrainingActive') : $t('score.modeTraining')"
-        ></button>
+          data-icon="target"
+          x-text="$t('score.modeTraining')"
+        >Entraînement</button>
         <button
           data-mode="strict"
           @click="setMode('strict')"
           :aria-pressed="currentMode === 'strict'"
+          data-icon="metronome"
           x-text="$t('score.modeStrict')"
-        >⏱ Mode strict</button>
+        >Strict</button>
       </div>
 
       <!-- Disabled for the length of a run rather than aborting it, like the
@@ -172,8 +175,9 @@
         class="pt-chip pt-reinforce-badge"
         x-show="measuresToReinforce.length > 0 && currentMode !== 'training' && !strictSessionOn"
         @click.prevent="startReinforcementMode()"
-        x-text="reinforceLabel()"
         :aria-label="reinforceLabel('handsFull')"
+        data-icon="target"
+        x-text="reinforceLabel()"
       ></a>
 
       <div class="pt-modebar__spacer"></div>
@@ -182,6 +186,7 @@
         class="pt-chip pt-action-button"
         :class="{ 'is-active': isListening }"
         @click="togglePlayback"
+        :data-icon="isListening ? 'stop' : 'listen'"
         x-text="isListening ? $t('score.stop') : $t('score.listen')"
       ></button>
     </nav>
@@ -205,12 +210,12 @@
              press it: in the board's place it hid the verdict the player had
              that one bar to read (the button keeps its width, see styles.css). -->
         <button
-          class="pt-band-button pt-transport"
-          :class="{ 'is-playing': isStrictPlaying, 'is-counting': countInBeat > 0 }"
+          class="pt-band-button pt-transport is-primary"
+          :class="{ 'is-counting': countInBeat > 0 }"
           @click="toggleStrictPlaythrough"
           :aria-label="$t(`score.${strictTransportWords}`)"
         >
-          <span class="pt-transport__label" x-text="$t(`score.${strictTransportWords}Btn`)"></span>
+          <span class="pt-transport__label" :data-icon="strictTransportWords === 'pause' ? 'pause' : 'play'" x-text="$t(`score.${strictTransportWords}`)"></span>
           <template x-if="countInBeat > 0">
             <span class="pt-countin" aria-hidden="true">
               <template x-for="n in countInBeats" :key="n">
@@ -231,16 +236,18 @@
           class="pt-band-button"
           x-show="strictTransport === 'paused'"
           @click="endStrictSession"
+          data-icon="stop"
           x-text="$t('score.endLoopBtn')"
-        >⏹ Terminer</button>
+        >Terminer</button>
         <button
           class="pt-band-button"
           x-show="strictSetup"
           :aria-pressed="strictPassage.loop"
           :title="$t('score.loopTitle')"
           @click="toggleLoop"
+          data-icon="loop"
           x-text="$t('score.loopBtn')"
-        >🔁 Boucle</button>
+        >Boucle</button>
         <select
           x-show="strictPassage.loop && strictSetup"
           class="pt-band-select"
@@ -261,8 +268,9 @@
           :aria-pressed="trainingPassage.loop"
           :title="$t('score.trainingLoopTitle')"
           @click="toggleTrainingLoop"
+          data-icon="loop"
           x-text="$t('score.loopBtn')"
-        >🔁 Boucle</button>
+        >Boucle</button>
         <!-- Offered on a passage that suits it, advised where the runs
              stalled at the bar line (sayBlockChords in musicxml.js). -->
         <button
@@ -272,8 +280,9 @@
           :aria-pressed="blockChords"
           :title="$t('score.blockChordsTitle')"
           @click="toggleBlockChords"
+          data-icon="piano"
           x-text="$t('score.blockChordsBtn')"
-        >🎹 Plaqué</button>
+        >Plaqué</button>
       </div>
 
       <div class="pt-board" :class="{ 'is-bare': boardBare }">
@@ -316,7 +325,7 @@
             role="status"
             data-testid="board-verdict"
           >
-            <span class="pt-verdict__icon" aria-hidden="true" x-text="verdict.clean ? '✓' : '✗'"></span>
+            <span class="pt-verdict__icon" aria-hidden="true" :data-icon="verdict.clean ? 'check' : 'x'"></span>
             <span class="pt-verdict__text">
               <strong class="pt-verdict__headline" x-text="verdict.headline"></strong>
               <span class="pt-verdict__detail" x-show="verdict.detail" x-text="verdict.detail" :title="verdict.detail"></span>
@@ -340,11 +349,10 @@
     <div class="pt-context pt-context--playback" x-show="isListening" x-cloak>
       <div class="pt-band-controls">
         <button
-          class="pt-band-button"
-          :class="{ 'is-playing': isPlaying }"
+          class="pt-band-button is-primary"
           @click="togglePlaybackPause"
-          :aria-label="isPlaying ? $t('score.pause') : $t('score.resume')"
-          x-text="isPlaying ? $t('score.pauseBtn') : $t('score.resumeBtn')"
+          :data-icon="isPlaying ? 'pause' : 'play'"
+          x-text="isPlaying ? $t('score.pause') : $t('score.resume')"
         ></button>
         <div data-bpm-field="playbackBpm"></div>
       </div>
@@ -419,21 +427,24 @@
             <div>
               <template x-if="strictResult">
                 <div>
-                  <p class="pt-modal-stat pt-modal-stat--strict" :class="strictAccuracyClass()">
+                  <p class="pt-modal-stat pt-modal-stat--strict pt-modal-stat--hero" :class="strictAccuracyClass()">
                     <strong x-text="$t('score.percent', { pct: strictAccuracyPercent() })"></strong>
                     <span x-text="$t('score.strictInTempo', { hit: strictResult?.hit ?? 0, total: strictResult?.total ?? 0 })"></span>
                   </p>
-                  <ul class="pt-strict-breakdown">
-                    <li x-show="strictOffTempoTotal() > 0">
-                      ⚠️ <span x-text="strictOffTempoTotal()"></span> <span x-text="$t('score.strictOffTempo')">hors tempo</span>
-                      (<span x-text="strictResult?.offTempoEarly ?? 0"></span> <span x-text="$t('score.strictTooEarly')">trop tôt</span>,
-                      <span x-text="strictResult?.offTempoLate ?? 0"></span> <span x-text="$t('score.strictTooLate')">trop tard</span>)
+                  <ul class="pt-fault-chips">
+                    <li class="pt-chip" x-show="strictOffTempoTotal() > 0">
+                      <span class="pt-legend-dot pt-legend-dot--offtempo" aria-hidden="true"></span>
+                      <span><span x-text="strictOffTempoTotal()"></span> <span x-text="$t('score.strictOffTempo')">hors tempo</span></span>
+                      <small>(<span x-text="strictResult?.offTempoEarly ?? 0"></span> <span x-text="$t('score.strictTooEarly')">trop tôt</span>,
+                      <span x-text="strictResult?.offTempoLate ?? 0"></span> <span x-text="$t('score.strictTooLate')">trop tard</span>)</small>
                     </li>
-                    <li x-show="strictResult?.missed > 0">
-                      ❌ <span x-text="strictResult?.missed ?? 0"></span> <span x-text="$t('score.strictMissed')">manquées</span>
+                    <li class="pt-chip" x-show="strictResult?.missed > 0">
+                      <span class="pt-legend-dot pt-legend-dot--missed" aria-hidden="true"></span>
+                      <span x-text="$tn('score.missedNotes', strictResult?.missed ?? 0)"></span>
                     </li>
-                    <li x-show="strictResult?.wrongNotes > 0">
-                      🚫 <span x-text="strictResult?.wrongNotes ?? 0"></span> <span x-text="$t('score.strictWrongNotes')">fausses notes</span>
+                    <li class="pt-chip" x-show="strictResult?.wrongNotes > 0">
+                      <span class="pt-legend-dot pt-legend-dot--wrong" aria-hidden="true"></span>
+                      <span x-text="$tn('score.wrongNotes', strictResult?.wrongNotes ?? 0)"></span>
                     </li>
                   </ul>
                 </div>
@@ -441,7 +452,7 @@
               <ul x-show="resultRecords.length > 0" class="pt-records" data-testid="result-records">
                 <template x-for="record in resultRecords" :key="record.key">
                   <li class="pt-record">
-                    <span aria-hidden="true">🏆</span>
+                    <span aria-hidden="true" data-icon="trophy"></span>
                     <strong x-text="record.title"></strong>
                     <span x-text="record.value"></span>
                     <small x-text="record.before ? $t('score.recordBefore', { value: record.before }) : $t('score.recordFirst')"></small>
@@ -542,14 +553,15 @@
         </div>
 
         <footer>
-          <button class="pt-chip pt-action-button" x-show="!!scoreUrl" @click="closeResultModal(); openScoreHistory()" x-text="$t('score.history')">📜 Historique</button>
+          <button class="pt-chip pt-action-button" x-show="!!scoreUrl" @click="closeResultModal(); openScoreHistory()" data-icon="history" x-text="$t('score.history')">Historique</button>
           <button class="pt-chip pt-action-button" @click="closeResultModal()" x-text="$t('score.close')">Fermer</button>
           <button
             class="pt-chip pt-action-button is-primary"
             x-show="resultMode !== 'reinforcement' && measuresToReinforce.length > 0"
             @click="closeResultModal(); startReinforcementMode()"
-            x-text="reinforceLabel()"
             :aria-label="reinforceLabel('handsFull')"
+            data-icon="target"
+            x-text="reinforceLabel()"
           ></button>
         </footer>
       </article>

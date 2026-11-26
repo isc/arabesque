@@ -1242,7 +1242,7 @@ export function midiApp() {
       // passage does: that is said for as long as it is up.
       const called = this.ladderCall()
       if (called) return called
-      if (this.blockChordsAdvised) return t('score.blockChordsAdvice')
+      if (this.blockChordsAdvised) return t('score.blockChordsAdvice', { button: t('score.blockChordsBtn') })
       if (this.mode === 'reinforcement') return this.ladderAsk() ?? t('score.reinforcementHint', { times })
       // A passage of one bar is allowed, and "bars 5 to 5" is not a sentence.
       if (this.trainingPassage.end != null) return passageText('score.trainingPassage', this.trainingPassage, { times })
@@ -1360,7 +1360,7 @@ export function midiApp() {
 
     // What the strict band says before a run.
     strictBandText() {
-      if (this.strictTransport === 'paused') return t('board.paused')
+      if (this.strictTransport === 'paused') return t('board.paused', { resume: t('score.resume'), end: t('score.endLoopBtn') })
       const from = (this.strictPassage.start ?? 0) + 1
       // What clicking a bar does is only worth saying while the click is
       // strict mode's: listening takes it over, and the playback band says so

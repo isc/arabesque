@@ -193,7 +193,7 @@ class PracticeTrackingTest < CapybaraTestBase
     end
 
     assert_no_selector 'dialog[open]'
-    assert_text 'Mode Entraînement Actif'
+    assert_training_mode_on
     assert_text 'Mesure 2 seule'
     wait_for_training_cursor(2)
   end
