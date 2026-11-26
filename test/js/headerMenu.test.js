@@ -23,7 +23,7 @@ describe('Escape on the ⚙️ menu', () => {
   it('takes the feedback picture away with the form', () => {
     const menu = headerMenu()
     menu.showFeedbackModal = true
-    menu.feedbackShot = 'data:image/webp;base64,xx'
+    menu.feedbackShot = { image: 'data:image/webp;base64,xx', capture: { draws: 3, changes: 0, settled: true } }
 
     expect(menu.closeMenuLayer()).toBe(true)
     expect([menu.showFeedbackModal, menu.feedbackShot]).toEqual([false, null])

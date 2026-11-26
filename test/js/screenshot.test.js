@@ -5,10 +5,12 @@ import { join } from 'node:path'
 // cleanly in node; each test stubs the globals the call it makes needs.
 import {
   captureViewport,
+  drawSettled,
   encode,
   isXmlName,
   MAX_CHARS,
   outputSize,
+  samePixels,
   stickyOffsets,
   touchesViewport,
 } from '../../public/js/screenshot.js'
@@ -144,6 +146,56 @@ describe('stickyOffsets', () => {
     }
     expect(() => stickyOffsets([el])).toThrow()
     expect(el.style.position).toBe('sticky')
+  })
+})
+
+describe('samePixels', () => {
+  const pixels = (...values) => new Uint8ClampedArray(values)
+
+  it('agrees on two readings of the same picture', () => {
+    expect(samePixels(pixels(1, 2, 3, 255, 4, 5, 6, 255), pixels(1, 2, 3, 255, 4, 5, 6, 255))).toBe(true)
+  })
+
+  it('tells apart two that differ in one channel of one pixel', () => {
+    expect(samePixels(pixels(1, 2, 3, 255, 4, 5, 6, 255), pixels(1, 2, 3, 255, 4, 5, 7, 255))).toBe(false)
+  })
+
+  it('tells apart two pictures of different sizes', () => {
+    expect(samePixels(pixels(1, 2, 3, 255), pixels(1, 2, 3, 255, 1, 2, 3, 255))).toBe(false)
+  })
+})
+
+// The icons were missing from the first draw on the iPad, and there from the
+// second: what is drawn is a sequence of pictures, and the capture keeps the
+// one it settles on.
+describe('drawSettled', () => {
+  // A canvas whose successive draws come out as `pictures`, the last repeating.
+  const canvas = (...pictures) => {
+    let drawn = 0
+    return vi.fn(async () => new Uint8ClampedArray([pictures[Math.min(drawn++, pictures.length - 1)], 0, 0, 255]))
+  }
+  const settle = (frame, options) => drawSettled(frame, { pause: 0, ...options })
+
+  it('stops at the third draw when nothing changes', async () => {
+    const frame = canvas(1)
+    await expect(settle(frame)).resolves.toEqual({ draws: 3, changes: 0, settled: true })
+    expect(frame).toHaveBeenCalledTimes(3)
+  })
+
+  it('draws on while the picture fills in, and keeps the one it settles on', async () => {
+    // Without the icons, then with some, then with all of them, twice.
+    await expect(settle(canvas(1, 2, 3))).resolves.toEqual({ draws: 4, changes: 2, settled: true })
+  })
+
+  // The first two draws agree when nothing has arrived by the second.
+  it('never settles on the first two draws', async () => {
+    await expect(settle(canvas(1, 1, 2))).resolves.toEqual({ draws: 4, changes: 1, settled: true })
+  })
+
+  it('gives up after so many draws, and says it never settled', async () => {
+    const frame = canvas(1, 2, 3, 4, 5, 6, 7)
+    await expect(settle(frame, { tries: 4 })).resolves.toEqual({ draws: 4, changes: 3, settled: false })
+    expect(frame).toHaveBeenCalledTimes(4)
   })
 })
 

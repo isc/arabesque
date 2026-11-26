@@ -40,6 +40,10 @@ class FeedbackScreenshotTest < CapybaraTestBase
     with, without = sent_reports
     assert_match DATA_URL, with['screenshot']
     assert_nil without['screenshot']
+    # How it was drawn travels with it (drawSettled in screenshot.js), and only
+    # with it.
+    assert with.dig('context', 'capture', 'settled')
+    assert_nil without['context']['capture']
   end
 
   # The page the request itself was filed from, and the one a score-only capture
