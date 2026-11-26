@@ -12,10 +12,11 @@ const PUBLIC_DIR = join(import.meta.dirname, '..', '..', 'public')
 const read = (path) => readFileSync(join(PUBLIC_DIR, path), 'utf8')
 
 // Named outright (data-icon="loop"), or as the quoted names an Alpine binding
-// picks from (:data-icon="playing ? 'pause' : 'play'").
+// picks from (:data-icon="playing ? 'pause' : 'play'") — not the ones it tests
+// a value against (opt.value === 'stale').
 function namesIn(source) {
   return [...source.matchAll(/(:?)data-icon="([^"]*)"/g)].flatMap(([, bound, value]) =>
-    bound ? [...value.matchAll(/'([a-z-]+)'/g)].map((m) => m[1]) : [value]
+    bound ? [...value.replace(/[!=]==?\s*'[^']*'/g, '').matchAll(/'([a-z-]+)'/g)].map((m) => m[1]) : [value]
   )
 }
 

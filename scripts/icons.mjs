@@ -24,21 +24,32 @@ const STYLES = fileURLToPath(new URL('../public/styles.css', import.meta.url))
 
 // Named for what they say in the app rather than for what Lucide draws.
 export const ICONS = {
+  calendar: {},
   check: {},
   circle: {},
+  data: { lucide: 'database' },
+  download: {},
   file: { lucide: 'file-music' },
   history: {},
   listen: { lucide: 'headphones' },
+  lock: {},
   loop: { lucide: 'repeat' },
+  message: { lucide: 'message-circle' },
   metronome: {},
+  moon: {},
   pause: { fill: true },
   piano: {},
   play: { fill: true },
   search: {},
   settings: {},
+  smartphone: {},
+  sparkles: {},
+  star: {},
   stop: { lucide: 'square', fill: true },
+  support: { lucide: 'life-buoy' },
   target: {},
   trophy: {},
+  upload: {},
   x: {},
 }
 

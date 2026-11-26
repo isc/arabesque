@@ -39,7 +39,7 @@ class PracticeCalendarTest < CapybaraTestBase
 
   def test_the_menu_offers_feedback
     open_menu
-    assert_button '💬 Avis'
+    assert_button 'Avis'
   end
 
   def test_stats_summarise_the_year

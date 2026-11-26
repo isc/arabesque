@@ -206,18 +206,18 @@ const TRIGGER_HTML = `
   </button>
   <div class="pt-popover" x-show="menuOpen" x-cloak>
     <div class="pt-popover__section">
-      <a href="score.html" class="pt-menu-item" @click="closeMenu()" x-text="$t('library.loadScore')">📄 Charger une partition</a>
-      <button type="button" class="pt-menu-item" x-show="canInstall" @click="install()" x-text="$t('menu.install')">📲 Installer l'application</button>
+      <a href="score.html" class="pt-menu-item" @click="closeMenu()" data-icon="file" x-text="$t('library.loadScore')">Charger une partition</a>
+      <button type="button" class="pt-menu-item" x-show="canInstall" @click="install()" data-icon="smartphone" x-text="$t('menu.install')">Installer l'application</button>
       <button type="button" class="pt-menu-item" x-show="canPairMIDI" @click="pairMIDI()" data-icon="piano" x-text="$t('score.connectMidi')">Connecter clavier MIDI</button>
-      <button type="button" class="pt-menu-item" @click="openChangelog()">
-        <span x-text="$t('library.changelog')">✨ Nouveautés</span>
+      <button type="button" class="pt-menu-item" @click="openChangelog()" data-icon="sparkles">
+        <span x-text="$t('library.changelog')">Nouveautés</span>
         <span class="pt-menu-dot" x-show="hasUnseenChangelog" aria-hidden="true"></span>
       </button>
-      <button type="button" class="pt-menu-item" x-show="feedbackEnabled" @click="openFeedback()" x-text="$t('library.feedback')">💬 Avis</button>
-      <a href="practice.html" class="pt-menu-item" @click="closeMenu()" x-text="$t('menu.practice')">📅 Assiduité</a>
-      <a href="data.html" class="pt-menu-item" @click="closeMenu()" x-text="$t('menu.data')">🗂 Données</a>
-      <a href="support.html" class="pt-menu-item" @click="closeMenu()" x-text="$t('menu.support')">🛟 Assistance</a>
-      <a href="privacy.html" class="pt-menu-item" @click="closeMenu()" x-text="$t('menu.privacy')">🔒 Confidentialité</a>
+      <button type="button" class="pt-menu-item" x-show="feedbackEnabled" @click="openFeedback()" data-icon="message" x-text="$t('library.feedback')">Avis</button>
+      <a href="practice.html" class="pt-menu-item" @click="closeMenu()" data-icon="calendar" x-text="$t('menu.practice')">Assiduité</a>
+      <a href="data.html" class="pt-menu-item" @click="closeMenu()" data-icon="data" x-text="$t('menu.data')">Données</a>
+      <a href="support.html" class="pt-menu-item" @click="closeMenu()" data-icon="support" x-text="$t('menu.support')">Assistance</a>
+      <a href="privacy.html" class="pt-menu-item" @click="closeMenu()" data-icon="lock" x-text="$t('menu.privacy')">Confidentialité</a>
     </div>
     <hr />
     <div class="pt-popover__section">
@@ -257,7 +257,7 @@ const MODALS_HTML = `
 <dialog class="pt-changelog-dialog" :open="showChangelogModal">
   <article>
     <header>
-      <p><strong x-text="$t('library.changelog')">✨ Nouveautés</strong></p>
+      <p><strong x-text="$t('library.changelog')">Nouveautés</strong></p>
       <button :aria-label="$t('common.close')" rel="prev" data-icon="x" @click="showChangelogModal = false"></button>
     </header>
     <div class="pt-modal-body">
@@ -277,7 +277,7 @@ const MODALS_HTML = `
 <dialog :open="showFeedbackModal">
   <article>
     <header>
-      <p><strong x-text="$t('feedback.title')">💬 Votre avis</strong></p>
+      <p><strong x-text="$t('feedback.title')">Votre avis</strong></p>
       <button :aria-label="$t('common.close')" rel="prev" data-icon="x" @click="closeFeedback()"></button>
     </header>
     <div class="pt-modal-body">

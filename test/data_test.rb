@@ -15,7 +15,7 @@ class DataTest < CapybaraTestBase
     end
 
     accept_alert do
-      click_button '📤 Exporter sauvegarde'
+      click_button 'Exporter sauvegarde'
     end
 
     exported_file = wait_for_download('arabesque-backup-*.json')
@@ -39,7 +39,7 @@ class DataTest < CapybaraTestBase
       window.alert = (message) => { window.__alerted = message }
     JS
     visit '/data.html'
-    click_button '📤 Exporter sauvegarde'
+    click_button 'Exporter sauvegarde'
 
     file = wait_until('the backup handed to the app') { page.evaluate_script('window.__savedFile') }
     assert_match(/\Aarabesque-backup-\d{4}-\d{2}-\d{2}\.json\z/, file['name'])

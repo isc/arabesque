@@ -29,13 +29,13 @@ class ProfilesTest < CapybaraTestBase
 
     # Léa starts from nothing, in a file named after her, accent folded.
     visit '/data.html'
-    accept_alert { click_button '📤 Exporter sauvegarde' }
+    accept_alert { click_button 'Exporter sauvegarde' }
     exported = wait_for_download('arabesque-backup-lea-2*.json')
     assert_empty JSON.parse(File.read(exported))['sessions']
 
     # Back on the first profile, the history is where it was.
     click_button 'Activer'
-    accept_alert { click_button '📤 Exporter sauvegarde' }
+    accept_alert { click_button 'Exporter sauvegarde' }
     exported = wait_for_download('arabesque-backup-2*.json')
     assert_equal JSON.parse(File.read(FIXTURE))['sessions'].length,
                  JSON.parse(File.read(exported))['sessions'].length

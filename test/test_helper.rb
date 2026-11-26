@@ -238,7 +238,7 @@ class CapybaraTestBase < Minitest::Test
   # inserted, and that is the move that matters.
   def open_feedback
     open_menu
-    click_on '💬 Avis'
+    click_on 'Avis'
     assert_selector 'dialog[open] textarea'
     assert_selector('.pt-feedback-shot__preview') { |preview| preview[:naturalHeight].to_i.positive? }
   end
