@@ -196,7 +196,7 @@ node scripts/import-fingerings.mjs --player <email> --score Canon_in_D          
 `--player` reads the fingerings Supabase keeps for a signed-in player
 (`--profile` for another of their profiles), with the token
 `scripts/lib/supabase.mjs` uses. `backup.json` is what the app's own
-**📤 Exporter sauvegarde** button (data page) writes, for a player who never
+**Exporter sauvegarde** button (data page) writes, for a player who never
 signed in — its `fingerings` array is the input, one record per score file,
 collections included. A record still keyed the way fingerings were before
 #350 is converted as the app converts it; the script header has the rest of

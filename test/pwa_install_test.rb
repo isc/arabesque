@@ -21,7 +21,7 @@ class PwaInstallTest < CapybaraTestBase
     window.dispatchEvent(event)
   JS
 
-  INSTALL_ENTRY = '📲 Installer l’application'.freeze
+  INSTALL_ENTRY = 'Installer l’application'.freeze
 
   def setup
     visit '/library.html'

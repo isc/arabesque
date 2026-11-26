@@ -73,8 +73,8 @@
         <h2 x-text="$t('data.localHeading')">Sauvegarde dans un fichier</h2>
         <p class="pt-hint" x-text="$t('data.localIntro')"></p>
         <div class="pt-data-actions">
-          <button type="button" class="outline secondary" @click="exportBackup()" x-text="$t('library.exportBackup')">📤 Exporter sauvegarde</button>
-          <label class="outline secondary" role="button" for="backup-import" x-text="$t('library.importBackup')">📥 Importer sauvegarde</label>
+          <button type="button" class="outline secondary" @click="exportBackup()" data-icon="download" x-text="$t('library.exportBackup')">Exporter sauvegarde</button>
+          <label class="outline secondary" role="button" for="backup-import" data-icon="upload" x-text="$t('library.importBackup')">Importer sauvegarde</label>
           <input class="pt-sr-only" type="file" accept=".json" @change="importBackup($event)" id="backup-import" />
         </div>
       </article>

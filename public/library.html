@@ -136,6 +136,7 @@
             <button
               class="pt-chip pt-focus__chip"
               :data-focus="opt.value"
+              :data-icon="opt.value === 'stale' ? 'moon' : 'star'"
               :aria-pressed="focusFilter === opt.value"
               @click="setFocusFilter(opt.value)"
             >
@@ -253,7 +254,7 @@
       <dialog :open="showProfilesModal">
         <article>
           <header>
-            <p><strong x-text="$t('profiles.title')">👥 Qui joue ?</strong></p>
+            <p><strong x-text="$t('profiles.title')">Qui joue ?</strong></p>
             <button :aria-label="$t('common.close')" rel="prev" data-icon="x" @click="showProfilesModal = false"></button>
           </header>
           <div class="pt-modal-body">

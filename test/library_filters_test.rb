@@ -191,7 +191,7 @@ class LibraryFiltersTest < CapybaraTestBase
     refute_match(/status=|focus=/, page.current_url)
   end
 
-  # "💤 Pas joué depuis 7 j" now asks the practice floor first — the same
+  # "Pas joué depuis 7 j" now asks the practice floor first — the same
   # question the status badge asks, and the reason a barely-opened piece wears
   # none. Two of the fixture's rows are moved onto the boundary the rule turns
   # on, one either side of it, and both left silent.
@@ -345,7 +345,7 @@ class LibraryFiltersTest < CapybaraTestBase
         totalPracticeTimeMs: 1_800_000,
         practiceDays: ['2026-02-13', '2026-02-14', '2026-02-15'],
         # Every measure played clean often enough: the one score the
-        # "⭐ Proches du répertoire" chip has to offer.
+        # "Proches du répertoire" chip has to offer.
         measures: (1..4).to_h { |i| [i.to_s, { totalAttempts: 10, cleanAttempts: 10, errorRate: 0 }] },
       },
       {
