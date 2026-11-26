@@ -12,6 +12,8 @@ import {
   strictAccuracy,
   strictRunLabel,
   rankingOf,
+  rankingHeading,
+  otherTempi,
   runFigure,
   runFaults,
   runRecords,
@@ -33,6 +35,10 @@ export function resultModal({ onOpen }) {
     // alone: it is no run of the piece.
     previousPlaythroughs: [],
     resultCharts: [],
+    // A strict ranking's tempo, said over it, and how the runs at the other
+    // tempi stand.
+    resultRankingTitle: '',
+    resultOtherTempi: [],
     resultRecords: [],
     // The run's headline figure when its verdict is not one (a free run's
     // time), and what it lost, with where (faultChips).
@@ -56,6 +62,8 @@ export function resultModal({ onOpen }) {
       const [latest] = allPlaythroughs
       this.previousPlaythroughs = rankingOf(allPlaythroughs)
       this.resultCharts = resultCharts(this.previousPlaythroughs)
+      this.resultRankingTitle = rankingHeading(allPlaythroughs)
+      this.resultOtherTempi = otherTempi(allPlaythroughs)
       this.resultRecords = runRecords(allPlaythroughs)
       this.resultFigure = !verdict && latest ? runFigure(latest) : null
       this.resultFaults = faultChips({

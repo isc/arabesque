@@ -160,8 +160,9 @@ class StrictPlaythroughTest < CapybaraTestBase
   end
 
   # A run of the whole piece to the click ends as a free one does: the records
-  # it set, where it went wrong, its ranking against the runs at its tempo. It
-  # used to say a figure and nothing else (feedback dad36859).
+  # it set, where it went wrong, its ranking against the runs at its tempo,
+  # which it names (feedback 8c609eb1). It used to say a figure and nothing
+  # else (feedback dad36859).
   def test_a_whole_run_to_the_click_ends_with_its_records_and_ranking
     visit '/score.html?url=/test-fixtures/chord.xml'
     wait_for_score_render(1)
@@ -179,6 +180,8 @@ class StrictPlaythroughTest < CapybaraTestBase
     within('dialog.pt-result-dialog') do
       assert_selector '[data-testid=result-records] li', text: /Record de justesse à 120 BPM\s*100 %\s*avant : 67 %/
       assert_selector '[data-testid=result-records] li', text: /Record de tempo propre\s*120 BPM\s*une première/
+      assert_selector '[data-testid=result-ranking-title]', text: 'À 120 BPM'
+      assert_no_selector '[data-testid=result-other-tempi]'
       assert_selector 'tr.is-current', text: '100 %'
       assert_selector 'tr', text: /67 %.*1 note manquée/
     end
