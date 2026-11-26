@@ -144,9 +144,10 @@ export function headerMenu() {
     feedback: { message: '', email: '' },
     feedbackStatus: 'idle', // 'idle' | 'sending' | 'sent' | 'error'
     feedbackError: '',
-    // A picture of the screen the modal is covering, or null when the capture
-    // could not be made. Attached by default and shown in the form, so it is
-    // never a surprise — the checkbox opts out.
+    // A picture of the screen the modal is covering — captureViewport's
+    // `{ image, capture }` — or null when the capture could not be made.
+    // Attached by default and shown in the form, so it is never a surprise —
+    // the checkbox opts out.
     feedbackShot: null,
     feedbackShotWanted: true,
 
@@ -178,12 +179,18 @@ export function headerMenu() {
       if (!message || this.feedbackStatus === 'sending') return
       this.feedbackStatus = 'sending'
       this.feedbackError = ''
+      const shot = this.feedbackShotWanted ? this.feedbackShot : null
       try {
         await submitFeedback({
           message,
           email: this.feedback.email,
-          screenshot: this.feedbackShotWanted ? this.feedbackShot : null,
-          context: { ...(await buildBaseContext()), ...(this.feedbackContext?.() ?? {}) },
+          screenshot: shot?.image,
+          context: {
+            ...(await buildBaseContext()),
+            ...(this.feedbackContext?.() ?? {}),
+            // How the picture was drawn (drawSettled in screenshot.js).
+            ...(shot && { capture: shot.capture }),
+          },
         })
         this.feedbackStatus = 'sent'
       } catch (err) {
@@ -307,7 +314,7 @@ const MODALS_HTML = `
               <input type="checkbox" x-model="feedbackShotWanted" :disabled="feedbackStatus === 'sending'" />
               <span x-text="$t('feedback.screenshotLabel')">Joindre l’image de l’écran</span>
             </label>
-            <img class="pt-feedback-shot__preview" x-show="feedbackShotWanted" :src="feedbackShot" :alt="$t('feedback.screenshotAlt')" />
+            <img class="pt-feedback-shot__preview" x-show="feedbackShotWanted" :src="feedbackShot.image" :alt="$t('feedback.screenshotAlt')" />
           </div>
         </template>
         <small class="pt-feedback-privacy" x-text="$t('feedback.privacy')"></small>

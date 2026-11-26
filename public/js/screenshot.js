@@ -11,7 +11,7 @@
 // paints the HTML inside a <foreignObject>, and a canvas rasterises the SVG:
 //
 //   clone the page → wrap it in <foreignObject> → <img src="data:image/svg+xml">
-//   → drawImage → toDataURL
+//   → createImageBitmap → drawImage → toDataURL
 //
 // The decisive part is that the clone is real DOM under a real <style>: the
 // page's own stylesheet is inlined whole, so every rule applies as it does on
@@ -30,6 +30,13 @@
 // scroller (the library's list is one), and the offset stickiness gives a
 // pinned element (the score page's whole stack of header, modes and bands is
 // sticky, and it is the most diagnostic thing on the page).
+//
+// Nor does it inherit the page's clock, or what the page has already loaded.
+// The image is a new document, so every CSS animation in it starts from its
+// first frame — the verdict that faded in a minute ago came out in the tint it
+// arrives in (feedback 8385ba01) — and every image it refers to is fetched
+// again, the icons' masks included. Animations and transitions are put at
+// their end (AT_REST); the fetching is what drawSettled waits out.
 
 import { recordError } from './errorLog.js'
 
@@ -53,6 +60,22 @@ const MAX_EDGE = 1400
 // is why one is never in the picture it is itself asking for — the backdrop
 // goes with it, since `html:has(dialog[open])::before` is what draws that.
 const DROPPED = 'dialog, script, template, link, meta, noscript'
+
+// Every animation over the moment it applies, leaving what its fill-mode
+// leaves — a held note keeps the colour `pt-held-note` gives it after 80ms —
+// and no transition at all. What the page shows once it has stopped moving is
+// what the reporter was looking at, give or take the last few hundred ms. It
+// is also what lets drawSettled settle: with an animation still running in
+// the image, no two draws would ever agree.
+const AT_REST =
+  '*, ::before, ::after { animation-duration: 0s !important; animation-delay: 0s !important; transition: none !important; }'
+
+// How many times the page may be drawn while the picture is still changing,
+// how long to leave between two draws, and how many it takes at the least
+// (drawSettled): the first two can agree only because nothing has arrived yet.
+const MAX_DRAWS = 5
+const MIN_DRAWS = 3
+const DRAW_PAUSE_MS = 100
 
 // XML has no room for Alpine's attribute names — `@click`, `:class`,
 // `x-on:submit.prevent`. They would each abort the parse of the SVG image, and
@@ -189,8 +212,86 @@ function loadImage(src) {
   })
 }
 
-// The picture of the viewport, as a data URL, or null when anything at all goes
-// wrong. Never throws: a report must go out with or without one.
+// Two readings of a canvas, pixel for pixel — as 32-bit words, a quarter of
+// the steps over the same bytes.
+export function samePixels(a, b) {
+  if (a.length !== b.length) return false
+  const x = new Uint32Array(a.buffer, a.byteOffset, a.length >> 2)
+  const y = new Uint32Array(b.buffer, b.byteOffset, b.length >> 2)
+  for (let i = 0; i < x.length; i++) if (x[i] !== y[i]) return false
+  return true
+}
+
+// Draw, and draw again until two draws in a row come out the same. WebKit 17
+// fires the image's load before what the page inside refers to has arrived —
+// the icons' masks, a select's chevron, all data: URLs — so a draw made at
+// once goes without them: feedback 8385ba01, from the iPad, had every icon
+// missing, its room kept, and WebKit 17.4 on Linux loses the chevrons the same
+// way. A draw a moment later has them. Chrome, Firefox and today's WebKit
+// agree with themselves at once.
+//
+// Says how many draws it made, how many of them came out unlike the one
+// before, and whether the last two agreed. The report carries all three, which
+// is how a capture from the iPad tells whether the wait caught anything.
+// `frame` draws and reads the canvas back; injected so a test need not own one.
+export async function drawSettled(frame, { tries = MAX_DRAWS, least = MIN_DRAWS, pause = DRAW_PAUSE_MS } = {}) {
+  let last = await frame()
+  let changes = 0
+  for (let draws = 2; draws <= tries; draws++) {
+    await new Promise((resolve) => setTimeout(resolve, pause))
+    const now = await frame()
+    if (!samePixels(now, last)) changes++
+    else if (draws >= least) return { draws, changes, settled: true }
+    last = now
+  }
+  return { draws: tries, changes, settled: false }
+}
+
+// The page painted at the output size, ready to go on the canvas one pixel for
+// one. Not by having the canvas scale it: a 2D canvas draws its shadows
+// without its transform, as the canvas spec wants, and WebKit paints a page's
+// box-shadows with those shadows — so every one of them lands off by a share
+// of the scale. The advised button's inset ring came out shifted half a
+// button to the right and cut by the button's own edge (feedback 8385ba01,
+// 1024 px drawn at 1400). An ImageBitmap is painted off the canvas, scale and
+// shadows together.
+//
+// Chrome, though, taints the canvas a bitmap of this image goes on, data: URL
+// or not, and a tainted canvas cannot be read back. Its own scaling puts the
+// shadows where they belong, so there the canvas scales the image as before.
+// Whether bitmaps are readable is the browser's answer, asked of one pixel,
+// once.
+let bitmapsReadable
+
+async function rasterise(image, width, height) {
+  if (bitmapsReadable === false) return image
+  try {
+    const bitmap = await createImageBitmap(image, { resizeWidth: width, resizeHeight: height, resizeQuality: 'high' })
+    bitmapsReadable ??= readable(bitmap)
+    if (bitmapsReadable) return bitmap
+    bitmap.close()
+  } catch {
+    // No bitmap this time: this draw goes the canvas's way.
+  }
+  return image
+}
+
+function readable(bitmap) {
+  const probe = document.createElement('canvas')
+  probe.width = probe.height = 1
+  const ctx = probe.getContext('2d')
+  ctx.drawImage(bitmap, 0, 0, 1, 1)
+  try {
+    ctx.getImageData(0, 0, 1, 1)
+    return true
+  } catch {
+    return false
+  }
+}
+
+// The picture of the viewport — `{ image, capture }`, a data URL and what
+// drawSettled said of it — or null when anything at all goes wrong.
+// Never throws: a report must go out with or without one.
 export async function captureViewport() {
   try {
     // Let the dialog paint first. Everything below is a hundred milliseconds of
@@ -248,7 +349,7 @@ export async function captureViewport() {
 
     const page = document.createElementNS(XHTML_NS, 'html')
     const style = document.createElementNS(XHTML_NS, 'style')
-    style.textContent = pageCss()
+    style.textContent = `${pageCss()}\n${AT_REST}`
     page.append(style, clone)
 
     const { width, height } = outputSize(viewport.width, viewport.height, {
@@ -269,12 +370,20 @@ export async function captureViewport() {
     const canvas = document.createElement('canvas')
     canvas.width = width
     canvas.height = height
-    const ctx = canvas.getContext('2d')
+    // Read back after every draw: kept on the CPU side, where reading is cheap.
+    const ctx = canvas.getContext('2d', { willReadFrequently: true })
     // The page is drawn on nothing; without a ground it comes out on black.
-    ctx.fillStyle = getComputedStyle(root).backgroundColor || '#ffffff'
-    ctx.fillRect(0, 0, width, height)
-    ctx.drawImage(image, 0, 0, width, height)
-    return encode(canvas)
+    const ground = getComputedStyle(root).backgroundColor || '#ffffff'
+    const capture = await drawSettled(async () => {
+      const raster = await rasterise(image, width, height)
+      ctx.fillStyle = ground
+      ctx.fillRect(0, 0, width, height)
+      ctx.drawImage(raster, 0, 0, width, height)
+      raster.close?.()
+      return ctx.getImageData(0, 0, width, height).data
+    })
+    const encoded = encode(canvas)
+    return encoded && { image: encoded, capture }
   } catch (error) {
     recordError(error, 'Screen could not be captured for the report')
     return null
