@@ -1,5 +1,10 @@
 [
   {
+    "number": 564,
+    "title": "Score page dialogs: a free run leads with its time, faults carry their bars, one close icon",
+    "slug": "claude-design-modals"
+  },
+  {
     "number": 217,
     "title": "Add mic mode (beta): play without MIDI via microphone pitch detection",
     "slug": "claude-micro-mode-non-midi-9j1r2l"
