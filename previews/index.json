@@ -1,10 +1,5 @@
 [
   {
-    "number": 575,
-    "title": "Put the install icons back under their names and say why an installed Android app keeps its icon",
-    "slug": "claude-restore-icon-names"
-  },
-  {
     "number": 217,
     "title": "Add mic mode (beta): play without MIDI via microphone pitch detection",
     "slug": "claude-micro-mode-non-midi-9j1r2l"
