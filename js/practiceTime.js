@@ -4,8 +4,8 @@
 // journal, the calendar, a score's history and its aggregate row all count by
 // these. Pure: sessions in, times and runs out; the tracker records the
 // sessions (practiceTracker.js).
-import { TWO_HANDS, playthroughHands } from './hands.js?v=b1b87c4c1799'
-import { byStartedAt } from './days.js?v=b1b87c4c1799'
+import { TWO_HANDS, playthroughHands } from './hands.js?v=e7d9d28a93c7'
+import { byStartedAt } from './days.js?v=e7d9d28a93c7'
 
 // Default knobs for interruption removal. A segment is "aberrant" (an
 // interruption) when it exceeds max(floor, factor × median) of its own kind.
@@ -136,6 +136,10 @@ export function playthroughOf(session) {
     hands: playthroughHands(attempts),
     ...playthroughWrongNotes(attempts),
     holes: playthroughHoles(attempts),
+    // The pace a free run held, in ms per whole note (steadiness' meanPace),
+    // since the hands last changed if they did; null for a run to the click,
+    // and for one from before it was kept.
+    pace: session.pace ?? null,
     // The strict engine's verdict on the run, for a run played to the
     // metronome; a free run has none.
     strict: session.strict ?? null,

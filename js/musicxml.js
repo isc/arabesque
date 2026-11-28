@@ -12,17 +12,17 @@ import {
   handOfNote,
   handOfStaff,
   isInnerStaff,
-} from './noteExtraction.js?v=b1b87c4c1799'
-import { scrollSystemIntoView, isInFullView, isUnderStickyBars, nextPaint } from './utils.js?v=b1b87c4c1799'
-import { placeChordFingerings } from './chordFingerings.js?v=b1b87c4c1799'
-import { arrayBufferToXml, isMusicXml } from './mxlLoader.js?v=b1b87c4c1799'
-import { stripPlaybackTempoMarks } from './tempoMarks.js?v=b1b87c4c1799'
-import { recordError } from './errorLog.js?v=b1b87c4c1799'
-import { REINFORCEMENT_CLEAN_PASSES } from './reinforcement.js?v=b1b87c4c1799'
-import { POSITION_EPSILON, beatIndex, beatStartOf, crotchetsPerMinute, excess } from './noteLogAnalysis.js?v=b1b87c4c1799'
-import { createSteadiness } from './steadiness.js?v=b1b87c4c1799'
-import { handsKey, handsOfKey } from './hands.js?v=b1b87c4c1799'
-import { climbOn, isGuided, ladderOf, rungs, startOfTurn, stepOf } from './ladder.js?v=b1b87c4c1799'
+} from './noteExtraction.js?v=e7d9d28a93c7'
+import { scrollSystemIntoView, isInFullView, isUnderStickyBars, nextPaint } from './utils.js?v=e7d9d28a93c7'
+import { placeChordFingerings } from './chordFingerings.js?v=e7d9d28a93c7'
+import { arrayBufferToXml, isMusicXml } from './mxlLoader.js?v=e7d9d28a93c7'
+import { stripPlaybackTempoMarks } from './tempoMarks.js?v=e7d9d28a93c7'
+import { recordError } from './errorLog.js?v=e7d9d28a93c7'
+import { REINFORCEMENT_CLEAN_PASSES } from './reinforcement.js?v=e7d9d28a93c7'
+import { POSITION_EPSILON, beatIndex, beatStartOf, crotchetsPerMinute, excess } from './noteLogAnalysis.js?v=e7d9d28a93c7'
+import { createSteadiness } from './steadiness.js?v=e7d9d28a93c7'
+import { handsKey, handsOfKey } from './hands.js?v=e7d9d28a93c7'
+import { climbOn, isGuided, ladderOf, rungs, startOfTurn, stepOf } from './ladder.js?v=e7d9d28a93c7'
 
 // The score on the stand: the sheet OSMD holds, and the note model built from
 // it. Replaced as a sheet comes in (renderMusicXML) and as it is drawn
@@ -1884,8 +1884,8 @@ function advanceTraining(next, goesOn) {
 }
 
 // Free play walks on down the score, a measure at a time, and a run that
-// reaches its end is over.
-function advanceFreePlay(measureData, next, goesOn) {
+// reaches its end is over: `pace` is the one it held (playthroughOf).
+function advanceFreePlay(measureData, next, goesOn, pace) {
   playedSourceMeasures.add(measureData.sourceMeasureIndex)
 
   if (goesOn) {
@@ -1905,7 +1905,7 @@ function advanceFreePlay(measureData, next, goesOn) {
   // still adds up after the hand toggles moved mid-way through it.
   const owed = score.allNotes.filter((m) => m.notes.some(isNoteOwed))
   if (owed.every((m) => playedSourceMeasures.has(m.sourceMeasureIndex))) {
-    callbacks.onScoreCompleted?.(cursor.measureIndex)
+    callbacks.onScoreCompleted?.({ pace })
   }
   backToTheTopAfterTheBeat()
 }
@@ -1934,10 +1934,12 @@ function handleNoteValidated(measureData, group, { struck = true } = {}) {
   const goesOn = runsOn(next)
   // What a finished traversal left pending is judged before the journal files
   // the measure and the mode reads the verdict to bank its dot.
+  // Its pace is read first: closing it starts the count over.
+  const pace = steadiness.meanPace
   if (!goesOn) applySteadiness(steadiness.close())
   callbacks.onMeasureCompleted?.()
 
-  if (!training.on) advanceFreePlay(measureData, next, goesOn)
+  if (!training.on) advanceFreePlay(measureData, next, goesOn, pace)
   else advanceTraining(next, goesOn)
 }
 

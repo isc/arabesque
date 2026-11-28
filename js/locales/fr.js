@@ -377,6 +377,7 @@ export default {
     holesOne: '{n} trou',
     noHole: 'sans trou',
     runTime: 'pour la jouer en entier',
+    runTimeAtBpm: 'pour la jouer en entier, à {bpm} BPM environ',
     recordTime: 'Record de temps',
     recordWrongNotes: 'Record de fausses notes',
     recordHoles: 'Record de trous',

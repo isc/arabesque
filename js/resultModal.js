@@ -4,10 +4,11 @@
 // component spreads (app.js), as it does headerMenu(). It reads nothing of the
 // component's: each end hands over what the modal reports, through the show…
 // method made for it.
-import { t } from './i18n.js?v=b1b87c4c1799'
-import { TWO_HANDS } from './hands.js?v=b1b87c4c1799'
-import { withHands, passageText } from './utils.js?v=b1b87c4c1799'
-import { CLEAN_RATE } from './tempoTrainer.js?v=b1b87c4c1799'
+import { t } from './i18n.js?v=e7d9d28a93c7'
+import { TWO_HANDS } from './hands.js?v=e7d9d28a93c7'
+import { withHands, passageText } from './utils.js?v=e7d9d28a93c7'
+import { CLEAN_RATE } from './tempoTrainer.js?v=e7d9d28a93c7'
+import { crotchetsPerMinute } from './noteLogAnalysis.js?v=e7d9d28a93c7'
 import {
   strictAccuracy,
   strictRunLabel,
@@ -19,7 +20,7 @@ import {
   runRecords,
   faultChips,
   resultCharts,
-} from './playthroughHistory.js?v=b1b87c4c1799'
+} from './playthroughHistory.js?v=e7d9d28a93c7'
 
 // `onOpen` runs as the modal opens.
 export function resultModal({ onOpen }) {
@@ -43,6 +44,9 @@ export function resultModal({ onOpen }) {
     // The run's headline figure when its verdict is not one (a free run's
     // time), and what it lost, with where (faultChips).
     resultFigure: null,
+    // What that figure is, with the tempo a free run held where it kept one,
+    // in the BPM strict mode counts in.
+    resultFigureCaption: '',
     resultFaults: [],
     // What the run did for the piece's goals (goalNews in pieceGoals.js).
     resultGoalNews: null,
@@ -66,6 +70,9 @@ export function resultModal({ onOpen }) {
       this.resultOtherTempi = otherTempi(allPlaythroughs)
       this.resultRecords = runRecords(allPlaythroughs)
       this.resultFigure = !verdict && latest ? runFigure(latest) : null
+      this.resultFigureCaption = latest?.pace
+        ? t('score.runTimeAtBpm', { bpm: crotchetsPerMinute(latest.pace) })
+        : t('score.runTime')
       this.resultFaults = faultChips({
         run: latest,
         verdict,
