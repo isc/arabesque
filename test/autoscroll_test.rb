@@ -261,7 +261,51 @@ class AutoscrollTest < CapybaraTestBase
     assert_equal still, settled_scroll, 'The page should stay where it is'
   end
 
+  # A passage on three systems, two of which fit: the page follows it a system
+  # at a time, so that the one after the one being played is there to read
+  # ahead in. Held still while the bar moved onto was on screen, it stayed on
+  # the first system through the second, the third cut off below (feedback
+  # 811f413a).
+  def test_a_passage_on_more_systems_than_fit_is_followed_down
+    resize_to_two_systems_of_three
+    load_score('repeat-endings.xml', 4)
+    enter_training_mode
+    pick_passage(1, 4)
+    on_the_first = settled_scroll
+
+    play_note('C4')
+    wait_for_training_cursor(2)
+    assert_operator settled_scroll(from: on_the_first), :>, on_the_first,
+                    'The page should follow the passage to its second system'
+  end
+
+  # The same for a strict loop, which the count-in brings under the bars.
+  def test_a_strict_loop_on_more_systems_than_fit_is_followed_down
+    resize_to_two_systems_of_three
+    load_score('repeat-endings.xml', 4)
+    start_strict_mode
+    pick_passage(1, 4)
+    at_the_top = settled_scroll
+
+    with_clock_control do
+      trigger_click_on('Démarrer')
+      advance_clock(50)
+      on_the_first = settled_scroll(from: at_the_top)
+      # The count-in and bar 1 at ♩ = 120, and on into bar 2.
+      advance_clock(COUNT_IN_MS + 2_500)
+      trigger_click_on('Pause')
+      assert_operator settled_scroll(from: on_the_first), :>, on_the_first,
+                      'The page should follow the cursor to the second system'
+    end
+  end
+
   private
+
+  # repeat-endings.xml at this width is three systems, bars 2 and 3 sharing
+  # the second: 800px high takes them all, 700px the first two.
+  def resize_to_two_systems_of_three
+    page.current_window.resize_to(300, 700)
+  end
 
   def work_on_bar_from_history(bar)
     before = settled_scroll
