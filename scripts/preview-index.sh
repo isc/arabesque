@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# The branch previews a player can open from the ⚙️ menu (public/js/previews.js),
+# The branch previews a player can open from the settings menu (public/js/previews.js),
 # written to previews/index.json in a checkout of gh-pages as
 # [{"number": 561, "title": "…", "slug": "…"}], newest pull request first, and
 # committed there if that changed it. The push is the caller's.

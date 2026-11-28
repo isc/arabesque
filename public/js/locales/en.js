@@ -206,10 +206,10 @@ export default {
     exercises: '{n} exercises',
     timesPlayed: 'Played {n}×',
     timesPlayedOneHand: '{n}× one hand',
-    importOk: '✅ Backup imported successfully!\n\n{sessions} session(s) imported\n{fingerings} fingering(s) imported',
-    importError: '❌ Import failed: {error}',
-    exportOk: '✅ Backup exported successfully!',
-    exportError: '❌ Export failed: {error}',
+    importOk: 'Backup imported successfully!\n\n{sessions} session(s) imported\n{fingerings} fingering(s) imported',
+    importError: 'Import failed: {error}',
+    exportOk: 'Backup exported successfully!',
+    exportError: 'Export failed: {error}',
   },
   feedback: {
     title: 'Your feedback',
@@ -223,7 +223,7 @@ export default {
     screenshotAlt: 'Preview of the attached picture',
     privacy: 'Your message is sent with technical context (app version, browser and system, screen size, language, errors the app ran into in the past hour, and — depending on the page — the open score or your practice totals) to help me reproduce issues, along with the picture of the screen if its box is ticked. Nothing else, and never tied to an account.',
     send: 'Send',
-    thanks: 'Thanks, got it! 🙏',
+    thanks: 'Thanks, got it!',
     error: 'Sending failed.',
   },
   practice: {
@@ -557,7 +557,7 @@ export default {
     step3Title: 'Play and progress',
     step3Body:
       'Follow the scrolling notes, let the real-time feedback guide you, and find your progress in the practice journal.',
-    android: 'On Android, open the library in Chrome, then ⚙️ → Install the app.',
+    android: 'On Android, open the library in Chrome, then <i data-icon=settings></i> → Install the app.',
     footer: 'Arabesque · public-domain scores · your data stays on your device unless you sync it.',
   },
   privacy: {
@@ -590,7 +590,7 @@ export default {
       'Synced data is kept for as long as the account exists, and goes with it. Feedback is kept long enough to handle the request and to keep track of what was fixed.',
     rightsTitle: 'Your rights',
     rightsBody:
-      'You can read and export your data from the Data page at any time, and delete your account with everything in it. To have a piece of feedback deleted, or for any question about your data, use the feedback form (⚙️ menu) — it lands in the same inbox.',
+      'You can read and export your data from the Data page at any time, and delete your account with everything in it. To have a piece of feedback deleted, or for any question about your data, use the feedback form (<i data-icon=settings></i> menu) — it lands in the same inbox.',
     childrenTitle: 'Children',
     childrenBody:
       'Arabesque is not aimed at children under 13 and does not knowingly ask them for any data. The app is fully usable without an account.',
@@ -598,15 +598,15 @@ export default {
     changesBody:
       'This page changes along with the app. The date at the top says which version you are reading; anything that affects you will be announced in "What’s new".',
   },
-  // Branch previews, opened from the ⚙️ menu (previews.js).
+  // Branch previews, opened from the settings menu (previews.js).
   previews: {
     heading: 'Previews',
     production: '↩︎ Published version',
     none: 'No preview open.',
     unavailable: 'The list of previews could not be loaded.',
-    strip: '🧪 Preview',
+    strip: 'Preview',
     back: 'Back to the published version',
-    shown: 'previews shown in the ⚙️ menu',
+    shown: 'previews shown in the menu',
     hidden: 'previews hidden',
   },
   notFound: {
@@ -618,12 +618,12 @@ export default {
     back: '← Library',
     contactTitle: 'Ask a question, report a bug',
     contactBody:
-      'The feedback form is the shortest path: open the ⚙️ menu from the library or a score, then "Feedback". A bug, an idea, a missing score — it all arrives in the same place. Leave your email if you want an answer; without it the message is anonymous and cannot be replied to.',
+      'The feedback form is the shortest path: open the <i data-icon=settings></i> menu from the library or a score, then "Feedback". A bug, an idea, a missing score — it all arrives in the same place. Leave your email if you want an answer; without it the message is anonymous and cannot be replied to.',
     keyboardTitle: 'Connecting a keyboard',
     keyboardBody:
       'Arabesque listens to the keyboard through Web MIDI, over USB or Bluetooth. On a computer that needs a browser which supports it: Chrome, Edge or Opera. Safari and Firefox do not implement it, and the app says so rather than staying silent.',
     keyboardIos:
-      'On iPhone and iPad no browser has Web MIDI: the Arabesque app is what bridges to the keyboard. Over USB, plug it in and that is all; over Bluetooth, tap “Connect MIDI keyboard” (at the top of a score, or in the ⚙️ menu) to open the system pairing sheet, since pairing on iOS is per-app.',
+      'On iPhone and iPad no browser has Web MIDI: the Arabesque app is what bridges to the keyboard. Over USB, plug it in and that is all; over Bluetooth, tap “Connect MIDI keyboard” (at the top of a score, or in the <i data-icon=settings></i> menu) to open the system pairing sheet, since pairing on iOS is per-app.',
     noteTitle: 'The keyboard is not detected',
     noteBody:
       'Check that no other software is holding it: a MIDI keyboard cannot always be shared between two applications. A keyboard plugged in after the page opened is picked up on its own, but reloading the page settles most of the remaining cases. On a computer, the MIDI permission can be asked of the browser again if it was once refused.',

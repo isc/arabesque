@@ -82,10 +82,10 @@ describe('which pages install it', () => {
   )
 })
 
-// The ⚙️ menu is the way to every other page, to feedback and to the language
+// The settings menu is the way to every other page, to feedback and to the language
 // switch: an app page without it is a dead end. startAlpine() mounts it; the
 // page says where.
-describe('the ⚙️ menu', () => {
+describe('the settings menu', () => {
   it.each(APP_PAGES)('%s has a place for it', (page) => {
     expect(read(page)).toContain('<div data-menu-slot></div>')
   })

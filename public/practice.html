@@ -118,7 +118,7 @@
       <article class="pt-card pt-stack" x-show="selected" x-cloak>
         <div class="pt-row-between pt-practice-toolbar">
           <h2 x-text="selectedLabel()"></h2>
-          <button type="button" class="pt-icon-button" @click="closeDay()" :aria-label="$t('common.close')">✕</button>
+          <button type="button" class="pt-icon-button" @click="closeDay()" :aria-label="$t('common.close')" data-icon="x"></button>
         </div>
         <template x-if="selectedEntries.length === 0">
           <p class="pt-hint" x-text="$t('practice.noPractice')">Aucune pratique ce jour-là.</p>

@@ -1,6 +1,6 @@
 require_relative 'test_helper'
 
-# The install offer waits in the ⚙️ menu instead of interrupting from a banner —
+# The install offer waits in the settings menu instead of interrupting from a banner —
 # so what needs a browser is that the entry appears exactly when the browser has
 # something to offer, and goes when it doesn't. The manifest that makes Chrome
 # offer anything in the first place is a static file, checked without a browser

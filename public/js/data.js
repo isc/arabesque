@@ -2,7 +2,7 @@
 // sign-in, and deleting the account again).
 //
 // This page is the home for everything data-related: who the data belongs to
-// on this device (profiles.js), the export/import that used to live in the ⚙️
+// on this device (profiles.js), the export/import that used to live in the settings
 // menu, and signing in by email (see supabaseClient.js). Signing in is what
 // turns cloud sync on; this page is where that becomes true for the device,
 // every profile on it included.

@@ -3,7 +3,7 @@
 // Chrome decides on its own when a site is installable and then fires
 // beforeinstallprompt. Calling preventDefault() on it suppresses Chrome's own
 // mini-infobar and hands us the event to fire later — which is the whole point
-// here: the offer moves into the ⚙️ menu, where someone finds it when they are
+// here: the offer moves into the settings menu, where someone finds it when they are
 // looking for it, instead of a banner over the library.
 //
 // The event fires once, and can fire before Alpine has booted, so it is caught

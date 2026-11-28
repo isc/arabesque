@@ -93,7 +93,7 @@ class DataTest < CapybaraTestBase
       attach_file 'backup-import', backup_file.path, make_visible: true
     end
 
-    assert_includes alert_message, '❌ Erreur lors de l\'import'
+    assert_includes alert_message, 'Erreur lors de l\'import'
     assert_includes alert_message, 'Invalid backup data format'
 
     backup_file.unlink
