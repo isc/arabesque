@@ -201,7 +201,7 @@ cp public/icons/icon-512.png public/icons/icon-maskable-512.png
 
 La troisième est la variante `maskable` : Android découpe l'icône à la forme du
 lanceur, en ne garantissant que le cercle central de 80 % du côté. Le gruppetto
-tient dans ce cercle (il s'arrête à 69 % du demi-côté) et le fond est à plein
+tient dans ce cercle (il s'arrête à 71 % du demi-côté) et le fond est à plein
 bord, donc la même image sert : un dessin qui s'élargirait devrait y être
 réduit.
 
