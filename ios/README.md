@@ -194,16 +194,18 @@ PNG 1024, et se regénèrent avec lui :
 
 ```bash
 SRC=ios/Arabesque/Assets.xcassets/AppIcon.appiconset/icon-1024.png
-convert $SRC -resize 192x192 public/icons/icon-192-v2.png
-convert $SRC -resize 512x512 public/icons/icon-512-v2.png
-cp public/icons/icon-512-v2.png public/icons/icon-maskable-512-v2.png
+convert $SRC -resize 192x192 public/icons/icon-192.png
+convert $SRC -resize 512x512 public/icons/icon-512.png
+cp public/icons/icon-512.png public/icons/icon-maskable-512.png
 ```
 
-Le `-v2` des noms compte : **une icône redessinée change de nom de fichier**
-(`-v3`, et le manifeste avec). Chrome régénère une PWA Android installée quand
-son manifeste change, mais une image remplacée à la même adresse ne suit pas : le
-Tablito d'Ivan a gardé deux mois une icône remplacée à la même adresse, mise à
-jour du 4 novembre 2026 comprise (`chrome://webapks`).
+Une app déjà installée depuis Chrome sur Android **garde l'icône de son
+installation** : Chrome compare l'ancienne et la nouvelle, et au-delà de 11 %
+de différence environ il garde l'ancienne, sans dialogue ni erreur, tout en
+mettant à jour le reste du manifeste (`WEB_APK_ICON_UPDATE_BLOCKED_AT_PERCENTAGE`
+dans `WebApkUpdateManager.java` de Chromium). `chrome://webapks` affiche alors
+« Succeeded ». Renommer les fichiers n'y change rien — essayé le 2026-11-28 ;
+seule une désinstallation suivie d'une réinstallation donne la nouvelle icône.
 
 La troisième est la variante `maskable` : Android découpe l'icône à la forme du
 lanceur, en ne garantissant que le cercle central de 80 % du côté. Le gruppetto
