@@ -1,4 +1,4 @@
-// Shared header chrome — the ⚙️ menu and its modals, identical on every page
+// Shared header chrome — the settings menu and its modals, identical on every page
 // that carries it.
 //
 // Every page of the app gets the exact same menu (load a score, what's new,
@@ -15,15 +15,15 @@
 // Page-specific seam (kept out of here): feedbackContext() — extra,
 // non-identifying context merged into a report (practice stats on the library,
 // current score on the score page).
-import { CHANGELOG } from './changelog.js?v=087c6f6132e8'
-import { startOfLocalDay } from './days.js?v=087c6f6132e8'
-import { feedbackEnabled, buildBaseContext, submitFeedback, defaultFeedbackEmail } from './feedback.js?v=087c6f6132e8'
-import { getLang, locale } from './i18n.js?v=087c6f6132e8'
-import { INSTALL_AVAILABLE_EVENT, installAvailable, promptInstall } from './installPrompt.js?v=087c6f6132e8'
-import { nativePairingAvailable, openNativePairing } from './midi.js?v=087c6f6132e8'
-import { keyHintAllowed, storeKeyHintAllowed } from './keyHintSetting.js?v=087c6f6132e8'
-import { recordError } from './errorLog.js?v=087c6f6132e8'
-import { openPreviews, previewSlug, previewUrl, previewsWanted, productionUrl } from './previews.js?v=087c6f6132e8'
+import { CHANGELOG } from './changelog.js?v=2ac0696577f6'
+import { startOfLocalDay } from './days.js?v=2ac0696577f6'
+import { feedbackEnabled, buildBaseContext, submitFeedback, defaultFeedbackEmail } from './feedback.js?v=2ac0696577f6'
+import { getLang, locale } from './i18n.js?v=2ac0696577f6'
+import { INSTALL_AVAILABLE_EVENT, installAvailable, promptInstall } from './installPrompt.js?v=2ac0696577f6'
+import { nativePairingAvailable, openNativePairing } from './midi.js?v=2ac0696577f6'
+import { keyHintAllowed, storeKeyHintAllowed } from './keyHintSetting.js?v=2ac0696577f6'
+import { recordError } from './errorLog.js?v=2ac0696577f6'
+import { openPreviews, previewSlug, previewUrl, previewsWanted, productionUrl } from './previews.js?v=2ac0696577f6'
 
 const CHANGELOG_SEEN_KEY = 'arabesque:changelog-seen'
 const CHANGELOG_DATE_FORMATTER = new Intl.DateTimeFormat(locale(), {
@@ -163,7 +163,7 @@ export function headerMenu() {
       // visit ever opens the form. Nothing waits on the result — null,
       // from a capture that failed or a browser that could not make one, simply
       // means the form offers no picture and the report goes as words alone.
-      const { captureViewport } = await import('./screenshot.js?v=087c6f6132e8')
+      const { captureViewport } = await import('./screenshot.js?v=2ac0696577f6')
       this.feedbackShot = await captureViewport()
     },
 
@@ -202,7 +202,7 @@ export function headerMenu() {
   }
 }
 
-// The ⚙️ trigger + popover. Replaces a [data-menu-slot] placeholder so it lands
+// The settings trigger + popover. Replaces a [data-menu-slot] placeholder so it lands
 // exactly where each page wants it in the header.
 const TRIGGER_HTML = `
 <div class="pt-popover-anchor"
@@ -290,7 +290,7 @@ const MODALS_HTML = `
     <div class="pt-modal-body">
     <template x-if="feedbackStatus === 'sent'">
       <div>
-        <p x-text="$t('feedback.thanks')">Merci, c’est bien reçu ! 🙏</p>
+        <p x-text="$t('feedback.thanks')">Merci, c’est bien reçu !</p>
         <footer>
           <button type="button" @click="closeFeedback()" x-text="$t('common.close')">Fermer</button>
         </footer>

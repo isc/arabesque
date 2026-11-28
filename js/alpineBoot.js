@@ -1,5 +1,5 @@
 // How every app page boots Alpine. In order:
-// - the markup the page builds from modules goes in — the ⚙️ menu
+// - the markup the page builds from modules goes in — the settings menu
 //   (headerMenu.js), which every app page carries, and on a branch preview
 //   the strip back to production (previews.js), then the page's own
 //   (journalEntries.js, bpmField.js) — for Alpine to find its bindings and
@@ -12,9 +12,9 @@
 //   Alpine evaluates `x-data`, however slow the page's import graph is to
 //   resolve. Otherwise Alpine can win the race and every expression throws
 //   "<name> is not defined".
-import { initI18n, t, tn } from './i18n.js?v=087c6f6132e8'
-import { mountHeaderMenu } from './headerMenu.js?v=087c6f6132e8'
-import { mountPreviewStrip } from './previews.js?v=087c6f6132e8'
+import { initI18n, t, tn } from './i18n.js?v=2ac0696577f6'
+import { mountHeaderMenu } from './headerMenu.js?v=2ac0696577f6'
+import { mountPreviewStrip } from './previews.js?v=2ac0696577f6'
 
 const ALPINE = 'vendor/alpinejs.3.14.9.min.js'
 

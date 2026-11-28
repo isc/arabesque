@@ -200,10 +200,10 @@ export default {
     exercises: '{n} exercices',
     timesPlayed: '{n}× joué',
     timesPlayedOneHand: '{n}× une main',
-    importOk: '✅ Sauvegarde importée avec succès !\n\n{sessions} session(s) importée(s)\n{fingerings} doigté(s) importé(s)',
-    importError: "❌ Erreur lors de l'import : {error}",
-    exportOk: '✅ Sauvegarde exportée avec succès !',
-    exportError: "❌ Erreur lors de l'export : {error}",
+    importOk: 'Sauvegarde importée avec succès !\n\n{sessions} session(s) importée(s)\n{fingerings} doigté(s) importé(s)',
+    importError: "Erreur lors de l'import : {error}",
+    exportOk: 'Sauvegarde exportée avec succès !',
+    exportError: "Erreur lors de l'export : {error}",
   },
   feedback: {
     title: 'Votre avis',
@@ -217,7 +217,7 @@ export default {
     screenshotAlt: 'Aperçu de l’image jointe',
     privacy: 'Votre message est envoyé avec un contexte technique (version de l’app, navigateur et système, taille d’écran, langue, erreurs rencontrées dans l’heure, et selon la page le morceau ouvert ou vos totaux de pratique) pour m’aider à reproduire les problèmes, et avec l’image de l’écran si la case est cochée. Rien d’autre, et aucun lien avec un compte.',
     send: 'Envoyer',
-    thanks: 'Merci, c’est bien reçu ! 🙏',
+    thanks: 'Merci, c’est bien reçu !',
     error: 'L’envoi a échoué.',
   },
   practice: {
@@ -547,7 +547,7 @@ export default {
     step3Title: 'Jouez et progressez',
     step3Body:
       'Suivez les notes qui défilent, laissez le retour en temps réel vous guider, et retrouvez vos progrès dans le journal de pratique.',
-    android: 'Sur Android, ouvrez la bibliothèque dans Chrome, puis ⚙️ → Installer l’application.',
+    android: 'Sur Android, ouvrez la bibliothèque dans Chrome, puis <i data-icon=settings></i> → Installer l’application.',
     footer: 'Arabesque · partitions du domaine public · vos données restent sur votre appareil, sauf à les synchroniser.',
   },
   privacy: {
@@ -580,7 +580,7 @@ export default {
       'Les données synchronisées sont conservées tant que le compte existe, et disparaissent avec lui. Les avis sont conservés le temps de traiter la demande et de garder la trace des corrections apportées.',
     rightsTitle: 'Vos droits',
     rightsBody:
-      "Vous pouvez à tout moment consulter et exporter vos données depuis la page Données, et supprimer votre compte avec tout ce qu'il contient. Pour la suppression d'un avis, ou pour toute question sur vos données, passez par le formulaire d'avis (menu ⚙️) — il arrive dans la même boîte.",
+      "Vous pouvez à tout moment consulter et exporter vos données depuis la page Données, et supprimer votre compte avec tout ce qu'il contient. Pour la suppression d'un avis, ou pour toute question sur vos données, passez par le formulaire d'avis (menu <i data-icon=settings></i>) — il arrive dans la même boîte.",
     childrenTitle: 'Enfants',
     childrenBody:
       "Arabesque n'est pas destiné aux enfants de moins de 13 ans et ne leur demande sciemment aucune donnée. L'app s'utilise entièrement sans compte.",
@@ -588,15 +588,15 @@ export default {
     changesBody:
       "Cette page évolue avec l'application. La date de mise à jour en haut indique la dernière version ; un changement qui vous concerne sera annoncé dans les « Nouveautés ».",
   },
-  // Branch previews, opened from the ⚙️ menu (previews.js).
+  // Branch previews, opened from the settings menu (previews.js).
   previews: {
     heading: 'Préversions',
     production: '↩︎ Version publiée',
     none: 'Aucune préversion ouverte.',
     unavailable: 'La liste des préversions n’a pas pu se charger.',
-    strip: '🧪 Préversion',
+    strip: 'Préversion',
     back: 'Revenir à la version publiée',
-    shown: 'préversions affichées dans le menu ⚙️',
+    shown: 'préversions affichées dans le menu',
     hidden: 'préversions masquées',
   },
   notFound: {
@@ -608,12 +608,12 @@ export default {
     back: '← Bibliothèque',
     contactTitle: 'Poser une question, signaler un bug',
     contactBody:
-      "Le formulaire d'avis est le chemin le plus court : ouvrez le menu ⚙️ depuis la bibliothèque ou une partition, puis « Avis ». Un bug, une idée, une partition qui manque — tout arrive au même endroit. Laissez votre e-mail si vous attendez une réponse ; sans lui, le message est anonyme et sans retour possible.",
+      "Le formulaire d'avis est le chemin le plus court : ouvrez le menu <i data-icon=settings></i> depuis la bibliothèque ou une partition, puis « Avis ». Un bug, une idée, une partition qui manque — tout arrive au même endroit. Laissez votre e-mail si vous attendez une réponse ; sans lui, le message est anonyme et sans retour possible.",
     keyboardTitle: 'Brancher un clavier',
     keyboardBody:
       "Arabesque écoute le clavier via le Web MIDI, en USB comme en Bluetooth. Sur ordinateur, il faut un navigateur qui le prenne en charge : Chrome, Edge ou Opera. Safari et Firefox ne l'implémentent pas, et l'app le signale plutôt que de rester muette.",
     keyboardIos:
-      "Sur iPhone et iPad, aucun navigateur n'a le Web MIDI : c'est l'app Arabesque qui fait le pont avec le clavier. En USB, branchez-le et c'est tout ; en Bluetooth, touchez « Connecter clavier MIDI » (en haut d'une partition, ou dans le menu ⚙️) pour ouvrir l'appairage du système, l'appairage étant propre à chaque app sur iOS.",
+      "Sur iPhone et iPad, aucun navigateur n'a le Web MIDI : c'est l'app Arabesque qui fait le pont avec le clavier. En USB, branchez-le et c'est tout ; en Bluetooth, touchez « Connecter clavier MIDI » (en haut d'une partition, ou dans le menu <i data-icon=settings></i>) pour ouvrir l'appairage du système, l'appairage étant propre à chaque app sur iOS.",
     noteTitle: "Le clavier n'est pas détecté",
     noteBody:
       "Vérifiez qu'aucun autre logiciel ne l'occupe : un clavier MIDI ne se partage pas toujours entre deux applications. Un clavier branché après l'ouverture de la page est reconnu tout seul, mais recharger la page règle la plupart des cas restants. Sur ordinateur, l'autorisation MIDI se redemande au navigateur si elle a été refusée une fois.",

@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="app-version" content="087c6f6132e8" />
+    <meta name="app-version" content="2ac0696577f6" />
     <title data-i18n="landing.pageTitle">Arabesque · Apprenez le piano avec un retour en temps réel</title>
     <meta
       name="description"
@@ -47,20 +47,20 @@
         /* localStorage unavailable: just show the landing. */
       }
     </script>
-    <link rel="stylesheet" href="styles.css?v=087c6f6132e8" />
+    <link rel="stylesheet" href="styles.css?v=2ac0696577f6" />
     <!-- preloads: written at deploy by scripts/preload-modules.mjs -->
-    <link rel="modulepreload" href="js/errorLog.js?v=087c6f6132e8" />
-    <link rel="modulepreload" href="js/appStore.js?v=087c6f6132e8" />
-    <link rel="modulepreload" href="js/i18n.js?v=087c6f6132e8" />
-    <link rel="modulepreload" href="js/locales/fr.js?v=087c6f6132e8" />
-    <link rel="modulepreload" href="js/locales/en.js?v=087c6f6132e8" />
-    <link rel="modulepreload" href="js/legacyKeys.js?v=087c6f6132e8" />
+    <link rel="modulepreload" href="js/errorLog.js?v=2ac0696577f6" />
+    <link rel="modulepreload" href="js/appStore.js?v=2ac0696577f6" />
+    <link rel="modulepreload" href="js/i18n.js?v=2ac0696577f6" />
+    <link rel="modulepreload" href="js/locales/fr.js?v=2ac0696577f6" />
+    <link rel="modulepreload" href="js/locales/en.js?v=2ac0696577f6" />
+    <link rel="modulepreload" href="js/legacyKeys.js?v=2ac0696577f6" />
     <!-- /preloads -->
-    <script type="module" src="js/errorLog.js?v=087c6f6132e8"></script>
+    <script type="module" src="js/errorLog.js?v=2ac0696577f6"></script>
     <script type="module" src="js/version.js"></script>
-    <script type="module" src="js/appStore.js?v=087c6f6132e8"></script>
+    <script type="module" src="js/appStore.js?v=2ac0696577f6"></script>
     <script type="module">
-      import { initI18n, getLang } from './js/i18n.js?v=087c6f6132e8'
+      import { initI18n, getLang } from './js/i18n.js?v=2ac0696577f6'
       initI18n()
       // Serve the hero video for the active language, then autoplay it unless the
       // visitor prefers reduced motion (the poster frame stands in otherwise).
@@ -134,47 +134,47 @@
         </div>
         <div class="pt-card-grid">
           <article class="pt-card pt-feature">
-            <span class="pt-feature__icon">🎹</span>
+            <span class="pt-feature__icon" data-icon="piano" aria-hidden="true"></span>
             <h3 data-i18n="landing.f1Title">Clavier MIDI en un clic</h3>
             <p data-i18n="landing.f1Body">USB ou Bluetooth. Le navigateur détecte le clavier tout seul ; sur iPad, l’appairage Bluetooth s’ouvre depuis l’app.</p>
           </article>
           <article class="pt-card pt-feature">
-            <span class="pt-feature__icon">🎯</span>
+            <span class="pt-feature__icon" data-icon="target" aria-hidden="true"></span>
             <h3 data-i18n="landing.f2Title">Retour note par note</h3>
             <p data-i18n="landing.f2Body">Les notes se colorent en direct : réussie, attendue, hors tempo ou manquée. Vous voyez vos erreurs sans lever les yeux.</p>
           </article>
           <article class="pt-card pt-feature">
-            <span class="pt-feature__icon">📊</span>
+            <span class="pt-feature__icon" data-icon="chart" aria-hidden="true"></span>
             <h3 data-i18n="landing.f3Title">Suivi de pratique</h3>
             <p data-i18n="landing.f3Body">Temps de travail, mesures retravaillées et passages joués en entier sont consignés dans un journal quotidien.</p>
           </article>
           <article class="pt-card pt-feature">
-            <span class="pt-feature__icon">🎚️</span>
+            <span class="pt-feature__icon" data-icon="metronome" aria-hidden="true"></span>
             <h3 data-i18n="landing.f4Title">Modes de travail</h3>
             <p data-i18n="landing.f4Body">Déchiffrage libre, entraînement sur un passage, ou mode strict au métronome, en boucle, le tempo montant à chaque passage propre.</p>
           </article>
           <article class="pt-card pt-feature">
-            <span class="pt-feature__icon">✋</span>
+            <span class="pt-feature__icon" data-icon="hand" aria-hidden="true"></span>
             <h3 data-i18n="landing.f5Title">Doigtés intégrés</h3>
             <p data-i18n="landing.f5Body">Affichez et éditez les doigtés directement sur la partition, empilés dans l'ordre des notes pour les accords.</p>
           </article>
           <article class="pt-card pt-feature">
-            <span class="pt-feature__icon">📚</span>
+            <span class="pt-feature__icon" data-icon="library" aria-hidden="true"></span>
             <h3 data-i18n="landing.f6Title">Bibliothèque classique</h3>
             <p data-i18n="landing.f6Body">70+ partitions du domaine public, des inventions de Bach au Hanon, recherchables en jouant leurs premières notes.</p>
           </article>
           <article class="pt-card pt-feature">
-            <span class="pt-feature__icon">🎧</span>
+            <span class="pt-feature__icon" data-icon="listen" aria-hidden="true"></span>
             <h3 data-i18n="landing.f7Title">Écouter avant de jouer</h3>
             <p data-i18n="landing.f7Body">▶ Écouter joue le morceau au tempo que vous choisissez, à partir de la mesure de votre choix.</p>
           </article>
           <article class="pt-card pt-feature">
-            <span class="pt-feature__icon">📶</span>
+            <span class="pt-feature__icon" data-icon="offline" aria-hidden="true"></span>
             <h3 data-i18n="landing.f8Title">Hors ligne, sur tous vos appareils</h3>
             <p data-i18n="landing.f8Body">Une partition ouverte une fois reste disponible sans réseau. Connecté, votre pratique vous suit de l’iPad au téléphone.</p>
           </article>
           <article class="pt-card pt-feature">
-            <span class="pt-feature__icon">👥</span>
+            <span class="pt-feature__icon" data-icon="users" aria-hidden="true"></span>
             <h3 data-i18n="landing.f9Title">Un profil par pianiste</h3>
             <p data-i18n="landing.f9Body">Sur un appareil partagé, chacun garde son journal, ses statuts et ses doigtés.</p>
           </article>
@@ -209,7 +209,7 @@
         <p class="pt-section__store" data-app-store hidden>
           <a href="https://apps.apple.com/app/id6800314187" data-i18n="common.appStore">Arabesque pour iPhone et iPad, sur l'App Store</a>
           <br />
-          <span data-i18n="landing.android">Sur Android, ouvrez la bibliothèque dans Chrome, puis ⚙️ → Installer l’application.</span>
+          <span data-i18n-html="landing.android">Sur Android, ouvrez la bibliothèque dans Chrome, puis <i data-icon=settings></i> → Installer l’application.</span>
         </p>
       </section>
 
