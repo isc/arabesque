@@ -194,10 +194,16 @@ PNG 1024, et se regénèrent avec lui :
 
 ```bash
 SRC=ios/Arabesque/Assets.xcassets/AppIcon.appiconset/icon-1024.png
-convert $SRC -resize 192x192 public/icons/icon-192.png
-convert $SRC -resize 512x512 public/icons/icon-512.png
-cp public/icons/icon-512.png public/icons/icon-maskable-512.png
+convert $SRC -resize 192x192 public/icons/icon-192-v2.png
+convert $SRC -resize 512x512 public/icons/icon-512-v2.png
+cp public/icons/icon-512-v2.png public/icons/icon-maskable-512-v2.png
 ```
+
+Le `-v2` des noms compte : **une icône redessinée change de nom de fichier**
+(`-v3`, et le manifeste avec). Chrome régénère une PWA Android installée quand
+son manifeste change, mais une image remplacée à la même adresse ne suit pas : le
+Tablito d'Ivan a gardé deux mois une icône remplacée à la même adresse, mise à
+jour du 4 novembre 2026 comprise (`chrome://webapks`).
 
 La troisième est la variante `maskable` : Android découpe l'icône à la forme du
 lanceur, en ne garantissant que le cercle central de 80 % du côté. Le gruppetto
