@@ -180,11 +180,14 @@ favicon donnerait un double arrondi) et l'image n'a pas de canal alpha. Pour la
 regénérer après un changement de favicon :
 
 ```bash
-rsvg-convert -w 1024 -h 1024 -b '#1095c1' icon.svg -o \
+sed 's/ rx="224"//' public/favicon.svg > icon.svg
+rsvg-convert -w 1024 -h 1024 icon.svg -o \
   ios/Arabesque/Assets.xcassets/AppIcon.appiconset/icon-1024.png
 ```
 
-où `icon.svg` est le favicon dont on a retiré le `rx` du rectangle de fond.
+`icon.svg` est le favicon sans le `rx` du rectangle de fond. Sans
+`rsvg-convert`, une capture de `icon.svg` à 1024 px dans un navigateur
+(`playwright-cli screenshot`) puis `convert -alpha off` donne le même fichier.
 
 Les icônes d'installation Android (`public/icons/`) dérivent à leur tour de ce
 PNG 1024, et se regénèrent avec lui :
@@ -193,15 +196,14 @@ PNG 1024, et se regénèrent avec lui :
 SRC=ios/Arabesque/Assets.xcassets/AppIcon.appiconset/icon-1024.png
 convert $SRC -resize 192x192 public/icons/icon-192.png
 convert $SRC -resize 512x512 public/icons/icon-512.png
-convert $SRC -resize 400x400 -background '#1095c1' -gravity center \
-  -extent 512x512 public/icons/icon-maskable-512.png
+cp public/icons/icon-512.png public/icons/icon-maskable-512.png
 ```
 
 La troisième est la variante `maskable` : Android découpe l'icône à la forme du
-lanceur, en ne garantissant que le cercle central de 80 % du côté. Le clavier
-touche ce cercle dans l'icône pleine, d'où le redimensionnement à 400 px (78 %)
-recentré sur le même fond — sans quoi ses angles seraient rognés. Les deux
-autres sont marquées `any` et gardent le cadrage d'origine.
+lanceur, en ne garantissant que le cercle central de 80 % du côté. Le gruppetto
+tient dans ce cercle (il s'arrête à 71 % du demi-côté) et le fond est à plein
+bord, donc la même image sert : un dessin qui s'élargirait devrait y être
+réduit.
 
 ## Publier sur TestFlight
 
