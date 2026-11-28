@@ -1,5 +1,10 @@
 [
   {
+    "number": 572,
+    "title": "Say the tempo a free run held when the piece is played through",
+    "slug": "claude-free-run-estimated-bpm"
+  },
+  {
     "number": 570,
     "title": "Replace the keyboard icon with a turn on the app's indigo",
     "slug": "claude-app-icon-proposal-d9b0bf"
