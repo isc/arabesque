@@ -38,7 +38,7 @@
 // again, the icons' masks included. Animations and transitions are put at
 // their end (AT_REST); the fetching is what drawSettled waits out.
 
-import { recordError } from './errorLog.js?v=9e312f5c07e5'
+import { recordError } from './errorLog.js?v=8e1545852b35'
 
 const XHTML_NS = 'http://www.w3.org/1999/xhtml'
 const SVG_NS = 'http://www.w3.org/2000/svg'

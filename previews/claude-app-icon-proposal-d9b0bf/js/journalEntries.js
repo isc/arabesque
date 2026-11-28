@@ -14,9 +14,9 @@
 //
 // The component behind it spreads journalEntryHelpers, below: every helper the
 // markup calls.
-import { playthroughGroups } from './hands.js?v=9e312f5c07e5'
-import { withRunKind, scorePageUrl, formatDuration } from './utils.js?v=9e312f5c07e5'
-import { t, tn } from './i18n.js?v=9e312f5c07e5'
+import { playthroughGroups } from './hands.js?v=8e1545852b35'
+import { withRunKind, scorePageUrl, formatDuration } from './utils.js?v=8e1545852b35'
+import { t, tn } from './i18n.js?v=8e1545852b35'
 
 // Alpine expressions read the component's scope, not this module's, so the
 // helpers the markup calls are spread into both pages' data.
