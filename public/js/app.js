@@ -990,6 +990,7 @@ export function midiApp() {
           // engine the run covers the whole score, so the journal sees it.
           startMeasureIndex: start ?? 0,
           endMeasureIndex: end,
+          staysPut: () => musicxml.passageStaysPut(start ?? 0, end),
           from,
           owes,
           onAttemptStarted: () => this.attemptStarted(),

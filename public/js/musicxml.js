@@ -361,6 +361,7 @@ export function initMusicXML() {
       targetRepeatCount,
     }),
     scrollToMeasure,
+    passageStaysPut,
     // The training cursor and repeat dots live in the SVG, so a redraw takes
     // them with it. No-op outside training mode.
     updateMeasureCursor,
@@ -1787,18 +1788,27 @@ function scrollToNextMeasureIfNeeded(nextIndex) {
   // carries its dots under the sticky bars, with nothing else to bring them back.
   const dotsTop = repeatIndicatorsTopY(nextIndex)
   const dotsHidden = dotsTop !== null && isUnderStickyBars(dotsTop)
-  if (dotsHidden || (systemChanged && !staysInView(nextIndex))) scrollToMeasure(nextIndex)
+  if (dotsHidden || (systemChanged && !passageStaysPut(training.start, training.end))) scrollToMeasure(nextIndex)
   if (systemChanged || dotsHidden) cursor.systemIndex = nextSystemIndex
 }
 
-// A passage played again and again leaves the page where it is while the bar
-// it moves on to is all on screen: one across two systems that both fit went
-// up and down with every repetition (feedback 029831ab).
-function staysInView(measureIndex) {
-  return training.end != null && measureRects(measureIndex).every((rect) => {
-    const { top, bottom } = rect.getBoundingClientRect()
-    return isInFullView(top, bottom)
-  })
+// Whether the page is left where it is as the passage from `first` to `last`
+// moves on to another system: when it is played again and again — it has an
+// end — and all of it is on screen. One across two systems that both fit went
+// up and down with every repetition (feedback 029831ab). All of its bars, not
+// the one being moved onto: a passage on three systems, two of them fitting,
+// then held the page on the first while the second was played, the third cut
+// off below with nothing to read ahead in (feedback 811f413a). One that does
+// not fit is followed a system at a time, as free play is.
+function passageStaysPut(first, last) {
+  if (last == null) return false
+  for (let index = first; index <= last; index++) {
+    for (const rect of measureRects(index)) {
+      const { top, bottom } = rect.getBoundingClientRect()
+      if (!isInFullView(top, bottom)) return false
+    }
+  }
+  return true
 }
 
 // Moves the training cursor onto `to` and opens the measure there. What the

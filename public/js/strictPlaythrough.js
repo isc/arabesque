@@ -173,6 +173,9 @@ function start({
   startMeasureIndex = 0,
   // Inclusive; the run goes to the end of the score by default.
   endMeasureIndex = null,
+  // Whether the page is to be left where it is as the cursor changes system
+  // (scheduleCursorAdvances).
+  staysPut,
   onComplete,
   onProgress,
   onCountIn,
@@ -334,7 +337,7 @@ function start({
     const before = Math.max(0, cursorTimes.findIndex((ms) => ms >= countInMs - 1))
     timeouts.push(...scheduleCursorAdvances(osmdInstance.cursor, cursorTimes.slice(before), {
       skipSteps: cursorSkipSteps + before,
-      keepInView: endMeasureIndex != null,
+      staysPut,
     }))
   }
 
