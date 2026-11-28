@@ -1,4 +1,4 @@
-import { fileNumbering } from './fingeringKeys.js?v=7d4c6c56833e'
+import { fileNumbering } from './fingeringKeys.js?v=b1b87c4c1799'
 
 function getElementInt(parent, tagName, defaultValue) {
   const el = parent.querySelector(tagName)
