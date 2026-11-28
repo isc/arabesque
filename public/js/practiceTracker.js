@@ -451,9 +451,12 @@ export function initPracticeTracker(storageInstance = null) {
     ensureAggregateTitle(currentSession)
   }
 
-  function markScoreCompleted() {
+  // `pace` is the one a free run held (playthroughOf); a run to the click has
+  // its tempo in its verdict instead.
+  function markScoreCompleted({ pace } = {}) {
     if (!currentSession) return
     currentSession.completedAt = new Date().toISOString()
+    if (pace) currentSession.pace = pace
   }
 
   // Files a strict run into the session under way: its measures as attempts,

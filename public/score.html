@@ -433,7 +433,7 @@
               </p>
               <p x-show="resultFigure" class="pt-modal-stat pt-modal-stat--hero">
                 <strong x-text="resultFigure"></strong>
-                <span x-text="$t('score.runTime')">pour la jouer en entier</span>
+                <span x-text="resultFigureCaption">pour la jouer en entier</span>
               </p>
               <ul x-show="resultFaults.length > 0" class="pt-fault-chips" data-testid="result-faults">
                 <template x-for="fault in resultFaults" :key="fault.key">

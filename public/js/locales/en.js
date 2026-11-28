@@ -387,6 +387,7 @@ export default {
     holesOne: '{n} hole',
     noHole: 'no holes',
     runTime: 'to play it through',
+    runTimeAtBpm: 'to play it through, at about {bpm} BPM',
     recordTime: 'Time record',
     recordWrongNotes: 'Wrong-note record',
     recordHoles: 'Hole record',
