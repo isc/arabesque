@@ -9,8 +9,8 @@
 // One key for both, holding the day of the ✕ or NEVER: letting it back clears
 // either. Kept out of keyboardHint.js because the menu, on every page, needs
 // only this.
-import { localDayKey } from './days.js?v=878830d9727b'
-import { scopedKey } from './profiles.js?v=878830d9727b'
+import { localDayKey } from './days.js?v=2d3aaa85c8cd'
+import { scopedKey } from './profiles.js?v=2d3aaa85c8cd'
 
 const KEY = scopedKey('arabesque:keyhint-dismissed')
 const NEVER = 'never'
