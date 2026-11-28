@@ -29,6 +29,12 @@ describe('playthroughOf (interruption normalization)', () => {
     }
   }
 
+  it('hands over the pace a free run held, and none for a run that kept none', () => {
+    const session = buildPlaythrough([{ dur: 5000 }])
+    expect(playthroughOf({ ...session, pace: 2400 }).pace).toBe(2400)
+    expect(playthroughOf(session).pace).toBeNull()
+  })
+
   it('leaves an uninterrupted playthrough unchanged (equals wall-clock)', () => {
     const session = buildPlaythrough([
       { dur: 5000 },

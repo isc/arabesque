@@ -28,6 +28,19 @@ class PracticeTrackingTest < CapybaraTestBase
     assert_selector 'tr.is-current', text: 'sans faute'
   end
 
+  # A free run says the tempo it held, in the BPM strict mode counts in
+  # (feedback 517cc87c). steady-quavers.xml is two bars of quavers in 4/4, up
+  # the scale of C and back: one every 300ms is a crotchet every 600ms.
+  def test_score_complete_modal_says_the_tempo_a_free_run_held
+    open_score('steady-quavers', 16)
+    scale = %w[C4 D4 E4 F4 G4 A4 B4 C5]
+
+    with_clock_control do
+      play_evenly(scale + scale.reverse, gap: 300)
+    end
+    assert_selector 'dialog[open] .pt-modal-stat--hero', text: 'pour la jouer en entier, à 100 BPM environ'
+  end
+
   # A free run's wrong notes and holes sit beside its time in the ranking, and
   # under its time at the top, with the measures they fell in (feedback
   # a01bf6cb, 1e84f2eb).

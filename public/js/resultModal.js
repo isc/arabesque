@@ -8,6 +8,7 @@ import { t } from './i18n.js'
 import { TWO_HANDS } from './hands.js'
 import { withHands, passageText } from './utils.js'
 import { CLEAN_RATE } from './tempoTrainer.js'
+import { crotchetsPerMinute } from './noteLogAnalysis.js'
 import {
   strictAccuracy,
   strictRunLabel,
@@ -43,6 +44,9 @@ export function resultModal({ onOpen }) {
     // The run's headline figure when its verdict is not one (a free run's
     // time), and what it lost, with where (faultChips).
     resultFigure: null,
+    // What that figure is, with the tempo a free run held where it kept one,
+    // in the BPM strict mode counts in.
+    resultFigureCaption: '',
     resultFaults: [],
     // What the run did for the piece's goals (goalNews in pieceGoals.js).
     resultGoalNews: null,
@@ -66,6 +70,9 @@ export function resultModal({ onOpen }) {
       this.resultOtherTempi = otherTempi(allPlaythroughs)
       this.resultRecords = runRecords(allPlaythroughs)
       this.resultFigure = !verdict && latest ? runFigure(latest) : null
+      this.resultFigureCaption = latest?.pace
+        ? t('score.runTimeAtBpm', { bpm: crotchetsPerMinute(latest.pace) })
+        : t('score.runTime')
       this.resultFaults = faultChips({
         run: latest,
         verdict,

@@ -465,8 +465,8 @@ export function midiApp() {
     // notes, the end of a drill, a bar clicked.
     wireScoreEngine() {
       musicxml.setCallbacks({
-        onScoreCompleted: async () => {
-          practiceTracker.markScoreCompleted()
+        onScoreCompleted: async ({ pace }) => {
+          practiceTracker.markScoreCompleted({ pace })
           await rollSession(this.currentMode)
 
           window.scrollTo({ top: 0, behavior: 'smooth' })

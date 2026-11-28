@@ -1884,8 +1884,8 @@ function advanceTraining(next, goesOn) {
 }
 
 // Free play walks on down the score, a measure at a time, and a run that
-// reaches its end is over.
-function advanceFreePlay(measureData, next, goesOn) {
+// reaches its end is over: `pace` is the one it held (playthroughOf).
+function advanceFreePlay(measureData, next, goesOn, pace) {
   playedSourceMeasures.add(measureData.sourceMeasureIndex)
 
   if (goesOn) {
@@ -1905,7 +1905,7 @@ function advanceFreePlay(measureData, next, goesOn) {
   // still adds up after the hand toggles moved mid-way through it.
   const owed = score.allNotes.filter((m) => m.notes.some(isNoteOwed))
   if (owed.every((m) => playedSourceMeasures.has(m.sourceMeasureIndex))) {
-    callbacks.onScoreCompleted?.(cursor.measureIndex)
+    callbacks.onScoreCompleted?.({ pace })
   }
   backToTheTopAfterTheBeat()
 }
@@ -1934,10 +1934,12 @@ function handleNoteValidated(measureData, group, { struck = true } = {}) {
   const goesOn = runsOn(next)
   // What a finished traversal left pending is judged before the journal files
   // the measure and the mode reads the verdict to bank its dot.
+  // Its pace is read first: closing it starts the count over.
+  const pace = steadiness.meanPace
   if (!goesOn) applySteadiness(steadiness.close())
   callbacks.onMeasureCompleted?.()
 
-  if (!training.on) advanceFreePlay(measureData, next, goesOn)
+  if (!training.on) advanceFreePlay(measureData, next, goesOn, pace)
   else advanceTraining(next, goesOn)
 }
 

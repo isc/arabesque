@@ -136,6 +136,10 @@ export function playthroughOf(session) {
     hands: playthroughHands(attempts),
     ...playthroughWrongNotes(attempts),
     holes: playthroughHoles(attempts),
+    // The pace a free run held, in ms per whole note (steadiness' meanPace),
+    // since the hands last changed if they did; null for a run to the click,
+    // and for one from before it was kept.
+    pace: session.pace ?? null,
     // The strict engine's verdict on the run, for a run played to the
     // metronome; a free run has none.
     strict: session.strict ?? null,
