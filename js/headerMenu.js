@@ -15,15 +15,15 @@
 // Page-specific seam (kept out of here): feedbackContext() — extra,
 // non-identifying context merged into a report (practice stats on the library,
 // current score on the score page).
-import { CHANGELOG } from './changelog.js?v=2ac0696577f6'
-import { startOfLocalDay } from './days.js?v=2ac0696577f6'
-import { feedbackEnabled, buildBaseContext, submitFeedback, defaultFeedbackEmail } from './feedback.js?v=2ac0696577f6'
-import { getLang, locale } from './i18n.js?v=2ac0696577f6'
-import { INSTALL_AVAILABLE_EVENT, installAvailable, promptInstall } from './installPrompt.js?v=2ac0696577f6'
-import { nativePairingAvailable, openNativePairing } from './midi.js?v=2ac0696577f6'
-import { keyHintAllowed, storeKeyHintAllowed } from './keyHintSetting.js?v=2ac0696577f6'
-import { recordError } from './errorLog.js?v=2ac0696577f6'
-import { openPreviews, previewSlug, previewUrl, previewsWanted, productionUrl } from './previews.js?v=2ac0696577f6'
+import { CHANGELOG } from './changelog.js?v=7d4c6c56833e'
+import { startOfLocalDay } from './days.js?v=7d4c6c56833e'
+import { feedbackEnabled, buildBaseContext, submitFeedback, defaultFeedbackEmail } from './feedback.js?v=7d4c6c56833e'
+import { getLang, locale } from './i18n.js?v=7d4c6c56833e'
+import { INSTALL_AVAILABLE_EVENT, installAvailable, promptInstall } from './installPrompt.js?v=7d4c6c56833e'
+import { nativePairingAvailable, openNativePairing } from './midi.js?v=7d4c6c56833e'
+import { keyHintAllowed, storeKeyHintAllowed } from './keyHintSetting.js?v=7d4c6c56833e'
+import { recordError } from './errorLog.js?v=7d4c6c56833e'
+import { openPreviews, previewSlug, previewUrl, previewsWanted, productionUrl } from './previews.js?v=7d4c6c56833e'
 
 const CHANGELOG_SEEN_KEY = 'arabesque:changelog-seen'
 const CHANGELOG_DATE_FORMATTER = new Intl.DateTimeFormat(locale(), {
@@ -163,7 +163,7 @@ export function headerMenu() {
       // visit ever opens the form. Nothing waits on the result — null,
       // from a capture that failed or a browser that could not make one, simply
       // means the form offers no picture and the report goes as words alone.
-      const { captureViewport } = await import('./screenshot.js?v=2ac0696577f6')
+      const { captureViewport } = await import('./screenshot.js?v=7d4c6c56833e')
       this.feedbackShot = await captureViewport()
     },
 

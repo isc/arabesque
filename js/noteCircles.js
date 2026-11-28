@@ -7,7 +7,7 @@
 // by a fingering entered, and anything kept in pixels would land on another
 // note. So it is drawn from the rendered notehead each time the score is
 // (repaintScore in app.js), the way a fragment's shading is (musicxml.js).
-import { svgNoteheadFor } from './noteExtraction.js?v=2ac0696577f6'
+import { svgNoteheadFor } from './noteExtraction.js?v=7d4c6c56833e'
 
 const SVG_NS = 'http://www.w3.org/2000/svg'
 

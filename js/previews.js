@@ -20,8 +20,8 @@
 // has reviewed, writing into their practice journal, is a trap.
 
 import { APP_VERSION } from './version.js'
-import { t } from './i18n.js?v=2ac0696577f6'
-import { KEY_PREFIX } from './legacyKeys.js?v=2ac0696577f6'
+import { t } from './i18n.js?v=7d4c6c56833e'
+import { KEY_PREFIX } from './legacyKeys.js?v=7d4c6c56833e'
 
 // This build's root, production's or a preview's: the module sits in its js/.
 const BUILD_ROOT = new URL('../', import.meta.url)
