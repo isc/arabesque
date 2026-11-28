@@ -90,11 +90,8 @@ pratique.
 # what an update changes for someone who has the app. Rewrite it for each
 # release. 4000 max.
 WHATS_NEW = """\
-L'app ne se ferme plus en revenant au premier plan quand la fenêtre de \
-connexion Bluetooth était restée ouverte.
-
-Si le clavier n'est pas connecté quand vous revenez dans l'app, la fenêtre de \
-connexion Bluetooth vous est de nouveau proposée.
+Arabesque change d'icône : le clavier laisse la place à un gruppetto, \
+l'ornement en S couché des partitions.
 """
 
 REVIEW_NOTES = """\
