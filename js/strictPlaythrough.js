@@ -1,20 +1,20 @@
-import { scheduleCursorAdvances } from './playback.js?v=59f20a4e5a0c'
+import { scheduleCursorAdvances } from './playback.js?v=878830d9727b'
 import {
   tsToSeconds,
   buildMeasureStartTimes,
   buildCursorTimeline,
   cursorStepsBeforeMeasure,
   measureIndexAt,
-} from './playbackTiming.js?v=59f20a4e5a0c'
-import { handsKey } from './hands.js?v=59f20a4e5a0c'
-import { prepareClick, playClick, clickTrack } from './metronomeClick.js?v=59f20a4e5a0c'
+} from './playbackTiming.js?v=878830d9727b'
+import { handsKey } from './hands.js?v=878830d9727b'
+import { prepareClick, playClick, clickTrack } from './metronomeClick.js?v=878830d9727b'
 import {
   requiredSequence,
   isNoteActiveForHands,
   sourceMeasuresToResetOnEntry,
   svgNoteheadFor,
   handOfNote,
-} from './noteExtraction.js?v=59f20a4e5a0c'
+} from './noteExtraction.js?v=878830d9727b'
 import {
   findMatchingEvent,
   nearestOwedEvent,
@@ -24,7 +24,7 @@ import {
   isGraceStrike,
   EVENT_STATUS,
   CLASSIFICATION,
-} from './strictMatching.js?v=59f20a4e5a0c'
+} from './strictMatching.js?v=878830d9727b'
 
 const DEFAULT_TOLERANCE_MS = 150
 // Notes played beyond the strict tolerance but within this wider window are
