@@ -1,5 +1,10 @@
 [
   {
+    "number": 574,
+    "title": "Give the install icons new file names so installed Android apps take the new icon",
+    "slug": "claude-rename-install-icons"
+  },
+  {
     "number": 217,
     "title": "Add mic mode (beta): play without MIDI via microphone pitch detection",
     "slug": "claude-micro-mode-non-midi-9j1r2l"
