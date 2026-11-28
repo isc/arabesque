@@ -7,7 +7,7 @@
 // its MIDI shim into every page it loads there, a preview's included, so a
 // preview reached from a page of the app plays like production does. This
 // module is that way in, and the way back:
-// - the ⚙️ menu lists the previews still open (previews/index.json, which the
+// - the settings menu lists the previews still open (previews/index.json, which the
 //   preview workflows rebuild: scripts/preview-index.sh), each one opening the
 //   page you are on in that build;
 // - a preview's pages carry a strip that says so, with the same page in
@@ -90,11 +90,11 @@ function togglePreviewsWanted() {
 
 // Inside a page's own markup rather than over it, at the very top, so that it
 // scrolls away with the page: a preview is opened to try a change, and a strip
-// pinned over the score would change what is being tried. The ⚙️ menu has the
+// pinned over the score would change what is being tried. The settings menu has the
 // way back too, for once it has.
 const STRIP_HTML = `
 <div class="pt-preview-strip" role="note">
-  <span data-i18n="previews.strip">🧪 Préversion</span>
+  <span data-icon="preview" data-i18n="previews.strip">Préversion</span>
   <strong class="pt-preview-strip__name"></strong>
   <a href="" data-i18n="previews.back">Revenir à la version publiée</a>
 </div>`

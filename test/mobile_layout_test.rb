@@ -2,13 +2,13 @@ require_relative 'test_helper'
 
 # Phone-width layout. Every assertion here stands for a bug that shipped: on a
 # 390px screen the library table forced the whole page 254px sideways, the score
-# page put the ⚙️ button off-screen, the backup file picker did the same to the
+# page put the settings button off-screen, the backup file picker did the same to the
 # data page, and the engraved title took a third of the width. None of them are
 # visible at desktop width, which is why they lasted.
 class MobileLayoutTest < CapybaraTestBase
   PHONE = [390, 844].freeze # iPhone 13, the narrow end of what the app meets
   # A catalog score, not an uploaded file: only a score with a URL gets the
-  # "Historique" pill, and it is the one that pushed ⚙️ off the right edge.
+  # "Historique" pill, and it is the one that pushed the settings button off the right edge.
   SCORE_URL = 'scores/Waltz_in_A_MinorChopin.mxl'.freeze
 
   # A page wider than the viewport is the failure mode this whole breakpoint
@@ -41,7 +41,7 @@ class MobileLayoutTest < CapybaraTestBase
   end
 
   # The topbar's actions don't shrink, so on a phone they have to wrap onto a
-  # row of their own — otherwise the last one (⚙️) is drawn past the edge.
+  # row of their own — otherwise the last one (the settings button) is drawn past the edge.
   def test_topbar_actions_stay_on_screen
     page.current_window.resize_to(*PHONE)
     visit "/score.html?url=#{SCORE_URL}"

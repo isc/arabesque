@@ -113,7 +113,7 @@ class KeyboardHintTest < CapybaraTestBase
   end
 
   # Feedback dea5ac23: a player who reads fluently was closing it at every
-  # session. "Ne plus l'afficher" puts it away beyond the day, and the ⚙️ menu
+  # session. "Ne plus l'afficher" puts it away beyond the day, and the settings menu
   # is the way back.
   def test_it_can_be_put_away_for_good_and_let_back_from_the_menu
     open_two_measures

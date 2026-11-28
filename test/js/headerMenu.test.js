@@ -1,11 +1,11 @@
 import { describe, it, expect, vi } from 'vitest'
 
-// The ⚙️ menu both pages spread into their component, a fresh object a call.
+// The settings menu both pages spread into their component, a fresh object a call.
 // installPrompt.js, which it imports, listens on window as it loads.
 vi.stubGlobal('window', new EventTarget())
 const { headerMenu } = await import('../../public/js/headerMenu.js')
 
-describe('Escape on the ⚙️ menu', () => {
+describe('Escape on the settings menu', () => {
   // The library used to close everything at once and the score page a layer at
   // a time; both go through this now.
   it('closes the menu first, then a modal it opened, and says when there was nothing', () => {

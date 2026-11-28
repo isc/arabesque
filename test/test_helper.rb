@@ -89,7 +89,7 @@ class CapybaraTestBase < Minitest::Test
   # no expires_at: a page reading the address out of it needs neither), and
   # supabase-js binned it about half a second into the page, taking the test's
   # first assertion down whenever a shard needed longer than that to click
-  # through the ⚙️ menu. The sync that fetches the client is one library.js
+  # through the settings menu. The sync that fetches the client is one library.js
   # starts after the load event, so `visit` cannot wait for it and no ordering
   # inside the test can avoid it.
   #
@@ -181,7 +181,7 @@ class CapybaraTestBase < Minitest::Test
     end
   end
 
-  # The ⚙️ popover, shared by every page that mounts the header menu.
+  # The settings popover, shared by every page that mounts the header menu.
   def open_menu
     find('.pt-changelog-btn').click
     assert_selector '.pt-popover', visible: true

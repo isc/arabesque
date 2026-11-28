@@ -1,4 +1,4 @@
-// Shared header chrome — the ⚙️ menu and its modals, identical on every page
+// Shared header chrome — the settings menu and its modals, identical on every page
 // that carries it.
 //
 // Every page of the app gets the exact same menu (load a score, what's new,
@@ -202,7 +202,7 @@ export function headerMenu() {
   }
 }
 
-// The ⚙️ trigger + popover. Replaces a [data-menu-slot] placeholder so it lands
+// The settings trigger + popover. Replaces a [data-menu-slot] placeholder so it lands
 // exactly where each page wants it in the header.
 const TRIGGER_HTML = `
 <div class="pt-popover-anchor"
@@ -290,7 +290,7 @@ const MODALS_HTML = `
     <div class="pt-modal-body">
     <template x-if="feedbackStatus === 'sent'">
       <div>
-        <p x-text="$t('feedback.thanks')">Merci, c’est bien reçu ! 🙏</p>
+        <p x-text="$t('feedback.thanks')">Merci, c’est bien reçu !</p>
         <footer>
           <button type="button" @click="closeFeedback()" x-text="$t('common.close')">Fermer</button>
         </footer>

@@ -3,7 +3,7 @@ require 'json'
 
 # The feedback form's e-mail field, which now opens on an address instead of
 # blank — six of one evening's eight reports came in with none, from someone who
-# has one. What needs a browser is the wiring: the field is filled when the ⚙️
+# has one. What needs a browser is the wiring: the field is filled when the settings
 # menu opens it, still editable, and what leaves is what the player left in it.
 # The precedence rules themselves are pinned in test/js/feedbackEmail.test.js.
 class FeedbackFormTest < CapybaraTestBase

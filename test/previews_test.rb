@@ -1,6 +1,6 @@
 require_relative 'test_helper'
 
-# Branch previews, opened from the ⚙️ menu (previews.js): how the iPad, whose
+# Branch previews, opened from the settings menu (previews.js): how the iPad, whose
 # Safari has no Web MIDI, gets to play one inside the app. The test server
 # serves the previews test/fixtures/previews-index.json lists, each one this
 # same build under previews/<slug>/, as GitHub Pages does (app.rb).
@@ -66,7 +66,7 @@ class PreviewsTest < CapybaraTestBase
   def show_previews
     visit '/support.html'
     tap_version_line
-    assert_selector '.pt-version-line', text: 'préversions affichées dans le menu ⚙️'
+    assert_selector '.pt-version-line', text: 'préversions affichées dans le menu'
   end
 
   def tap_version_line
