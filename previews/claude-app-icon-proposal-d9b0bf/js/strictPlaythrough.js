@@ -1,20 +1,20 @@
-import { scheduleCursorAdvances } from './playback.js?v=8e1545852b35'
+import { scheduleCursorAdvances } from './playback.js?v=cd8a61637d5a'
 import {
   tsToSeconds,
   buildMeasureStartTimes,
   buildCursorTimeline,
   cursorStepsBeforeMeasure,
   measureIndexAt,
-} from './playbackTiming.js?v=8e1545852b35'
-import { handsKey } from './hands.js?v=8e1545852b35'
-import { prepareClick, playClick, clickTrack } from './metronomeClick.js?v=8e1545852b35'
+} from './playbackTiming.js?v=cd8a61637d5a'
+import { handsKey } from './hands.js?v=cd8a61637d5a'
+import { prepareClick, playClick, clickTrack } from './metronomeClick.js?v=cd8a61637d5a'
 import {
   requiredSequence,
   isNoteActiveForHands,
   sourceMeasuresToResetOnEntry,
   svgNoteheadFor,
   handOfNote,
-} from './noteExtraction.js?v=8e1545852b35'
+} from './noteExtraction.js?v=cd8a61637d5a'
 import {
   findMatchingEvent,
   nearestOwedEvent,
@@ -24,7 +24,7 @@ import {
   isGraceStrike,
   EVENT_STATUS,
   CLASSIFICATION,
-} from './strictMatching.js?v=8e1545852b35'
+} from './strictMatching.js?v=cd8a61637d5a'
 
 const DEFAULT_TOLERANCE_MS = 150
 // Notes played beyond the strict tolerance but within this wider window are
@@ -173,6 +173,9 @@ function start({
   startMeasureIndex = 0,
   // Inclusive; the run goes to the end of the score by default.
   endMeasureIndex = null,
+  // Whether the page is to be left where it is as the cursor changes system
+  // (scheduleCursorAdvances).
+  staysPut,
   onComplete,
   onProgress,
   onCountIn,
@@ -334,7 +337,7 @@ function start({
     const before = Math.max(0, cursorTimes.findIndex((ms) => ms >= countInMs - 1))
     timeouts.push(...scheduleCursorAdvances(osmdInstance.cursor, cursorTimes.slice(before), {
       skipSteps: cursorSkipSteps + before,
-      keepInView: endMeasureIndex != null,
+      staysPut,
     }))
   }
 

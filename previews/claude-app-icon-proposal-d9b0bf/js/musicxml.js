@@ -12,17 +12,17 @@ import {
   handOfNote,
   handOfStaff,
   isInnerStaff,
-} from './noteExtraction.js?v=8e1545852b35'
-import { scrollSystemIntoView, isInFullView, isUnderStickyBars, nextPaint } from './utils.js?v=8e1545852b35'
-import { placeChordFingerings } from './chordFingerings.js?v=8e1545852b35'
-import { arrayBufferToXml, isMusicXml } from './mxlLoader.js?v=8e1545852b35'
-import { stripPlaybackTempoMarks } from './tempoMarks.js?v=8e1545852b35'
-import { recordError } from './errorLog.js?v=8e1545852b35'
-import { REINFORCEMENT_CLEAN_PASSES } from './reinforcement.js?v=8e1545852b35'
-import { POSITION_EPSILON, beatIndex, beatStartOf, crotchetsPerMinute, excess } from './noteLogAnalysis.js?v=8e1545852b35'
-import { createSteadiness } from './steadiness.js?v=8e1545852b35'
-import { handsKey, handsOfKey } from './hands.js?v=8e1545852b35'
-import { climbOn, isGuided, ladderOf, rungs, startOfTurn, stepOf } from './ladder.js?v=8e1545852b35'
+} from './noteExtraction.js?v=cd8a61637d5a'
+import { scrollSystemIntoView, isInFullView, isUnderStickyBars, nextPaint } from './utils.js?v=cd8a61637d5a'
+import { placeChordFingerings } from './chordFingerings.js?v=cd8a61637d5a'
+import { arrayBufferToXml, isMusicXml } from './mxlLoader.js?v=cd8a61637d5a'
+import { stripPlaybackTempoMarks } from './tempoMarks.js?v=cd8a61637d5a'
+import { recordError } from './errorLog.js?v=cd8a61637d5a'
+import { REINFORCEMENT_CLEAN_PASSES } from './reinforcement.js?v=cd8a61637d5a'
+import { POSITION_EPSILON, beatIndex, beatStartOf, crotchetsPerMinute, excess } from './noteLogAnalysis.js?v=cd8a61637d5a'
+import { createSteadiness } from './steadiness.js?v=cd8a61637d5a'
+import { handsKey, handsOfKey } from './hands.js?v=cd8a61637d5a'
+import { climbOn, isGuided, ladderOf, rungs, startOfTurn, stepOf } from './ladder.js?v=cd8a61637d5a'
 
 // The score on the stand: the sheet OSMD holds, and the note model built from
 // it. Replaced as a sheet comes in (renderMusicXML) and as it is drawn
@@ -361,6 +361,7 @@ export function initMusicXML() {
       targetRepeatCount,
     }),
     scrollToMeasure,
+    passageStaysPut,
     // The training cursor and repeat dots live in the SVG, so a redraw takes
     // them with it. No-op outside training mode.
     updateMeasureCursor,
@@ -1787,18 +1788,27 @@ function scrollToNextMeasureIfNeeded(nextIndex) {
   // carries its dots under the sticky bars, with nothing else to bring them back.
   const dotsTop = repeatIndicatorsTopY(nextIndex)
   const dotsHidden = dotsTop !== null && isUnderStickyBars(dotsTop)
-  if (dotsHidden || (systemChanged && !staysInView(nextIndex))) scrollToMeasure(nextIndex)
+  if (dotsHidden || (systemChanged && !passageStaysPut(training.start, training.end))) scrollToMeasure(nextIndex)
   if (systemChanged || dotsHidden) cursor.systemIndex = nextSystemIndex
 }
 
-// A passage played again and again leaves the page where it is while the bar
-// it moves on to is all on screen: one across two systems that both fit went
-// up and down with every repetition (feedback 029831ab).
-function staysInView(measureIndex) {
-  return training.end != null && measureRects(measureIndex).every((rect) => {
-    const { top, bottom } = rect.getBoundingClientRect()
-    return isInFullView(top, bottom)
-  })
+// Whether the page is left where it is as the passage from `first` to `last`
+// moves on to another system: when it is played again and again — it has an
+// end — and all of it is on screen. One across two systems that both fit went
+// up and down with every repetition (feedback 029831ab). All of its bars, not
+// the one being moved onto: a passage on three systems, two of them fitting,
+// then held the page on the first while the second was played, the third cut
+// off below with nothing to read ahead in (feedback 811f413a). One that does
+// not fit is followed a system at a time, as free play is.
+function passageStaysPut(first, last) {
+  if (last == null) return false
+  for (let index = first; index <= last; index++) {
+    for (const rect of measureRects(index)) {
+      const { top, bottom } = rect.getBoundingClientRect()
+      if (!isInFullView(top, bottom)) return false
+    }
+  }
+  return true
 }
 
 // Moves the training cursor onto `to` and opens the measure there. What the

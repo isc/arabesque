@@ -3,9 +3,9 @@
 // (its history), and the calendar's squares, with what a year of them adds up
 // to and the streaks they make. Pure: sessions in, rows out; the tracker reads
 // the sessions and the names of their scores (practiceTracker.js).
-import { localDayKey, shiftDayKey, sessionDay } from './days.js?v=8e1545852b35'
-import { computeSessionDuration, getFullPlaythroughs, getLastMeasureEndTime, playedInFull } from './practiceTime.js?v=8e1545852b35'
-import { REINFORCEMENT_CLEAN_PASSES } from './reinforcement.js?v=8e1545852b35'
+import { localDayKey, shiftDayKey, sessionDay } from './days.js?v=cd8a61637d5a'
+import { computeSessionDuration, getFullPlaythroughs, getLastMeasureEndTime, playedInFull } from './practiceTime.js?v=cd8a61637d5a'
+import { REINFORCEMENT_CLEAN_PASSES } from './reinforcement.js?v=cd8a61637d5a'
 
 // One day of the journal, its scores named by `names` (scoreId →
 // { title, composer }).
